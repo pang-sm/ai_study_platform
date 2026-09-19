@@ -7,6 +7,7 @@ BASE = Path(__file__).resolve().parent.parent.parent.parent.parent
 sys.path.insert(0, str(BASE))
 from database import SessionLocal
 import models
+import past_paper_upsert
 
 TXT = BASE / "exam_resources/11408/computer_network/past_papers/raw/11408_2022_2026_计算机网络_题目答案.txt"
 CHKD = BASE / "exam_resources/11408/computer_network/past_papers/checked"
@@ -267,23 +268,16 @@ def main():
         print("DRY-RUN: skipping DB import.")
         return
 
-    # Import to DB
+    # Import to DB — stable-key reconcile (never DELETE): a re-import must not change
+    # exam_question_bank.id, or every done-record / wrong-answer / favorite / attempt
+    # referencing these rows breaks silently.
     db = SessionLocal()
-    deleted = db.query(models.ExamQuestionBank).filter(
-        models.ExamQuestionBank.subject_key == SUBJECT_KEY,
-        models.ExamQuestionBank.source_type == "past_paper",
-    ).delete()
-    db.commit()
-    print(f"Deleted {deleted} old CN past papers")
 
-    ins = 0
-    for q in questions:
-        item = models.ExamQuestionBank(
-            subject_key=SUBJECT_KEY, subject_name=SUBJECT_NAME,
-            source_type="past_paper", visibility="public",
+    def _row_values(q):
+        return dict(
+            subject_name=SUBJECT_NAME, visibility="public",
             knowledge_point_id="", knowledge_point_name="",
             knowledge_point_path="",
-            year=q['year'], question_number=q['question_number'],
             question_type=q['question_type'],
             stem=q['question_text'],
             options_json=json.dumps(q.get('options', {}), ensure_ascii=False),
@@ -292,10 +286,12 @@ def main():
             difficulty="基础",
             source_ref=f"past_paper:{q['source_ref']}",
             quality_status=q['text_quality'],
-            is_active=True,
         )
-        db.add(item); ins += 1
-    db.commit()
+
+    ins, upd, deact, dup_groups, unkeyed = past_paper_upsert.upsert_past_paper_questions(
+        db, models, SUBJECT_KEY, questions, _row_values)
+    print(f"DB: {ins} inserted, {upd} updated in place, {deact} deactivated, "
+          f"{dup_groups} legacy duplicate groups left untouched, {unkeyed} unkeyed")
 
     act = db.query(models.ExamQuestionBank).filter(
         models.ExamQuestionBank.subject_key == SUBJECT_KEY,

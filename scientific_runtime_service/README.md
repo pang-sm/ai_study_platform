@@ -1,8 +1,8 @@
 # zhixue-runtime service (Python scientific runtime)
 
 Stateless scientific inference service. It owns **no** product data and **no** product
-decisions — it only runs `student_twin` deterministic replay over an event history that
-the Java backend already selected and ordered.
+decisions — it executes the components below over inputs the Product Backend has already
+selected, ordered and made real.
 
 ## Endpoints
 
@@ -11,6 +11,14 @@ the Java backend already selected and ordered.
 | GET | `/health` | liveness (status, runtime_release_id, component) |
 | GET | `/v1/capabilities` | which components this service exposes |
 | POST | `/v1/inference/student-twin` | deterministic StudentTwin replay → state |
+| POST | `/v1/inference/misconception-v2` | candidate-misconception retrieval → similarity |
+| POST | `/v1/inference/tutor-policy` | suggested pedagogical action (focus/generic/probing/telling) |
+| POST | `/v1/inference/learner-state` | knowledge tracing → next-response P(correct) |
+| POST | `/v1/inference/evidence-reliability` | reliability-weight PANEL (5 variants) |
+
+An endpoint existing here means the component is **reachable** — it does not mean the
+product can honestly feed it or show it. Product-facing readiness is reported by the
+Product Backend at `GET /exam/prep/scientific/capabilities`.
 
 ## Binding
 

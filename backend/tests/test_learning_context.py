@@ -28,7 +28,7 @@ def test_unknown_field_rejected():
 
 
 def test_frozen_immutable():
-    ctx = LearningContext(service_namespace="exam_11408")
+    ctx = LearningContext(service_namespace="exam_prep")
     with pytest.raises((TypeError, ValueError)):
         ctx.course_id = "mutated"  # frozen=True forbids attribute assignment
 
@@ -51,11 +51,11 @@ def test_to_event_context():
     assert ec["course_id"] == "c1"
     assert ec["knowledge_point_id"] == "kp1"
     # canonical service_namespace maps 1:1 onto the LearningEvent service_key column
-    assert ec["service_namespace"] in ("course_learning", "exam_11408", "programming")
+    assert ec["service_namespace"] in ("course_learning", "exam_prep", "programming")
 
 
 def test_namespace_helpers():
-    assert VALID_SERVICE_NAMESPACES == {"course_learning", "exam_11408", "programming"}
+    assert VALID_SERVICE_NAMESPACES == {"course_learning", "exam_prep", "programming"}
     assert is_valid_service_namespace("course_learning") is True
     assert is_valid_service_namespace("programming") is True
     assert is_valid_service_namespace("bogus") is False

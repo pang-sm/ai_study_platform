@@ -10,6 +10,8 @@ import time
 
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
+from core import timeutil
+
 from . import identity, snapshots
 from .emitter import SOURCE_TYPE, SERVICE_KEY, EVENT_TYPE
 from .models import LearningEvent
@@ -32,7 +34,7 @@ def build_backfill_events(attempt, user_id) -> list:
     if "question_id" in res and not result_items:
         result_items[str(res["question_id"])] = res
 
-    occurred = (attempt.submitted_at.timestamp() if getattr(attempt, "submitted_at", None) else time.time())
+    occurred = timeutil.to_epoch_or_now(getattr(attempt, "submitted_at", None))
     events = []
     for idx, qid in enumerate(qids):
         qid_str = str(qid)

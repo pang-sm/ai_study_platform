@@ -1,4 +1,20 @@
+# Base runtime for the service itself. Enough to serve student_twin.
 numpy
 fastapi
 uvicorn[standard]
 pydantic
+
+# Component-scoped extras — NOT installed by default.
+#
+# The service imports each component's stack lazily, inside its adapter, so a deployment
+# that only serves student_twin needs none of these. The endpoints that DO need them
+# answer with a bounded 503 today:
+#
+#   misconception_v2  ->  torch, transformers, faiss-cpu
+#   tutor_policy      ->  torch, transformers
+#   learner_state     ->  torch
+#
+# Versions must match the scientific stack the components were validated against
+# (zhixue_runtime ~= torch 2.14 cpu / transformers 5.x / faiss-cpu 1.15). Installing a
+# different major version here would silently change the model's numerics, so they are
+# declared in requirements-components.txt rather than pinned blind in this file.

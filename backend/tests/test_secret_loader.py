@@ -1,6 +1,7 @@
 """STEP 7C-P: secret loader must never leak raw keys (fingerprint only)."""
 from ai.secrets import (
-    ALL_PROVIDERS, configured_providers, fingerprint, get_api_key, provider_status,
+    ALL_PROVIDERS, ARK_ENDPOINT_ENV, ark_endpoint_map, configured_providers, fingerprint,
+    get_api_key, provider_status,
 )
 
 
@@ -48,3 +49,22 @@ def test_legacy_alias_read(monkeypatch):
     monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
     monkeypatch.setenv("QWEN_API_KEY", "sk-legacy-alias-value")
     assert get_api_key("qwen") == "sk-legacy-alias-value"
+
+
+def test_ark_endpoint_map_reads_canonical_env(monkeypatch):
+    monkeypatch.setenv("ARK_ENDPOINT_DOUBAO_GENERAL", "ep-general-test")
+    monkeypatch.delenv("ARK_ENDPOINT_DOUBAO_AGENT", raising=False)
+    assert ark_endpoint_map() == {"doubao-general": "ep-general-test"}
+
+
+def test_ark_endpoint_map_empty_when_unset(monkeypatch):
+    for env_var in ARK_ENDPOINT_ENV.values():
+        monkeypatch.delenv(env_var, raising=False)
+    assert ark_endpoint_map() == {}
+
+
+def test_ark_endpoint_map_has_no_source_hardcoded_endpoint_ids():
+    # endpoint ids are deployment config, never source
+    for env_var in ARK_ENDPOINT_ENV.values():
+        assert env_var.startswith("ARK_ENDPOINT_")
+    assert all(not v.startswith("ep-") for v in ARK_ENDPOINT_ENV.values())

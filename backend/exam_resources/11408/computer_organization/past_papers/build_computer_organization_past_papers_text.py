@@ -233,29 +233,23 @@ ROOT = os.path.abspath(os.path.join(BASE, '..', '..', '..', '..'))  # go up to b
 sys.path.insert(0, ROOT)
 from database import SessionLocal
 import models
+import past_paper_upsert
 
 SUBJECT_KEY = 'computer_organization'
 SUBJECT_NAME = '计算机组成原理'
 
 db = SessionLocal()
-# Idempotent import: DELETE old CO past papers, then insert fresh.
-# (Previously used UPDATE is_active=False which accumulated one duplicate
-# batch per deploy — the root cause of the 5070-question over-seeding.)
-deleted = db.query(models.ExamQuestionBank).filter(
-    models.ExamQuestionBank.subject_key == SUBJECT_KEY,
-    models.ExamQuestionBank.source_type == 'past_paper',
-).delete()
-db.commit()
-print(f'Deleted {deleted} old CO past paper questions')
+# Idempotent import via stable key (subject_key, year, question_number).
+# History: this file used to DELETE + INSERT, which kept counts clean but changed
+# exam_question_bank.id on every run and silently broke every done-record /
+# wrong-answer / favorite / attempt pointing at these rows. The reconcile below
+# updates content IN PLACE and preserves ids; it never deletes.
 
-inserted = 0
-for q in questions:
-    item = models.ExamQuestionBank(
-        subject_key=SUBJECT_KEY, subject_name=SUBJECT_NAME,
-        source_type='past_paper', visibility='public',
+def _row_values(q):
+    return dict(
+        subject_name=SUBJECT_NAME, visibility='public',
         knowledge_point_id='', knowledge_point_name='',
         knowledge_point_path='',
-        year=q['year'], question_number=q['question_number'],
         question_type=q['question_type'],
         stem=q.get('question_text', ''),
         options_json=json.dumps(q.get('options', {}), ensure_ascii=False),
@@ -263,11 +257,12 @@ for q in questions:
         analysis='',
         difficulty='基础',
         source_ref=f'past_paper:{q.get("source_ref", "")}',
-        is_active=True,
     )
-    db.add(item)
-    inserted += 1
-db.commit()
+
+inserted, updated, deactivated, dup_groups, unkeyed = \
+    past_paper_upsert.upsert_past_paper_questions(db, models, SUBJECT_KEY, questions, _row_values)
+print(f'DB: {inserted} inserted, {updated} updated in place, {deactivated} deactivated, '
+      f'{dup_groups} legacy duplicate groups left untouched, {unkeyed} unkeyed')
 
 active = db.query(models.ExamQuestionBank).filter(
     models.ExamQuestionBank.subject_key == SUBJECT_KEY,
@@ -275,5 +270,5 @@ active = db.query(models.ExamQuestionBank).filter(
     models.ExamQuestionBank.is_active == True,
 ).count()
 db.close()
-print(f'DB: {inserted} inserted, {active} active')
+print(f'DB: {active} active past paper rows')
 print(f'APPLY complete.')

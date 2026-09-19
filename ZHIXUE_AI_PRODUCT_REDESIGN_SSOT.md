@@ -51,7 +51,7 @@
 │
 ├─ Learning Spaces
 │  ├─ course_learning
-│  ├─ exam_11408
+│  ├─ exam_prep        （CURRENT：只装载 CS408 / legacy 11408；STEP7H0 FD-5）
 │  └─ programming
 │
 ├─ Learning Core
@@ -748,52 +748,129 @@ Later：
 
 ---
 
-# 14. Exam 11408（TARGET）
+# 14. Exam Prep —— 由「Exam 11408」升级而来
 
-Context：
+> STEP7H0（域审计 + 架构冻结）与 STEP7H1（canonical namespace + context 兼容基础）
+> 均已冻结。设计见 `STEP7H0_UNIFIED_EXAM_PREP_ARCHITECTURE.md`，
+> 实施见 `STEP7H1_EXAM_PREP_NAMESPACE_CONTEXT_ACCEPTANCE_REPORT.md`。
+> **CURRENT**：namespace 已是 `exam_prep`；实际装载内容 = CS408（legacy 11408 数据，
+> 9333 题零改动）；前端已移除。
+> **TARGET**：§14.3 的完整全国统考科目范围（math / politics / law / management /
+> education / psychology / history …）已在 STEP7H4 的 catalog 中**可表达、可选择**
+> （FRAMEWORK_ONLY），但**真实内容尚未导入** —— 导入必须等用户明确批准（STEP7H0 §21）。
+
+## 14.1 产品定义（FROZEN）
+
+Exam Prep 只支持 **全国统一命题 / 全国统考型研究生招生考试科目**。
 
 ```text
-service_namespace = exam_11408
-subject
-chapter
-knowledge_point
+INSTITUTION_SPECIFIC_EXAMS = OUT OF SCOPE
 ```
 
-四科：
+院校自命题专业课、院校 specific exam code、院校 specific syllabus、院校参考书、
+院校专业目录自动解析 —— **均不支持**，且**不得**建立
+`institution_id` / `school_id` / `college` / `major_code` / `school_exam_code` /
+`institution_exam_plan` / `school_specific_subject` 等模型。
+（legacy 存在的院校库/目标院校只做 inventory，冻结不再扩展。）
+
+## 14.2 一级概念降级
 
 ```text
-data_structure
-computer_organization
-operating_system
-computer_network
+CURRENT  11408 = 一级业务空间
+TARGET   Exam Prep = 一级业务空间；
+         11408 = Exam Prep → Computer Science → CS 408 track
 ```
 
-MVP：
+```text
+Learning
+├─ Course Learning
+├─ Exam Prep          ← 唯一考试空间
+└─ Programming
+```
 
-- 四科导航
-- 知识脉络
-- 章节学习
-- 真题
-- 章节练习
-- 错题
-- AI 解析
-- AI 出题
-- 学习计划
-- 学习记录
-- 科目进度
+## 14.3 Exam Prep 内部结构（CONFIG，非 SQL 表）
 
-V1：
+```text
+ExamTrack     用户选择的完整备考组合/方向
+              cs_408 / management_joint / economics_joint /
+              law_jm_law / law_jm_non_law / education / psychology / history
 
-- 薄弱章节
-- 真题错因
-- 自适应练习
-- 智能复习
-- 11408 学习报告
+ExamSubject   实际考试科目
+              公共课      politics / english_1 / english_2 / math_1 / math_2 / math_3
+              统考专业课  cs_408 / management_aptitude / economics_joint_aptitude /
+                         law_master_law_1|2 / law_master_non_law_1|2 /
+                         education_basics / psychology_basics / history_basics
+              可扩展位    医学 / 农学 / 其他未来全国统一命题科目（本轮不列具体代码）
 
-Later：
+ExamModule    Subject 内部具有独立教学结构的组成部分
+              cs_408   → data_structure / computer_organization /
+                         operating_system / computer_network
+              math_1   → calculus / linear_algebra / probability_statistics
+              math_2   → calculus / linear_algebra
+              math_3   → calculus / linear_algebra / probability_statistics
+```
 
-- 冲刺自动规划
-- 严格验证后的分数 / 能力预测
+**三者不得合并为一个枚举**；**不得预设一个 Track = 固定的一组 Subject**
+（真实公共课组合可因学位类型/院校要求/年份政策而变，模型必须允许用户覆盖默认组合）。
+
+层级：`ExamTrack → ExamSubject → ExamModule → Chapter → KnowledgePoint`，
+**全部不新建 SQL 表**：前三级 = versioned CONFIG；Chapter / KnowledgePoint =
+已有静态资源（`seed_data/knowledge_maps/*.json` + 题库自带 `knowledge_point_*`）。
+**不得**把 `knowledge_points` 表（32 行，属 programming-C ontology）当作 Exam 知识点。
+
+## 14.4 Context（STEP7H1 已实现）
+
+```text
+service_namespace = exam_prep          （canonical；exam_11408 等为 INPUT alias）
+
+exam_track_id?        cs_408
+exam_subject_id?      cs_408（事件 subject_key 列取此值）
+exam_module_id?       data_structure（LearningContext.subject_key 是其 legacy mirror）
+chapter_id?
+knowledge_point_id?
+material_ids?
+session_id?
+```
+
+继续使用**唯一一个** canonical `core.LearningContext`，未新建 `ExamLearningContext`。
+
+```text
+LEGACY_SUBJECT_KEY_MIRROR = exam_module_id
+EVENT_SUBJECT_KEY         = exam_subject_id
+exam_track_id             → 不进 learning_events、不进任何 identity
+```
+
+新增模块 `backend/learning/spaces/exam_prep/{catalog,scope,context,ai}.py`：
+CS408 常量 + legacy scope id 纯函数适配器（fail closed）+ `build_exam_context` /
+`cs408_context`（endpoint 不手写映射）+ `execute_exam_ai`。
+
+身份冻结（STEP7H1）：practice 行的确定性 uid key 在**冻结 token** 上 ——
+`IDENTITY_TOKEN_BY_NAMESPACE = {course_learning: course_learning,
+exam_prep: exam_11408, programming: programming}`。改名不会重识别历史 attempt，
+且与环境/数据历史无关。
+
+## 14.5 CURRENT：CS408 / legacy 11408（已实测）
+
+```text
+CURRENT COMPLETE DATA TRACK = CS408 / legacy 11408
+  exam_question_bank = 9333（chapter 9098 / past_paper 235）
+  exam 路由 = 52；exam 表 = 14；静态资产 = exam_resources 263 + static/exam_papers 564
+  module 身份 = subject_key（data_structure / computer_organization /
+                            operating_system / computer_network）
+  CS408 mapping = track cs_408 + subject cs_408 + module=subject_key（adapter 解释，
+                  9333 行零改动）
+```
+
+## 14.6 能力范围
+
+MVP（CURRENT + 后续）：四科导航 / 知识脉络 / 章节学习 / 真题 / 章节练习 / 错题 /
+AI 解析 / AI 出题 / 学习计划 / 学习记录 / 科目进度。
+
+V1：薄弱章节 / 真题错因 / 自适应练习 / 智能复习 / 学习报告。
+
+Later：冲刺自动规划 / 严格验证后的分数与能力预测。
+
+> **尚未实现的能力不得写成已实现**。上列除 CURRENT 部分外均为 TARGET/PLANNED。
 
 ---
 
@@ -1389,7 +1466,7 @@ reports
 
 ```text
 course_learning
-exam_11408
+exam_prep        （CURRENT 存储值 = exam_11408；STEP7H1 起 canonical，见 §14 / §29）
 programming
 ```
 
@@ -1438,6 +1515,16 @@ Scientific Runtime Client
 
 # 29. LearningContext（FROZEN）
 
+> **STEP7H1 更新（已实现，FROZEN）**：考试空间的 canonical `service_namespace`
+> 已升级为 **`exam_prep`**；`exam_11408` 及 `exam` / `exam_408` / `11408` 降为
+> **INPUT alias**（边界归一化一次，绝不落库）。`is_valid_service_namespace("exam_11408")`
+> = False；`normalize_service_namespace("exam_11408")` = `"exam_prep"`。
+> 同时新增考试专属可选字段 `exam_track_id?` / `exam_subject_id?` / `exam_module_id?`，
+> 见 §14.4 与 `STEP7H1_EXAM_PREP_NAMESPACE_CONTEXT_ACCEPTANCE_REPORT.md`。
+> 继续只有**一个** canonical LearningContext，未新建 `ExamLearningContext`。
+> **仍不改名**：`exam_11408` 作为 legacy 会员 service_key / legacy 额度桶 key /
+> 资料域标签的用法属于另一个维度，随统一会员落地一并退役。
+
 统一 Context：
 
 ```text
@@ -1445,13 +1532,17 @@ user_id
 
 service_namespace:
   course_learning
-  exam_11408
+  exam_prep
   programming
 
 course_id?
 subject?
 chapter_id?
 knowledge_point_id?
+
+exam_track_id?        （exam_prep）
+exam_subject_id?      （exam_prep；事件 subject_key 列取此值）
+exam_module_id?       （exam_prep；同时是 context.subject_key 的 legacy mirror）
 
 programming_language?
 exercise_id?
@@ -2050,6 +2141,12 @@ backend/data/programming_catalog/
 
 # 41. CURRENT Membership
 
+> **STEP7H0 澄清（重要）**：本节出现的 `exam_11408` 是 **legacy 会员 service_key /
+> 额度桶 key**，**不是**学习空间 namespace。二者今天共用同一个字符串，但语义不同：
+> 学习空间 namespace 将升级为 `exam_prep`（§14 / §29 / STEP7H0 FD-5），
+> 而 legacy 会员 service_key **不改名** —— 它随「统一会员」落地而**退役**，
+> 不是被改名。审计时不得把两者混为一谈（见 STEP7H0 §5.1 EXAM_NAMESPACE_IMPACT_MATRIX）。
+
 当前仍是旧体系：
 
 ```text
@@ -2292,7 +2389,7 @@ FTS5 / BM25
 
 前端已移除。
 
-## 45.2 exam_11408
+## 45.2 exam_11408（= TARGET 的 Exam Prep；CURRENT 只承载 CS408）
 
 当前拥有：
 
@@ -2309,6 +2406,19 @@ records
 ```
 
 前端已移除。
+
+**STEP7H0 实测补充（CURRENT，只读审计 2026-09-16）**：
+
+```text
+exam 路由 = 52（/exam/11408/* 47 + /exam-408/* 4 + /me/tracks/exam_408/package 1）
+exam 表   = 14（另共享 practice_sessions/attempts、wrong_answer_states、
+               user_knowledge_progress、learning_events）
+行数      = exam_question_bank 9333（chapter 9098 / past_paper 235）；其余 exam 用户态表全为 0
+静态资产  = backend/exam_resources 263 文件 + backend/static/exam_papers 564 文件
+            + seed_data/knowledge_maps/*_11408.json ×4
+NEXT      = STEP7H1（canonical namespace → exam_prep）；详见
+            STEP7H0_UNIFIED_EXAM_PREP_ARCHITECTURE.md
+```
 
 ## 45.3 programming
 
@@ -2452,12 +2562,26 @@ scientific_runtime_service/
 127.0.0.1:8101
 ```
 
-已有：
+已有 endpoint（ACCEL_SPRINT_S4 端点清单审计后的 CURRENT；端点存在 ≠ 组件已产品化）：
 
 ```text
 /health
 /v1/capabilities
 /v1/inference/student-twin
+/v1/inference/misconception-v2
+/v1/inference/tutor-policy
+/v1/inference/learner-state
+/v1/inference/evidence-reliability
+```
+
+`/v1/capabilities` 报告的服务侧组件集合（= 5）：
+
+```text
+student_twin
+misconception_v2
+tutor_policy
+learner_state
+evidence_reliability
 ```
 
 Product Backend direct imports：
@@ -2475,7 +2599,7 @@ zhixue_runtime = NO
 13 / 13 FRESH_NATIVE_PASS
 ```
 
-但当前 Product Backend 正式工程链只有：
+但当前 Product Backend 正式工程链仍只有：
 
 ```text
 student_twin
@@ -2487,12 +2611,27 @@ student_twin
 controls_product_decision = false
 ```
 
-其余 12 个：
+Product Backend 侧另有 4 个**只读 / 非用户可见**的科学面（SHADOW 或 gated capability report）
+与 student_twin 并存：
+
+```text
+student_twin          PREVIEW                    user_visible
+misconception_v2      SHADOW_NOT_USER_VISIBLE    available, 非用户可见
+tutor_policy          SHADOW                     available=false（缺真实 turn-state 字段）
+learner_state         SHADOW_NOT_USER_VISIBLE    available=false（ontology / calibration）
+evidence_reliability  SHADOW_NOT_USER_VISIBLE    available=false（8 条独立 blocker）
+```
+
+以上 5 条的权威产品面读数由
+`GET /exam/prep/scientific/capabilities` 报告（product-facing readiness，不是端点清单）。
+
+其余 8 个（`memory` / `irt` / `concept_verifier` / `difficulty_prior` / `planner` /
+`tutor_guard` / `execution_router` / `domestic_registry`）：
 
 ```text
 runtime recovered
 +
-eligibility frozen as INELIGIBLE
+eligibility verdict frozen by data_plane.eligibility（BLOCKED / NOT_APPLICABLE）
 +
 no Product Backend client
 +
@@ -3251,8 +3390,8 @@ course_learning
 → chapter
 → knowledge_point
 
-exam_11408
-→ subject
+exam_11408            （CURRENT；TARGET = exam_prep，STEP7H1）
+→ subject             （TARGET 细化为 exam_track_id → exam_subject_id → exam_module_id）
 → chapter
 → knowledge_point
 
@@ -3265,6 +3404,11 @@ programming
 Credits 全局共享。
 
 业务数据不得串线。
+
+> **STEP7H0 补充（TARGET）**：考试空间的域上下文升级为
+> `exam_track_id → exam_subject_id → exam_module_id`。
+> `exam_track_id` **不进** learning_events、**不进**任何 identity（track 是用户侧备考组合选择，
+> 不是事实属性）；`exam_subject_id` → 事件 `subject_key` 列；`exam_module_id` → 事件 context JSON。
 
 ---
 
@@ -3503,14 +3647,23 @@ STEP6_SCIENTIFIC_PRODUCTIZATION_PLAN = FROZEN
 STEP6_COMPLETE = YES
 
 COMPONENT_COUNT = 13
-CURRENT: RUNTIME_ONLY = 13 / SHADOW = 0 / ADVISORY = 0 / ACTIVE = 0
+CURRENT: USER_VISIBLE_PREVIEW = 1（student_twin）/ RUNTIME_ONLY = 12
+         SHADOW_BRIDGE_ONLY = 2（misconception_v2 · tutor_policy —— 仅存在 SHADOW 桥，
+                                 不是产品化晋升）
+         ADVISORY = 0 / ACTIVE = 0
 ```
+
+> **ACCEL_SPRINT_S2 修订（2026-09-19，机制 §74-1 用户明确改变产品方向）。**
+> 本块其余内容为 STEP6（2026-09-15）冻结记录，其 FROZEN 科学语义不变；
+> 但 `student_twin` 的产品化目标已由用户显式改变，故上面一行 CURRENT 计数与下面的
+> MVP 分类同步更新。旧值（`RUNTIME_ONLY = 13` / `MVP SHADOW_ONLY`）不再作为 CURRENT。
 
 ## 13-component final classification
 
 ```text
-MVP（SHADOW_ONLY）:
-  student_twin
+MVP（USER_VISIBLE_PREVIEW）:
+  student_twin        （ACCEL_SPRINT_S2：MVP_TARGET 由 SHADOW_ONLY 改为
+                       USER_VISIBLE_PREVIEW；用户可见功能 = 学习状态实验视图）
 
 V1_CANDIDATES:
   evidence_reliability
@@ -3534,20 +3687,51 @@ RESEARCH_OR_INFRA:
 ## StudentTwin 冻结状态
 
 ```text
-CURRENT = RUNTIME_ONLY
-MVP_TARGET = SHADOW_ONLY
-MVP_USER_VISIBLE_FEATURE = NONE
+CURRENT = USER_VISIBLE_PREVIEW
+MVP_TARGET = USER_VISIBLE_PREVIEW
+MVP_USER_VISIBLE_FEATURE = 学习状态实验视图
 MVP_ADVISORY = NO
 MVP_ACTIVE = NO
 
+HARD_INVARIANTS（永久，不可被任何次级文件改写）
+  controls_product_decision = false
+  writes_learner_fact = false
+
+用户可见语义（唯一允许的表述）
+  确定性学习状态引擎（实验）
+
+禁止表述
+  AI掌握度预测 / 神经网络模型 / 掌握概率 / 考试预测
+
 StudentTwin runtime pass != product ready
+（runtime pass 仍是必要条件；产品化状态由上面的 MVP_TARGET 描述）
 
-AIQuestionAttempt / ai_question_attempts
-  = current only StudentTwin-eligible canonical source
+INPUT_DOMAIN_ELIGIBILITY（ACCEL_SPRINT_S2 产品决策，2026-09-19）
+  一个事实事件可以进入 StudentTwin，当且仅当它携带
+  「权威的二元正确性事实」：
+    1. 事件家族允许（course_practice / question_answered）；
+    2. user_answer 非空；
+    3. correct 恰为 true 或 false；
+    4. judge 不是 self_review。
+  未作答  → NOT eligible
+  self_review → NOT eligible
+  correct = null → NOT eligible
+  不得从 score 反推正确性。
 
-QuestionAttempt / question_attempts
+  这是 **输入域产品化决策**，不是科学算法变更：
+  StudentTwin 公式 / 状态转移规则 / runtime release id / 模型资产
+  全部保持不变。
+
+  question_answered 不得被改名为 course_practice，二者仍是两个家族。
+
+AIQuestionAttempt / ai_question_attempts（course_practice）
+  = StudentTwin-eligible canonical source（STEP6/7A 冻结，继续有效）
+
+QuestionAttempt / question_attempts（question_answered）
   = ordinary practice flow
-  = NOT StudentTwin eligible
+  = 自 ACCEL_SPRINT_S2 起 MAY be StudentTwin eligible，
+    但必须逐事件满足上面的 INPUT_DOMAIN_ELIGIBILITY；
+    家族级 eligible 是必要条件，不是充分条件。
 
 EVENT_RELIABILITY_DESIGN_FROZEN = YES
 STEP7_BACKFILL_EXTENSION_REQUIRED = NO
@@ -3610,9 +3794,17 @@ Production Deployment + Public Verification
 
 # 70. 当前下一步（NEXT）
 
-当前 STEP = `STEP_7`；`CURRENT_SUBSTEP = STEP_7C-P`；`NEXT_SUBSTEP = STEP_7D`。
+当前 STEP = `STEP_7`；`CURRENT_SUBSTEP = STEP_7H5`；`NEXT_SUBSTEP = FRONTEND`。
 
-**当前唯一正确动作：STEP 7D。**
+**STEP7H0 / STEP7H1 / STEP7H2 / STEP7H3 / STEP7H4 / STEP7H5 均已 FROZEN；
+STEP 7H **整体 FROZEN**，Exam Prep / CS408 后端验收完成。当前唯一正确动作：
+进入 `NEXT_MAJOR_PHASE = FRONTEND_REBUILD / FRONTEND_PRODUCT_IMPLEMENTATION`
+（全新前端产品实现）。**后端停止继续扩展。**
+（H5 已关闭三项长期债务：Exam 运行时 schema 的 Alembic 归属
+（migration `20260917_0008`，13 张表，fresh 部署可仅靠 `alembic upgrade head`）、
+前端 API 交接文档 `STEP7H_FRONTEND_API_HANDOFF.md`、以及一个 H4 漏登记的隔离缺陷
+（`PATCH /knowledge-map/progress` 带 exam scope 时把考试事实记成 course_learning 事件）。
+**非 408 真实内容导入仍未发生，必须等用户明确批准。**）**
 
 已完成并冻结的子步骤：
 
@@ -3621,6 +3813,18 @@ STEP7A   = FROZEN   Core Backend Foundation + LearningContext + Data Plane SHADO
 STEP7B   = FROZEN   Unified Subscription + Capability Permission + Usage Budget/Ledger + Cost
 STEP7C   = FROZEN   External AI Gateway + Qualified Model Pool + Router V0 + Real Cost Integration
 STEP7C-P = FROZEN   Provider Onboarding / Live Validation / Model Pool Calibration
+STEP7D   = FROZEN   Unified Practice Core
+STEP7E   = FROZEN   Unified Wrong Answer Core
+STEP7F   = FROZEN   Records / Data Plane Consolidation
+STEP7G   = FROZEN   Course Learning Space Consolidation
+                    （含 STEP7G-C2：Course AI → Unified AI Boundary）
+STEP7H0  = FROZEN   Exam Prep 域审计 + 架构冻结（只设计不实施）
+STEP7H1  = FROZEN   Exam Prep canonical namespace + context compatibility foundation
+STEP7H2  = FROZEN   CS408 Practice / Wrong Answers / Records consolidation
+STEP7H3  = FROZEN   Exam AI → Unified AIOrchestrator
+STEP7H4  = FROZEN   Multi-track / Multi-subject Exam Preparation catalog foundation
+STEP7H5  = FROZEN   Exam Prep / CS408 final backend acceptance + deployment hardening
+                    （STEP 7H 整体 FROZEN；NEXT_MAJOR_PHASE = FRONTEND）
 ```
 
 ### STEP 7A 完成标准（历史记录，已全部 PASS）
@@ -3670,8 +3874,8 @@ Provider Onboarding / Live Validation / Model Pool Calibration
 已读取 ZHIXUE_AI_PRODUCT_REDESIGN_SSOT。
 
 CURRENT_STEP = STEP_7
-CURRENT_SUBSTEP = STEP_7C-P
-NEXT_SUBSTEP = STEP_7D
+CURRENT_SUBSTEP = STEP_7H5
+NEXT_SUBSTEP = FRONTEND
 
 上一阶段：
 STEP 1–6 已冻结。
@@ -3681,9 +3885,34 @@ STEP 7 进行中，已冻结的子步骤：
 - STEP7B：Unified Subscription + Capability Permission + Usage Budget/Ledger + Cost
 - STEP7C：External AI Gateway + Qualified Model Pool + Router V0
 - STEP7C-P：Provider Onboarding / Live Validation / Model Pool Calibration
+- STEP7D：Unified Practice Core
+- STEP7E：Unified Wrong Answer Core
+- STEP7F：Records / Data Plane Consolidation
+- STEP7G：Course Learning Space Consolidation（含 STEP7G-C2 Course AI → Unified AI Boundary）
+- STEP7H0：Exam Prep 域审计 + 架构冻结（只设计不实施；产出
+  `STEP7H0_UNIFIED_EXAM_PREP_ARCHITECTURE.md`）
+- STEP7H1：Exam Prep canonical namespace + context compatibility foundation
+  （exam_prep / CS408 adapter / 冻结 identity token / D1·D2·D4 修复 / answer.grade 注册）
+- STEP7H2：CS408 Practice / Wrong Answers / Records consolidation
+  （三作答事实 1:1 接 Practice Core / past_exam scope 加 subject+module / D6 builder 修复）
+  + H2-C1 并发收尾（wrong projection compare-and-recompute；stress 门禁）
+- STEP7H3：Exam AI → Unified AIOrchestrator
+  （全部 exam 可达 AI 走 execute_exam_ai；answer.grade 落地；_grade_big_question 迁出 parser；
+   exam 侧 legacy auth/billing 退出 AI 决策）
+- STEP7H4：Multi-track / Multi-subject Exam Preparation catalog foundation
+  （catalog = versioned CONFIG；cs_408 = ACTIVE，其余 13 个全国统考科目 = FRAMEWORK_ONLY 零内容；
+   content gate 显式 EXAM_CONTENT_NOT_AVAILABLE；exam_prep_profiles = 真实用户态；
+   Exam knowledge 唯一写入边界收敛；migration HEAD = 20260917_0007）
+- STEP7H5：Exam Prep / CS408 final backend acceptance + deployment hardening + frontend handoff
+  （Exam 运行时 schema 的 Alembic 基线 migration 20260917_0008；
+   前端 API 交接文档 STEP7H_FRONTEND_API_HANDOFF.md；
+   修复 H4 漏登记的 exam scope → course_learning 事件隔离缺陷；
+   **STEP 7H 整体 FROZEN，后端停止扩展，进入前端阶段**）
 
 已完成的既有冻结：
-- 13 Scientific Component 产品化设计冻结（student_twin = MVP SHADOW_ONLY）
+- 13 Scientific Component 产品化设计冻结
+  （student_twin = MVP；**MVP_TARGET 已于 ACCEL_SPRINT_S2 由 SHADOW_ONLY 改为
+   USER_VISIBLE_PREVIEW，用户可见功能 = 学习状态实验视图**）
 - Git Reality 已澄清（DIVERGED；untracked==origin；LOCAL_ONLY 已识别）
 - Python file disposition 已冻结
 - Database migration matrix 已冻结（71 表）
@@ -3692,7 +3921,9 @@ STEP 7 进行中，已冻结的子步骤：
 当前正处于 STEP 7 后端实现 / 重构进行中（BACKEND_IMPLEMENTATION = IN_PROGRESS）。
 
 下一步：
-STEP 7D。
+**STEP 7H 已整体 FROZEN（H0–H5），后端停止继续扩展。**
+`NEXT_MAJOR_PHASE = FRONTEND_REBUILD / FRONTEND_PRODUCT_IMPLEMENTATION`
+（全新前端产品实现；契约见 `STEP7H_FRONTEND_API_HANDOFF.md`）。
 ```
 
 保留的重要 CURRENT：
@@ -3762,8 +3993,8 @@ NEW FULL FRONTEND = NOT_STARTED
 PRODUCTION_REDEPLOY = NOT_STARTED
 
 CURRENT_STEP = STEP_7
-CURRENT_SUBSTEP = STEP_7C-P
-NEXT_SUBSTEP = STEP_7D
+CURRENT_SUBSTEP = STEP_7H5
+NEXT_SUBSTEP = FRONTEND
 
 STEP7A = FROZEN（Core Backend Foundation + LearningContext + Data Plane SHADOW-ready）
 STEP7A_NOTES = Alembic 基础建立；learning_events/model_* 4 表已建；student_twin_mode
@@ -3785,16 +4016,925 @@ STEP7C_NOTES = backend/ai/{gateway,pricing,pool,router,cost,orchestrator} + prov
                GET /ai/models 上线；question-analysis endpoint 迁移到 orchestrator；
                Scientific Runtime 与 External Gateway 严格分离；BUDGET_AMOUNTS_STATUS = PROVISIONAL
 
-STEP7C-P = FROZEN（Provider Onboarding / Live Validation / Model Pool Calibration）
-STEP7C-P_NOTES = 6 Provider 全部配置（deepseek/qwen/doubao/kimi/glm/minimax，canonical env 名冻结）；
-                 PROVIDERS_CONFIGURED=6 / AUTH_OK=5 / QUALIFIED=5（Doubao=NO_MODEL_ACCESS，
-                 Ark endpoint-id 模式需 ep-xxx 映射）；live /models discovery + minimal smoke 全过；
-                 ZHIXUE_MODEL_POOL_CALIBRATION_V1 Stage 2 已执行（qwen3.8-flash/max 6/6，
-                 glm-5.3-flash/MiniMax 5/6，deepseek/glm-5/kimi-k2.6 4/6）；MODEL_POOL_VERSION=v3
-                 （POOL_QUALIFICATION_LEVEL=FINAL）；PRICING_REGISTRY_VERSION=v3（DeepSeek/Qwen/
-                 Kimi/GLM=OFFICIAL_DOC verified，MiniMax=CONSERVATIVE_CEILING）；
-                 cross-provider fallback（5 provider）；BUDGET_RECALIBRATION=KEEP（provisional）；
-                 CREDIT_NORMALIZATION_STATUS=KEEP_PROVISIONAL
+STEP7C-P = FROZEN（Provider Onboarding / Live Validation / Model Pool Calibration /
+                  Reasoning Reservation Hardening / Collaboration-Endpoint Isolation）
+STEP7C-P_NOTES = PROVIDERS_CONFIGURED=6 / AUTH_OK=6 / QUALIFIED=6；
+                 审计链（逐段保留，不覆盖历史）：
+                 [1] Doubao = AUTH_OK / NO_MODEL_ACCESS（Ark endpoint-id 模式，账户不可调用
+                     catalog 模型名；/models 返回 132 个目录模型但 chat 报 404）
+                 [2] Endpoint-ID configured → six provider connectivity：
+                     doubao-general（Doubao-Seed-2.1-pro）/ doubao-agent（Doubao-Seed-Evolving）
+                     两个推理接入点在 Ark 控制台创建；endpoint id 只存在于 backend/.env.local
+                     （gitignored），源码零硬编码；default_provider_factory / discovery /
+                     benchmark 统一读 ai.secrets.ark_endpoint_map()（无第二套 Ark 配置）；
+                     live smoke 双 endpoint PASS；GENERAL_BENCHMARK doubao-general 6/6、
+                     doubao-agent 6/6（参考）；AGENT_CAPABILITY_PROBE doubao-agent 3/3
+                 [3] reasoning reservation risk discovered → provider-aware reservation fixed：
+                     实测 max_tokens=64 仍计费 completion=566（reasoning=520）→ 旧
+                     「max_tokens == 最大计费 completion」假设失效，reserve 严重低估；
+                     Ark live parameter probe：THINKING_DISABLE_SUPPORTED=YES、
+                     REASONING_LIMIT_SUPPORTED=NO（thinking.enabled+budget_tokens=32 仍产出
+                     1308 reasoning tokens，字段被忽略）、MAX_TOKENS_COVERS_REASONING=NO；
+                     修复 = ai/cost.py ModelCostPolicy（provider/model 级 reservation policy：
+                     reasoning_billing（NONE/BOUNDED/UNBOUNDED/UNVERIFIED）/
+                     supports_thinking_control / reasoning_reserve_tokens /
+                     thinking_capabilities / thinking_default_on），
+                     PROVIDER_AWARE_RESERVATION=YES；doubao-general 生产路径改用 thinking OFF：
+                     在 ZHIXUE_MODEL_POOL_CALIBRATION_V1 6-case calibration 中 thinking ON/OFF
+                     同为 6/6（输出 token 为 ON 时的 1/8）——
+                     该结论仅限该 calibration，不外推为一般质量等价；
+                     doubao-agent 保留 thinking ON + conservative reserve
+                     （2048 tokens ≈ 观测最大值 1608 的 1.27x）；
+                     REASONING_BUDGET_BYPASS=NO、ADVANCED_WEEKLY_BUDGET_PROTECTED=YES；
+                     actual > reserve 不再静默 → error_category=reservation_overage
+                 [5] NON_ARK_REASONING_BILLING_VALIDATION（本轮新增，逐模型 live 实测）：
+                     固定 prompt + max_tokens=64 + provider 默认 temperature，实测结论——
+                     BOUNDED（max_tokens 确实封顶总计费 completion）：
+                       deepseek-v4-pro 与 deepseek-flash 与 glm-5 与 glm-5.3-flash
+                       （completion=64=max_tokens、reasoning=64、content 空、finish=length）、
+                       kimi-k2.6（64/64，reasoning 63）、
+                       MiniMax-M3（64=64 且 512=512，thinking 以 <think> 内联在 content 内）、
+                       MiniMax-M2.7-highspeed（64=64、453<=512，未上报 reasoning 字段）
+                     UNBOUNDED（新发现，本轮最重要的更正）：
+                       qwen3.8-flash（max_tokens=64 → completion 105/452，reasoning 83/429）、
+                       qwen3.8-max（同 → 197/78，reasoning 174/52）——
+                       即 max_tokens 只约束可见回答，reasoning 计在 completion_tokens 之上；
+                       qwen3.8-flash 是 FREE 档主模型，故这是真实预算漏洞而非理论风险；
+                       修复方式 = OPTION B（非 A）：实测「关闭 thinking」会损失质量
+                       （qwen3.8-max 在 gen-json-1 question.generate 上 thinking OFF
+                       0/3（mt=200）与 2/3（mt=800），thinking ON 3/3；
+                       qwen3.8-flash 在 6-case run 中 thinking OFF 亦失败 gen-json-1），
+                       故 Qwen 保留 thinking ON（enable_thinking=true）+ conservative reserve，
+                       不基于「其余 5 个 case 通过」外推为质量无损；
+                       QwenProvider 新增 enable_thinking 开关映射
+                     UNVERIFIED → fail conservative：未注册模型 reservation 一律叠加
+                     conservative reasoning allowance，禁止按 0 reasoning 估算；
+                     regression test 固化：每个生产池模型必须已有实测 verdict
+                     （禁止依赖 fail-conservative 默认值「碰巧」安全）；
+                     四个 Advanced 模型逐一证明 cannot bypass weekly budget
+                     （reserve >= 最大可计费 completion，且 budget gate 在 provider 调用前拒绝）
+                     [4] collaboration endpoint → production isolated：zhixue-doubao-agent
+                     接入点带「协作奖励计划」标记，该计划属「不使用提交内容训练基础模型」
+                     规则的例外情形 → 不承载真实学生私有学习数据；
+                     ai/pool.py 新增 deployment_eligibility（PRODUCTION / INTERNAL_ONLY /
+                     BENCHMARK_ONLY，CONFIG 非 SQL）；doubao-agent = BENCHMARK_ONLY
+                     （benchmark / internal 可用，生产 router 与 GET /ai/models 均不可见，
+                     explicit model 亦不可绕过）；doubao-general = PRODUCTION，
+                     Doubao Provider 仍进入 production model selection（不因隔离而移除）
+                 MODEL_POOL_VERSION=v4（POOL_QUALIFICATION_LEVEL=FINAL，Doubao 仅 ADVANCED，
+                 high_cost + thinking）；PRODUCTION_MODEL_POOL_VERSION=v4（生产候选 6 provider）；
+                 PRICING_REGISTRY_VERSION=v4（DeepSeek/Qwen/Kimi/GLM/Doubao=OFFICIAL_DOC
+                 verified，MiniMax=CONSERVATIVE_CEILING；Doubao=6.0/1.2/30.0 CNY per 1M，无峰谷）；
+                 cross-provider fallback（6 provider）；BUDGET_RECALIBRATION=KEEP（provisional）；
+                 CREDIT_NORMALIZATION_STATUS=KEEP_PROVISIONAL；
+                 DEEPSEEK_REASONING_BILLING_SAFE=YES / MINIMAX_REASONING_BILLING_SAFE=YES /
+                 GLM_REASONING_BILLING_SAFE=YES / KIMI_REASONING_BILLING_SAFE=YES（实测 BOUNDED）；
+                 ARK_REASONING_BILLING_SAFE=YES（UNBOUNDED 已由 thinking OFF / reserve 覆盖）；
+                 QWEN_REASONING_BILLING_SAFE=YES（UNBOUNDED 已由 thinking ON + reserve 覆盖）；
+                 REASONING_UNKNOWN_FAILS_CONSERVATIVE=YES；
+                 NON_ARK_THINKING_MODELS_REASONING_BILLING=VERIFIED（[5] 已逐模型实测，
+                 不再有按未验证假设处理的模型）；
+                 ARK_COLLAB_REWARD_PLAN_TERMS=UNVERIFIED_OFFICIAL_TEXT（官方正文不可机读；
+                 按条款例外情形一律隔离，不依赖条款解读）
+
+STEP7D = FROZEN（Unified Practice Core）
+STEP7D_NOTES = 统一练习主链 PracticeSession → QuestionRef → PracticeAttempt → Result →
+               (Explanation) → LearningEvent，覆盖 course_learning / exam_11408 / programming；
+               MIGRATION_HEAD=20260915_0003（additive-only）；
+               NEW_TABLES=practice_sessions / practice_attempts（**恰好两张**）；
+               WRONG_ANSWER_STATES_CREATED=NO（wrong_answer_states / review_* / plans / tasks /
+               learning_outcomes 均未创建，属后续 STEP）；
+               QuestionRef = **指针非副本**：题源类型取 SSOT §19 冻结集
+               （static_question_bank / past_exam / AI_generated / material_generated /
+               programming_exercise / adaptive），legacy 来源显式映射且 raw_source 逐字保留；
+               exam_question_bank=9333 / programming_exercises=1923 / knowledge_points=32
+               未迁移、未复制、未改写；
+               PracticeAttempt 视为不可变历史事实：attempt_uid 对 legacy 镜像为 UUIDv5
+               （namespace, source_attempt_type, source_attempt_id, source_item_key），
+               重导同 identity + 同 fact → dedupe，同 identity + 异 fact → AttemptConflict
+               拒绝覆盖；correct 为**三态** True/False/NULL，未判分大题与无裁决场景一律 NULL，
+               永不 bool(None)、永不猜；
+               legacy adapters（course=ai_question_attempts，exam=exam_practice_attempts +
+               past_paper_attempts，programming=programming_exercise_progress）以 try/except
+               失败隔离接入 main.py（+48/−1，仅 router 注册 + 5 处 hook），
+               legacy durable 行仍是 compatibility window 的 domain source of truth；
+               programming 取**真实判题**结果（last_submit_passed + 真实用例计数），
+               code_challenge_attempts 判为 INELIGIBLE（status 是 AI 散文关键词匹配，
+               用作 correctness 即伪造裁决）；programming_exercise_submissions 判为 INELIGIBLE
+               （与 progress 同一次提交，同时镜像会重复计数）；
+               BACKFILL 已实现（5 来源，FULL/PARTIAL/INELIGIBLE 分类 + 缺失字段显式登记），
+               BACKFILL_IDEMPOTENCY=PASS；REAL_BACKFILL_ROWS=0（当前无真实历史用户作答行，
+               不声称真实历史迁移已验证）；
+               EVENT_OWNER 冻结：course_practice 事件的唯一 owner 仍是既有 data_plane.emitter；
+               Practice Core 只为自己拥有的来源发 question_answered / code_submitted，
+               event_id 沿用冻结的 deterministic UUIDv5 函数；
+               STUDENT_TWIN_ELIGIBILITY_EXPANDED=NO（producer 只消费 event_type=course_practice，
+               Practice Core 结构性排除；exam/programming 即使产生 PracticeAttempt 仍
+               STUDENT_TWIN_ELIGIBLE=NO）；
+               CROSS_USER_ISOLATION / CROSS_NAMESPACE_ISOLATION / ATTEMPT_IDEMPOTENCY /
+               CONCURRENT_MIRROR_SAFETY = PASS；
+               FRESH_DB + LEGACY_DB_COPY 迁移验收 PASS（integrity_check=ok，静态资产不变）；
+               真实 backend/app.db 未在本轮修改（未盲跑迁移）；
+               TARGETED_TESTS=68 PASS；FULL_BACKEND_TESTS=459 passed / 0 failed（baseline 391）
+
+STEP7D_FINAL_RECONCILIATION = DONE（programming durability）
+STEP7D_RECONCILIATION_NOTES = STEP7D 报告曾记载「_record_programming_submission_progress 的写入
+               在一个最终未 commit 的事务中」——该结论**是错的**（源于一段被截断的代码摘录）。
+               逐行追踪真实 transaction ownership 后确认：
+               _record_programming_exercise_activity 末尾 db.commit()（main.py:10930 附近）
+               与 _record_programming_submission_progress 末尾 db.commit()（main.py:10956）
+               各自持久化；get_db 的 close 不丢任何已提交写入。
+               故不存在 durability gap，**未**机械地在 helper 内补 commit，
+               亦未创建重复的 programming submission 表。
+               PROGRAMMING_DURABLE_SOURCE=programming_exercise_progress（含 user_id/exercise_id/
+               language(取自静态 exercise)/submitted_at/last_submit_passed/真实用例计数）；
+               PROGRAMMING_CANONICAL_MIRROR=practice_attempts；一次真实提交 → 一条 canonical
+               attempt（PROGRAMMING_DOUBLE_COUNT=NO）；
+               PROGRAMMING_MIRROR_FAILURE_RECOVERABLE=YES（judge → durable commit → mirror 失败
+               → backfill 重建，字段/身份逐项一致，重跑插入 0）；
+               已知 PARTIAL：该表为 per-(user,exercise) 聚合，仅最后一次提交可重建；
+               code_challenge_attempts 的 status 仍是 AI 散文关键词匹配，
+               恒为 INELIGIBLE AS CORRECTNESS SOURCE
+
+STEP7E = FROZEN（Unified Wrong Answer Core）
+STEP7E_NOTES = PracticeAttempt → WrongAnswerState（用户 × canonical question 的**动态错误状态**，
+               不是 Question.is_wrong、不是 attempt 历史的副本、不是科学预测）；
+               MIGRATION_HEAD=20260915_0004；NEW_TABLES=wrong_answer_states（**EXACTLY ONE**）；
+               REVIEW_TABLES_CREATED=NO（review_items / review_attempts / review_schedules /
+               wrong_answer_attempt_history / wrong_answer_events 均未创建；
+               历史一律从 practice_attempts 查询）；
+               identity=(user_id, service_namespace, question_source_type, question_source_id,
+               question_scope_key)；attempt identity ≠ question identity；
+               question_scope_key 仅对 past_exam 生效（year:<year>），因为真题 question_id
+               来自解析卷、不保证全局唯一，误合并比分开更糟；
+               WrongAnswerState **不保存题目快照**：Question（question_ref_json）/
+               UserAnswer（answer）/ CorrectAnswer（result_json.standard_answer）/
+               Context（context_json）/ ErrorAnalysis（result_json.feedback|analysis，无则 null）
+               全部从 canonical facts + domain source 读取；
+               状态机：首次错 → ACTIVE；再错 → ACTIVE 且 wrong_count+1；此后对 → RESOLVED；
+               RESOLVED 后再错 → 回到 ACTIVE（重开）；correct=NULL → 不做任何转换；
+               三态严格保留（永不 bool(None)），score-only attempt 不进错题；
+               **RECOMPUTE 而非增量累加**：状态始终由该 (user,namespace,question) 的全部
+               canonical attempts 按 (submitted_at, id) 重算 → 幂等 / 顺序无关 / 可重建三位一体；
+               WRONG_COUNT = 不同错答 attempt 计数（非投影调用次数、非 legacy review_count）；
+               legacy MERGE：exam_wrong_questions + past_paper_wrong_questions → wrong_answer_states
+               （不 DROP legacy 表，legacy endpoint 行为不变）；
+               CONFLICT POLICY：有 canonical facts 的题由 facts 决定 status，
+               legacy mastered/review_count/reviewed_at 仅作 legacy_* 兼容元数据，**不得覆盖**
+               更新的真实 attempt correctness；无 facts 时才由 legacy 决定；
+               无法排序/无用户归属的行 → 跳过并计数，不猜测；
+               CANONICAL_REBUILD 支持 dry-run，upsert/reconcile，无破坏性操作；
+               API = GET /wrong-answers、GET /wrong-answers/{id}、PATCH /wrong-answers/{id}
+               （仅 3 个；SSOT 未冻结本模块 exact path）；
+               TRISTATE_CORRECTNESS_PRESERVED / WRONG_COUNT_IDEMPOTENCY / RESOLUTION_REOPEN /
+               OUT_OF_ORDER_REPLAY / CROSS_USER_ISOLATION / CROSS_NAMESPACE_ISOLATION /
+               SOURCE_COLLISION_SAFETY / CONCURRENCY_SAFETY / LEGACY_BACKFILL /
+               CANONICAL_REBUILD / BACKFILL_IDEMPOTENCY = 全部 PASS；
+               STUDENT_TWIN_ELIGIBILITY_EXPANDED=NO（WrongAnswer 投影不写任何 LearningEvent）；
+               REVIEW_CORE_IMPLEMENTED=NO；SCIENTIFIC_WRONG_DIAGNOSIS_IMPLEMENTED=NO
+               （未接 misconception_v2 / learner_state / IRT / evidence_reliability）；
+               FRESH_DB + LEGACY_DB_COPY 迁移验收 PASS；REAL_APP_DB_MIGRATED=NO；
+               STATIC_ASSET_COUNTS=9333/1923/32；
+               TARGETED_TESTS=57 PASS；FULL_BACKEND_TESTS=516 passed / 0 failed（baseline 459）
+
+STEP7F = FROZEN（Records / Data Plane Consolidation）
+STEP7F_NOTES = 把零散的 record/event 来源收敛为统一、可信、可版本化的
+               learning_events + Records read model + Data Producer boundary；
+               不是重新实现 STEP7A Data Plane，而是 CONSOLIDATE / PRODUCTIZE /
+               MIGRATE PRODUCERS / BACKFILL LEGACY / FREEZE TAXONOMY；
+               STEP7F_SCHEMA_CHANGE=INDEX_ONLY；MIGRATION_HEAD=20260915_0005；
+               NEW_TABLES=NONE（**未新增任何记录表**：Learning Records 是 learning_events
+               的投影，不是第二张表；learning_records_v2 / event_outbox / derived_features /
+               student_state / timeline / activity_log 均未创建）；
+               0005 只加两个 index（user_id+occurred_at、service_key+occurred_at），
+               无新列、无约束变更、无数据改动；
+               LEARNING_EVENT_ENVELOPE=COMPLETE（frozen target 九要素全部由既有列表达：
+               service_namespace→service_key、payload→item_snapshot_json、
+               source→source_type/source_attempt_id/source_item_key/source_item_index、
+               schema_version→event_schema_version），故未改 envelope；
+               EVENT_SCHEMA_VERSION=2（**未 bump**）；
+               EVENT_TAXONOMY=FROZEN：ACTIVE=course_practice / question_answered /
+               code_submitted / ai_called / knowledge_status_changed / material_asked /
+               material_opened；DEFERRED（只有名字、无 source、不可发射，测试固化）=
+               review_completed / plan_created / task_completed / wrong_answer_resolved；
+               原则 NO SOURCE → NO EVENT；
+               EVENT_OWNERSHIP_MATRIX=FROZEN（一个事实一个 authoritative producer；
+               PracticeAttempt / WrongAnswerState / legacy learning_records 不会对同一次
+               答题写三次事件：WrongAnswerState 写 0 条，legacy learning_records(practice)
+               判 INELIGIBLE）；
+               EVENT IDENTITY 复用冻结的 data_plane.identity（UUIDv5），未造第二套 namespace，
+               不依赖 occurred_at、不用随机 UUID；
+               COURSE_PRACTICE_IDENTITY_CHANGED=NO / COURSE_PRACTICE_DUPLICATE_EVENT=NO
+               （course_practice 的名字与 event_id 未改，也未额外产生等价 question_answered；
+               其 Records 分类由 read-model category 表达，不复制事实）；
+               新增 4 个 producer：ai_called（orchestrator.execute 单一公共边界，覆盖六条
+               return 路径；失败请求统一记录为 coarse status + 规范化 error_category，
+               ops 细节不入 payload）、knowledge_status_changed（apply_knowledge_progress_event
+               返回迁移信息，调用方 commit 后再发射；3 个 callsite 已接，另 2 条直接构造事件行的
+               路径由 backfill 覆盖并如实标注）、material_asked（POST /chat，只带引用）、
+               material_opened（GET /materials/{id}，身份按 (user, material, UTC 日) 去重）；
+               修复 STEP7D 遗留真实缺陷：practice event 原先只在 HTTP router 发射，
+               非 HTTP 写入路径（legacy adapters / backfill）不会产生事件 →
+               已移入 practice service 的唯一写入路径；
+               LEGACY BACKFILL：learning_records（practice=INELIGIBLE、
+               review+素材=PARTIAL 映射为 material_asked 且与 live 同 identity、
+               其他=INELIGIBLE）、knowledge_progress_events（PARTIAL，按产品自身
+               clamp+阈值规则做 chronological delta replay，payload 标
+               derived_from=delta_replay_v1）、ai_requests（PARTIAL，与 live 同 identity）；
+               BACKFILL_IDEMPOTENCY=PASS / LIVE_BACKFILL_EQUIVALENCE=PASS / dry-run 不落库；
+               LEARNING_RECORDS_READ_MODEL=PASS（list/get/summary，全部 user-scoped，
+               cursor 分页 occurred_at DESC + event_id tie-break，UTC 语义统一）；
+               LEARNING_RECORDS_API=PASS（仅 4 个 GET：/learning-records、
+               /summary、/taxonomy、/{event_id}）；ARBITRARY_CLIENT_EVENT_WRITE=NO
+               （无任何写入面，测试固化）；
+               PRIVACY_PAYLOAD_POLICY=PASS（envelope 拒绝 code/prompt/response/full_answer/
+               api_key 等键；read model 不输出 item_snapshot_json 等内部字段）；
+               FREE_TIER_EVENT_PERSISTENCE=PASS（三 tier 同一事实均落事件；
+               付费差异只在分析/连续 StudentTwin/高级报告/自动化，不在是否保存）；
+               STUDENT_TWIN_ELIGIBILITY_EXPANDED=NO（worker 目标选择与历史查询均过滤
+               event_type=course_practice，非 eligible 事件结构性被忽略，实测
+               events_scanned=0）；STUDENT_TWIN_PRODUCTIZATION_STATE=SHADOW_READY（未升级）；
+               RECOVERY_CAPABILITY_MATRIX=course_practice/question_answered/code_submitted/
+               ai_called=FULL，knowledge_status_changed/material_asked=PARTIAL，
+               material_opened=EVENT_ONLY（明确不具备 source backfill，不虚假声称可恢复）；
+               NEW_SCIENTIFIC_COMPONENTS=NONE / LEARNING_OUTCOMES_CREATED=NO
+               （仍为 V1；未接 misconception_v2 / learner_state / IRT / evidence_reliability /
+               memory / planner）；
+               FRESH_DB + LEGACY_DB_COPY 迁移验收 PASS；REAL_APP_DB_MIGRATED=NO；
+               STATIC_ASSET_COUNTS=9333/1923/32；
+               TARGETED_TESTS=65 PASS；FULL_BACKEND_TESTS=581 passed / 0 failed（baseline 516）
+
+STEP7G = FROZEN（Course Learning Space Consolidation + STEP7G-C2 Course AI → Unified AI Boundary）
+STEP7G_STATUS = STEP7G_COMPLETE=YES / STEP7H_READY=YES
+STEP7G_C2_DONE = **STEP7G-C2** 把全部 Course production AI 接到统一执行边界：
+              Endpoint → authenticated user → canonical LearningContext → AIOrchestrator →
+              Capability Permission → Router → Estimate → Reserve → Gateway → Actual Usage →
+              Settle → domain postprocess；
+              MIGRATION_HEAD=20260915_0006；NEW_TABLES=NONE（0006 additive-only：
+              只加 ai_requests.service_namespace / ai_requests.context_json /
+              usage_ledger.service_namespace 三列 + 两个 namespace index；nullable，
+              历史行保持原形；downgrade 显式 NotImplementedError，不假装可回退）；
+              REAL_APP_DB_MIGRATED=NO；
+              FRESH_DB + LEGACY_DB_COPY 迁移验收 PASS；STATIC_ASSET_COUNTS=9333/1923/32；
+              COURSE_AI_ENDPOINT_COUNT=19；Orchestrator boundary 调用点=21
+              （19 primary + 2 secondary：/ai-explain 与 /questions/generate 的**条件精修**
+              refine_question_analysis_with_ai，以及计划 JSON 修复重试 _repair_json_with_ai，
+              二者同样经 _course_ai_content，触发条件不变）；
+              COURSE_PRIMARY/SECONDARY/TOTAL_DIRECT_PROVIDER_CALLSITE_COUNT = 0 / 0 / 0；
+              COURSE_DIRECT_PROVIDER_ENDPOINTS_FINAL=0 / COURSE_DIRECT_PROVIDER_CALLS_FINAL=0；
+              AI_REQUEST_CONTEXT_PERSISTENCE / AI_EVENT_CONTEXT_EQUIVALENCE /
+              USAGE_LEDGER_NAMESPACE_EQUIVALENCE = PASS（AIRequest.service_namespace ==
+              AIRequest.context_json.service_namespace == usage_ledger.service_namespace ==
+              ai_called.service_key，四者同一 canonical source，无端点自拼 context）；
+              CAPABILITY **knowledge.structure** = 已批准并注册：Free=DENIED /
+              Standard=ALLOWED / Advanced=ALLOWED，qualified pool **继承 question.generate**
+              （CAPABILITY_QUALIFICATION_PROXIES 单点别名解析），qualification label =
+              STRUCTURED_GENERATION_PROXY_V1 —— 这是**产品 capability**，
+              **未新开 provider benchmark、未改 Pool v4（POOL_VERSION 仍为 v4）**；
+              四条 knowledge structure 路由（/knowledge-points/generate-preview、
+              /knowledge-path/generate-from-materials、
+              /materials/{id}/knowledge-links/recommend、
+              /materials/analyze-knowledge-preview）保留原 JSON contract / schema validation /
+              preview semantics / domain validation，preview **不写** mastery / StudentTwin；
+              /chat capability 由**服务端**判定（material-bound → material.qa，
+              普通学习对话 → tutor.chat；exam / programming 分支维持 legacy），
+              ChatRequest **无** capability 字段，客户端无法提交任意 capability 绕过权限；
+              AUTHORIZATION CUTOVER：COURSE_AI_LEGACY_AUTH_OWNER=0 —— 从 course AI 执行路径
+              移除 7 处 legacy 授权（check_usage_limit ×5 + require_learning_context_feature ×2）；
+              exam_11408 / programming 分支的 legacy 授权**刻意保留**（属 STEP7H/7I）；
+              course 路径不再写 legacy record_ai_usage 行；
+              AI_BILLING_DOUBLE_COUNT=NO / COURSE_AI_EVENT_DUPLICATION=NO /
+              KNOWLEDGE_DOUBLE_UPDATE=NO；
+              权限拒绝**不得被降级吞掉**：3 个原先把 403/429 吞成确定性 fallback 的端点
+              改为 except HTTPException: raise 先行（「无模型仍可用」只适用于技术失败，
+              不适用于授权决定）；
+              MATERIAL_QA_ORCHESTRATED=PASS / COURSE_AI_CAPABILITY_MIGRATION=PASS；
+              FULL_BACKEND_TESTS=662 passed / 0 failed（第二轮 baseline 621）；
+STEP7G_DONE = STEP7G_SCHEMA_CHANGE=NONE（course space 本体）/ C2 新增 0006 见上；NEW_TABLES=NONE；
+              新模块 backend/learning/spaces/course_learning/{context,knowledge,service,ai}.py；
+              COURSE CANONICAL NAMESPACE=course_learning，legacy alias "course" 仅作 INPUT，
+              在 core.learning_context.normalize_service_namespace **统一归一化一次**
+              （practice/wrong_answers/records 三处私有 _namespace_value 已删除，
+              禁止各 module 自建 alias 逻辑）；
+              COURSE IDENTITY = 存储的 course_id 字符串（**不新建 Course/CourseChapter 表**，
+              如实保留现状）；chapter = context 中的 chapter key；identity 绝不按 display name 比较；
+              LearningContext 复用 core，无第二套 CourseContext；
+              COURSE CANONICAL KNOWLEDGE WRITER =
+              learning.spaces.course_learning.knowledge.apply_knowledge_change；
+              course 的 7 条 knowledge mutation 路径**全部**经该 writer（durable write +
+              同一条 clamp/阈值 80-40-1 推导规则 + 真实迁移时发 knowledge_status_changed）；
+              保留既有语义（+15/-8 pedagogy delta、system_suggested_status、
+              「练习建议绝不覆盖学习者已确认状态」protect_user_confirmed）；
+              apply_knowledge_progress_event 降级为遗留兼容入口（保留其 legacy 事件行）；
+              non-course mutation 路径如实标注 OUT_OF_SCOPE_SPACE(exam→STEP7H /
+              programming→STEP7I) 或 SYSTEM_DERIVED_NO_EVENT(review 排期重算)；
+              FUTURE_LIVE_KNOWLEDGE_EVENT_COVERAGE=COMPLETE(course)；
+              HISTORICAL_KNOWLEDGE_EVENT_COVERAGE=PARTIAL(STEP7F 维持)；
+              COURSE_WRONG_SHARED_CORE / COURSE_RECORDS_SHARED_CORE = PASS；
+              MULTI_COURSE / CROSS_USER / CROSS_NAMESPACE ISOLATION = PASS；
+              COURSE_BACKEND_E2E / FREE_USER_COURSE_LOOP = PASS；
+              AIQUESTIONATTEMPT_EVENT_ID_CHANGED=NO / DUPLICATE_EVENT=NO /
+              STUDENT_TWIN_ELIGIBILITY_EXPANDED=NO / STUDENT_TWIN_PRODUCTIZATION_STATE=SHADOW_READY；
+              LEGACY_COURSE_ENDPOINTS_DELETED=NO / LEGACY_COURSE_PLAN_PRESERVED=YES /
+              UNIFIED_PLANNING_IMPLEMENTED=NO / REVIEW_CORE_IMPLEMENTED=NO /
+              NEW_SCIENTIFIC_COMPONENTS=NONE / FRONTEND_CHANGED=NO；
+              REAL_APP_DB_MIGRATED=NO；FRESH_DB + LEGACY_DB_COPY 验收 PASS；
+              STATIC_ASSET_COUNTS=9333/1923/32；
+              TARGETED_TESTS=26 PASS；FULL_BACKEND_TESTS=607 passed / 0 failed（baseline 581）
+STEP7G_C2_NOTES = 本轮（C2 recovery + closure）修复的真实缺陷：
+              ① /knowledge-points/generate-preview 在 mode=materials 时读取**未定义**的
+                 material_ids → NameError（mode=course_name 因条件表达式短路而不炸，
+                 只测 happy path 不会发现）；已改为真实收集 material_ids 并加材料上下文测试；
+              ② /practice/questions/{id}/ai-explain 有一段**重复的 prompt 块**（死代码）；
+              ③ /practice/questions/{id}/feedback 原先**先调 AI 再写 durable attempt** ——
+                 AI 失败则学习者作答事实丢失、重试会重复造 attempt；已改为
+                 FACT 先落库 → 再调 AI → 成功回填 ai_feedback / 失败返回
+                 ai_feedback_available=false（响应新增该字段），mirror 与 knowledge
+                 transition 照常（测试：test_feedback_commits_the_answer_before_the_ai_runs）；
+              ④ **is_exam_408_context 原先按 display name 判定** ——
+                 COURSE_LEARNING_ID_MAP 里「数据结构 / 操作系统 / 计算机组成原理 / 计算机网络」
+                 同时是 course_learning 的 displayName 与 exam 的 subject 关键词，于是
+                 course 请求被判成 exam 并走进 call_deepseek（这是 calls 迟迟不清零的根因，
+                 违反 SSOT §28「identity 用 key，title 只是展示」）；已改为按 direction 标记
+                 "11408" 判定（"11408 操作系统" / "operating_system_11408"），
+                 /chat 另接受显式 service_key=exam_11408 / exam_subject；
+                 explicit exam 判定不变，隐式 display-name 歧义默认归 course_learning；
+              ⑤ **knowledge mutation inventory 不完整**：POST /knowledge-path/generate-from-materials
+                 会删旧树并重建、为其写零状态 user_knowledge_progress 行，却不在 inventory 中；
+                 已补为 CONTENT_REPLACEMENT_NO_EVENT（内容替换 ≠ 学习迁移：没有存活知识点
+                 发生状态变化，故不调 writer、不发 knowledge_status_changed），
+                 course_paths_not_consolidated() 引入 _DECLARED_STATUSES ——
+                 **未声明**旁路仍算 gate fail，**已声明**必须带 note；
+              ⑥ migration 测试 EXPECTED_HEAD 陈旧（2 项遗留失败）→ 更新为 20260915_0006，
+                 并新增 0006 列/索引隔离验收；
+              NEW_TESTS = tests/test_course_ai_migration.py（26，**不 mock orchestrator**，
+              只换出站 provider 为 FakeProvider：tier matrix、budget 拒绝且 provider 调用=0、
+              四者 context 等价、跨空间/跨用户拒绝、完整 Course AI E2E、/chat 服务端判定）
+              + tests/test_course_ai_reachability.py（6，把「0 直连」变成可执行不变量：
+              直连调用点必须落在显式声明的非 course 函数内且被分支守卫证明属于他空间；
+              原始 provider client 只允许出现在 adapters 与已登记 infra）；
+              RECOVERED_FROM_INTERRUPTION = YES（上一轮 Codex 中途停止，本轮先做只读恢复审计，
+              再补齐授权切换 / exam 判定 / 缺陷修复 / 测试 / 报告 / SSOT）
+STEP7G_HISTORY_PARTIAL = （历史，已被本轮取代，保留不擦除）第一轮：course space 本体完成，
+              但 COURSE_DIRECT_PROVIDER_CALLS=13、COURSE_PRACTICE_SHARED_CORE=PARTIAL →
+              当时 STEP7G_COMPLETE=NO / STEP7H_READY=NO
+STEP7G_HISTORY_BLOCKERS = （历史）① 13 条 course 可达端点直接调 provider → §14 gate fail；
+              ② 3 条 course practice writer 未产生 canonical PracticeAttempt → §16 gate fail
+
+STEP7G_ROUND2 = （历史，保留）PART A（Practice writer gap）已 CLOSED；PART B 当时未执行（STOP 于 CAPABILITY_GAP）
+STEP7G_ROUND2_NOTES = A1 语义追踪结论：三条 endpoint 不是同一次作答的三个阶段，而是三个
+              各自独立的 durable 事实 —— attempts 与 feedback 各写自己的 question_attempts
+              行（feedback 的 self_result="unknown"，无事实判断 → canonical correct=NULL，
+              绝不 False）；submit-result 的 durable 事实是 learning_records 里的一条
+              **批次汇总**行，逐题 is_correct 为**客户端断言且从不持久化**；
+              因此 attempts/feedback 按 legacy row id **1:1** mirror，submit-result 只
+              产生 canonical **PracticeSession**（不为逐题造 attempt：客户端断言不可提升为
+              immutable 事实，且无 durable source 可恢复，两条理由任一即足够）；
+              A9 全部 PASS：COURSE_PRACTICE_WRITER_MIGRATED=3/3、COURSE_PRACTICE_SHARED_CORE=PASS、
+              LOGICAL_ATTEMPT_DOUBLE_COUNT=NO、KNOWLEDGE_DOUBLE_UPDATE=NO（实测 mastery_score=8
+              而非 16）、PRACTICE_EVENT_DUPLICATION=NO、WRONG_COUNT_DUPLICATION=NO、
+              MIRROR_FAILURE_RECOVERABLE=PASS；为使 live 与 backfill 一致，STEP7D backfill 的
+              session 容器对齐为 course:<course_id>；
+              PART B **未迁移任何端点**：B3 审计发现 4 处 CAPABILITY_GAP ——
+              POST /knowledge-points/generate-preview、POST /materials/analyze-knowledge-preview、
+              POST /materials/{id}/knowledge-links/recommend、summarize_material（upload 路径）
+              属「资料/知识点结构化抽取」，与现有 8 个 capability 均不同构；按 §B3 既不得塞进
+              错误 capability，也不得擅自新增 → STOP 并报告，等待用户决策（接受近似既有
+              capability，或批准最小新 capability 并同时给出 tier 映射与 Qualified Model Pool
+              继承规则）；且**分批判迁移会造成同一学习空间内两套授权语义并存**，故整体留待
+              一次完整切换；
+              本轮另修 3 个真实缺陷：mirror_practice_batch 闭包变量 UnboundLocalError 被
+              safe_mirror 吸收成静默失败；live/backfill session 容器不一致；测试陈旧
+              identity map 导致误判；
+              TARGETED_TESTS=14 PASS；FULL_BACKEND_TESTS=621 passed / 0 failed（baseline 607）
+STEP7G_CAPABILITY_GAP_RESOLUTION = 上一轮 STOP 等待的决策已由用户批准并落地：
+              新增产品 capability **knowledge.structure**（不是新 benchmark），
+              tier 映射 Free=DENIED / Standard=ALLOWED / Advanced=ALLOWED，
+              Qualified Model Pool **继承 question.generate**
+              （CAPABILITY_QUALIFICATION_PROXIES，单点解析），
+              qualification label = STRUCTURED_GENERATION_PROXY_V1；
+              至此前一轮「4 处 CAPABILITY_GAP」以**一个** capability 收口，
+              未新开 provider benchmark，未改 Pool v4
+STEP7G_FIXES_DISCOVERED = （历史，保留）第一轮审计+测试发现并修复的真实缺陷：
+              ① 错题身份未含 course → 同一 user 两个 course 的同名 question 互相串线
+                 （scope_key 加 course:<course_id>，course adapter 写 course_id 进 ref context）；
+              ② STEP7D practice emitter 把 course_id 硬编码 None → course 记录无法按课程过滤；
+              ③ course_learning 之前完全不产生 practice 事件 → 现按来源区分覆盖
+                 （ai_question_attempt 谱系仍归既有 course_practice emitter，
+                 其余 course practice 来源由 practice spine 覆盖）；
+              ④ practice session/attempt 确定性身份未含 user_id → 跨用户 unique 冲突风险；
+              ⑤ SessionLocal autoflush=False 导致 canonical writer 看不到调用方未 flush 的行，
+                 会创建**重复** progress 行 → writer 入口 db.flush()
+
+STEP7H0 = FROZEN（Unified Exam Prep 域审计 + 架构冻结 —— **只设计，不实施**）
+STEP7H0_NOTES = 产出文档 STEP7H0_UNIFIED_EXAM_PREP_ARCHITECTURE.md（22 节 + 20 条 FD）；
+              本轮**零代码变更、零 schema 变更、零 migration、零前端、零 live provider**；
+              真实 backend/app.db 未被审计代码触碰（复制到 temp 后只读 sqlite3 查询，
+              REAL_APP_DB_MIGRATED=NO，72 表 / integrity ok / exam_question_bank 9333）；
+              CURRENT EXAM 事实（只读实测）：
+                exam 路由=52（/exam/11408/* 47 + /exam-408/* 4 + /me/tracks/exam_408/package 1）；
+                exam 表=14（另共享 practice_sessions/attempts、wrong_answer_states、
+                user_knowledge_progress、learning_events）；
+                行数：exam_question_bank=9333（chapter 9098 / past_paper 235），
+                其余 exam 用户态表**全部为 0**；
+                静态资产：exam_resources 263 文件 + static/exam_papers 564 文件 +
+                seed_data/knowledge_maps/*_11408.json ×4；
+                knowledge_points=32 实测属 programming-C ontology（programming_c/cpp/java/python
+                各 8），**不得**当作 Exam 知识点；
+              **EXAM_NAMESPACE_IMPACT_MATRIX 核心结论**：exam_11408 是**重载 token**，
+              同时承担 5 种语义 —— A=LEARNING SPACE（要改名）/ B=MEMBERSHIP SERVICE KEY /
+              C=QUOTA BUCKET KEY / D=MATERIAL DOMAIN+TRACK+ADMIN / E=QUOTA-AUTH ENTRY；
+              **B/C/E 属旧会员+旧额度维度，本就要退役，不是被改名** ——
+              需要改名的只有 A（+D 的真 track 部分），规模由 306 处降到约 40–50 处且全是代码常量；
+              NAMESPACE_MIGRATION_OPTION = **OPTION B**（canonical → exam_prep，
+              exam/exam_408/exam_11408/11408 降为 INPUT alias 归一化一次）；
+              推荐依据（代码事实）：LearningEvent.event_id = uuid5(source_type,
+              source_attempt_id, item_key) **不含 namespace**（data_plane/identity.py:29-31）
+              → 改名不改事件身份；唯一敏感的是 practice/wrong identity
+              （session_uid/attempt_uid 含 service_namespace，wrong 的 UniqueConstraint 亦含），
+              解法 = **冻结 identity token**（canonical 存 exam_prep，uuid5 输入保持 exam_11408），
+              前置条件 = H1 必须**测量**目标库 exam canonical 行数（本地实测=0）；
+              NEW_TABLES_PROPOSED_FOR_H1=NONE / SCHEMA_CHANGE_REQUIRED_FOR_H1=NONE；
+              EXAM_TRACK/SUBJECT/MODULE/CHAPTER/KNOWLEDGE_POINT **全部不新建 SQL 表**
+              （前三级=versioned CONFIG，后两级=已有静态资源）；不建 SubjectCatalog/
+              KnowledgeCatalog（SHARED_KNOWLEDGE_STRATEGY=OPTION B，config 表达共享 module key）；
+              KNOWLEDGE CONTENT MAY BE SHARED / LEARNING STATE MUST NOT BE SHARED AUTOMATICALLY
+              （Course 掌握 ≠ Exam 掌握；本轮不做 StudentTwin 跨空间推断）；
+              CS408_MAPPING = track cs_408 + subject cs_408 + module=subject_key（adapter 解释）；
+              QUESTION_BANK_9333_DISPOSITION = **NO PHYSICAL MIGRATION**（零改动）；
+              LEARNING_CONTEXT_TARGET = 继续唯一一个 core.LearningContext，新增
+              exam_track_id/exam_subject_id/exam_module_id；exam_track_id **不进** events、
+              **不进**任何 identity（track 是用户侧备考组合选择，非事实属性）；
+              PRACTICE/WRONG/RECORDS TARGET = 继续复用 Unified Practice Core /
+              Wrong Answer Core / learning_events，仅 namespace 与 context 对齐；
+              EXAM_DIRECT_PROVIDER_CALLS=9（另 1 条 OCR 属 PARSER_OCR 保留）；
+              EXAM_AI_MIGRATION_TARGET=AIOrchestrator；CAPABILITY_GAPS=1
+              （G1 answer grading，无同构 capability，H3 前需用户决策，本轮不新增）；
+              STANDARDIZED_EXAM_SCOPE=全国统一命题/全国统考型研究生招生考试科目；
+              INSTITUTION_SPECIFIC_EXAMS=OUT_OF_SCOPE（禁建 institution_id/school_id/
+              school_exam_code/institution_exam_plan/school_specific_subject 等模型）；
+              STEP7H_DECOMPOSITION = H0 域/身份冻结 → H1 namespace+context 兼容基础
+              → H2 11408/CS408 接 Practice/Wrong/Records → H3 Exam AI 接 Orchestrator
+              → H4 多 track/多 subject catalog 基础 → H5 CS408 全量验收；
+              **本轮发现并登记 8 项真实缺陷（供 H1/H2/H3 消化）**：
+              D1🔴 4 端点跨空间污染（exam 请求经 _course_ai_content 把
+              ai_requests/ai_called 写成 course_learning）→ H1 必修；
+              D2🟠 question-analysis 已 orchestrated 但未传 LearningContext →
+              service_namespace=NULL；D3🟠 _grade_big_question 无授权/无计费/结果在题库
+              命中时被丢弃（付费调用被浪费），判定为 (A) 用户作答评分、H3 从 parser 迁出；
+              D4🟡 GET /exam/11408/study-plan/tasks/summary 重复注册（死 handler）；
+              D5🟡 exam_favorite_questions_v2 死表（0 行/0 代码引用）；
+              D6🟠 真题 builder 整表 DELETE+INSERT → question id 漂移；
+              D7🟠 14 张 exam 表**无 Alembic 覆盖**（只靠 create_all）；
+              D8🟡 OCR 全路径不计费/不记录（属 Parser Infra 成本核算）；
+              FRONTEND_CHANGED=NO
+
+STEP7H1 = FROZEN（Exam Prep canonical namespace + context compatibility foundation）
+STEP7H1_NOTES = 实施报告 STEP7H1_EXAM_PREP_NAMESPACE_CONTEXT_ACCEPTANCE_REPORT.md；
+              CANONICAL_EXAM_NAMESPACE=**exam_prep**（ServiceNamespace.EXAM_11408 已从枚举移除）；
+              legacy alias exam / exam_408 / exam408 / exam-408 / exam_11408 / exam-11408 /
+              11408 / exam-prep → exam_prep（边界归一化一次，绝不落库）；
+              is_valid_service_namespace("exam_prep")=True / ("exam_11408")=False；
+              **仍不改名**：exam_11408 作为 legacy 会员 service_key / 额度桶 key / 资料域标签 /
+              admin·support 分类的用法（main.py 余 58 处逐条核对均在上述维度）；
+              IDENTITY_NAMESPACE_TOKEN **永久冻结**（非条件式）：
+              IDENTITY_TOKEN_BY_NAMESPACE={course_learning: course_learning,
+              exam_prep: exam_11408, programming: programming} ——
+              practice session_uid/attempt_uid 先归一化再取 token 再入 uuid5，
+              故 exam_11408 与 exam_prep 输入产生**同一**身份，
+              IDENTITY_ENVIRONMENT_DEPENDENT=NO（不依赖目标库是否有旧行）；
+              LEARNING_CONTEXT_SINGLE_MODEL=PASS：继续只有 core.LearningContext，
+              新增 Optional exam_track_id / exam_subject_id / exam_module_id；
+              LEGACY_SUBJECT_KEY_MIRROR=exam_module_id（context.subject_key 保持 module，
+              兼容 FROZEN 的 STEP7D exam adapter）；EVENT_SUBJECT_KEY=exam_subject_id
+              （learning_events.subject_key = cs_408）；exam_module_id 进事件 context JSON
+              （knowledge_point_ref_json，经共享 domain_context_json；不参与任何 identity）；
+              **exam_track_id 不进 learning_events、不进任何 identity**；
+              新模块 backend/learning/spaces/exam_prep/{catalog,scope,context,ai}.py；
+              CS408_MAPPING=PASS（track cs_408 + subject cs_408 + module=既有 subject_key）；
+              scope.py 为纯函数适配器（parse/build/resolve，非法 scope **fail closed**），
+              **不 rewrite** user_knowledge_progress.course_id / study_materials.course_id /
+              seed JSON / static 路径；
+              QUESTION_BANK_PHYSICAL_MIGRATION=NO；QUESTION_BANK_COUNT=9333
+              （chapter 9098 / past_paper 235；CONTENT_FINGERPRINT_SHA256=
+              7b0717634939974752b95200f96de959615cbffde2ce2f27e7a4c542ea82d7a4）；
+              EXAM_CANONICAL_ROW_PREFLIGHT：6/6 统一表 NOT_PRESENT（alias rows=0）
+              → DATA_MIGRATION_REQUIRED=NO；NEW_TABLES=NONE；SCHEMA_CHANGE=NONE；
+              **D1_CROSS_SPACE_POLLUTION=FIXED**（4 条 course-capable 端点在 exam 请求下
+              经 _course_ai_content 把 ai_requests/ai_called 写成 course_learning）——
+              修法 = 新增 space dispatcher `_scoped_ai_content`（空间由服务端按同一谓词决定）
+              + `_course_ai_content` 兜底守卫（course context 永不由 exam scope 构造）；
+              **D2_QUESTION_ANALYSIS_CONTEXT=FIXED**（question-analysis 原本已 orchestrated 但
+              learning_context=None → namespace NULL；现经 execute_exam_ai 传入 CS408 context，
+              错误语义对齐 course：403/429/502）；
+              **D4_DUPLICATE_ROUTE=FIXED**（GET /exam/11408/study-plan/tasks/summary 重复注册，
+              删除 shadowed 的死 handler；并附带清掉同类隐藏重复
+              GET /learning-records 的 shadowed legacy handler = D4b）→
+              全 app duplicate (method,path) = 空集；TOTAL_ROUTES=380；
+              ANSWER_GRADE_CAPABILITY=REGISTERED（tier: Free DENIED / Standard ALLOWED /
+              Advanced ALLOWED；pool proxy QUESTION_EXPLAIN_PROXY_V1；
+              POOL_VERSION 仍 v4，未新开 provider benchmark）；
+              **未迁移** _grade_big_question（H3），grading flow 未动（测试固化）；
+              EVENT_IDENTITY_ALGORITHM_CHANGED=NO（event_id 不含 namespace）；
+              本轮另修一处真实缺口：practice 事件桥直接读存储 context 取 subject_key
+              → 收敛为唯一函数 core.learning_context.resolve_event_subject_key()，
+              LearningContext.event_subject_key() 与两个 producer 全部委托它；
+              PAST_EXAM_CROSS_SUBJECT_IDENTITY_RISK=ASSESSED → **DEFERRED_TO_H2**
+              （H2 必须实测 past_exam 的 source_id 在不同 subject/module 下是否全局唯一，
+              不唯一则先设计 subject/module-aware scope）；
+              EXAM_PROFILE_STORAGE_COMPATIBILITY=NEEDS_H4_DESIGN（H1 不新建表、不重做 onboarding）；
+              REAL_APP_DB_MUTATED=NO（真实 app.db 只读 sqlite3：72 表 / integrity ok /
+              9333 / 1923 / 32 / 无 alembic_version）；
+              TARGETED_TESTS=50 PASS（tests/test_exam_prep_namespace.py）；
+              FULL_BACKEND_TESTS=712 passed / 0 failed（STEP7H0 baseline 662）
+
+STEP7H2 = FROZEN（CS408 / exam_prep Practice + Wrong Answers + Records consolidation）
+STEP7H2_NOTES = 实施报告 STEP7H2_EXAM_PRACTICE_WRONG_RECORDS_ACCEPTANCE_REPORT.md；
+              **三作答事实全部接入 Unified Practice Core**（CHAPTER / PAST_PAPER /
+              AI_GENERATED_ATTEMPT_PATH = PASS）：chapter practice（exam_practice_attempts）、
+              真题（past_paper_attempts）、AI 出题作答（ai_question_attempts，mode="11408"，
+              与 course **共用一张表**，经 _MODE_MAP 分流）各自 1:1 mirror 为
+              PracticeSession + PracticeAttempt；per-session 汇总行 → 一次练习/一次考试一个 session，
+              逐题明细只在 result_json.results，**不伪造 attempt**；
+              tri-state 保持（大题/自评 correct=NULL，永不 False）；
+              **done records 判为 INELIGIBLE_AS_HISTORY**（per-user 聚合，只留最后一次，非 attempt history）；
+              context：exam_track_id/subject_id/module_id 由 cs408_context 统一构造，
+              LearningContext.subject_key 保持 legacy module mirror；
+              QuestionRef.context 携带 exam_subject_id / exam_module_id /（真题）question_year；
+              **PAST_EXAM_IDENTITY_AUDIT**（只读实测 235 行）：ACTIVE 170 / SUPERSEDED 65；
+              同 module+year 内 ACTIVE 唯一 170/170，跨 module 同年碰撞 0，跨年碰撞 0；
+              65 个重复组全部是 image-placeholder 世代的 superseded 行（is_active=0，
+              全部有 active 对应行、0 孤儿，来源已定位为旧 builder 的 deactivate+insert 协议），
+              **不删除**（可能已被 done/wrong/favorite/attempt 引用）；
+              **PAST_PAPER_STABLE_KEY = (subject_key, year, question_number)**
+              （chapter 行为 year/qnum NULL，其稳定身份是既有内容哈希）；
+              **PAST_EXAM_WRONG_SCOPE = subject:<exam_subject_id>|module:<exam_module_id>|year:<question_year>**
+              （旧形态 year:<y>；判据：question_source_id 是题库自增 PK 全局唯一，
+              scope 需承担的是「未来第二门统考科目」维度；module 仍编码因为对所有现存引用
+              都可从 subject_key 派生，省略它会让同 subject 下两 module 复用题号失去保护；
+              exam_track_id **永不进入** scope）；recompute 新增 legacy scope **就地采纳**
+              （不产生第二条状态；两种形态并存时不静默合并）；legacy 回填与 live 投影共用
+              同一个 past_exam_scope()；
+              **D6 修复**：新增 backend/past_paper_upsert.py（稳定键 reconcile：命中→原地更新保 id，
+              多行→survivor=active 优先否则 id 最大且其余原样保留，未命中→插入，
+              新 source 不存在的 key→deactivate 但**永不删除**；恒等列由 helper 自写），
+              4 个 wholesale DELETE 的 builder + 1 个 deactivate 累积的 builder 全部改为 reconcile；
+              chapter_question_upsert 加法式扩展（可选 analysis/quality_status/source_ref），
+              CN chapter builder 随之接入；
+              **PAST_PAPER_BUILDER_DELETE_INSERT = REMOVED**；
+              ID 稳定性/幂等性测试：同输入两次 → (2,0) 后 (0,2)、id 与内容逐字节相同；
+              改内容 → 同 id 新内容；source 少一题 → deactivate 且行仍存在；
+              EXAM_WRONG_SHARED_CORE=PASS / WRONG_REPLAY_DOUBLE_COUNT=NO；
+              EVENT_SUBJECT_KEY=cs_408 / EVENT_MODULE_CONTEXT=PASS / EXAM_EVENT_DUPLICATION=NO
+              （data_plane.emitter 是 course-only：SERVICE_KEY/EVENT_TYPE 为模块常量且唯一调用点
+              在 course 提交流程；exam AI-question attempt 无第二 owner）；
+              records 投影**加法式**暴露 exam_module_id；
+              **EXAM_KNOWLEDGE_UPDATE_EXACTLY_ONCE=PASS**：AST 审计 52 条 exam 路由，
+              practice（chapter/真题/AI）**不产生任何 knowledge delta**（现状语义，H2 保持不改），
+              唯一 knowledge 写入点仍是 PATCH /exam/11408/{k}/study-plan/knowledge-items/{code}
+              （直写，未接 canonical writer，已登记 OUT_OF_SCOPE_SPACE，需 writer 支持 exam
+              knowledge 身份后才能迁移）；STUDENT_TWIN_ELIGIBILITY_EXPANDED=NO；
+              FREE_USER_EXAM_FACT_PERSISTENCE=PASS；CROSS_USER/CROSS_NAMESPACE/CROSS_MODULE
+              ISOLATION=PASS；MULTI_SUBJECT_COLLISION_SAFE=PASS（合成 cs_408/math_1/math_2/math_3
+              context 各得独立 scope，**未导入任何真实新科目数据**）；
+              REAL_APP_DB_MUTATED=NO；NEW_TABLES=NONE；无新 migration；
+              QUESTION_BANK_COUNT=9333 / QUESTION_BANK_CONTENT_PRESERVED=YES
+              （REAL 与 COPY 的题库指纹逐字节相同 = 349a76497c8a5320f822f99809fe9553）；
+              TARGETED_TESTS=29 PASS（tests/test_exam_practice_records.py）；
+              FULL_BACKEND_TESTS=741 passed / 0 failed（STEP7H1 baseline 712）
+
+H2_C1 = CLOSED（Wrong projection concurrency closure）
+H2_C1_NOTES = **根因（实测两层）**：① 产品侧 —— 投影的「读事实集合 → 写状态行」不原子，
+              一个 pass 的读可能早于另一条 attempt 的提交而它恰好最后写入 → 状态停在 1
+              （实测 178/200 轮出现混合读集 [1,2]，1/200 轮真的违反）；② 测试侧 —— worker
+              线程读取 fixture session 上**已过期的 User 属性**（`u.id`）触发跨线程 lazy
+              refresh → ObjectDeletedError → 该轮 attempt 根本没落库，旧断言顺序
+              （先查 wrong_count 后查 errors）把它误报成「stale projection」。
+              **修复（保留 RECOMPUTE-NOT-INCREMENT）**：`recompute()` 改为
+              compare-and-recompute —— 每个 pass 读 → 写（返回 applied）→ 用**独立新
+              session** 校验事实集合指纹未变，否则重做（上限 5 次）；并发首插竞态不再
+              「返回胜者的行」，applied=False 强制重做（行走 UPDATE）。未使用 blind
+              increment / 全局锁 / 新表，未改 Wrong semantics 与 attempt identity；
+              verify 走独立 session 是因为 commit 后同 session 的 refresh+SELECT 可能落在
+              该 refresh 打开的事务快照里 → 陈旧的 pass 会自我「验证通过」。
+              测试侧：worker 在测试线程上先取 `uid`。
+              STRESS：修复前 5/40 runs 失败（2000 轮）→ 修复后 0/30 runs（1500 轮）、0/40（2000 轮）；
+              `tests/test_wrong_answers.py` 强化为 50 轮 stress + replay + wrong/wrong/correct，
+              每轮先断言 errors 再断言状态（避免再次误报）。
+              EXAM_PRACTICE_KNOWLEDGE_SIDE_EFFECT_DUPLICATION=NO /
+              EXAM_KNOWLEDGE_CANONICAL_WRITER_CONSOLIDATED=NO（PATCH study-plan
+              knowledge-items 仍直写，属后续 Exam knowledge consolidation，不阻断 H3）
+
+STEP7H3 = FROZEN（Exam AI → Unified AIOrchestrator）
+STEP7H3_NOTES = 实施报告 STEP7H3_EXAM_AI_ORCHESTRATOR_ACCEPTANCE_REPORT.md；
+              EXAM_AI_ENDPOINT_COUNT=24（native /exam* 4 + 带 exam 分支的 shared 端点 20）；
+              EXAM_DIRECT_PROVIDER_CALLSITE_COUNT（迁移前）=8（main.py 7 + exam_paper_parser 1）；
+              EXAM_SECONDARY_PROVIDER_CALLSITE_COUNT=2（条件精修 + JSON 修复重试，均已 orchestrated）；
+              PARSER_OCR_CALLSITE_COUNT=2（保留）；
+              **EXAM_DIRECT_PROVIDER_ENDPOINTS_FINAL=0 / EXAM_DIRECT_PROVIDER_CALLS_FINAL=0**；
+              全部 exam 学习 AI 走 execute_exam_ai → AIOrchestrator；新增 `_exam_ai_content`
+              与 `_is_exam_ai_scope()`（canonical `exam_prep` 与 legacy 方向标记两种拼写都
+              路由到 exam 边界，否则持有 canonical 名的调用方会掉到 course 边界）；
+              CAPABILITY 复用既有集合，**未新增**空间专属 capability；试卷结构化用
+              `question.generate`（产物是题目，不是知识图谱）；
+              **D3 关闭**：`exam_paper_parser._grade_big_question` 已删除（连同其 OpenAI client
+              与 DEEPSEEK_API_KEY 读取）；parser 模块收敛为 document parsing / 题目抽取 / OCR
+              infra，**零 provider 客户端**；`grade_submission(..., grade_big=...)` 由调用方注入
+              评分器，未注入时用纯启发式 `_ungraded_big_answer`（明确标注），任何路径都不触达 provider；
+              **B5.2 无浪费调用**：先查题库 → 有 active 行则确定性评分
+              （DETERMINISTIC_GRADE_PROVIDER_CALLS=0），无行才调 AI
+              （AI_GRADE_PROVIDER_CALLS=1 且结果被真实使用，AI_GRADE_RESULT_USED=YES）；
+              旧行为是「无条件先跑 AI 评分，随后被确定性结果整块覆盖」= 付费后丢弃；
+              **FACT FIRST**：AI 评分被拒（403/429）或失败时端点不抛错、不丢提交 ——
+              PastPaperAttempt 仍以确定性暂定分落库并置 submitted，响应新增
+              `answer_grade:{applied,reason}`；canonical mirror 仍只发生一次；
+              ANSWER_GRADE_MIGRATED=PASS（Free DENIED / Standard ALLOWED / Advanced ALLOWED；
+              pool proxy QUESTION_EXPLAIN_PROXY_V1；POOL_VERSION 仍 v4，未新开 benchmark）；
+              结构化输出校验：score 必须为整数且 0..10，否则 GradeOutputError（postprocessing
+              failure）；**已产生的 measured usage 照常 settle，不全额 refund**；
+              **EXAM_AI_LEGACY_AUTH_OWNER=0** —— 源码中已无 check_exam_408_usage_limit 的
+              任何调用点；`require_learning_context_feature` 退出 exam AI 路径；
+              非 AI 的 legacy study-plan CRUD entitlement 与 legacy 会员/额度 service_key
+              **刻意保留**（随统一会员退役，不做机械重命名）；
+              EXAM_AI_BILLING_DOUBLE_COUNT=NO（generate_exam_ai_questions 的 legacy 成功率
+              记账已删除；一次 provider invocation 只有 usage_ledger + ai_cost_records 一套事实）；
+              EXAM_AI_EVENT_DUPLICATION=NO（每次 invocation 一套 AIRequest/settle/ai_called，
+              含二次精修与修复重试）；
+              EXAM_AI_CONTEXT_PERSISTENCE / EXAM_AI_EVENT_CONTEXT_EQUIVALENCE /
+              EXAM_USAGE_LEDGER_NAMESPACE_EQUIVALENCE = PASS（service_namespace=exam_prep、
+              subject_key=cs_408、domain context 含 exam_module_id）；
+              COURSE_EXAM_NAMESPACE_ISOLATION=PASS（同名 token `data_structure` 在两空间
+              分别是 course_id 与 exam_module_id，不串线）；
+              PARSER_OCR_CLASSIFICATION=PASS / PARSER_OCR_MIGRATED_TO_ORCHESTRATOR=NO（EXPECTED=NO）；
+              D8（OCR 计费/可观测）本轮不解决，继续登记；
+              STUDENT_TWIN_ELIGIBILITY_EXPANDED=NO；REAL_APP_DB_MUTATED=NO；
+              TARGETED_TESTS=26 PASS（tests/test_exam_ai_orchestrator.py）；
+              FULL_BACKEND_TESTS=769 passed / 0 failed（H2 baseline 741）；
+              REMAINING = ① Exam knowledge canonical writer 未收敛；② D7 14 张 exam 表无
+              Alembic 覆盖；③ D5 favorite v2 死表；④ D8 OCR 计费；⑤
+              generate_exam_ai_questions 仍读 DEEPSEEK_API_KEY 做「未配置则 mock」短路
+              （配置门，非执行路径，属后续清理）；⑥ H4 多 track/subject catalog（需用户批准）
+```
+
+```text
+STEP7H4 = FROZEN（Multi-track / Multi-subject Exam Preparation catalog foundation）
+STEP7H4_NOTES = 实施报告 STEP7H4_EXAM_FRAMEWORK_ACCEPTANCE_REPORT.md；
+              **本轮为 RECOVER_AND_FINISH**（上一会话 context length 上限中断；
+              以磁盘事实为唯一 baseline，未重做、未按聊天历史猜）；
+              H4_RECOVERY_MATRIX：上一会话声称的 catalog.py / knowledge.py /
+              migration 20260917_0007 / routers/exam_prep.py / models.ExamPrepProfile /
+              main.py PATCH 收敛 / test_exam_framework.py **全部真实存在且形态正确**；
+              「2 个 test bug」在磁盘上已修复（recovery 后 51 passed / 0 failed，无需改动）；
+              **CATALOG_VERSION=v2；CATALOG_STORAGE=CONFIG；CATALOG_SQL_TABLES=0**
+              （catalog = learning/spaces/exam_prep/catalog.py，versioned config 可 diff）；
+              Track / Subject / Module **三个概念保持分离**（不把 track==subject 变通用规则）：
+                ExamTrack = 我准备什么方向/组合；ExamSubject = 实际考什么（全国统考科目）；
+                ExamModule = 该科目的教学组织；
+              **可用性（H4 的承重规则）**：
+                ACTIVE = active（真实内容已上线）；FRAMEWORK_ONLY = framework_only
+                （可选、可表达，**零伪造**）；
+              CS408_CONTENT_STATUS=ACTIVE（cs_408，4 modules：data_structure /
+              computer_organization / operating_system / computer_network）；
+              NON_CS408_CONTENT_STATUS=FRAMEWORK_ONLY，共 13 个：politics / english_1 /
+              english_2 / math_1 / math_2 / math_3 / management_aptitude /
+              economics_joint_aptitude / law_master_law / law_master_non_law /
+              education_basics / psychology_basics / history_basics；
+              能力标志（has_questions / has_past_papers / has_knowledge_tree）
+              **由 CONFIG 派生，绝不来自数表行数** —— 产品能力不得因某表恰为空而改变；
+              非 CS408 科目**无 chapters / 无 knowledge points / 无 questions / 无 seed 占位**；
+              `suggested_subjects` 除 cs_408 外**全部为空**（仓库无权威来源说明某方向需要哪些
+              公共课；catalog 不猜，学习者的 selected_subjects 才是真正 scope）；
+              **院校自命题永久 OUT OF SCOPE**（school / institution / college / major-code /
+              school exam code / 参考书目 / 院校大纲零表达）；
+              **CONTENT GATE（单一诚实答案）**：GET /exam/prep/subjects/{id}/content-status
+                ACTIVE → 200 + 元数据；FRAMEWORK_ONLY → **409 + EXAM_CONTENT_NOT_AVAILABLE**
+                （刻意不用 404：科目存在且可选，只是尚无内容）；unknown → 404；
+                **禁止 200 + [] 冒充成功**；
+              **EXAM_PREP_PROFILE_TABLE=exam_prep_profiles（NEW_TABLES=1）**；
+                字段：id / user_id UNIQUE(uq_exam_prep_profile_user) / exam_type /
+                selected_track / selected_subjects_json / target_exam_year / created_at /
+                updated_at；**每用户一个 CURRENT profile**；
+                INSTITUTION_SPECIFIC_FIELDS_ADDED=0；
+                target_exam_year 是**目标年份**，与真题 question_year 不同概念，
+                **不进任何 practice/wrong/event identity**；
+              Profile API：GET/PUT /exam/prep/profile、GET /exam/prep/catalog(/tracks|/subjects)、
+                GET /exam/prep/subjects/{id}/content-status；
+                **FRAMEWORK_ONLY subject 允许选择**（目标就是目标，即使内容尚未上线）；
+                非法 track / subject id → 400 fail closed；**Free 用户也可保存**；
+                EXAM_PREP_PROFILE_ISOLATION=PASS（跨用户完全独立）；
+              **EXAM_KNOWLEDGE_CANONICAL_WRITER_CONSOLIDATED=YES**：
+                H4 前 PATCH /exam/11408/{k}/study-plan/knowledge-items/{code} **直接写**
+                user_knowledge_progress（路由成为 exam knowledge 状态/review 调度/事件语义的
+                事实 owner）；H4 后唯一写入边界 = learning/spaces/exam_prep/knowledge.py，
+                路由调用之；**PRESERVE PATCH CONTRACT**：legacy URL / method / response /
+                score 阈值（learning 默认 30、mastered=100）/ study-plan 语义 / review 算法 /
+                mastery 解释**一律未改**；
+                EXAM_MUTATION_PATHS 共 3 条全部已声明，exam_paths_not_consolidated()==[]；
+                **知识身份**：user + service_namespace=exam_prep + exam_subject_id=cs_408 +
+                exam_module_id=<module> + knowledge_point_code；
+                **来源不是 KnowledgePoint SQL 表**，而是
+                seed_data/knowledge_maps/<module>_11408.json（leaf 校验）+
+                exam_question_bank knowledge metadata → **不要求 knowledge_points 有对应行**
+                （knowledge_points 32 行属 programming ontology，与 Exam catalog 无关）；
+                持久兼容：UserKnowledgeProgress.course_id 仍为 `<module>_11408`，
+                **不 rewrite scope**；writer 入口显式 db.flush()（SessionLocal autoflush=False
+                否则会创建重复 progress 行）；
+              **EXAM_KNOWLEDGE_EVENT_SEMANTICS=PASS**：emit knowledge_status_changed 仅限
+                真实状态迁移；service_key=exam_prep；subject_key=**cs_408**（H1 契约：事件
+                subject 是 EXAM SUBJECT 而非 module）；domain context 含 exam_module_id +
+                knowledge point code；**exam_track_id 不进事件、不进 identity**；
+                同一状态重复写入**不发 duplicate transition**；event 独立 session、
+                failure-isolated；**不接** StudentTwin / IRT / learner_state / misconception；
+              **EXAM_BUSINESS_PROVIDER_SPECIFIC_CONFIG=0**（关闭 H3 §19 ⑤ 遗留）：
+                generate_exam_ai_questions 不再读 DEEPSEEK_API_KEY 做「未配置则 mock」短路，
+                直接经 _exam_ai_content → orchestrator；模型可用性由 Router / Gateway 决定；
+                **provider adapter 自身 secret 配置未删**（ai/providers/*、ai/secrets.py
+                仍是 provider 名唯一允许出现处）；admin 模型配置页 / 健康检查读 env 属运维面；
+              **MIGRATION_HEAD=20260917_0007**（20260917_0007 Create Date 2026-09-17，
+                down_revision=20260915_0006，链 0001→…→0006→0007 连续）；
+                0007 **只** CREATE exam_prep_profiles + uq_exam_prep_profile_user +
+                ix_exam_prep_profiles_user_id；**不**建 catalog 表 / **不**建 14 张 legacy
+                exam 表 / **不**改 9333 题 / **不** drop dead table / **不** rename legacy 表；
+                downgrade() = NotImplementedError（additive-only）；
+                实测：FRESH temp DB upgrade head PASS；LEGACY COPY upgrade head PASS
+                （head=20260917_0007 / integrity ok / 9333 题保留）；
+              **REAL_APP_DB_MUTATED=NO**（真实 backend/app.db 72 表 / 无 alembic_version /
+                无 exam_prep_profiles / integrity ok / mtime 2026-09-16 21:24 未变）；
+                **真实库未迁移到 0007** —— Profile API 代码已就绪，线上可用需一次正式部署迁移；
+              受保护资产（只读复核）：exam_question_bank=9333（逐 subject
+                data_structure 5903 / computer_organization 1330 / operating_system 1180 /
+                computer_network 920；逐 source_type chapter 9098 / past_paper 235
+                —— 与 H1 基线**逐项相同**）/ programming_exercises=1923 /
+                knowledge_points=32；exam_resources=268 文件（H0 基线 263，增加未减少）/
+                static/exam_papers=564 文件（未变）；
+                **H4_BANKSHA256 = 6f788bca7b76a5b6edbef0d7d0abf0afe5aa28e3f7bc5a9e0011a634de18d5ee**
+                （列集 id+subject_key+source_type+year+question_number+stem+standard_answer
+                +analysis，`\x1f` 连接 / `\n` 分行 / ORDER BY id；H1 的 7b0717… 未记录序列化
+                方法，本轮无法逐字节复现，改用可复现方法并如实标注）；
+              NON_CS408_REAL_QUESTION_ROWS_ADDED=0 /
+                NON_CS408_KNOWLEDGE_CONTENT_ADDED=0 / NON_CS408_PAST_PAPER_CONTENT_ADDED=0；
+              **本轮唯一修复 = 迁移测试回归（test bug，非实现 bug）**：
+                首次全量 5 failed / 815 passed，全在 tests/test_practice_migration.py ——
+                该文件把 `head` 当作「正被测的 revision」（EXPECTED_HEAD 硬编码 0006；
+                0004/0005/0006 三处以 `upgrade head` 隔离「本 revision 自身贡献」，
+                而 head 现已 0007 → 0007 的新表被错误归因给旧 revision）；
+                修复（只改 test）：EXPECTED_HEAD→20260917_0007；三处改用**精确 revision**；
+                新增 test_revision_0007_adds_only_the_exam_prep_profile_table
+                （断言 0006→0007 恰好新增一张表、不 drop、无 *catalog* 表、受保护计数不变、
+                必要列与索引存在）；
+              STUDENT_TWIN_ELIGIBILITY_EXPANDED=NO；WRONG_CONCURRENCY_STRESS=PASS
+                （H2-C1 compare-and-recompute 未被触碰，未重设计 Wrong semantics）；
+              TARGETED_TESTS：test_exam_framework.py 52 PASS（恢复时 51，+1 provider-isolation
+                断言）/ test_practice_migration.py 8 PASS（原 7）/
+                H1–H3 exam 三件套 105 PASS / test_wrong_answers.py -k concurrent 3 PASS；
+              FULL_BACKEND_TESTS=**822 passed / 0 failed**（H3 baseline 769；
+                +53 = exam_framework 52 + 新增 migration 1）；
+              REMAINING = ① 17 张 legacy exam 表仍无 Alembic baseline（H0 R3 🟠）；
+              ② 真实 app.db 未迁移到 0007（需一次正式部署迁移）；
+              ③ FRAMEWORK_ONLY 科目公共课组合未定义（诚实的空，非遗漏）；
+              ④ 非 408 真实内容导入仍未发生，**必须等用户明确批准**（H0 §21）；
+              ⑤ H5 = CS408 full acceptance（onboarding → 章节练习 → 真题 → 错题 → 计划 →
+              记录 → 报告）—— **STEP7H 整体未 COMPLETE，不得声称 STEP7H COMPLETE**
+                ［H4 冻结时的状态；**已被 STEP7H5 取代**：H5 完成后 STEP7H 已整体 FROZEN，
+                见本 §73 的 STEP7H5 条目］
+```
+
+```text
+STEP7H5 = FROZEN（Exam Prep / CS408 final backend acceptance + deployment hardening
+                  + frontend API handoff）—— **STEP 7H 到此整体 FROZEN**
+STEP7H5_NOTES = 实施报告 STEP7H5_EXAM_PREP_FINAL_BACKEND_ACCEPTANCE_REPORT.md；
+              前端交接 STEP7H_FRONTEND_API_HANDOFF.md（面向实现方，短且稳定）；
+              本轮**不新增任何产品能力**，只做验收 / 加固 / 修复 / 交接；
+              **EXAM_RUNTIME_SCHEMA_ALEMBIC_COVERAGE = COMPLETE**：
+                新增 migration **20260917_0008**（baseline_exam_legacy_runtime_tables，
+                down_revision=20260917_0007）；0001–0007 **未做任何修改**；
+                覆盖 exam 路由实际读写的 13 张表（11 张 exam 自有 + 2 张 exam 运行时读写的
+                共享存储 user_knowledge_progress / user_knowledge_review_settings）；
+                表集由 exam 路由处理器**实测反推**，非按名字模式猜测；
+                **不**覆盖 exam_favorite_questions_v2（0 行 / 0 运行时引用 / 无 FK，
+                = DEAD_DELETE_LATER，不因「表数齐全」升级为 canonical requirement）；
+                **不**覆盖 knowledge_points / knowledge_progress_events /
+                material_knowledge_links（SHARED_NOT_EXAM_OWNED，属更广 legacy baseline）；
+                同一 migration **同时**支持 fresh 空库（建表+索引）与 legacy app.db COPY
+                （表已存在则**原样保留**，仅补缺失的模型声明列/索引，additive）；
+                无 DROP / 无 rebuild / 无行重写 / 不动 9333 题库；downgrade=NotImplementedError；
+              **MIGRATION_HEAD = 20260917_0008**；
+              **FRESH_DB_ALEMBIC_ONLY = PASS**：全新空库只跑 `alembic upgrade head`
+                → head=0008 / integrity ok / 27 表 / 13 张 Exam 运行时表全部存在 /
+                死表不存在；并用 ORM 元数据逐表比对「模型声明列 == alembic 建成列」
+                且实际 query() 成功 → **EXAM_SCHEMA_DEPENDS_ON_CREATE_ALL = NO**；
+              **LEGACY_DB_COPY_UPGRADE = PASS**：app.db COPY upgrade head → head=0008 /
+                integrity ok / 86 表（未减少）/ 9333 / 1923 / 32 /
+                **BANKSHA256 与真实库逐字节相同**；
+              **REAL_APP_DB_MUTATED = NO**（真实库 72 表 / 无 alembic_version /
+                无 exam_prep_profiles / integrity ok / mtime 2026-09-16 21:24 未变 /
+                REAL_APP_DB_MIGRATED = NO，线上迁移走既有部署流程）；
+              **本轮发现并修复一个 H4 漏登记的真实隔离缺陷**：
+                `PATCH /knowledge-map/progress` 的 course_id 经
+                normalize_subject_course_learning 归一，而 "<module>_11408" 不在归一表里
+                → 原样保留 → seed 存在 → **该路由可带 exam scope 调用**
+                （/knowledge-map/review-settings 甚至显式特判 `_11408`，证明该路径确被使用）；
+                修复前：行落在 exam 作用域（course_id 正确），但事件被记为
+                **service_key=course_learning / subject_key=None** —— 考试知识变更被记成
+                课程事件，即 H1 修过的 D1 类跨空间污染残留；
+                修复：用 learning.spaces.exam_prep.scope.parse_legacy_exam_scope_id 判定，
+                exam scope → 委派 exam_prep.knowledge.apply_exam_knowledge_change；
+                响应契约 / 行作用域（`<module>_11408`）/ review 调度语义**全部不变**；
+                course scope 行为**完全不变**（实测仍为 service_key=course_learning）；
+                EXAM_MUTATION_PATHS 由 3 条补为 **4 条**，
+                exam_paths_not_consolidated()==[]，**UNDECLARED_DIRECT_WRITE = 0**；
+              **CS408_FULL_BACKEND_E2E = PASS**（profile → catalog → module → 知识 →
+                章节练习 → 错题 active → 纠正 → resolved → 记录 → 真题 → 计划）；
+              **FREE_EXAM_LOOP = PASS**（非 AI 闭环完整可用；付费 capability 403 且
+                provider 调用=0；会员差异不影响任何事实持久化）；
+              **STANDARD_EXAM_AI_LOOP = PASS**（question.generate / planning.generate /
+                answer.grade 走满 estimate→reserve→execute→actual→settle；
+                AIRequest.service_namespace=exam_prep、context 含 cs_408+module；
+                UsageLedger 有行）；
+              **ADVANCED_EXAM_CAPABILITY_LOOP = PASS**（report.generate 仅 Advanced；
+                Standard 同 capability 403 且 0 调用）；**未改任何 membership 语义**；
+              **FRAMEWORK_ONLY_SELECTION = PASS / FRAMEWORK_ONLY_CONTENT_GATE = PASS**
+                （13 个科目逐个：可选可存 200；content-status 一律 **409 +
+                EXAM_CONTENT_NOT_AVAILABLE**；响应体**不含**任何 408 标识 → 无静默 fallback；
+                无 200+占位；无 LLM 生成内容）；
+              **LEGACY_11408_ROUTE_COMPATIBILITY = PASS**（10 条代表性读接口全 200；
+                legacy 路由未删除未改名；study-plan 对 Free 仍 403，legacy 权益刻意保留）；
+              **EXAM_DIRECT_PROVIDER_ENDPOINTS_FINAL = 0 / EXAM_DIRECT_PROVIDER_CALLS_FINAL = 0**
+                （50 个 exam 路由块逐一扫描 call_deepseek / DEEPSEEK_API_KEY / OpenAI( /
+                chat.completions / DASHSCOPE → 0 命中；exam_prep 包与 routers/exam_prep.py
+                同样 0 命中并有可执行断言；main.py 其余 12 处 call_deepseek 均在
+                course/programming/admin 非 exam 路径）；
+              **PARSER_OCR_CLASSIFICATION = PASS**；**D8 = NON_BLOCKING_INFRA_TECH_DEBT**
+                （OCR 只服务资料/真题解析 infra，非 exam 学习核心路径；有按套餐页数上限
+                20/500/1000 + 系统天花板 ai_pdf_scan_max_pages + MAX_OCR_CHARS=12000，
+                无无限成本、无会员绕过；未并入 Orchestrator、未新建第二套会员体系）；
+              **QUESTION_BANK_COUNT = 9333 / QUESTION_BANK_CONTENT_UNCHANGED = YES**
+                （逐 subject 5903/1330/1180/920，逐 source_type 9098/235，与 H1 基线逐项相同；
+                H5_BANKSHA256=6f788bca7b76a5b6bedbef0d7d0abf0afe5aa28e3f7bc5a9e0011a634de18d5ee）；
+                exam_resources 268 文件 / static/exam_papers 564 文件（未减少）；
+              **WRONG_CONCURRENCY_STRESS = PASS**（500 轮 × 2 线程 = **1000 次并发写入**，
+                每轮断言 states==1 且 wrong_count==2，0 失败；H2-C1 语义未改动）；
+              **DUPLICATE_METHOD_PATH_REGISTRATIONS = 0**；
+              **CROSS_USER_ISOLATION / CROSS_NAMESPACE_ISOLATION / CROSS_MODULE_ISOLATION
+                = PASS**（跨用户 profile/练习/错题/记录；course_learning vs exam_prep 同名
+                token 不串线（写方向亦已成立）；同空间跨 module 不串线）；
+              **FRONTEND_API_HANDOFF = COMPLETE / FRONTEND_CHANGED = NO**
+                （交接文档含 IA / ACTIVE vs FRAMEWORK_ONLY / canonical endpoints /
+                CS408 既有内容接口 / 状态契约 / 错误契约（detail 的两种形态）/
+                profile 契约 / module id+显示名 / 10 条禁止的 UI 假设 /
+                会员体验（不暴露后端 registry））；
+              TESTS：新增 backend/tests/test_exam_final_acceptance.py（**53 PASS**）；
+                test_practice_migration.py 由 8 → **11 PASS**（新增 0008 三项）；
+                修复 3 个测试自身缺陷（fresh alembic 库无 users 表 / AIRequest 无
+                subject_key 列（在 context_json）/ dashboard-summary 真实路径带 subjects/
+                context_json 已是 dict）—— 均为 test bug，非产品缺陷；
+              FULL_BACKEND_TESTS = **878 passed / 0 failed，连续两次**
+                （FULL_RUN_1 453s / FULL_RUN_2 479s，无 flaky；H4 baseline 822，+56）；
+              REMAINING（**全部 NON_BLOCKING_TECH_DEBT**，无 data correctness /
+                schema deployment / namespace / billing correctness / user-fact loss blocker）
+                = ① 约 46 张非 Exam 表仍无 Alembic owner（fresh 部署仍依赖 create_all +
+                ensure_*），属更广 legacy baseline，需独立硬化轮次；
+                ② D8 OCR 不经统一 usage_ledger / ai_cost_records 记账；
+                ③ D5 exam_favorite_questions_v2 死表仍在（需独立可回滚 migration）；
+                ④ 真实 app.db 未迁移到 0008（走正式部署流程）；
+                ⑤ 13 个 FRAMEWORK_ONLY 科目无真实内容（**有意为之**，须用户批准才导入）；
+                ⑥ /exam-408/* 院校自命题遗留路由仍存在（保持 legacy 兼容，前端不得暴露入口）；
+                ⑦ datetime.utcnow() DeprecationWarning（2 类位置，不影响正确性）；
+              **STEP7H5_COMPLETE=YES / STEP7H5=FROZEN / STEP7H=FROZEN / FRONTEND_READY=YES**；
+              **NEXT_MAJOR_PHASE = FRONTEND_REBUILD / FRONTEND_PRODUCT_IMPLEMENTATION**；
+              **后端停止继续扩展**
+```
+
+## ACCEL SPRINT 记录（前端阶段内的加速后端产品化）
+
+```text
+ACCEL_SPRINT_S1 = COMPLETE（2026-09-19）
+ACCEL_SPRINT_S1_SCOPE = F1C6 Learning Record 契约收口 + Scientific Runtime 产品桥 V1
+ACCEL_SPRINT_S1_REPORT = ACCEL_SPRINT_S1_RECORDS_AND_SCIENTIFIC_BRIDGE_REPORT.md
+ACCEL_SPRINT_S1_NOTES =
+  - 时间语义统一：naive persisted datetime = UTC，6 处转换收敛到 core/timeutil.py
+    （SAME_REAL_MOMENT_EVENT_TIME_DRIFT = 0s）
+  - AI 审计事实（ai_called）不再出现在用户学习记录：服务端排除 + include_audit 显式 opt-in，
+    事实本身保留；AI_AUDIT_EVENT_USER_FACING = NO
+  - /learning-records 前缀歧义消除（detail 只匹配 canonical UUID；legacy /stats 恢复可达）；
+    新增 canonical exam 时间线 GET /exam/prep/records（SQL 侧 module 过滤）
+  - 未作答不再暴露 score=0（UNANSWERED_SCORE_ZERO = 0）；summary 改为 SQL 聚合（有界）
+  - records / scientific 全部有 concrete OpenAPI 模型（*_UNKNOWN = 0）
+  - Scientific Runtime 桥 = backend/science/（唯一 HTTP client；Product Backend 零重依赖导入）
+
+ACCEL_SPRINT_S2 = COMPLETE（2026-09-19）
+ACCEL_SPRINT_S2_SCOPE = StudentTwin CS408 产品化 Gate 收口 + SSOT 治理更新
+ACCEL_SPRINT_S2_REPORT = ACCEL_SPRINT_S2_STUDENT_TWIN_CS408_PRODUCTIZATION_REPORT.md
+ACCEL_SPRINT_S2_NOTES =
+  - **产品决策（用户明确）**：CS408 事实性 question_answered 事件 MAY 为 StudentTwin eligible，
+    当且仅当携带权威二元正确性事实（见 § 36 / StudentTwin 冻结状态 INPUT_DOMAIN_ELIGIBILITY）
+  - 规则落点 = data_plane.eligibility.student_twin_input_eligibility（同时被 worker 与
+    product preview 消费；家族级 eligible 是必要非充分条件）
+  - 科学侧零改动：公式 / 状态转移 / runtime release id / 模型资产全部不变
+    （RUNTIME_RELEASE_ID_CHANGED = NO）
+  - MISCONCEPTION_PRODUCT_MODE = SHADOW_NOT_USER_VISIBLE（未晋升；
+    RUNTIME_PROVISIONED != PRODUCT_ELIGIBLE）
+  - TUTOR_POLICY_PRODUCT_MODE = SHADOW（未晋升；turn-state 仍不可诚实构造）
 ```
 
 ---
@@ -3826,4 +4966,4 @@ STEP7C-P_NOTES = 6 Provider 全部配置（deepseek/qwen/doubao/kimi/glm/minimax
 
 当前唯一标准结论：
 
-> **智学AI正在从“已有大量后端能力、旧三方向会员、旧 AI 直连架构”迁移为“统一会员 + Usage Credits + 三 Learning Space + Shared Learning Core + AI Router/Gateway + Data Plane + Scientific Runtime”的 Clean-Slate 产品。现有成熟业务与静态资产优先保护，旧产品边界、旧会员和旧额度模型逐步淘汰。STEP 5 的 Python 文件 / 数据库 / API 处置矩阵已冻结，STEP 6 已冻结。当前处于 STEP 7（后端实现 / 重构）进行中：STEP7A / STEP7B / STEP7C / STEP7C-P 均已 FROZEN，CURRENT_SUBSTEP = STEP_7C-P，NEXT_SUBSTEP = STEP_7D。不是立即开发页面，也不是直接重写后端；`main.py` 走 REFACTOR / EXTRACT。**
+> **智学AI正在从“已有大量后端能力、旧三方向会员、旧 AI 直连架构”迁移为“统一会员 + Usage Credits + 三 Learning Space + Shared Learning Core + AI Router/Gateway + Data Plane + Scientific Runtime”的 Clean-Slate 产品。现有成熟业务与静态资产优先保护，旧产品边界、旧会员和旧额度模型逐步淘汰。STEP 5 的 Python 文件 / 数据库 / API 处置矩阵已冻结，STEP 6 已冻结。当前处于 STEP 7（后端实现 / 重构）进行中：STEP7A / STEP7B / STEP7C / STEP7C-P / STEP7D / STEP7E / STEP7F / STEP7G（含 STEP7G-C2）/ STEP7H0 / STEP7H1 / STEP7H2（含 H2-C1）/ STEP7H3 / STEP7H4 / STEP7H5 均已 FROZEN；CURRENT_SUBSTEP = STEP_7H5，NEXT_SUBSTEP = FRONTEND。考试空间已完成从「只有 11408」到统一 Exam Prep 的 canonical namespace 升级（canonical = exam_prep；exam_11408 为 INPUT alias；只支持全国统考型研究生招生考试科目，院校自命题 OUT OF SCOPE；当前实际装载 CS408，其 chapter / 真题 / AI 出题三条作答事实已全部接入 Unified Practice / Wrong / Records）；H4 已交付多 track / 多 subject 的 Exam Prep **framework**（catalog = versioned CONFIG，`cs_408` = ACTIVE，其余 13 个全国统考科目 = FRAMEWORK_ONLY **零内容**，非 408 真实内容导入必须等用户明确批准）；H5 已把 Exam 运行时 schema 纳入 Alembic（HEAD=20260917_0008，fresh 部署可仅靠 `alembic upgrade head`）并交付前端 API 交接文档。**STEP 7H 整体 FROZEN，后端停止继续扩展；NEXT_MAJOR_PHASE = FRONTEND_REBUILD / FRONTEND_PRODUCT_IMPLEMENTATION。`main.py` 走 REFACTOR / EXTRACT。**

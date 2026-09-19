@@ -26,6 +26,7 @@ from datetime import date, datetime, timedelta, timezone
 from io import BytesIO, StringIO
 from pathlib import Path
 from pathlib import PurePosixPath
+from typing import Annotated, Literal
 from urllib.parse import quote, unquote
 
 import fitz
@@ -36,7 +37,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.exceptions import RequestValidationError
 from openai import OpenAI
 from PIL import Image, UnidentifiedImageError
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from pypdf import PdfReader
 import pytesseract
 from sqlalchemy import func, or_
@@ -56,8 +57,14 @@ from usage import models as usage_models  # noqa: F401 — registers Unified Sub
 from routers.health import router as health_router
 from routers.subscription import router as subscription_router
 from routers.ai_models import router as ai_models_router
+from routers.practice import router as practice_router
+from routers.wrong_answers import router as wrong_answers_router
+from routers.exam_prep import router as exam_prep_router
+from routers.learning_records import router as learning_records_router
+from routers.scientific import router as scientific_router
 import schemas
 from auth import hash_password, verify_password
+from core import schema_preflight as core_schema_preflight
 from database import Base, SessionLocal, engine, get_db, init_user_profile_schema, update_conversation_title
 from database_schema import ensure_database_schema
 from membership import (
@@ -108,6 +115,96 @@ from rag import (
 from subjects import COURSE_LEARNING_ID_MAP, normalize_subject, normalize_subject_course_learning, resolve_course_id_from_display
 from payments import get_payment_provider, is_production_runtime, is_mock_payment_allowed
 from payments.service import apply_verified_payment, recompute_membership_after_refund, PENDING, PAID, CANCELLED, EXPIRED, REFUNDED
+
+
+def _course_ai_content(db: Session, user: models.User, capability: str, messages: list[dict], *,
+                       course_id: str, chapter_id=None, knowledge_point_id=None,
+                       material_ids=None, session_id=None, temperature=None,
+                       max_tokens=None) -> str:
+    """One Course production AI invocation: canonical context → orchestrator only.
+
+    Defense in depth (STEP7H1 D1): a course context must never be built from an
+    exam-qualified scope. Callers that already know the scope use ``_scoped_ai_content``;
+    this guard makes the rule hold for every other caller too, so an exam fact cannot be
+    filed under ``course_learning`` merely because a route reached for the course helper.
+    """
+    if _is_exam_ai_scope(course_id):
+        return _exam_ai_content(db, user, capability, messages,
+                                scope_values=(course_id, chapter_id, knowledge_point_id),
+                                chapter_id=chapter_id,
+                                knowledge_point_id=knowledge_point_id,
+                                temperature=temperature, max_tokens=max_tokens)
+    from learning.spaces.course_learning.ai import execute_course_ai
+    from learning.spaces.course_learning.context import build_course_context
+    result = execute_course_ai(
+        db, user, capability, messages,
+        learning_context=build_course_context(
+            user, course_id=course_id, chapter_id=chapter_id,
+            knowledge_point_id=knowledge_point_id, material_ids=material_ids,
+            session_id=session_id),
+        temperature=temperature, max_tokens=max_tokens)
+    return result.content
+
+
+def _is_exam_ai_scope(*values) -> bool:
+    """True when these scope values belong to the Exam Prep space.
+
+    Accepts BOTH spellings, because callers hold one or the other: the canonical
+    namespace (``exam_prep``) and the legacy direction markers that live in course ids
+    (``operating_system_11408``, ``11408 数据结构``). Without this a caller holding the
+    canonical name would fall through to the course boundary.
+    """
+    from core.learning_context import ServiceNamespace, normalize_service_namespace
+    for value in values:
+        if not value:
+            continue
+        try:
+            if normalize_service_namespace(value) == ServiceNamespace.EXAM_PREP.value:
+                return True
+        except ValueError:
+            continue
+    return is_exam_408_context(*values)
+
+
+def _exam_ai_content(db: Session, user: models.User, capability: str, messages: list[dict], *,
+                     scope_values=(), chapter_id=None, knowledge_point_id=None,
+                     temperature=None, max_tokens=None) -> str:
+    """One Exam Prep production AI invocation: canonical exam context → orchestrator only.
+
+    CS408 is currently the only exam with real data; the adapter resolves the module from
+    whichever legacy scope string the caller holds.
+    """
+    from learning.spaces.exam_prep import context as _exam_context
+    from learning.spaces.exam_prep.ai import execute_exam_ai
+    result = execute_exam_ai(
+        db, user, capability, messages,
+        learning_context=_exam_context.cs408_context_from_values(
+            user, *scope_values, chapter_id=chapter_id,
+            knowledge_point_id=knowledge_point_id),
+        temperature=temperature, max_tokens=max_tokens)
+    return result.content
+
+
+def _scoped_ai_content(db: Session, user: models.User, capability: str, messages: list[dict], *,
+                       course_id: str, exam_scope_values=(), chapter_id=None,
+                       knowledge_point_id=None, material_ids=None, session_id=None,
+                       temperature=None, max_tokens=None) -> str:
+    """Route one AI invocation to the learning space that OWNS the request.
+
+    The space is decided HERE, by the same predicate the endpoint uses for authorization —
+    not by which helper the caller happened to reach for. Without this an exam-qualified
+    request could be filed under ``course_learning`` in the unified ledger and event
+    stream, which is the cross-space pollution STEP7H1 fixes (D1).
+    """
+    if _is_exam_ai_scope(*exam_scope_values):
+        return _exam_ai_content(db, user, capability, messages,
+                                scope_values=(course_id, *exam_scope_values),
+                                chapter_id=chapter_id, knowledge_point_id=knowledge_point_id,
+                                temperature=temperature, max_tokens=max_tokens)
+    return _course_ai_content(db, user, capability, messages, course_id=course_id,
+                              chapter_id=chapter_id, knowledge_point_id=knowledge_point_id,
+                              material_ids=material_ids, session_id=session_id,
+                              temperature=temperature, max_tokens=max_tokens)
 
 
 def _normalize_course_or_11408(subject: str, default: str = "") -> str:
@@ -254,6 +351,14 @@ load_dotenv()
 
 app = FastAPI()
 _ai_usage_action_id: ContextVar[str | None] = ContextVar("ai_usage_action_id", default=None)
+
+# ACCEL_SPRINT_S6 PART B — the deployment gate. This runs BEFORE create_all, because
+# create_all cannot add a column to an existing table: on a database that is behind, a
+# silent create_all would leave the process running and turn every later SELECT of a
+# migration-added column into a request-time 500. A database that is genuinely new (no
+# product tables yet) passes, which is what keeps fresh installs and test harnesses
+# working; an existing database at the wrong revision refuses to start.
+core_schema_preflight.assert_ready(engine)
 
 Base.metadata.create_all(bind=engine)
 init_user_profile_schema()
@@ -3053,8 +3158,6 @@ def check_programming_usage_limit(user: models.User, feature: str, db: Session):
     return {"allowed": True, "used": used, "limit": limit, "remaining": max(0, limit - used), "plan": plan}
 
 
-EXAM_408_SUBJECT_KEYWORDS = ("11408", "数据结构", "计算机组成原理", "操作系统", "计算机网络")
-
 EXAM_408_SUBJECT_KEYS = {
     "data_structure",
     "computer_organization",
@@ -3072,10 +3175,19 @@ def normalize_exam_subject_key(*values: str | None) -> str:
 
 
 def is_exam_408_context(subject: str | None = "", course: str | None = "") -> bool:
+    """Does the 11408 exam direction OWN this request?
+
+    Decided by the unambiguous direction marker "11408" (as in "11408 操作系统" or the
+    exam-qualified material scope "operating_system_11408") — never by a bare display
+    name. "数据结构" / "操作系统" / "计算机组成原理" / "计算机网络" are display names of
+    course_learning courses (COURSE_LEARNING_ID_MAP) AND of exam subjects, so matching on
+    them would file a Course request under the exam space. Identity is the key; the title
+    is presentation (SSOT §28).
+    """
     text = f"{subject or ''} {course or ''}".strip()
     if not text:
         return False
-    return any(keyword in text for keyword in EXAM_408_SUBJECT_KEYWORDS)
+    return "11408" in text
 
 
 def get_exam_408_permissions_for_user(db: Session, user: models.User):
@@ -3320,18 +3432,24 @@ def summarize_material(subject: str, extracted_text: str, db: Session | None = N
 {preview}
 """.strip()
 
-    summary = call_deepseek(
-        [
-            {
-                "role": "system",
-                "content": "你是学习资料摘要助手，输出简洁、准确、便于复习的中文摘要。",
-            },
-            {"role": "user", "content": prompt},
-        ]
-    )
-    if db and user:
-        record_ai_usage(user.username, "material_summary", db, service_key="course_learning")
-    return summary
+    if db is not None and user is not None:
+        return _course_ai_content(
+            db,
+            user,
+            "material.qa",
+            [
+                {
+                    "role": "system",
+                    "content": "你是学习资料摘要助手，输出简洁、准确、便于复习的中文摘要。",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            course_id=subject or "course_learning",
+        )
+
+    # This helper is only called from authenticated material creation.  Do not
+    # silently recreate the legacy direct-provider path when context is absent.
+    raise RuntimeError("material summary requires an authenticated LearningContext")
 
 
 FILE_TYPE_LABELS = {
@@ -5338,25 +5456,25 @@ async def handle_material_upload(
                 top_k=TOP_K_CHUNKS,
             )
             references = [serialize_reference_item(item) for item in rag_chunks]
-            answer = call_deepseek(
-                [
-                    {
-                        "role": "system",
-                        "content": build_system_prompt(
-                            normalized_subject,
-                            clean_question,
-                            user_profile(user),
-                            has_attachment=(file_type == "pdf"),
-                            rag_chunks=rag_chunks,
-                        ),
-                    },
-                    {
-                        "role": "user",
-                        "content": build_material_question_prompt(file_type, extracted_text, clean_question),
-                    },
-                ]
-            )
-            record_ai_usage(user.username, "chat", db, service_key="exam_11408" if is_exam_408_context(normalized_subject, "") else "course_learning")
+            _attachment_messages = [
+                {
+                    "role": "system",
+                    "content": build_system_prompt(
+                        normalized_subject, clean_question, user_profile(user),
+                        has_attachment=(file_type == "pdf"), rag_chunks=rag_chunks),
+                },
+                {
+                    "role": "user",
+                    "content": build_material_question_prompt(file_type, extracted_text, clean_question),
+                },
+            ]
+            # STEP7H3 B11: the space is decided here and the request is authorised by the
+            # unified capability/budget path for both spaces.
+            answer = _scoped_ai_content(
+                db, user, "material.qa", _attachment_messages,
+                course_id=normalized_subject or "course_learning",
+                exam_scope_values=(normalized_subject,),
+                session_id=chat_session.id)
 
             answer = normalize_assistant_markdown(answer)
 
@@ -5432,6 +5550,11 @@ def root():
 app.include_router(health_router)
 app.include_router(subscription_router)
 app.include_router(ai_models_router)
+app.include_router(practice_router)
+app.include_router(wrong_answers_router)
+app.include_router(learning_records_router)
+app.include_router(exam_prep_router)
+app.include_router(scientific_router)
 
 
 @app.get("/home/summary")
@@ -8386,6 +8509,34 @@ def get_weak_knowledge_points(username: str, course_id: str, db: Session, limit:
     return result[:limit]
 
 
+def _emit_knowledge_transition(transition):
+    """STEP 7F/7G: emit the canonical event for a REAL course knowledge transition.
+
+    Thin compatibility shim: the single implementation lives in the Course Space
+    knowledge boundary so there is exactly one event rule for course knowledge.
+    Callers must have committed the durable fact first.
+    """
+    from learning.spaces.course_learning import knowledge as _course_knowledge
+    if transition is None:
+        return {"emitted": 0, "reason": "no_transition"}
+    if isinstance(transition, dict):
+        return _course_knowledge.emit_transition(
+            _course_knowledge.KnowledgeTransition(
+                username=transition.get("username"),
+                course_id=transition.get("course_id"),
+                knowledge_point_id=transition.get("knowledge_point_id"),
+                knowledge_point_code=transition.get("knowledge_point_code"),
+                old_status=transition.get("old_status"),
+                new_status=transition.get("new_status"),
+                old_score=transition.get("old_score") or 0,
+                new_score=transition.get("new_score") or 0,
+                occurred_at=transition.get("occurred_at"),
+                source_type=transition.get("source_type"),
+                source_id=transition.get("source_id"),
+                event_type=transition.get("event_type")))
+    return _course_knowledge.emit_transition(transition)
+
+
 def apply_knowledge_progress_event(
     username: str,
     course_id: str,
@@ -8398,10 +8549,13 @@ def apply_knowledge_progress_event(
     db: Session | None = None,
 ):
     if not db or not username or not course_id or not knowledge_point_id:
-        return
+        return None
 
     try:
-        # Validate knowledge point belongs to user + course
+        # STEP 7G: this function is now the LEGACY COMPATIBILITY entry point. It keeps
+        # writing its own durable row (existing readers depend on it) and delegates the
+        # progress update + status derivation to the ONE canonical writer, so every
+        # course knowledge change is covered by the same rule and the same event.
         point = (
             db.query(models.KnowledgePoint)
             .filter(
@@ -8412,12 +8566,8 @@ def apply_knowledge_progress_event(
             .first()
         )
         if not point:
-            return
-
-        now = utc_now()
-
-        # Write event
-        event = models.KnowledgeProgressEvent(
+            return None
+        _evt = models.KnowledgeProgressEvent(
             username=username,
             course_id=course_id,
             knowledge_point_id=knowledge_point_id,
@@ -8426,62 +8576,20 @@ def apply_knowledge_progress_event(
             reason=reason or None,
             source_type=source_type,
             source_id=source_id,
-            created_at=now,
+            created_at=utc_now(),
         )
-        db.add(event)
+        db.add(_evt)
 
-        # Get or create progress
-        progress = (
-            db.query(models.UserKnowledgeProgress)
-            .filter(
-                models.UserKnowledgeProgress.username == username,
-                models.UserKnowledgeProgress.course_id == course_id,
-                models.UserKnowledgeProgress.knowledge_point_id == knowledge_point_id,
-            )
-            .first()
-        )
-        if not progress:
-            progress = models.UserKnowledgeProgress(
-                username=username,
-                course_id=course_id,
-                knowledge_point_id=knowledge_point_id,
-                mastery_score=0,
-                status="not_started",
-                practice_count=0,
-                task_count=0,
-            )
-            db.add(progress)
-            db.flush()
-
-        # Update mastery_score (clamp 0-100)
-        old_score = progress.mastery_score or 0
-        new_score = max(0, min(100, old_score + delta))
-        progress.mastery_score = new_score
-
-        # Auto-update status
-        if new_score == 0:
-            progress.status = "not_started"
-        elif new_score < 40:
-            progress.status = "learning"
-        elif new_score < 80:
-            progress.status = "reviewing"
-        else:
-            progress.status = "mastered"
-
-        # Update practice/task counts
-        if event_type == "task_done":
-            progress.task_count = (progress.task_count or 0) + 1
-        elif event_type in ("question_correct", "question_incorrect", "question_attempt"):
-            progress.practice_count = (progress.practice_count or 0) + 1
-
-        if delta > 0:
-            progress.last_studied_at = now
-        progress.updated_at = now
-
-        db.flush()
+        from learning.spaces.course_learning import knowledge as _course_knowledge
+        transition = _course_knowledge.apply_knowledge_change(
+            db, username=username, course_id=course_id, event_type=event_type,
+            knowledge_point_id=knowledge_point_id, delta=delta, reason=reason,
+            source_type=source_type, source_id=source_id)
+        return transition.to_dict() if transition is not None else None
     except Exception:
         db.rollback()
         logging.exception("apply_knowledge_progress_event failed")
+        return None
 
 
 @app.post("/chat")
@@ -8639,6 +8747,20 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
     db.add(user_message)
     db.commit()
     db.refresh(user_message)
+    # STEP 7F: the learner asked something about material(s). The question text stays in
+    # chat_messages — the event carries references only. Failure-isolated.
+    if material_ids:
+        try:
+            from learning.records import producers as _records_producers
+            for _mid in material_ids:
+                _records_producers.emit_material_asked(
+                    user_id=user.id, material_id=_mid, occurred_at=None,
+                    source_id=user_message.id, capability="material.qa",
+                    service_namespace=(service_key or "course_learning"),
+                    source_user_ref=user.username,
+                    source_item_key=f"{_mid}:{user_message.id}")
+        except Exception as _rec_exc:  # noqa: BLE001
+            logger.warning("material_asked hook failed: %s", type(_rec_exc).__name__)
 
     rag_chunks = []
     if material_ids:
@@ -8717,10 +8839,12 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
         file_names = "、".join(m.original_filename for m in selected_materials)
         user_content = f"【本轮引用资料：{file_names}】\n{user_content}"
 
-    if is_exam_408_context(subject, req.course) or (req.service_key or "").strip() == "exam_11408":
+    if ((req.service_key or "").strip() == "exam_11408" or exam_subject
+            or is_exam_408_context(subject, req.course)):
         usage_feature = "chat"
-        usage_service = "exam_11408"
-        check_exam_408_usage_limit(user, "chat", db)
+        # STEP7H3 B7: exam chat authorization is the unified capability + budget path,
+        # decided inside the orchestrator. The legacy exam quota no longer gets a vote.
+        usage_service = "exam_prep"
     elif (req.service_key or "").strip() == "programming":
         # Programming AI 问答 shares the "AI问答/纠错" programming quota counter
         # with /code/analyze, so both are limited by ai_chat_daily_limit together.
@@ -8730,16 +8854,28 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
     else:
         usage_feature = "chat"
         usage_service = "course_learning"
-        check_usage_limit(user.username, "chat", db, "course_learning")
 
-    answer = call_deepseek(
-        [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_content},
-        ]
-    )
-
-    record_ai_usage(user.username, usage_feature, db, estimated_tokens=estimate_tokens_from_text(answer), status="success", service_key=usage_service)
+    _chat_messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_content},
+    ]
+    # Server-side capability choice (B11): grounded material QA vs plain tutoring. The
+    # client never names a capability, so it cannot pick its way around permission.
+    _chat_capability = "material.qa" if material_ids else "tutor.chat"
+    if usage_service == "course_learning":
+        answer = _course_ai_content(
+            db, user, _chat_capability, _chat_messages,
+            course_id=rag_course_id or subject or "course_learning", material_ids=material_ids,
+            session_id=chat_session.id)
+    elif usage_service == "exam_prep":
+        answer = _exam_ai_content(
+            db, user, _chat_capability, _chat_messages,
+            scope_values=(rag_course_id, rag_subject_key, subject))
+    else:
+        answer = call_deepseek(_chat_messages)
+        record_ai_usage(user.username, usage_feature, db,
+                        estimated_tokens=estimate_tokens_from_text(answer), status="success",
+                        service_key=usage_service)
 
     answer = normalize_assistant_markdown(answer)
 
@@ -9550,6 +9686,18 @@ def get_material_detail(material_id: int, username: str = "", db: Session = Depe
     user = current_user
     material = get_accessible_material_or_404(db, user.username, material_id)
 
+    # STEP 7F: record the real "opened this material" action. The producer writes in its
+    # OWN session and dedups per (user, material, UTC day) via its deterministic event id,
+    # so page refreshes collapse into one event and this read path stays side-effect free
+    # on the request's own transaction.
+    try:
+        from learning.records import producers as _records_producers
+        _records_producers.emit_material_opened(
+            user_id=user.id, material_id=material.id, occurred_at=None,
+            source_user_ref=user.username)
+    except Exception as _rec_exc:  # noqa: BLE001
+        logger.warning("material_opened hook failed: %s", type(_rec_exc).__name__)
+
     return {"material": serialize_material_detail(material)}
 
 
@@ -9663,39 +9811,6 @@ def create_learning_record(req: CreateLearningRecordRequest, db: Session = Depen
         "message": "学习记录已保存",
         "record": serialize_learning_record(learning_record),
     }
-
-
-@app.get("/learning-records")
-def get_learning_records(
-    username: str = "",
-    subject: str = "",
-    record_type: str = "",
-    review_status: str = "",
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-):
-    assert_username_matches_current_user(username, current_user)
-    user = current_user
-    query = db.query(models.LearningRecord).filter(
-        models.LearningRecord.user_id == user.id,
-        models.LearningRecord.is_deleted.is_(False),
-    )
-
-    normalized_subject = normalize_subject(subject, default="")
-    normalized_record_type = (record_type or "").strip()
-    normalized_review_status = (review_status or "").strip()
-
-    if normalized_subject:
-        query = query.filter(models.LearningRecord.subject == normalized_subject)
-    if normalized_record_type:
-        query = query.filter(models.LearningRecord.record_type == normalize_record_type(normalized_record_type))
-    if normalized_review_status:
-        query = query.filter(
-            models.LearningRecord.review_status == normalize_review_status(normalized_review_status)
-        )
-
-    records = query.order_by(models.LearningRecord.created_at.desc()).all()
-    return {"records": [serialize_learning_record(record) for record in records]}
 
 
 @app.get("/learning-records/stats")
@@ -12046,9 +12161,29 @@ def submit_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerci
         # backend.
         result["cases"] = _run_public_sample_cases(project, exercise, project_files)
     payload = _exercise_run_summary(result, exercise, submission=True)
-    _record_programming_exercise_activity(user, exercise, db, "submit", payload)
+    progress = _record_programming_exercise_activity(user, exercise, db, "submit", payload)
     if payload.get("passed"):
         payload["knowledge_progress"] = _record_programming_submission_progress(user, exercise, db)
+    # STEP 7D: mirror the real judge result into the unified Practice Core. Runs in its
+    # OWN session so that a mirror problem can never roll back pending legacy work on
+    # this request's session. The judge verdict comes from the sandbox run above —
+    # never from AI text (that is why code_challenge_attempts is not used).
+    try:
+        from learning.practice.adapters import programming as _practice_prog
+        _mirror_db = SessionLocal()
+        try:
+            _practice_prog.mirror_programming_submission(
+                _mirror_db, user, exercise, progress.id,
+                {"passed": bool(payload.get("passed")),
+                 "passed_count": payload.get("passed_count"),
+                 "total_count": payload.get("total_count")},
+                submitted_at=progress.last_submit_at,
+                language=(exercise.language if exercise is not None else None),
+            )
+        finally:
+            _mirror_db.close()
+    except Exception as _pc_exc:  # noqa: BLE001
+        logger.warning("practice mirror hook failed: %s", type(_pc_exc).__name__)
     return payload
 
 
@@ -13447,17 +13582,25 @@ def analyze_code(
         check_programming_usage_limit(user, "code_analyze", db)
         analyze_service = "programming"
     else:
-        check_usage_limit(user.username, "code_analyze", db, "course_learning")
+        # Course AI authorization is owned by Subscription + Capability Permission +
+        # Usage Budget inside the orchestrator. The legacy per-service quota does not
+        # get a second vote on whether this call runs.
         analyze_service = "course_learning"
 
-    answer = call_deepseek(
-        [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message},
-        ]
-    )
-
-    record_ai_usage(user.username, "code_analyze", db, estimated_tokens=estimate_tokens_from_text(answer), status="success", service_key=analyze_service)
+    _analysis_messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_message},
+    ]
+    if analyze_service == "course_learning":
+        answer = _course_ai_content(
+            db, user, "programming.explain", _analysis_messages,
+            course_id=(req.course_id or "course_learning"),
+        )
+    else:
+        answer = call_deepseek(_analysis_messages)
+        record_ai_usage(user.username, "code_analyze", db,
+                        estimated_tokens=estimate_tokens_from_text(answer),
+                        status="success", service_key=analyze_service)
 
     answer = normalize_assistant_markdown(answer)
 
@@ -15736,7 +15879,7 @@ def update_learning_task(task_id: int, req: schemas.LearningTaskUpdate, db: Sess
     db.refresh(task)
 
     if progress_event:
-        apply_knowledge_progress_event(
+        _kp_transition = apply_knowledge_progress_event(
             username=progress_event["username"],
             course_id=progress_event["course_id"],
             knowledge_point_id=progress_event["knowledge_point_id"],
@@ -15748,6 +15891,7 @@ def update_learning_task(task_id: int, req: schemas.LearningTaskUpdate, db: Sess
             db=db,
         )
         db.commit()
+        _emit_knowledge_transition(_kp_transition)
 
     knowledge_point_title = None
     if task.knowledge_point_id:
@@ -16584,7 +16728,7 @@ def ai_generate_learning_report(req: schemas.LearningReportAiGenerateRequest, db
     """Generate an AI-powered learning report for the given time range.
     Returns structured data; frontend handles display formatting."""
     assert_username_matches_current_user(req.username, current_user)
-    require_learning_context_feature(current_user, db, "learning_report", req.course_id, req.course_name)
+    # STEP7H3 B7: authorized by the unified capability/budget path for every space.
     user = current_user
     range_type = (req.range_type or "7d").strip()
     now = utc_now()
@@ -16687,19 +16831,21 @@ def ai_generate_learning_report(req: schemas.LearningReportAiGenerateRequest, db
     generation_mode = "ai"
     fallback_reason = ""
     try:
-        raw = call_deepseek([
+        raw = _scoped_ai_content(db, user, "report.generate", [
             {"role": "system", "content": "你是一个专业学习教练。只输出JSON，不要加```json标记。严格按照提示中的约束进行分析。"},
             {"role": "user", "content": prompt},
-        ], timeout_seconds=60)
+        ], course_id=getattr(req, "course_id", "") or getattr(req, "course_name", "") or "course_learning",
+            exam_scope_values=(getattr(req, "course_id", ""), getattr(req, "course_name", "")),
+            max_tokens=2000)
         text = raw.strip()
         if text.startswith("```"):
             text = text.split("```")[1] if "```" in text[3:] else text[3:]
             if text.startswith("json"):
                 text = text[4:]
         ai_summary = json.loads(text)
-        record_ai_usage(user.username, "learning_report_ai_generate", db,
-                        estimated_tokens=estimate_tokens_from_text(prompt) + estimate_tokens_from_text(raw),
-                        status="success", service_key="course_learning")
+    except HTTPException:
+        # An entitlement/budget decision is an answer, not an outage.
+        raise
     except Exception as exc:
         generation_mode = "fallback"
         fallback_reason = "模型不可用或返回格式无效"
@@ -17053,19 +17199,21 @@ def generate_tasks_from_diagnosis(req: schemas.GenerateTasksFromDiagnosisRequest
 请根据以上诊断报告生成 3 到 5 个学习任务。"""
 
     try:
-        ai_response = call_deepseek(
+        ai_response = _course_ai_content(db, user, "planning.generate",
             [
                 {"role": "system", "content": LEARNING_TASKS_FROM_DIAGNOSIS_PROMPT},
                 {"role": "user", "content": user_prompt},
-            ]
+            ], course_id=course_name or "course_learning",
         )
-        record_ai_usage(user.username, "programming_task_generate", db, service_key="programming")
         # Parse JSON array from response
         json_match = re.search(r"\[[\s\S]*?\]", ai_response)
         if json_match:
             tasks_data = json.loads(json_match.group(0))
         else:
             tasks_data = json.loads(ai_response)
+    except HTTPException:
+        # An entitlement/budget decision is an answer, not an outage.
+        raise
     except Exception:
         # Fallback: create 3 default tasks
         fallback_weak_point = "诊断报告中的薄弱点"
@@ -17970,40 +18118,82 @@ def update_knowledge_map_progress(req: schemas.KnowledgeMapProgressUpdate, db: S
         raise HTTPException(status_code=400, detail="Only leaf knowledge points can be manually updated")
     canonical_title = str(node.get("title") or title or "").strip()
 
+    # STEP7H5: a "<module>_11408" course_id IS an exam scope. Its status write and its
+    # knowledge_status_changed event belong to the exam space's canonical writer — this
+    # route is reachable with an exam scope (see the review-settings routes below, which
+    # already special-case the suffix), and before this branch an exam change made here
+    # was recorded as a course_learning event. Everything else stays on the course writer.
+    from learning.spaces.exam_prep import scope as _exam_scope
+    try:
+        exam_scope = _exam_scope.parse_legacy_exam_scope_id(course_id)
+    except _exam_scope.ExamScopeError as exc:
+        raise HTTPException(status_code=404, detail="knowledge map not found") from exc
+
+    now = utc_now()
+    exam_transition = None
+    _kp_transition = None
+
+    if exam_scope is not None:
+        from learning.spaces.exam_prep import knowledge as _exam_knowledge
+        exam_transition = _exam_knowledge.apply_exam_knowledge_change(
+            db, user=user, module_key=exam_scope.exam_module_id,
+            knowledge_point_code=code, status=next_status, title=canonical_title,
+            review_interval_days=(_get_review_interval_days(db, user.username, course_id)
+                                  if next_status in ("mastered", "review_due") else None),
+            code_validator=lambda c: c in node_index, now=now)
+    else:
+        progress = (
+            db.query(models.UserKnowledgeProgress)
+            .filter(
+                models.UserKnowledgeProgress.user_id == user.id,
+                models.UserKnowledgeProgress.course_id == course_id,
+                models.UserKnowledgeProgress.knowledge_point_code == code,
+            )
+            .first()
+        )
+        if not progress:
+            progress = models.UserKnowledgeProgress(
+                user_id=user.id,
+                username=user.username,
+                course_id=course_id,
+                knowledge_point_id=0,
+                knowledge_point_code=code,
+                knowledge_point_title=canonical_title,
+                mastery_score=0,
+                status="not_started",
+                user_confirmed_status="not_started",
+                practice_count=0,
+                task_count=0,
+                created_at=now,
+            )
+            db.add(progress)
+
+        progress.user_id = user.id
+        progress.knowledge_point_code = code
+        progress.knowledge_point_title = canonical_title
+        # STEP 7G: the explicit learner status goes through the ONE canonical knowledge
+        # writer, so the derivation rule and the knowledge_status_changed event are shared
+        # with every other course path. Review scheduling below stays local to this route.
+        from learning.spaces.course_learning import knowledge as _course_knowledge
+        _kp_transition = _course_knowledge.apply_knowledge_change(
+            db, username=user.username, course_id=course_id, event_type="manual_update",
+            knowledge_point_code=code, target_status=next_status, confirm=True,
+            source_type="knowledge_map", touch_activity=False, target_user_id=user.id)
+        if _kp_transition is None:
+            progress.user_confirmed_status = next_status
+            progress.status = next_status
+
     progress = (
         db.query(models.UserKnowledgeProgress)
         .filter(
-            models.UserKnowledgeProgress.user_id == user.id,
+            models.UserKnowledgeProgress.username == user.username,
             models.UserKnowledgeProgress.course_id == course_id,
             models.UserKnowledgeProgress.knowledge_point_code == code,
         )
         .first()
     )
-    now = utc_now()
-    if not progress:
-        progress = models.UserKnowledgeProgress(
-            user_id=user.id,
-            username=user.username,
-            course_id=course_id,
-            knowledge_point_id=0,
-            knowledge_point_code=code,
-            knowledge_point_title=canonical_title,
-            mastery_score=0,
-            status="not_started",
-            user_confirmed_status="not_started",
-            practice_count=0,
-            task_count=0,
-            created_at=now,
-        )
-        db.add(progress)
-
+    # the exam writer identifies its rows by username; keep user_id populated either way
     progress.user_id = user.id
-    progress.knowledge_point_code = code
-    progress.knowledge_point_title = canonical_title
-    progress.user_confirmed_status = next_status
-    # Keep legacy status as a compatibility mirror; suggestions never mutate
-    # the confirmed status after this request.
-    progress.status = next_status
     progress.updated_at = now
     progress.last_studied_at = now
 
@@ -18028,6 +18218,10 @@ def update_knowledge_map_progress(req: schemas.KnowledgeMapProgressUpdate, db: S
         progress.review_interval_days = _get_review_interval_days(db, user.username, course_id)
         progress.review_due_at = now
     db.commit()
+    if exam_transition is not None:
+        _exam_knowledge.commit_and_emit(db, exam_transition)
+    else:
+        _emit_knowledge_transition(_kp_transition)
     db.refresh(progress)
     display_status = _display_map_progress_status(progress)
     return {
@@ -18128,6 +18322,34 @@ def _get_exam_study_plan_settings(username: str, subject_key: str, db: Session):
     ).first()
 
 
+def _exam_plan_settings_payload(setting: "models.ExamStudyPlanSetting | None") -> dict:
+    """The ONE shape of the settings object.
+
+    Two branches, both already frozen by the BC3 contract and both preserved here:
+
+    * **no row** — the product's declared starting point (``weekly_days 5``, sequential
+      review). A learner who has never configured a plan sees the defaults, not a wall of
+      nulls;
+    * **a row exists** — the stored value, ``null`` for a column that is genuinely unset.
+      Coercing a stored NULL to ``""`` would claim the learner chose an empty string.
+
+    The settings WRITE used to return the first shape unconditionally while the read
+    returned the second for the same row, so the two routes disagreed about the same
+    stored state. Both now go through this one function.
+    """
+    if setting is None:
+        return {"learning_goal": "", "start_date": "", "daily_hours": "",
+                "weekly_days": 5, "review_strategy": "sequential", "show_completed": True}
+    return {
+        "learning_goal": setting.learning_goal,
+        "start_date": setting.start_date,
+        "daily_hours": setting.daily_hours,
+        "weekly_days": setting.weekly_days,
+        "review_strategy": setting.review_strategy,
+        "show_completed": setting.show_completed,
+    }
+
+
 def _get_exam_study_plan_chapter_practices(username: str, subject_key: str, db: Session):
     rows = db.query(models.ExamStudyPlanChapterPractice).filter(
         models.ExamStudyPlanChapterPractice.username == username,
@@ -18198,7 +18420,279 @@ def _build_study_plan_tree(chapters: list[dict], chapter_practice_by_code: dict)
     return result
 
 
-@app.get("/exam/11408/subjects/{subject_key}/study-plan")
+# ── 11408 Study Plan / Knowledge Response Contract ───────
+#
+# FRONTEND_BLOCKER_BC3 — these models exist ONLY so the two frozen handlers below declare
+# concrete OpenAPI success schemas instead of a bare `{}`. They were derived from the REAL
+# runtime payload (all four CS408 modules, fresh/mutated/legacy rows), not from frontend
+# wishes: no field, nullability, status code or handler statement was changed to fit them.
+#
+# Two facts drive the shape:
+#
+#  * `_attach_knowledge_map_status` copies each seed node verbatim (`dict(node)`) and then
+#    adds computed keys. The four seed maps carry `code/title/children` everywhere, plus
+#    `chapter_no` on chapters and `optional` on 4 data_structure nodes. So `optional` and
+#    the progress block are genuinely CONDITIONAL and are declared with `= None` defaults
+#    and served with `response_model_exclude_unset=True` — an absent key stays absent
+#    instead of turning into a `null` that was never there.
+#  * `_attach_knowledge_map_status` never spells those keys for a node that lacks them,
+#    so `extra="forbid"` on the three tree models makes a future seed key a loud failure
+#    instead of a silently stripped response field.
+
+ExamKnowledgeStatus = Literal["not_started", "learning", "mastered", "review_due"]
+ExamPlanSectionStatus = Literal["not_started", "learning", "completed"]
+ExamPlanTaskStatus = Literal["not_started", "in_progress", "completed"]
+ExamPlanTaskActionTarget = Literal["knowledge_map", "practice_center"]
+
+
+class ExamKnowledgeStatusCounts(BaseModel):
+    """`_collect_leaf_statuses` always emits exactly these four counters."""
+
+    not_started: int
+    learning: int
+    mastered: int
+    review_due: int
+
+
+class ExamStudyPlanLeafStats(BaseModel):
+    total: int
+    mastered: int
+    learning: int
+    not_started: int
+    review_due: int
+
+
+class ExamKnowledgeProgressDetail(BaseModel):
+    """`_serialize_map_progress` — the `progress` block attached to a node that has a row.
+
+    `stored_status` / `user_confirmed_status` are raw column values passed through a
+    `or` fallback, so they stay plain strings: a legacy Chinese or unknown status is
+    preserved verbatim and must not be narrowed to the display enum.
+    """
+
+    id: int
+    course_id: str
+    knowledge_point_code: str
+    knowledge_point_title: str
+    status: ExamKnowledgeStatus
+    stored_status: str
+    user_confirmed_status: str
+    system_suggested_status: str | None
+    ai_recommended_status: str | None
+    ai_assessment: str | None
+    learned_at: str | None
+    review_due_at: str | None
+    review_interval_days: int
+    updated_at: str | None
+
+
+class ExamStudyPlanKnowledgeNode(BaseModel):
+    """Depth >= 2 node. `children` is recursive — seed maps nest to depth 3."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    code: str
+    title: str
+    children: list["ExamStudyPlanKnowledgeNode"]
+    optional: bool | None = None
+    id: str
+    is_leaf: bool
+    status: ExamKnowledgeStatus
+    stored_status: str | None
+    user_confirmed_status: str | None
+    system_suggested_status: str | None
+    ai_recommended_status: str | None
+    ai_assessment: str | None
+    progress: ExamKnowledgeProgressDetail | None = None
+    learned_at: str | None = None
+    review_due_at: str | None = None
+    review_interval_days: int | None = None
+    status_counts: ExamKnowledgeStatusCounts
+
+
+class ExamStudyPlanSection(BaseModel):
+    """Depth 1 node — `_build_study_plan_tree` adds the section-level plan fields."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    code: str
+    title: str
+    children: list[ExamStudyPlanKnowledgeNode]
+    optional: bool | None = None
+    id: str
+    is_leaf: bool
+    status: ExamKnowledgeStatus
+    stored_status: str | None
+    user_confirmed_status: str | None
+    system_suggested_status: str | None
+    ai_recommended_status: str | None
+    ai_assessment: str | None
+    progress: ExamKnowledgeProgressDetail | None = None
+    learned_at: str | None = None
+    review_due_at: str | None = None
+    review_interval_days: int | None = None
+    status_counts: ExamKnowledgeStatusCounts
+    leaf_stats: ExamStudyPlanLeafStats
+    chapter_practice_completed: bool
+    section_status: ExamPlanSectionStatus
+    completion_rate: int
+
+
+class ExamStudyPlanChapter(BaseModel):
+    """Depth 0 node — carries the seed `chapter_no` plus chapter-level rollups."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    code: str
+    title: str
+    children: list[ExamStudyPlanSection]
+    chapter_no: int
+    id: str
+    is_leaf: bool
+    status: ExamKnowledgeStatus
+    stored_status: str | None
+    user_confirmed_status: str | None
+    system_suggested_status: str | None
+    ai_recommended_status: str | None
+    ai_assessment: str | None
+    progress: ExamKnowledgeProgressDetail | None = None
+    learned_at: str | None = None
+    review_due_at: str | None = None
+    review_interval_days: int | None = None
+    status_counts: ExamKnowledgeStatusCounts
+    chapter_completion_rate: int
+    chapter_status: ExamPlanSectionStatus
+    section_count: int
+    sections_completed: int
+
+
+class ExamStudyPlanSettings(BaseModel):
+    """Every column here is nullable except `show_completed`, and the handler passes
+    `plan_settings.<col>` through without a fallback once a row exists."""
+
+    learning_goal: str | None
+    start_date: str | None
+    daily_hours: str | None
+    weekly_days: int | None
+    review_strategy: str | None
+    show_completed: bool
+
+
+class ExamStudyPlanStats(BaseModel):
+    total_knowledge_points: int
+    mastered: int
+    total_sections: int
+    sections_completed: int
+    sections_learning: int
+    sections_not_started: int
+    overall_progress: int
+    overall_status: ExamPlanSectionStatus
+
+
+class ExamStudyPlanTaskItem(BaseModel):
+    """`_serialize_task` — the full task shape (a superset of the dashboard summary's
+    `today_plan` entry, which is deliberately not reused here)."""
+
+    id: int
+    username: str
+    subject_key: str
+    subject_name: str
+    title: str
+    knowledge_point_name: str
+    scope_type: str
+    task_type: str
+    computed_status: ExamPlanTaskStatus
+    completion_reason: str
+    action_target: ExamPlanTaskActionTarget
+    due_date: str
+    note: str
+    created_at: str | None
+    updated_at: str | None
+    status: ExamPlanTaskStatus
+    primary_knowledge: str
+    secondary_knowledge: str
+
+
+class ExamStudyPlanResponse(BaseModel):
+    course_id: str
+    course_name: str
+    subject_key: str
+    subject_name: str
+    settings: ExamStudyPlanSettings
+    stats: ExamStudyPlanStats
+    review_interval_days: int
+    chapters: list[ExamStudyPlanChapter]
+    tasks: list[ExamStudyPlanTaskItem]
+
+
+class ExamKnowledgeItemUpdateResponse(BaseModel):
+    """PATCH success envelope. `status` is the DISPLAY status, `stored_status` is the
+    value the canonical writer put in the row — they differ when a mastered point is
+    already due for review."""
+
+    success: bool
+    knowledge_point_code: str
+    knowledge_point_title: str
+    status: ExamKnowledgeStatus
+    stored_status: str
+
+
+# ── Plan write envelopes (BC8) ──────────────────────────────
+#
+# Each carries the SAME `ExamStudyPlanTaskItem` the list returns, so a client can replace
+# its cached row straight from the mutation response instead of re-reading the plan. No
+# envelope carries a task `status` of its own: the status is derived, and the mutation
+# endpoints refuse a `status` field outright (see `ExamStudyPlanTaskUpdate`).
+
+
+class ExamStudyPlanTaskMutationResponse(BaseModel):
+    success: bool
+    task: ExamStudyPlanTaskItem
+
+
+class ExamStudyPlanTaskDeleteResponse(BaseModel):
+    success: bool
+    deleted_id: int
+
+
+class ExamStudyPlanSettingsMutationResponse(BaseModel):
+    success: bool
+    settings: ExamStudyPlanSettings
+
+
+class ExamStudyPlanChapterPracticeResponse(BaseModel):
+    success: bool
+    section_code: str
+    completed: bool
+    completed_at: str | None
+
+
+class ExamStudyPlanTasksSummaryResponse(BaseModel):
+    """Incomplete tasks across all four subjects, urgency-ordered, capped at 4."""
+
+    tasks: list[ExamStudyPlanTaskItem]
+
+
+class ExamStudyPlanSubjectSummary(BaseModel):
+    subject_key: str
+    subject_name: str
+    overall_progress: int
+    total_sections: int
+    sections_completed: int
+    total_knowledge_points: int
+    mastered_knowledge_points: int
+    has_activity: bool
+    is_completed: bool
+
+
+class ExamStudyPlanSubjectsSummaryResponse(BaseModel):
+    subjects: list[ExamStudyPlanSubjectSummary]
+    total_progress: int
+    total_subjects_completed: int
+
+
+@app.get("/exam/11408/subjects/{subject_key}/study-plan",
+         response_model=ExamStudyPlanResponse, response_model_exclude_unset=True)
 def get_exam_subject_study_plan(subject_key: str, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     """Get the full study plan for a 11408 subject, including knowledge map,
     user progress, settings, and chapter practice status."""
@@ -18257,7 +18751,12 @@ def get_exam_subject_study_plan(subject_key: str, username: str = "", db: Sessio
             models.ExamStudyPlanTask.username == username,
             models.ExamStudyPlanTask.subject_key == subject_key,
         ).order_by(models.ExamStudyPlanTask.created_at.desc()).all()
-        tasks = [_serialize_task(t) for t in task_rows]
+        # `computed_status` is derived from the learner's knowledge/practice facts, so the
+        # serializer needs the session. Calling it without `db` short-circuits every task to
+        # ("not_started", "", "knowledge_map") while tasks/summary, today_plan and the
+        # create/update responses all compute the real value — the canonical list would then
+        # report a different status for the same row at the same moment (BC8 §3).
+        tasks = [_serialize_task(t, db) for t in task_rows]
 
     # First attach user progress at the ROOT level so all leaf codes
     # are globally scoped and consistent with _build_enriched_map_index
@@ -18301,14 +18800,7 @@ def get_exam_subject_study_plan(subject_key: str, username: str = "", db: Sessio
         "course_name": payload.get("course_name") or subject_name,
         "subject_key": subject_key,
         "subject_name": subject_name,
-        "settings": {
-            "learning_goal": plan_settings.learning_goal if plan_settings else "",
-            "start_date": plan_settings.start_date if plan_settings else "",
-            "daily_hours": plan_settings.daily_hours if plan_settings else "",
-            "weekly_days": plan_settings.weekly_days if plan_settings else 5,
-            "review_strategy": plan_settings.review_strategy if plan_settings else "sequential",
-            "show_completed": plan_settings.show_completed if plan_settings else True,
-        },
+        "settings": _exam_plan_settings_payload(plan_settings),
         "stats": {
             "total_knowledge_points": total_leaves,
             "mastered": total_mastered,
@@ -18325,7 +18817,8 @@ def get_exam_subject_study_plan(subject_key: str, username: str = "", db: Sessio
     }
 
 
-@app.patch("/exam/11408/subjects/{subject_key}/study-plan/settings")
+@app.patch("/exam/11408/subjects/{subject_key}/study-plan/settings",
+          response_model=ExamStudyPlanSettingsMutationResponse)
 def update_exam_study_plan_settings(
     subject_key: str,
     req: schemas.ExamStudyPlanSettingsUpdate,
@@ -18373,18 +18866,12 @@ def update_exam_study_plan_settings(
 
     return {
         "success": True,
-        "settings": {
-            "learning_goal": setting.learning_goal or "",
-            "start_date": setting.start_date or "",
-            "daily_hours": setting.daily_hours or "",
-            "weekly_days": setting.weekly_days or 5,
-            "review_strategy": setting.review_strategy or "sequential",
-            "show_completed": setting.show_completed if setting.show_completed is not None else True,
-        },
+        "settings": _exam_plan_settings_payload(setting),
     }
 
 
-@app.patch("/exam/11408/subjects/{subject_key}/study-plan/knowledge-items/{item_code:path}")
+@app.patch("/exam/11408/subjects/{subject_key}/study-plan/knowledge-items/{item_code:path}",
+           response_model=ExamKnowledgeItemUpdateResponse)
 def update_exam_study_plan_knowledge_item(
     subject_key: str,
     item_code: str,
@@ -18422,6 +18909,27 @@ def update_exam_study_plan_knowledge_item(
 
     canonical_title = str(node.get("title") or req.knowledge_point_title or "").strip()
 
+    # STEP7H4 §17: the ONE exam knowledge write boundary. The route keeps its validation
+    # (subject / entitlement / status / map + leaf check) and its response shape; the
+    # authoritative write, its deterministic product semantics and its event ownership now
+    # live in the exam space.
+    from learning.spaces.exam_prep import knowledge as _exam_knowledge
+
+    review_interval_days = (_get_review_interval_days(db, user.username, course_id)
+                            if req.status in ("mastered", "review_due") else None)
+    try:
+        transition = _exam_knowledge.apply_exam_knowledge_change(
+            db, user=user, module_key=subject_key, knowledge_point_code=item_code,
+            status=req.status, title=canonical_title,
+            review_interval_days=review_interval_days,
+            code_validator=lambda code: code in node_index,
+            now=utc_now(),
+        )
+    except _exam_knowledge.ExamKnowledgeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    _exam_knowledge.commit_and_emit(db, transition)
+
     progress = (
         db.query(models.UserKnowledgeProgress)
         .filter(
@@ -18431,53 +18939,6 @@ def update_exam_study_plan_knowledge_item(
         )
         .first()
     )
-
-    now = utc_now()
-    if not progress:
-        progress = models.UserKnowledgeProgress(
-            username=user.username,
-            course_id=course_id,
-            knowledge_point_id=0,
-            knowledge_point_code=item_code,
-            knowledge_point_title=canonical_title,
-            mastery_score=0,
-            status="not_started",
-            practice_count=0,
-            task_count=0,
-            created_at=now,
-        )
-        db.add(progress)
-
-    progress.knowledge_point_code = item_code
-    progress.knowledge_point_title = canonical_title
-    progress.status = req.status
-    progress.user_confirmed_status = req.status
-    progress.updated_at = now
-    progress.last_studied_at = now
-
-    if req.status == "not_started":
-        progress.mastery_score = 0
-        progress.learned_at = None
-        progress.review_due_at = None
-        progress.review_interval_days = None
-    elif req.status == "learning":
-        progress.mastery_score = progress.mastery_score if progress.mastery_score is not None else 30
-        progress.learned_at = None
-        progress.review_due_at = None
-        progress.review_interval_days = None
-    elif req.status == "mastered":
-        interval_days = _get_review_interval_days(db, user.username, course_id)
-        progress.mastery_score = 100
-        progress.learned_at = now
-        progress.review_interval_days = interval_days
-        progress.review_due_at = now + timedelta(days=interval_days)
-    elif req.status == "review_due":
-        progress.learned_at = progress.learned_at or now
-        progress.review_interval_days = _get_review_interval_days(db, user.username, course_id)
-        progress.review_due_at = now
-
-    db.commit()
-    db.refresh(progress)
     display_status = _display_map_progress_status(progress)
 
     return {
@@ -18489,7 +18950,8 @@ def update_exam_study_plan_knowledge_item(
     }
 
 
-@app.patch("/exam/11408/subjects/{subject_key}/study-plan/chapter-practice/{node_code:path}")
+@app.patch("/exam/11408/subjects/{subject_key}/study-plan/chapter-practice/{node_code:path}",
+          response_model=ExamStudyPlanChapterPracticeResponse)
 def update_exam_study_plan_chapter_practice(
     subject_key: str,
     node_code: str,
@@ -18538,7 +19000,8 @@ def update_exam_study_plan_chapter_practice(
     }
 
 
-@app.get("/exam/11408/study-plan/summary")
+@app.get("/exam/11408/study-plan/summary",
+         response_model=ExamStudyPlanSubjectsSummaryResponse)
 def get_exam_study_plan_summary(username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     """Get a four-subject summary of study plan progress for the 11408 home page."""
     require_feature_entitlement(current_user, db, "exam_11408", "learning_plan")
@@ -18638,7 +19101,8 @@ def _parse_task_due_date(due: str | None):
     return None
 
 
-@app.get("/exam/11408/study-plan/tasks/summary")
+@app.get("/exam/11408/study-plan/tasks/summary",
+         response_model=ExamStudyPlanTasksSummaryResponse)
 def get_exam_study_plan_tasks_summary(
     username: str = "",
     db: Session = Depends(get_db),
@@ -18910,7 +19374,8 @@ def _serialize_task(task: models.ExamStudyPlanTask, db: Session | None = None) -
     }
 
 
-@app.post("/exam/11408/subjects/{subject_key}/study-plan/tasks")
+@app.post("/exam/11408/subjects/{subject_key}/study-plan/tasks",
+          response_model=ExamStudyPlanTaskMutationResponse)
 def create_exam_study_plan_task(
     subject_key: str,
     req: schemas.ExamStudyPlanTaskCreate,
@@ -18945,7 +19410,8 @@ def create_exam_study_plan_task(
     return {"success": True, "task": _serialize_task(task, db)}
 
 
-@app.patch("/exam/11408/subjects/{subject_key}/study-plan/tasks/{task_id}")
+@app.patch("/exam/11408/subjects/{subject_key}/study-plan/tasks/{task_id}",
+          response_model=ExamStudyPlanTaskMutationResponse)
 def update_exam_study_plan_task(
     subject_key: str,
     task_id: int,
@@ -18984,7 +19450,8 @@ def update_exam_study_plan_task(
     return {"success": True, "task": _serialize_task(task, db)}
 
 
-@app.delete("/exam/11408/subjects/{subject_key}/study-plan/tasks/{task_id}")
+@app.delete("/exam/11408/subjects/{subject_key}/study-plan/tasks/{task_id}",
+           response_model=ExamStudyPlanTaskDeleteResponse)
 def delete_exam_study_plan_task(
     subject_key: str,
     task_id: int,
@@ -19115,41 +19582,85 @@ def delete_course_learning_study_plan_task(
     return {"success": True, "deleted_id": task_id}
 
 
-@app.get("/exam/11408/study-plan/tasks/summary")
-def get_exam_study_plan_tasks_summary(username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    require_feature_entitlement(current_user, db, "exam_11408", "learning_plan")
-    """Get all current-stage tasks across all four 11408 subjects for the home page."""
-    username = request_username(username, current_user)
-    user = current_user
-    tasks = db.query(models.ExamStudyPlanTask).filter(
-        models.ExamStudyPlanTask.username == user.username,
-        models.ExamStudyPlanTask.subject_key.in_(list(EXAM_SUBJECT_DIRS.keys())),
-    ).order_by(models.ExamStudyPlanTask.created_at.desc()).all()
-
-    task_list = [_serialize_task(t, db) for t in tasks]
-    by_subject: dict[str, list] = {}
-    for t in task_list:
-        sk = t["subject_key"]
-        if sk not in by_subject:
-            by_subject[sk] = []
-        by_subject[sk].append(t)
-
-    return {
-        "tasks": task_list,
-        "by_subject": by_subject,
-        "total": len(task_list),
-        "by_status": {
-            "not_started": sum(1 for t in task_list if t["computed_status"] == "not_started"),
-            "in_progress": sum(1 for t in task_list if t["computed_status"] == "in_progress"),
-            "completed": sum(1 for t in task_list if t["computed_status"] == "completed"),
-        },
-    }
-
-
 # ── 11408 Subject Dashboard Summary ──────────────────────
+#
+# FRONTEND_BLOCKER_BC2 — these models exist ONLY so the frozen handler below declares a
+# concrete OpenAPI 200 schema instead of a bare `{}`. They were derived from the real
+# runtime payload, not from frontend wishes: no field, nullability, status code or
+# handler statement was added, removed or reordered to make them fit.
+#
+# Field order below is deliberately the handler's dict insertion order, because pydantic
+# serialises in declaration order — that is what keeps the response byte-identical.
 
 
-@app.get("/exam/11408/subjects/{subject_key}/dashboard-summary")
+class ExamDashboardOverview(BaseModel):
+    total_chapters: int
+    total_knowledge_points: int
+    learned_percent: int
+    study_minutes: int
+
+
+class ExamDashboardPlanTask(BaseModel):
+    id: int
+    title: str
+    knowledge_point_name: str
+    task_type: str
+    # `_compute_task_completion` returns exactly these three; see
+    # tests/test_dashboard_summary_openapi_contract.py which re-derives the set from its
+    # source so a new status can never silently start 500-ing here.
+    computed_status: Literal["not_started", "in_progress", "completed"]
+    due_date: str
+
+
+class ExamDashboardMaterials(BaseModel):
+    lecture_notes: int
+    exercises: int
+    references: int
+    code_examples: int
+    total_materials: int
+
+
+class ExamDashboardCountQuota(BaseModel):
+    """ai_chat / ai_question: counted in whole units, so every number is an int."""
+
+    used: int
+    limit: int
+    remaining: int
+    unit: str
+
+
+class ExamDashboardUploadQuota(BaseModel):
+    """material_upload: measured in MB.
+
+    `used` is always a float (bytes / MB, rounded). `remaining` is normally a float too,
+    but `max(0, limit - used)` yields an *int* 0 once the user is over the cap, and the
+    two serialise differently ("0" vs "0.0"). The union records that real second shape
+    rather than coercing one into the other.
+    """
+
+    used: float
+    limit: int
+    remaining: int | float
+    unit: str
+
+
+class ExamDashboardQuota(BaseModel):
+    ai_chat: ExamDashboardCountQuota
+    ai_question: ExamDashboardCountQuota
+    material_upload: ExamDashboardUploadQuota
+
+
+class ExamSubjectDashboardSummaryResponse(BaseModel):
+    subject_key: str
+    subject_name: str
+    overview: ExamDashboardOverview
+    today_plan: list[ExamDashboardPlanTask]
+    materials: ExamDashboardMaterials
+    quota: ExamDashboardQuota
+
+
+@app.get("/exam/11408/subjects/{subject_key}/dashboard-summary",
+         response_model=ExamSubjectDashboardSummaryResponse)
 def get_exam_subject_dashboard_summary(subject_key: str, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     """Return a lightweight dashboard summary for the 11408 subject home page."""
     if subject_key not in EXAM_SUBJECT_DIRS:
@@ -19334,6 +19845,7 @@ def get_exam_subject_dashboard_summary(subject_key: str, username: str = "", db:
 # ── 11408 Past Papers ───────────────────────────────────────
 
 import exam_paper_parser
+import exam_past_paper
 
 EXAM_RESOURCES_DIR = BASE_DIR / "exam_resources"
 EXAM_11408_DIR = EXAM_RESOURCES_DIR / "11408"
@@ -19352,27 +19864,40 @@ EXAM_SUBJECT_DIRS = {
 # if _exam_static.exists():
 #     app.mount("/static/exam_papers", StaticFiles(directory=str(_exam_static)), name="exam_static")
 
-# Past paper images for all 11408 subjects
-_PAST_PAPER_IMAGES_DIR = BASE_DIR / "exam_resources" / "11408"
+_IMAGE_MEDIA_TYPES = {"image/jpeg": {}, "image/png": {}, "image/webp": {}, "image/gif": {}}
 
-@app.get("/exam/11408/past-paper-images/{subject_key}/{year}/{filename:path}")
-def serve_past_paper_image(subject_key: str, year: int, filename: str):
-    """Serve past paper question images from exam_resources assets."""
-    # Try legacy assets path first (OS format: assets/{year}/{filename})
-    img_path = _PAST_PAPER_IMAGES_DIR / subject_key / "past_papers" / "assets" / str(year) / filename
-    if not img_path.exists():
-        # Try new images path (CN/OS format: images/{filename})
-        img_path = BASE_DIR / f"exam_resources/11408/{subject_key}/past_papers/images" / filename
-    if not img_path.exists():
+
+@app.get("/exam/11408/past-paper-images/{subject_key}/{year}/{filename}",
+         response_class=FileResponse,
+         responses={200: {"description": "Past-paper figure", "content": _IMAGE_MEDIA_TYPES},
+                    404: {"description": "Image not found"}})
+def serve_past_paper_image(subject_key: str, year: int, filename: str,
+                           current_user: models.User = Depends(get_current_user)):
+    """Serve one past-paper figure — the ONE resource route the frontend uses.
+
+    Resolution is confined to the curated asset roots (see `exam_past_paper.resolve_resource_file`)
+    and the filename is validated, so a traversal attempt is rejected rather than resolved. Only a
+    figure is served: these carry question diagrams, never answers.
+    """
+    img_path = exam_past_paper.resolve_resource_file(subject_key, year, filename)
+    if img_path is None:
         raise HTTPException(status_code=404, detail="Image not found")
     return FileResponse(str(img_path))
 
 
-@app.get("/exam/11408/{subject_key}/past-papers")
-def get_exam_past_papers(subject_key: str):
+@app.get("/exam/11408/{subject_key}/past-papers",
+         response_model=exam_past_paper.PastPaperIndexResponse)
+def get_exam_past_papers(subject_key: str, db: Session = Depends(get_db),
+                         current_user: models.User = Depends(get_current_user)):
+    """Paper index: one source-normalized entry per paper that actually has real questions.
+
+    Availability is factual — a year appears only when a source can actually serve it.
+    """
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
-    return exam_paper_parser.get_subject_past_papers(subject_key)
+    return {"subject_key": subject_key,
+            "subject_name": exam_past_paper.subject_name(subject_key),
+            "papers": exam_past_paper.available_papers(db, subject_key)}
 
 
 def _minutes_between(start, end) -> int:
@@ -19465,41 +19990,40 @@ def get_exam_practice_stats(subject_key: str, username: str = "", db: Session = 
     }
 
 
-@app.get("/exam/11408/{subject_key}/past-paper-questions")
-def get_past_paper_questions(subject_key: str, year: int = 0):
+@app.get("/exam/11408/{subject_key}/past-paper-questions",
+         response_model=exam_past_paper.PastPaperQuestionsResponse)
+def get_past_paper_questions(subject_key: str, year: int = 0, db: Session = Depends(get_db),
+                             current_user: models.User = Depends(get_current_user)):
+    """Pre-submit question list, normalized over whichever source owns the paper.
+
+    Requires a session: the payload is question content for a learner's own practice, and BC6 no
+    longer serves answer-bearing material anonymously. The response model carries no
+    `standard_answer` and no `analysis`, so neither source can leak through it.
+    """
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
     if year <= 0:
         raise HTTPException(status_code=400, detail="year is required")
-    return exam_paper_parser.get_year_questions(subject_key, year)
+    paper = exam_past_paper.resolve_paper(db, subject_key, year)
+    return {"subject_key": subject_key,
+            "subject_name": exam_past_paper.subject_name(subject_key),
+            "year": year,
+            "source": paper.source,
+            "questions": exam_past_paper.public_questions(paper)}
 
 
-@app.post("/exam/11408/{subject_key}/past-paper-attempts")
-def create_past_paper_attempt(subject_key: str, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+@app.post("/exam/11408/{subject_key}/past-paper-attempts",
+          response_model=exam_past_paper.PastPaperAttemptCreateResponse)
+def create_past_paper_attempt(subject_key: str, req: exam_past_paper.PastPaperAttemptCreateRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
     username = request_username(req, current_user)
-    year = int(req.get("year", 0))
+    year = int(req.year)
     if year <= 0:
         raise HTTPException(status_code=400, detail="year is required")
-    # Count active questions only (skip deactivated/duplicate batches).
-    total = db.query(models.ExamQuestionBank).filter(
-        models.ExamQuestionBank.subject_key == subject_key,
-        models.ExamQuestionBank.source_type == "past_paper",
-        models.ExamQuestionBank.year == year,
-        models.ExamQuestionBank.is_active == True,
-    ).count()
+    total = len(exam_past_paper.resolve_paper(db, subject_key, year).questions)
     if total == 0:
-        # Fallback: try OCR cache and paper parser for legacy subjects
-        ocr_cache = exam_paper_parser._ocr_cache_path(subject_key, year)
-        if ocr_cache.exists():
-            try:
-                cached = json.loads(ocr_cache.read_text(encoding="utf-8"))
-                total = len(cached.get("questions", []))
-            except Exception:
-                pass
-        if total == 0:
-            total = len(exam_paper_parser.get_year_questions(subject_key, year).get("questions", []))
+        raise HTTPException(status_code=404, detail="No questions for this paper")
     last = db.query(models.PastPaperAttempt).filter(
         models.PastPaperAttempt.username == username,
         models.PastPaperAttempt.subject_key == subject_key,
@@ -19520,111 +20044,54 @@ def create_past_paper_attempt(subject_key: str, req: dict, db: Session = Depends
             "year": year, "status": "in_progress", "total_questions": total}
 
 
-# ── Question image URLs ──
-_IMG_MAPPING_CACHE = {}
-
-def _load_img_mapping(subject_key):
-    if subject_key not in _IMG_MAPPING_CACHE:
-        mapping_file = BASE_DIR / f"exam_resources/11408/{subject_key}/past_papers/image_mapping.json"
-        if mapping_file.exists():
-            try:
-                _IMG_MAPPING_CACHE[subject_key] = json.loads(mapping_file.read_text(encoding="utf-8"))
-            except Exception:
-                _IMG_MAPPING_CACHE[subject_key] = {}
-        else:
-            _IMG_MAPPING_CACHE[subject_key] = {}
-    return _IMG_MAPPING_CACHE[subject_key]
-
-# Keywords indicating a question needs diagram/table display
-_TABLE_DIAGRAM_KW = ['下表','右图','下图','如图','表中','图示','如下表','调度表','资源分配','页表结构',
-                      '目录结构','索引节点','三级页表','结构图','前驱图','操作表','布局图','地址空间']
-
-def _question_needs_image(item):
-    """Returns True if the question has table/diagram dependency and should show images."""
-    # CN: only Q47 comprehensive questions need images
-    if getattr(item, 'subject_key', '') == 'computer_network' and getattr(item, 'source_type', '') == 'past_paper':
-        return item.question_type == "big"
-    if item.question_type == "big":
-        return True
-    stem = (item.stem or "")
-    return any(kw in stem for kw in _TABLE_DIAGRAM_KW)
-
-def get_question_images(subject_key, year, question_number):
-    mapping = _load_img_mapping(subject_key)
-    key = f"{year}-{question_number:02d}"
-    val = mapping.get(key, [])
-    # Support both formats: plain list (OS) and dict with image_urls (CN)
-    if isinstance(val, dict):
-        return val.get("image_urls", [])
-    return val if isinstance(val, list) else []
 
 
-@app.get("/exam/11408/{subject_key}/past-paper-attempts/{attempt_id}")
+@app.get("/exam/11408/{subject_key}/past-paper-attempts/{attempt_id}",
+         response_model=exam_past_paper.PastPaperAttemptDetailResponse,
+         response_model_exclude_unset=True)
 def get_past_paper_attempt(subject_key: str, attempt_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    """Attempt detail.
+
+    While `in_progress` this is a pre-submit payload: the questions carry no `standard_answer`, no
+    `analysis` and no grading state. Once `submitted` the same question payload is served and the
+    authoritative per-question `results` are REPLAYED from what submit persisted — this endpoint
+    never grades and never re-compares an answer.
+    """
     attempt = db.query(models.PastPaperAttempt).filter(
         models.PastPaperAttempt.id == attempt_id,
         models.PastPaperAttempt.username == current_user.username,
     ).first()
     if not attempt:
         raise HTTPException(status_code=404, detail="Attempt not found")
-    # Get active questions only (skip deactivated/duplicate batches).
-    qb_count = db.query(models.ExamQuestionBank).filter(
-        models.ExamQuestionBank.subject_key == subject_key,
-        models.ExamQuestionBank.source_type == "past_paper",
-        models.ExamQuestionBank.year == attempt.year,
-        models.ExamQuestionBank.is_active == True,
-    ).count()
-    if qb_count > 0:
-        qb_items = db.query(models.ExamQuestionBank).filter(
-            models.ExamQuestionBank.subject_key == subject_key,
-            models.ExamQuestionBank.source_type == "past_paper",
-            models.ExamQuestionBank.year == attempt.year,
-            models.ExamQuestionBank.is_active == True,
-        ).order_by(models.ExamQuestionBank.question_number).all()
-        questions = []
-        for item in qb_items:
-            opts = {}
-            if item.options_json:
-                try: opts = json.loads(item.options_json)
-                except: pass
-            questions.append({
-                "id": item.id,
-                "number": item.question_number,
-                "year": item.year,
-                "type": "选择题" if item.question_type == "choice" else "大题",
-                "stem": item.stem or "",
-                "content": item.stem or "",
-                "options": opts,
-                "standard_answer": item.standard_answer or "",
-                "question_type": item.question_type,
-                "quality_status": item.quality_status or "unchecked",
-                "review_notes": item.analysis or "",
-                "image_urls": get_question_images(subject_key, item.year, item.question_number),
-                "image_required": _question_needs_image(item),
-            })
-    else:
-        questions_data = exam_paper_parser.get_year_questions(subject_key, attempt.year)
-        questions = questions_data.get("questions", [])
+
+    paper = exam_past_paper.resolve_paper(db, subject_key, attempt.year)
     saved_answers = {}
     if attempt.answers_json:
         try:
             saved_answers = json.loads(attempt.answers_json)
         except Exception:
             pass
-    return {
+
+    detail = {
         "attempt": {
-            "id": attempt.id, "attempt_no": attempt.attempt_no, "year": attempt.year,
-            "username": attempt.username,
+            "id": attempt.id, "attempt_no": attempt.attempt_no,
+            "subject_key": attempt.subject_key, "year": attempt.year,
             "status": attempt.status, "total_questions": attempt.total_questions,
             "started_at": serialize_datetime(attempt.started_at),
+            "submitted_at": serialize_datetime(attempt.submitted_at),
         },
-        "questions": questions,
+        "questions": exam_past_paper.public_questions(paper),
         "saved_answers": saved_answers,
     }
+    if attempt.status == "submitted":
+        detail["results"] = exam_past_paper.replay_results(attempt, subject_key, attempt.year, paper)
+    return detail
 
 
-@app.post("/exam/11408/{subject_key}/past-paper-attempts/{attempt_id}/answers")
-def save_attempt_answers(subject_key: str, attempt_id: int, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+@app.post("/exam/11408/{subject_key}/past-paper-attempts/{attempt_id}/answers",
+          response_model=exam_past_paper.PastPaperAnswerSaveResponse)
+def save_attempt_answers(subject_key: str, attempt_id: int, req: exam_past_paper.PastPaperWriteRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    """Save draft answers, keyed by the public question number."""
     request_username(req, current_user)
     attempt = db.query(models.PastPaperAttempt).filter(
         models.PastPaperAttempt.id == attempt_id,
@@ -19634,13 +20101,14 @@ def save_attempt_answers(subject_key: str, attempt_id: int, req: dict, db: Sessi
         raise HTTPException(status_code=404, detail="Attempt not found")
     if attempt.status != "in_progress":
         raise HTTPException(status_code=400, detail="Attempt already submitted")
-    attempt.answers_json = json.dumps(req.get("answers", {}), ensure_ascii=False)
+    attempt.answers_json = json.dumps(req.answers, ensure_ascii=False)
     db.commit()
     return {"success": True, "attempt_id": attempt_id}
 
 
-@app.post("/exam/11408/{subject_key}/past-paper-attempts/{attempt_id}/submit")
-def submit_attempt(subject_key: str, attempt_id: int, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+@app.post("/exam/11408/{subject_key}/past-paper-attempts/{attempt_id}/submit",
+          response_model=exam_past_paper.PastPaperSubmitResponse)
+def submit_attempt(subject_key: str, attempt_id: int, req: exam_past_paper.PastPaperWriteRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     request_username(req, current_user)
     attempt = db.query(models.PastPaperAttempt).filter(
         models.PastPaperAttempt.id == attempt_id,
@@ -19650,86 +20118,130 @@ def submit_attempt(subject_key: str, attempt_id: int, req: dict, db: Session = D
         raise HTTPException(status_code=404, detail="Attempt not found")
     if attempt.status != "in_progress":
         raise HTTPException(status_code=400, detail="Attempt already submitted")
-    answers_list = req.get("answers", [])
-    if not answers_list:
+    # Answers arrive keyed by the public question number; the internal source row is resolved here
+    # so the frontend never handles a source-specific id.
+    answer_map = {str(k): str(v) for k, v in (req.answers or {}).items()}
+    if not answer_map:
         raise HTTPException(status_code=400, detail="No answers provided")
-    result = exam_paper_parser.grade_submission(subject_key, attempt.year, answers_list)
-    # If ExamQuestionBank has data for this subject+year, use it for grading
-    qb_count = db.query(models.ExamQuestionBank).filter(
-        models.ExamQuestionBank.subject_key == subject_key,
-        models.ExamQuestionBank.source_type == "past_paper",
-        models.ExamQuestionBank.year == attempt.year,
-        models.ExamQuestionBank.is_active == True,
-    ).count()
-    if qb_count > 0:
-        qb_items = db.query(models.ExamQuestionBank).filter(
-            models.ExamQuestionBank.subject_key == subject_key,
-            models.ExamQuestionBank.source_type == "past_paper",
-            models.ExamQuestionBank.year == attempt.year,
-            models.ExamQuestionBank.is_active == True,
-        ).order_by(models.ExamQuestionBank.question_number).all()
-        if qb_items:
-            results_list = []
-            correct = 0
-            wrong_qs = []
-            answer_map = {}
-            for a in answers_list:
-                if isinstance(a, dict):
-                    answer_map[str(a.get("question_id", ""))] = a.get("user_answer", "")
-            for item in qb_items:
-                qid = str(item.id)
-                ua = (answer_map.get(qid) or "").strip()
-                sa = (item.standard_answer or "").strip()
-                opts = {}
-                if item.options_json:
-                    try: opts = json.loads(item.options_json)
-                    except: pass
-                if item.question_type == "choice":
-                    is_c = ua.upper() == sa.upper()
-                    if is_c: correct += 1
-                    results_list.append({
-                        "question_id": qid, "number": item.question_number,
-                        "type": "选择题", "correct": is_c,
-                        "standard_answer": sa, "user_answer": ua,
-                        "score": 2 if is_c else 0, "full_score": 2,
+    resolved = exam_past_paper.resolve_paper(db, subject_key, attempt.year)
+    answers_list = exam_past_paper.answer_payload(resolved, answer_map)
+    qb_items = exam_past_paper.bank_questions(db, subject_key, attempt.year)
+
+    # STEP7H3 B5.2: grade deterministically FIRST when the bank has the paper. Every
+    # question can then be judged without a model, so the grading path makes ZERO provider
+    # calls — previously the AI graded every big question and the result was thrown away
+    # one branch later (paid, then discarded).
+    grade_state = {"applied": False, "reason": None}
+    if qb_items:
+        grade_state["reason"] = "deterministic_bank_grading"
+        results_list = []
+        correct = 0
+        wrong_qs = []
+        answer_map = {}
+        for a in answers_list:
+            if isinstance(a, dict):
+                answer_map[str(a.get("question_id", ""))] = a.get("user_answer", "")
+        for item in qb_items:
+            qnum = str(item.question_number)
+            ua = (answer_map.get(qnum) or "").strip()
+            sa = (item.standard_answer or "").strip()
+            opts = {}
+            if item.options_json:
+                try: opts = json.loads(item.options_json)
+                except: pass
+            if item.question_type == "choice":
+                # UNANSWERED != INCORRECT: a blank objective answer carries NO verdict. It is
+                # neither correct nor wrong, so it is not counted in either tally and never
+                # enters the wrong book (which is what the empty-string comparison used to do).
+                is_c = None if not ua else (ua.upper() == sa.upper())
+                if is_c: correct += 1
+                results_list.append({
+                    "question_id": qnum, "number": item.question_number,
+                    "type": "选择题", "correct": is_c,
+                    "standard_answer": sa, "user_answer": ua,
+                    "score": 2 if is_c else 0, "full_score": 2,
+                })
+                if is_c is False:
+                    wrong_qs.append({
+                        "question_id": qnum, "number": item.question_number,
+                        "type": "选择题", "content": item.stem or "",
+                        "options": opts, "standard_answer": sa,
+                        "user_answer": ua, "score": 0,
+                        "wrong_reason": "答错",
                     })
-                    if not is_c:
-                        wrong_qs.append({
-                            "question_id": qid, "number": item.question_number,
-                            "type": "选择题", "content": item.stem or "",
-                            "options": opts, "standard_answer": sa,
-                            "user_answer": ua, "score": 0,
-                            "wrong_reason": "答错",
-                        })
-                else:  # big
-                    score = 5  # default partial score for big questions
-                    results_list.append({
-                        "question_id": qid, "number": item.question_number,
-                        "type": "大题", "score": score, "full_score": 10,
-                        "standard_answer": sa, "user_answer": ua,
-                        "feedback": "请自行对照参考答案",
-                    })
-            total = len(qb_items)
-            choice_total = sum(1 for i in qb_items if i.question_type == "choice")
-            result = {
-                "subject_key": subject_key, "subject_name": EXAM_SUBJECT_DIRS.get(subject_key, subject_key),
-                "year": attempt.year,
-                "results": results_list,
-                "total_questions": total,
-                "choice_correct": correct,
-                "choice_total": choice_total,
-                "total_score": correct * 2,
-                "max_score": choice_total * 2 + (total - choice_total) * 10,
-                "wrong_questions": wrong_qs,
-                "wrong_count": len(wrong_qs),
-            }
+            else:
+                # BC6: a subjective answer is NEVER auto-scored. With no authoritative grading
+                # applied it is self-review — reference answer exposed post-submit, no score.
+                results_list.append({
+                    "question_id": qnum, "number": item.question_number,
+                    "type": "大题", "judge": "self_review",
+                    "score": None, "full_score": 10,
+                    "standard_answer": sa, "user_answer": ua,
+                    "feedback": "请自行对照参考答案",
+                })
+        total = len(qb_items)
+        choice_total = sum(1 for i in qb_items if i.question_type == "choice")
+        result = {
+            "subject_key": subject_key, "subject_name": EXAM_SUBJECT_DIRS.get(subject_key, subject_key),
+            "year": attempt.year,
+            "results": results_list,
+            "total_questions": total,
+            "choice_correct": correct,
+            "choice_total": choice_total,
+            "total_score": correct * 2,
+            "max_score": choice_total * 2,
+            "wrong_questions": wrong_qs,
+            "wrong_count": len(wrong_qs),
+        }
+    else:
+        # No bank rows for this paper: the only way to judge a subjective answer is the
+        # model, through the Exam AI boundary. An authorization or budget refusal skips the
+        # AI grade — the learner's SUBMISSION is the durable fact and must never be lost to an
+        # AI decision, but an unavailable grade must never become a guessed learner score.
+        result = exam_paper_parser.grade_submission(
+            subject_key, attempt.year, answers_list,
+            grade_big=_paper_big_answer_grader(
+                db, current_user, subject_key, attempt, grade_state))
+
+    # BC6 normalization, applied to BOTH sources: a subjective result is either authoritatively
+    # AI-graded (real score kept) or self-review (no score, never a midpoint guess).
+    total_score = 0
+    max_score = 0
+    self_review_count = 0
+    ai_graded_count = 0
+    for r in result.get("results", []):
+        if str(r.get("type") or "").strip() not in {"大题", "big"}:
+            total_score += int(r.get("score") or 0)
+            max_score += int(r.get("full_score") or 0)
+            continue
+        if grade_state.get("applied"):
+            r["judge"] = "ai_graded"
+            ai_graded_count += 1
+            total_score += int(r.get("score") or 0)
+            max_score += int(r.get("full_score") or 10)
+        else:
+            r["judge"] = "self_review"
+            r["score"] = None
+            r["feedback"] = "请自行对照参考答案"
+            self_review_count += 1
+            max_score += int(r.get("full_score") or 10)
+    # An ungraded subjective answer is not a wrong answer, so it must not enter the wrong book.
+    if not grade_state.get("applied"):
+        result["wrong_questions"] = [w for w in result.get("wrong_questions", [])
+                                     if str(w.get("type") or "").strip() not in {"大题", "big"}]
+    result["total_score"] = total_score
+    result["max_score"] = max_score
+    result["self_review_count"] = self_review_count
+    result["ai_graded_count"] = ai_graded_count
+    result["wrong_count"] = len(result.get("wrong_questions", []))
+
     now = utc_now()
     attempt.status = "submitted"
     attempt.submitted_at = now
     attempt.choice_correct = result.get("choice_correct", 0)
-    attempt.big_avg_score = result.get("big_avg_score")
-    attempt.total_score = result.get("total_score", 0)
-    attempt.max_score = result.get("max_score", 0)
+    attempt.big_avg_score = None if self_review_count else result.get("big_avg_score")
+    attempt.total_score = total_score
+    attempt.max_score = max_score
     attempt.wrong_count = len(result.get("wrong_questions", []))
     attempt.result_json = json.dumps(result, ensure_ascii=False)
     db.commit()
@@ -19759,12 +20271,72 @@ def submit_attempt(subject_key: str, attempt_id: int, req: dict, db: Session = D
             sa = str(r.get("standard_answer", "")).strip()
             is_c = None
             if qtype == "选择题":
-                is_c = r.get("correct", False)
+                is_c = r.get("correct")      # None for an unanswered question, not False
             _save_done_record(db, username, subject_key, practice_type="real_exam",
                               question_type=qtype, user_answer=ua, correct_answer=sa,
                               is_correct=is_c, attempt_id=attempt_id)
         db.commit()
-    return {**result, "attempt_id": attempt.id, "attempt_no": attempt.attempt_no}
+    # STEP 7D: mirror into the unified Practice Core (failure-isolated).
+    try:
+        from learning.practice.adapters import exam as _practice_exam
+        _practice_exam.mirror_past_paper_attempt(db, current_user, attempt)
+    except Exception as _pc_exc:  # noqa: BLE001
+        logger.warning("practice mirror hook failed: %s", type(_pc_exc).__name__)
+    return {
+        "attempt_id": attempt.id,
+        "attempt_no": attempt.attempt_no,
+        "subject_key": subject_key,
+        "year": attempt.year,
+        "total_questions": result.get("total_questions", attempt.total_questions),
+        "choice_total": result.get("choice_total", 0),
+        "choice_correct": result.get("choice_correct", 0),
+        "self_review_count": self_review_count,
+        "ai_graded_count": ai_graded_count,
+        "total_score": total_score,
+        "max_score": max_score,
+        "answer_grade": {"applied": bool(grade_state.get("applied")),
+                         "reason": grade_state.get("reason")},
+        "results": exam_past_paper.replay_results(attempt, subject_key, attempt.year, resolved),
+    }
+
+
+def _paper_big_answer_grader(db, user, subject_key, attempt, grade_state):
+    """Build the injected subjective-answer grader for one past-paper submission.
+
+    Every invocation runs the full Exam AI lifecycle (permission → router → estimate →
+    reserve → gateway → settle) under the ``answer.grade`` capability. A refusal
+    (403 permission / 429 budget / 502 reconciliation) does NOT propagate: the learner's
+    submission is the durable fact, so grading degrades to the provider-free provisional
+    score and the reason is reported back instead of failing the request.
+    """
+    from learning.spaces.exam_prep.ai import GradeOutputError, grade_big_answer
+    from learning.spaces.exam_prep.context import cs408_context
+
+    context = cs408_context(user, module_key=subject_key)
+
+    def _grade(q, user_answer, standard):
+        try:
+            score, feedback = grade_big_answer(
+                db, user, learning_context=context,
+                stem=q.get("content") or q.get("stem") or "",
+                standard_answer=standard, user_answer=user_answer,
+                subject_name=EXAM_SUBJECT_DIRS.get(subject_key, subject_key),
+                question_number=q.get("number"))
+        except HTTPException as exc:
+            grade_state["reason"] = f"answer_grade_unavailable_{exc.status_code}"
+            grade_state["applied"] = False
+            return exam_paper_parser._ungraded_big_answer(user_answer, standard)
+        except GradeOutputError as exc:
+            # The provider call HAPPENED and already settled its measured usage; only the
+            # postprocessing failed, so the cost stands and the grade falls back.
+            grade_state["reason"] = f"answer_grade_malformed_output"
+            logger.warning("answer grade postprocessing failed: %s", str(exc)[:120])
+            return exam_paper_parser._ungraded_big_answer(user_answer, standard)
+        grade_state["applied"] = True
+        grade_state["reason"] = None
+        return score, feedback
+
+    return _grade
 
 
 def _serialize_exam_favorite(item: models.ExamFavoriteQuestion):
@@ -20114,47 +20686,31 @@ def _update_course_learning_progress(
     point: dict,
     is_correct: bool,
 ):
+    """STEP 7G: this path now goes through the ONE canonical knowledge writer.
+
+    Its legacy behaviour is preserved exactly: the +15/-8 pedagogy delta, the
+    ``system_suggested_status`` field, and the rule that a practice result is only a
+    SUGGESTION and never replaces a learner's confirmed status choice. What changed is
+    that the status is now derived by the single shared rule and the change is covered
+    by the canonical ``knowledge_status_changed`` event.
+    """
     code = (point.get("code") or "").strip()
     if not code:
-        return
-    progress = (
-        db.query(models.UserKnowledgeProgress)
-        .filter(
-            models.UserKnowledgeProgress.user_id == user.id,
-            models.UserKnowledgeProgress.course_id == course_id,
-            models.UserKnowledgeProgress.knowledge_point_code == code,
-        )
-        .first()
+        return None
+    from learning.spaces.course_learning import knowledge as _course_knowledge
+    return _course_knowledge.apply_knowledge_change(
+        db,
+        username=user.username,
+        course_id=course_id,
+        event_type="question_correct" if is_correct else "question_incorrect",
+        knowledge_point_code=code,
+        knowledge_point_title=(point.get("title") or ""),
+        delta=15 if is_correct else -8,
+        source_type="course_learning_practice",
+        set_system_suggested=True,
+        protect_user_confirmed=True,
+        target_user_id=user.id,
     )
-    now = utc_now()
-    if not progress:
-        progress = models.UserKnowledgeProgress(
-            user_id=user.id,
-            username=user.username,
-            course_id=course_id,
-            knowledge_point_id=0,
-            knowledge_point_code=code,
-            knowledge_point_title=point.get("title") or "",
-            mastery_score=0,
-            status="not_started",
-            practice_count=0,
-            task_count=0,
-            created_at=now,
-        )
-        db.add(progress)
-    progress.username = user.username
-    progress.knowledge_point_title = point.get("title") or progress.knowledge_point_title or ""
-    progress.practice_count = (progress.practice_count or 0) + 1
-    score = max(0, min(100, (progress.mastery_score or 0) + (15 if is_correct else -8)))
-    progress.mastery_score = score
-    suggested_status = "mastered" if score >= 80 else ("learning" if score > 0 else "not_started")
-    progress.system_suggested_status = suggested_status
-    # Practice results are a recommendation. They must never replace a learner's
-    # explicit choice made in the knowledge-map status controls.
-    if not progress.user_confirmed_status:
-        progress.status = suggested_status
-    progress.last_studied_at = now
-    progress.updated_at = now
 
 
 @app.post("/course-learning/practice/generate")
@@ -20206,11 +20762,15 @@ def generate_course_learning_practice(req: dict, db: Session = Depends(get_db), 
         context["course_name"], chapter, point, material_context, difficulty, existing_stems,
     )
     try:
-        raw = call_deepseek([
+        from learning.spaces.course_learning.ai import execute_course_ai
+        from learning.spaces.course_learning.context import build_course_context
+        _course_result = execute_course_ai(db, user, "question.generate", [
             {"role": "system", "content": "你只输出符合要求的 JSON 对象。"},
             {"role": "user", "content": prompt},
-        ], timeout_seconds=60)
-        record_ai_usage(user.username, "question_generate", db, service_key="course_learning")
+        ], learning_context=build_course_context(
+            user, course_id=normalized_course, chapter_id=chapter,
+            knowledge_point_id=point.get("code"), material_ids=material_ids), max_tokens=2000)
+        raw = _course_result.content
         text = raw.strip()
         if text.startswith("```"):
             text = text.split("```", 2)[1]
@@ -20235,6 +20795,10 @@ def generate_course_learning_practice(req: dict, db: Session = Depends(get_db), 
         }
         if " ".join(generated["stem"].casefold().split()) in existing_stem_keys:
             raise ValueError("AI returned a duplicate course workbook stem")
+    except HTTPException:
+        # An entitlement or budget decision is an ANSWER, not an outage: a denied
+        # capability must surface as denied instead of degrading into generated content.
+        raise
     except Exception as exc:
         generation_mode = "fallback"
         fallback_reason = str(exc)[:300]
@@ -20319,7 +20883,7 @@ def submit_course_learning_practice(attempt_id: int, req: dict, db: Session = De
     attempt.result_json = json.dumps(result, ensure_ascii=False)
     user = current_user
     point = {"code": item.knowledge_point_id or "", "title": item.knowledge_point_name or ""}
-    _update_course_learning_progress(db, user=user, course_id=attempt.subject_key, point=point, is_correct=is_correct)
+    _kp_transition = _update_course_learning_progress(db, user=user, course_id=attempt.subject_key, point=point, is_correct=is_correct)
     db.add(models.LearningRecord(
         user_id=user.id,
         subject=attempt.subject_key,
@@ -20331,6 +20895,7 @@ def submit_course_learning_practice(attempt_id: int, req: dict, db: Session = De
         is_deleted=False,
     ))
     db.commit()
+    _emit_knowledge_transition(_kp_transition)
     # Phase 2B1: post-commit best-effort Data Plane emission (failure-isolated; never fails submit)
     try:
         from data_plane import emitter as _dp_emitter
@@ -20338,6 +20903,13 @@ def submit_course_learning_practice(attempt_id: int, req: dict, db: Session = De
         _dp_emitter.best_effort_emit(_dp_events, SessionLocal)
     except Exception as _dp_exc:  # noqa: BLE001
         logger.warning("data_plane emit hook failed: %s", type(_dp_exc).__name__)
+    # STEP 7D: mirror into the unified Practice Core (failure-isolated; the legacy row
+    # above is the durable source of truth and is already committed).
+    try:
+        from learning.practice.adapters import course as _practice_course
+        _practice_course.mirror_ai_question_attempt(db, current_user, attempt)
+    except Exception as _pc_exc:  # noqa: BLE001
+        logger.warning("practice mirror hook failed: %s", type(_pc_exc).__name__)
     return {"success": True, "attempt_id": attempt.id, "result": result}
 
 
@@ -20804,13 +21376,14 @@ def submit_ai_question_attempt(subject_key: str, attempt_id: int, req: dict, db:
                 "hint": "请自行对照参考答案"})
         else:
             ua_upper = ua.upper(); sa_upper = sa.upper()
-            is_c = ua_upper == sa_upper
+            # UNANSWERED != INCORRECT: a blank carries no verdict (see the chapter/AI writers).
+            is_c = None if not ua_upper else (ua_upper == sa_upper)
             if is_c: correct += 1
-            else: wrong += 1
+            elif is_c is False: wrong += 1
             results.append({"question_id": qid, "correct": is_c, "standard_answer": sa, "user_answer": ua,
                 "stem": item.stem or "", "options": opts, "analysis": item.analysis or "",
                 "question_type": item.question_type})
-            if not is_c and username:
+            if is_c is False and username:
                 existing = db.query(models.ExamWrongQuestion).filter(
                     models.ExamWrongQuestion.username == username,
                     models.ExamWrongQuestion.question_bank_id == None,
@@ -20833,7 +21406,8 @@ def submit_ai_question_attempt(subject_key: str, attempt_id: int, req: dict, db:
             _save_done_record(db, username, subject_key, practice_type="ai_generated",
                               ai_question_id=item.id, question_type=item.question_type,
                               user_answer=ua, correct_answer=sa,
-                              is_correct=(True if item.question_type != "big" and ua.upper() == sa.upper() else (None if item.question_type == "big" else False)),
+                              is_correct=(None if item.question_type == "big" or not ua
+                                          else ua.upper() == sa.upper()),
                               attempt_id=attempt_id)
     total = len(qids); choice_total = total - big_count
     attempt.status = "submitted"; attempt.submitted_at = now
@@ -20841,6 +21415,12 @@ def submit_ai_question_attempt(subject_key: str, attempt_id: int, req: dict, db:
     attempt.accuracy = round(correct / choice_total * 100, 1) if choice_total > 0 else 0
     attempt.result_json = json.dumps({"correct": correct, "total": total, "results": results}, ensure_ascii=False)
     db.commit()
+    # STEP 7D: mirror into the unified Practice Core (failure-isolated).
+    try:
+        from learning.practice.adapters import course as _practice_course
+        _practice_course.mirror_ai_question_attempt(db, current_user, attempt)
+    except Exception as _pc_exc:  # noqa: BLE001
+        logger.warning("practice mirror hook failed: %s", type(_pc_exc).__name__)
     return {"total_questions": total, "choice_total": choice_total, "big_count": big_count,
             "correct_count": correct, "wrong_count": wrong, "accuracy": attempt.accuracy,
             "mistake_saved_count": mistake_saved, "results": results}
@@ -20848,26 +21428,45 @@ def submit_ai_question_attempt(subject_key: str, attempt_id: int, req: dict, db:
 
 # ── v2 Unified Question Bank ──
 
+def _parse_question_source_meta(item):
+    if not item.source_ref:
+        return {}
+    try:
+        parsed_ref = json.loads(item.source_ref)
+    except Exception:
+        return {}
+    return parsed_ref if isinstance(parsed_ref, dict) else {}
+
+
+def _question_chapter_code(item, source_meta=None):
+    """Canonical CS408 chapter id for one question-bank row.
+
+    The chapter is the level-1 code of the row's knowledge-point code: "3.1 数据链路层的功能",
+    "4.10 IPv4 地址" and "1.1.1 计算机网络的概念" belong to chapters "3", "4" and "1". That is the
+    same identity the module knowledge-map seed exposes as `chapter.code` / `chapter.chapter_no`,
+    and the same one the study-plan / knowledge workspace already shows, so a knowledge-workspace
+    chapter and a chapter-practice chapter are one identity (see BC5A report §2).
+
+    Returns "" for a row with no knowledge point — such a row has no canonical chapter.
+    """
+    meta = _parse_question_source_meta(item) if source_meta is None else source_meta
+    chapter_id = str(meta.get("chapter_id") or "").strip()
+    if chapter_id:
+        return chapter_id
+    first_code = str(item.knowledge_point_id or "").split("；", 1)[0].split(";", 1)[0].strip()
+    return first_code.split(".", 1)[0] if first_code else ""
+
+
 def _serialize_question_bank(item):
     opts = {}
     if item.options_json:
         try: opts = json.loads(item.options_json)
         except: pass
-    source_meta = {}
-    if item.source_ref:
-        try:
-            parsed_ref = json.loads(item.source_ref)
-            if isinstance(parsed_ref, dict):
-                source_meta = parsed_ref
-        except Exception:
-            source_meta = {}
+    source_meta = _parse_question_source_meta(item)
     knowledge_points = source_meta.get("knowledge_points")
     if not isinstance(knowledge_points, list):
         knowledge_points = [p.strip() for p in re.split(r"[；;|]", item.knowledge_point_path or "") if p.strip()]
-    chapter_id = str(source_meta.get("chapter_id") or "").strip()
-    if not chapter_id:
-        first_code = str(item.knowledge_point_id or "").split("；", 1)[0].split(";", 1)[0].strip()
-        chapter_id = first_code.split(".", 1)[0] if first_code else ""
+    chapter_id = _question_chapter_code(item, source_meta)
     chapter_name = str(source_meta.get("chapter_name") or "").strip()
     if not chapter_name and chapter_id:
         chapter_name = f"第{chapter_id}章"
@@ -20939,8 +21538,289 @@ def create_question_bank_question(subject_key: str, req: dict, db: Session = Dep
 
 
 # ── Chapter Practice ──
+#
+# FRONTEND_BLOCKER_BC5A — the models below exist ONLY so the six chapter-practice handlers declare
+# concrete OpenAPI request/response schemas instead of `unknown` / untyped records. Every field,
+# nullability and closed union was taken from the REAL runtime payload over all four CS408 modules
+# (4205 active chapter rows, read-only `backend/app.db`), not from frontend wishes.
+#
+# Three facts drive the shape:
+#
+#  * The canonical chapter is the level-1 code shared with the knowledge workspace — see
+#    `_question_chapter_code`. The sub-chapter `knowledge_point_id` is a practice sub-group, NOT a
+#    knowledge-map identifier: 44 of the 142 computer_network groups carry a code that does not
+#    exist in that module's seed map at all, so only the chapter level can be canonical.
+#  * The chapter question list is PRE-SUBMIT. `ExamPracticeQuestion` deliberately has no
+#    `standard_answer` / `analysis` field: a learner must not be able to read the solution off the
+#    chapter-question network response. The post-submit contract is the submit response and the
+#    submitted attempt detail (`ExamPracticeAttemptQuestion`).
+#  * `exam_question_bank` only ever holds `source_type in {chapter, past_paper}` and
+#    `question_type in {choice, big}` (9333/9333 rows), so both unions are genuinely closed.
 
-@app.get("/exam/11408/{subject_key}/chapter-practice/outline")
+ExamPracticeQuestionType = Literal["choice", "big"]
+ExamPracticeAttemptStatus = Literal["in_progress", "submitted"]
+ExamPracticeSelfReviewJudge = Literal["self_review"]
+
+
+class ExamPracticeChapter(BaseModel):
+    """One canonical chapter of a CS408 module.
+
+    `chapter_code` is URL-safe (digits), unique within the module, and matches `chapter.code` in
+    the module knowledge-map seed — the identity the knowledge workspace already exposes, so the
+    knowledge → practice deep link can carry it directly.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    chapter_code: str
+    chapter_no: int
+    chapter_title: str
+    question_count: int
+
+
+class ExamChapterPracticeOutlineResponse(BaseModel):
+    subject_key: str
+    # Practice sub-groups keyed by `knowledge_point_id`. The key set is open module content, so it
+    # stays a typed map rather than a closed model; `chapters` is the canonical level above it.
+    knowledge_points: dict[str, int]
+    total: int
+    chapters: list[ExamPracticeChapter]
+
+
+class ExamPracticeQuestion(BaseModel):
+    """A chapter-practice question as served BEFORE submission.
+
+    Deliberately carries no `standard_answer` and no `analysis`: those two keys are removed from the
+    question-list payload so the solution cannot be read off the network response. They become
+    available only through the submit response and the submitted attempt detail.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: int
+    subject_key: str
+    source_type: str
+    visibility: str
+    knowledge_point_id: str | None
+    knowledge_point_name: str | None
+    knowledge_point_path: str | None
+    knowledge_points: list[str]
+    chapter_id: str
+    chapter_name: str
+    year: int | None
+    question_number: int | None
+    question_type: ExamPracticeQuestionType
+    stem: str
+    options: dict[str, str]
+    difficulty: str | None
+    quality_status: str | None
+    created_at: str | None
+    practiced: bool
+
+
+class ExamPracticeAttemptQuestion(BaseModel):
+    """A question inside an attempt attempt: pre-submit while `in_progress`, post-submit after.
+
+    `standard_answer` / `analysis` are genuinely conditional: the handler removes them from every
+    question while the attempt is `in_progress`. The response is served with
+    `response_model_exclude_unset=True`, so an absent key stays absent rather than becoming a
+    `null` that was never there.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: int
+    subject_key: str
+    source_type: str
+    visibility: str
+    knowledge_point_id: str | None
+    knowledge_point_name: str | None
+    knowledge_point_path: str | None
+    knowledge_points: list[str]
+    chapter_id: str
+    chapter_name: str
+    year: int | None
+    question_number: int | None
+    question_type: ExamPracticeQuestionType
+    stem: str
+    options: dict[str, str]
+    difficulty: str | None
+    quality_status: str | None
+    created_at: str | None
+    standard_answer: str | None = None
+    analysis: str | None = None
+
+
+class ExamChapterPracticeQuestionsResponse(BaseModel):
+    """Pre-submit chapter question list. `debug_info` is emitted only when the result is empty."""
+
+    items: list[ExamPracticeQuestion]
+    total: int
+    debug_info: dict | None = None
+
+
+class ExamPracticeAttemptCreateRequest(BaseModel):
+    # Defaulted rather than required so an omitted `question_ids` keeps the handler's own
+    # 400 "question_ids required" answer instead of turning into a 422 from validation.
+    question_ids: list[int] = Field(default_factory=list)
+    username: str | None = None
+    knowledge_point_id: str | None = None
+    knowledge_point_name: str | None = None
+    knowledge_point_path: str | None = None
+
+
+class ExamPracticeAttemptCreateResponse(BaseModel):
+    attempt_id: int
+    status: ExamPracticeAttemptStatus
+    total_questions: int
+
+
+class ExamPracticeAttemptSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: int
+    status: ExamPracticeAttemptStatus
+    total_questions: int
+    knowledge_point_path: str | None
+    started_at: str | None
+
+
+class ExamChoicePracticeResult(BaseModel):
+    """Deterministic server-side choice grading result — no provider call is involved.
+
+    ``correct`` is tri-state. It is a real bool for an ANSWERED question and ``null`` for
+    one submitted blank: an unanswered question has no verdict (未作答 != 答错), so the
+    grader states "not answered" rather than inventing a failure. It is null for exactly
+    the same reason ``ExamBigPracticeResult.correct`` is — no authoritative judgement was
+    applied. A blank is not a wrong answer, is counted in neither tally, and never enters
+    the wrong book.
+    """
+
+    question_id: int
+    correct: bool | None
+    standard_answer: str
+    user_answer: str
+    stem: str
+    options: dict[str, str]
+    analysis: str
+    question_type: Literal["choice"]
+
+
+class ExamBigPracticeResult(BaseModel):
+    """Big question: not auto-graded. The learner compares against the reference answer."""
+
+    question_id: int
+    correct: None
+    judge: ExamPracticeSelfReviewJudge
+    standard_answer: str
+    user_answer: str
+    stem: str
+    options: dict[str, str]
+    analysis: str
+    question_type: Literal["big"]
+    hint: str
+
+
+ExamPracticeSubmitResult = Annotated[
+    ExamChoicePracticeResult | ExamBigPracticeResult, Field(discriminator="question_type")
+]
+
+
+class ExamPracticeAttemptDetailResponse(BaseModel):
+    """Attempt detail: the question set plus the learner's saved answers.
+
+    `results` is the SUBMITTED-result replay: the authoritative per-question grading persisted by
+    submit, keyed by `question_id`, reusing the exact `ExamPracticeSubmitResult` union so the submit
+    response and the reloaded detail cannot drift apart. It is absent while the attempt is
+    `in_progress` (the response is served with `response_model_exclude_unset=True`), which is what
+    keeps the pre-submit payload free of the correct answer, the explanation and any grading result.
+    """
+
+    attempt: ExamPracticeAttemptSummary
+    questions: list[ExamPracticeAttemptQuestion]
+    saved_answers: dict[str, str]
+    results: list[ExamPracticeSubmitResult] = Field(default_factory=list)
+
+
+class ExamPracticeWriteRequest(BaseModel):
+    """Shared body of `answers` (save) and `submit`.
+
+    The server coerces each answer with `str(...)` before grading, and the only known producers
+    send option letters / free text, so the value side is closed to `str`.
+    """
+
+    answers: dict[str, str] = Field(default_factory=dict)
+    username: str | None = None
+
+
+class ExamPracticeAnswerSaveResponse(BaseModel):
+    success: bool
+
+
+class ExamPracticeSubmitResponse(BaseModel):
+    total_questions: int
+    choice_total: int
+    big_count: int
+    correct_count: int
+    wrong_count: int
+    accuracy: float
+    mistake_saved_count: int
+    results: list[ExamPracticeSubmitResult]
+
+
+CHAPTER_SEED_COURSE_SUFFIX = "_11408"
+
+
+def _chapter_seed_meta(subject_key):
+    """`{chapter_code: (chapter_no, chapter_title)}` from the module knowledge-map seed.
+
+    Returns {} when the seed is absent or unreadable, so the outline degrades to the derived title
+    instead of failing.
+    """
+    meta = {}
+    seed_path = _knowledge_map_seed_path(f"{subject_key}{CHAPTER_SEED_COURSE_SUFFIX}")
+    if not seed_path.exists():
+        return meta
+    try:
+        payload = json.loads(seed_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return meta
+    for chapter in payload.get("chapters") or []:
+        code = str(chapter.get("code") or "").strip()
+        if not code:
+            continue
+        try:
+            chapter_no = int(chapter.get("chapter_no"))
+        except (TypeError, ValueError):
+            chapter_no = None
+        meta[code] = (chapter_no, str(chapter.get("title") or "").strip())
+    return meta
+
+
+def _chapter_catalog(subject_key, items):
+    """Canonical chapter catalog for the question rows of one module."""
+    seed_meta = _chapter_seed_meta(subject_key)
+    counts = defaultdict(int)
+    for item in items:
+        chapter_code = _question_chapter_code(item)
+        if chapter_code:
+            counts[chapter_code] += 1
+    catalog = []
+    for chapter_code in sorted(counts, key=lambda c: int(c) if c.isdigit() else 10 ** 9):
+        seed_no, seed_title = seed_meta.get(chapter_code, (None, ""))
+        if seed_no is None:
+            seed_no = int(chapter_code) if chapter_code.isdigit() else 0
+        catalog.append({
+            "chapter_code": chapter_code,
+            "chapter_no": seed_no,
+            "chapter_title": seed_title or f"第{chapter_code}章",
+            "question_count": counts[chapter_code],
+        })
+    return catalog
+
+
+@app.get("/exam/11408/{subject_key}/chapter-practice/outline",
+         response_model=ExamChapterPracticeOutlineResponse)
 def get_chapter_practice_outline(subject_key: str):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
@@ -20950,7 +21830,8 @@ def get_chapter_practice_outline(subject_key: str):
         kp_ids = _split_chapter_question_kp_ids(item)
         for kp in kp_ids or [""]:
             questions[kp] = questions.get(kp, 0) + 1
-    return {"subject_key": subject_key, "knowledge_points": questions, "total": sum(questions.values())}
+    return {"subject_key": subject_key, "knowledge_points": questions, "total": sum(questions.values()),
+            "chapters": _chapter_catalog(subject_key, items)}
 
 def _split_chapter_question_kp_ids(item):
     raw = item.knowledge_point_id or ""
@@ -20982,13 +21863,36 @@ def db_query_chapter_questions(subject_key):
         ).all()
     finally: db.close()
 
-@app.get("/exam/11408/{subject_key}/chapter-practice/questions")
+
+def _serialize_practice_question(item, practiced=None):
+    """Pre-submit projection of a question-bank row.
+
+    Drops `standard_answer` and `analysis`. A learner must not be able to read the correct answer
+    off the chapter-question network response — the submitted attempt detail and the submit
+    response are the only surfaces that carry the solution.
+    """
+    payload = {key: value for key, value in _serialize_question_bank(item).items()
+               if key not in ("standard_answer", "analysis")}
+    if practiced is not None:
+        payload["practiced"] = practiced
+    return payload
+
+
+@app.get("/exam/11408/{subject_key}/chapter-practice/questions",
+         response_model=ExamChapterPracticeQuestionsResponse,
+         response_model_exclude_unset=True)
 def get_chapter_practice_questions(subject_key: str, knowledge_point_id: str = "",
+                                      chapter_code: str = "",
                                       knowledge_point_path: str = "", include_children: bool = False,
                                       username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
     items = db_query_chapter_questions(subject_key)
+    # BC5A: an explicit canonical-chapter filter. It is additive — with `chapter_code` empty the
+    # endpoint behaves exactly as before, and the sub-group filters below still compose with it.
+    canonical_chapter = (chapter_code or "").strip()
+    if canonical_chapter:
+        items = [i for i in items if _question_chapter_code(i) == canonical_chapter]
 
     # Load done records to tag practiced questions
     done_q_ids: set[int] = set()
@@ -21028,7 +21932,7 @@ def get_chapter_practice_questions(subject_key: str, knowledge_point_id: str = "
         items = matched
     result = {
         "items": [
-            {**_serialize_question_bank(i), "practiced": i.id in done_q_ids}
+            _serialize_practice_question(i, practiced=i.id in done_q_ids)
             for i in items
         ],
         "total": len(items),
@@ -21096,12 +22000,13 @@ def get_chapter_analytics(subject_key: str, username: str = "", db: Session = De
             "empty_points": empty, "difficulty_distribution": dist, "total_questions": len(items)}
 
 
-@app.post("/exam/11408/{subject_key}/chapter-practice/attempts")
-def create_chapter_practice_attempt(subject_key: str, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+@app.post("/exam/11408/{subject_key}/chapter-practice/attempts",
+          response_model=ExamPracticeAttemptCreateResponse)
+def create_chapter_practice_attempt(subject_key: str, req: ExamPracticeAttemptCreateRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
     username = request_username(req, current_user)
-    qids = req.get("question_ids") or []
+    qids = req.question_ids
     if not qids: raise HTTPException(status_code=400, detail="question_ids required")
     items = db.query(models.ExamQuestionBank).filter(
         models.ExamQuestionBank.id.in_(qids), models.ExamQuestionBank.is_active == True).all()
@@ -21110,15 +22015,35 @@ def create_chapter_practice_attempt(subject_key: str, req: dict, db: Session = D
     a = models.ExamPracticeAttempt(
         username=username, subject_key=subject_key, practice_type="chapter",
         source_type="chapter", status="in_progress",
-        knowledge_point_id=(req.get("knowledge_point_id") or "").strip() or None,
-        knowledge_point_name=(req.get("knowledge_point_name") or "").strip() or None,
-        knowledge_point_path=(req.get("knowledge_point_path") or "").strip() or None,
+        knowledge_point_id=(req.knowledge_point_id or "").strip() or None,
+        knowledge_point_name=(req.knowledge_point_name or "").strip() or None,
+        knowledge_point_path=(req.knowledge_point_path or "").strip() or None,
         question_ids_json=json.dumps([i.id for i in items]), total_questions=len(items),
     )
     db.add(a); db.commit(); db.refresh(a)
     return {"attempt_id": a.id, "status": "in_progress", "total_questions": len(items)}
 
-@app.get("/exam/11408/{subject_key}/chapter-practice/attempts/{attempt_id}")
+def _persisted_attempt_results(attempt):
+    """Replay the authoritative per-question results submit already persisted.
+
+    This endpoint is a read/replay endpoint, NOT a grader: it decodes
+    `ExamPracticeAttempt.result_json` verbatim and never re-compares an answer against the standard
+    one. An attempt with nothing persisted to replay (pre-submit, or a row that predates
+    `result_json`) yields an empty list rather than a freshly invented result.
+    """
+    if not attempt.result_json:
+        return []
+    try:
+        blob = json.loads(attempt.result_json)
+    except (TypeError, ValueError):
+        return []
+    results = blob.get("results") if isinstance(blob, dict) else None
+    return results if isinstance(results, list) else []
+
+
+@app.get("/exam/11408/{subject_key}/chapter-practice/attempts/{attempt_id}",
+         response_model=ExamPracticeAttemptDetailResponse,
+         response_model_exclude_unset=True)
 def get_chapter_practice_attempt(subject_key: str, attempt_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     a = db.query(models.ExamPracticeAttempt).filter(
         models.ExamPracticeAttempt.id == attempt_id,
@@ -21135,24 +22060,29 @@ def get_chapter_practice_attempt(subject_key: str, attempt_id: int, username: st
         q = _serialize_question_bank(item)
         if a.status != "submitted": q.pop("standard_answer", None); q.pop("analysis", None)
         questions.append(q)
-    return {"attempt": {"id": a.id, "status": a.status, "total_questions": a.total_questions,
+    detail = {"attempt": {"id": a.id, "status": a.status, "total_questions": a.total_questions,
             "knowledge_point_path": a.knowledge_point_path, "started_at": serialize_datetime(a.started_at)},
             "questions": questions, "saved_answers": saved}
+    if a.status == "submitted":
+        detail["results"] = _persisted_attempt_results(a)
+    return detail
 
-@app.post("/exam/11408/{subject_key}/chapter-practice/attempts/{attempt_id}/answers")
-def save_chapter_attempt_answers(subject_key: str, attempt_id: int, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+@app.post("/exam/11408/{subject_key}/chapter-practice/attempts/{attempt_id}/answers",
+          response_model=ExamPracticeAnswerSaveResponse)
+def save_chapter_attempt_answers(subject_key: str, attempt_id: int, req: ExamPracticeWriteRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     request_username(req, current_user)
     a = db.query(models.ExamPracticeAttempt).filter(
         models.ExamPracticeAttempt.id == attempt_id,
         models.ExamPracticeAttempt.username == current_user.username,
     ).first()
     if not a or a.status != "in_progress": raise HTTPException(status_code=404, detail="Attempt not found")
-    a.answers_json = json.dumps(req.get("answers", {}), ensure_ascii=False)
+    a.answers_json = json.dumps(req.answers, ensure_ascii=False)
     db.commit()
     return {"success": True}
 
-@app.post("/exam/11408/{subject_key}/chapter-practice/attempts/{attempt_id}/submit")
-def submit_chapter_attempt(subject_key: str, attempt_id: int, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+@app.post("/exam/11408/{subject_key}/chapter-practice/attempts/{attempt_id}/submit",
+          response_model=ExamPracticeSubmitResponse)
+def submit_chapter_attempt(subject_key: str, attempt_id: int, req: ExamPracticeWriteRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     request_username(req, current_user)
     a = db.query(models.ExamPracticeAttempt).filter(
         models.ExamPracticeAttempt.id == attempt_id,
@@ -21160,7 +22090,7 @@ def submit_chapter_attempt(subject_key: str, attempt_id: int, req: dict, db: Ses
         models.ExamPracticeAttempt.subject_key == subject_key,
     ).first()
     if not a or a.status != "in_progress": raise HTTPException(status_code=404, detail="Attempt not found")
-    answers = req.get("answers", {})
+    answers = req.answers
     qids = json.loads(a.question_ids_json or "[]")
     items = {i.id: i for i in db.query(models.ExamQuestionBank).filter(models.ExamQuestionBank.id.in_(qids)).all()}
     results, correct, wrong, big_count, mistake_saved = [], 0, 0, 0, 0; now = utc_now(); username = current_user.username
@@ -21182,17 +22112,19 @@ def submit_chapter_attempt(subject_key: str, attempt_id: int, req: dict, db: Ses
                             "question_type": item.question_type,
                             "hint": "请自行对照参考答案"})
         else:
-            # Choice questions: auto-grade
+            # Choice questions: auto-grade. UNANSWERED != INCORRECT — a blank carries no
+            # verdict, so it is counted as neither correct nor wrong and never reaches the
+            # wrong book (the empty-string comparison used to file it as 答错).
             ua_upper = ua.upper()
             sa_upper = sa.upper()
-            is_c = ua_upper == sa_upper
+            is_c = None if not ua_upper else (ua_upper == sa_upper)
             if is_c: correct += 1
-            else: wrong += 1
+            elif is_c is False: wrong += 1
             results.append({"question_id": qid, "correct": is_c, "standard_answer": sa, "user_answer": ua,
                             "stem": item.stem, "options": opts, "analysis": item.analysis or "",
                             "question_type": item.question_type})
             # Save wrong choice questions with dedup
-            if not is_c and username:
+            if is_c is False and username:
                 existing = db.query(models.ExamWrongQuestion).filter(
                     models.ExamWrongQuestion.username == username,
                     models.ExamWrongQuestion.question_bank_id == item.id,
@@ -21231,11 +22163,19 @@ def submit_chapter_attempt(subject_key: str, attempt_id: int, req: dict, db: Ses
         sa = (item.standard_answer or "").strip()
         is_c = None
         if item.question_type != "big":
-            is_c = ua.upper() == sa.upper()
+            # None for an unanswered question: the done record must not assert a verdict
+            # the learner never produced.
+            is_c = None if not ua else (ua.upper() == sa.upper())
         _save_done_record(db, username, subject_key, practice_type="chapter",
                           question_bank_id=item.id, question_type=item.question_type,
                           user_answer=ua, correct_answer=sa, is_correct=is_c, attempt_id=attempt_id)
     db.commit()
+    # STEP 7D: mirror into the unified Practice Core (failure-isolated).
+    try:
+        from learning.practice.adapters import exam as _practice_exam
+        _practice_exam.mirror_exam_practice_attempt(db, current_user, a)
+    except Exception as _pc_exc:  # noqa: BLE001
+        logger.warning("practice mirror hook failed: %s", type(_pc_exc).__name__)
     return {"total_questions": total, "choice_total": choice_total, "big_count": big_count,
             "correct_count": correct, "wrong_count": wrong, "accuracy": a.accuracy,
             "mistake_saved_count": mistake_saved, "results": results}
@@ -21300,47 +22240,29 @@ def generate_exam_ai_questions(subject_key: str, req: dict, db: Session = Depend
         "requirement": requirement,
         "prompt": prompt,
     }
-    api_key = (os.getenv("DEEPSEEK_API_KEY") or "").strip()
-    if not api_key:
-        created_items = _create_mock_exam_ai_questions(
-            db,
-            username=username,
-            subject_key=subject_key,
-            subject_name=subject_name,
-            kp_id=kp_id,
-            kp_name=kp_name,
-            kp_path=kp_path,
-            question_type=question_type,
-            count=count,
-            difficulty=difficulty,
-            requirement=requirement,
-            fallback_reason="DEEPSEEK_API_KEY 未配置，已使用 mock fallback",
-            generation_mode="mock_fallback",
-        )
-        return {
-            "success": True,
-            "generation_mode": "fallback",
-            "fallback_used": True,
-            "message": "DeepSeek 未配置，已使用 mock fallback 生成选择题。",
-            "requested_count": count,
-            "generated_count": len(created_items),
-            "items": [_serialize_ai_generated_question(item) for item in created_items],
-        }
-
+    # STEP7H4 §25: no provider-specific config check here. Whether a usable model exists is
+    # the Router's / Gateway's question, and "no model available" is a normal technical
+    # failure the fallback below already handles — the business layer does not need to know
+    # which vendor is configured.
     try:
-        raw_ai_response = call_deepseek(
+        # STEP7H3: unified boundary. Capability, permission, budget, routing, billing and
+        # settlement are the orchestrator's business — this endpoint no longer names a
+        # provider or a model.
+        raw_ai_response = _exam_ai_content(
+            db, user, "question.generate",
             [
                 {"role": "system", "content": "你是严谨的 11408 考研数据结构命题助手，只输出严格 JSON。"},
                 {"role": "user", "content": prompt},
             ],
-            timeout_seconds=90,
+            scope_values=(subject_key,),
             temperature=0.35,
             max_tokens=max(1600, min(6000, count * 900)),
         )
     except HTTPException as exc:
-        # Best-effort meter entry: a failed provider call may still matter for audit.
-        record_ai_usage(username, "question_generate", db, status="failed",
-                        error_message=str(exc.detail)[:200], service_key="exam_11408")
+        # An entitlement or budget decision is an ANSWER, not an outage: never degrade a
+        # denial into generated content. A technical 5xx keeps the endpoint's own fallback.
+        if exc.status_code in (403, 429):
+            raise
         created_items = _create_mock_exam_ai_questions(
             db,
             username=username,
@@ -21353,24 +22275,49 @@ def generate_exam_ai_questions(subject_key: str, req: dict, db: Session = Depend
             count=count,
             difficulty=difficulty,
             requirement=requirement,
-            fallback_reason=f"DeepSeek 调用失败：{exc.detail}",
+            fallback_reason="AI 暂不可用，已使用 mock fallback",
             generation_mode="mock_fallback",
         )
         return {
             "success": True,
             "generation_mode": "fallback",
             "fallback_used": True,
-            "message": "DeepSeek 调用失败，已使用 mock fallback 生成选择题。",
+            "message": "AI 暂不可用，已使用 mock fallback 生成选择题。",
+            "requested_count": count,
+            "generated_count": len(created_items),
+            "items": [_serialize_ai_generated_question(item) for item in created_items],
+        }
+    except Exception as exc:
+        # Technical model failure → the endpoint's own long-standing deterministic
+        # fallback ("no model → product still works").
+        created_items = _create_mock_exam_ai_questions(
+            db,
+            username=username,
+            subject_key=subject_key,
+            subject_name=subject_name,
+            kp_id=kp_id,
+            kp_name=kp_name,
+            kp_path=kp_path,
+            question_type=question_type,
+            count=count,
+            difficulty=difficulty,
+            requirement=requirement,
+            fallback_reason=f"AI 调用失败：{str(exc)[:160]}",
+            generation_mode="mock_fallback",
+        )
+        return {
+            "success": True,
+            "generation_mode": "fallback",
+            "fallback_used": True,
+            "message": "AI 调用失败，已使用 mock fallback 生成选择题。",
             "requested_count": count,
             "generated_count": len(created_items),
             "items": [_serialize_ai_generated_question(item) for item in created_items],
         }
 
-    # This endpoint has its own historical generation flow and formerly bypassed
-    # the shared usage log even when the real provider call succeeded.
-    record_ai_usage(username, "question_generate", db,
-                    estimated_tokens=estimate_tokens_from_text(raw_ai_response),
-                    status="success", service_key="exam_11408")
+    # STEP7H3 B8: no legacy success ledger entry. The unified usage_ledger +
+    # ai_cost_records are the billing facts for this invocation; a second legacy row would
+    # be a duplicate billing fact for one provider call.
     parsed_payload = extract_json_object(raw_ai_response)
     validated_questions = _validate_exam_ai_choice_payload(parsed_payload, subject_key, count)
 
@@ -21459,19 +22406,55 @@ def get_ai_question_raw_response(subject_key: str, question_id: int, username: s
     }
 
 
-@app.post("/exam/11408/{subject_key}/question-analysis")
-def generate_question_analysis(subject_key: str, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+class ExamQuestionAnalysisRequest(BaseModel):
+    """Body of `POST /exam/11408/{subject_key}/question-analysis`.
+
+    This endpoint is STATELESS and answer-blind: it holds no `question_id`, reads no question
+    row, and resolves nothing from storage. Every field below — including `standard_answer` —
+    is caller-supplied prompt material, so nothing here is an authoritative server-side answer
+    and nothing here can disclose one. The caller (UI) is responsible for only sending
+    answer context after the attempt has been submitted.
+
+    `stem` is Optional rather than required so an omitted stem keeps the handler's own 400
+    "stem is required" instead of turning into a 422 from validation; `context` is accepted
+    for historical callers and is currently not used to build the prompt.
+    """
+
+    stem: str | None = None
+    options: dict[str, str] = Field(default_factory=dict)
+    standard_answer: str | None = None
+    user_answer: str | None = None
+    question_type: str | None = None
+    context: str | None = None
+
+
+class ExamQuestionAnalysisResponse(BaseModel):
+    """200 of the same route. Nothing is persisted: this is a single model answer.
+
+    `model` / `request_id` are the pre-existing public fields (the AIRequest identity of the
+    billed call). They are NOT a provider/model chooser and must not be surfaced as provider
+    branding; F1C2C renders `analysis` only.
+    """
+
+    analysis: str
+    generated_at: str | None
+    model: str | None
+    request_id: str
+
+
+@app.post("/exam/11408/{subject_key}/question-analysis",
+          response_model=ExamQuestionAnalysisResponse)
+def generate_question_analysis(subject_key: str, req: ExamQuestionAnalysisRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     """Generate on-demand AI analysis for a question. Not persisted.
 
     STEP 7C: routed through the AI Orchestrator (permission → router → estimate →
     reserve → gateway → cost → settle); no direct provider HTTP.
     """
-    stem = (req.get("stem") or "").strip()
-    opts = req.get("options") or {}
-    sa = (req.get("standard_answer") or "").strip()
-    ua = (req.get("user_answer") or "").strip()
-    qtype = (req.get("question_type") or "选择题").strip()
-    ctx = (req.get("context") or "错题复盘").strip()
+    stem = (req.stem or "").strip()
+    opts = req.options or {}
+    sa = (req.standard_answer or "").strip()
+    ua = (req.user_answer or "").strip()
+    qtype = (req.question_type or "选择题").strip()
     subject_name = EXAM_SUBJECT_DIRS.get(subject_key, subject_key)
 
     if not stem:
@@ -21490,15 +22473,21 @@ def generate_question_analysis(subject_key: str, req: dict, db: Session = Depend
 
 要求：1)指出本题考点 2)说明正确答案为什么正确 3)说明其他选项错误原因 4)给11408复习建议。300字以内。"""
     try:
-        from ai.orchestrator import AIOrchestrator
-        result = AIOrchestrator().execute(
-            db, current_user.id, "question.explain",
+        from learning.spaces.exam_prep import context as _exam_context
+        from learning.spaces.exam_prep.ai import execute_exam_ai
+        # STEP7H1: this endpoint was already orchestrated but passed NO context, so its
+        # AIRequest / ai_called rows carried a NULL namespace. It now runs with a
+        # canonical exam context (CS408 adapter: the route's subject_key is the module).
+        result = execute_exam_ai(
+            db, current_user, "question.explain",
             [{"role": "user", "content": prompt}],
+            learning_context=_exam_context.cs408_context(
+                current_user, module_key=subject_key),
             temperature=0.4, max_tokens=500)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"AI 解析生成失败：{str(e)[:200]}")
-    if not result.ok or result.content is None:
-        raise HTTPException(status_code=503, detail="AI 解析服务暂不可用")
     return {"analysis": result.content, "generated_at": serialize_datetime(utc_now()),
             "model": result.model, "request_id": result.request_id}
 
@@ -21798,15 +22787,21 @@ def update_knowledge_point_progress(
 
     old_score = progress.mastery_score or 0
 
-    if req.mastery_score is not None:
-        progress.mastery_score = max(0, min(100, req.mastery_score))
-    if req.status is not None:
-        progress.status = normalize_knowledge_status(req.status)
-        progress.user_confirmed_status = progress.status
+    # STEP 7G: score/status edits go through the ONE canonical knowledge writer.
+    from learning.spaces.course_learning import knowledge as _course_knowledge
+    _kp_transition = _course_knowledge.apply_knowledge_change(
+        db, username=user.username, course_id=point.course_id,
+        event_type="manual_update", knowledge_point_id=point_id,
+        target_score=req.mastery_score,
+        target_status=(normalize_knowledge_status(req.status)
+                       if req.status is not None else None),
+        confirm=req.status is not None, source_type="manual",
+        touch_activity=False, target_user_id=user.id)
     progress.updated_at = utc_now()
     progress.last_studied_at = utc_now()
 
     db.commit()
+    _emit_knowledge_transition(_kp_transition)
     db.refresh(progress)
 
     # Record manual_update event if score changed
@@ -21957,6 +22952,7 @@ def generate_knowledge_points_preview(req: schemas.KnowledgePointGeneratePreview
                 detail="当前课程还没有可用于生成路线图的资料，请先上传资料或改用课程名称生成。",
             )
 
+        material_ids = [mat.id for mat in materials]
         material_snippets = []
         for mat in materials:
             snippet = f"【{mat.original_filename}】"
@@ -21970,19 +22966,16 @@ def generate_knowledge_points_preview(req: schemas.KnowledgePointGeneratePreview
         context_text = "\n\n---\n\n".join(material_snippets)
         prompt_hint = f"课程：{course_name}\n\n以下是该课程已有资料的内容摘要：\n\n{context_text}\n\n请根据以上资料内容生成该课程的知识点路线图。知识点必须贴合资料实际内容，不要凭空编造。顶层最多 {max_top} 个知识点，每个顶层知识点最多 {max_children} 个子知识点。"
     else:
+        material_ids = None
         prompt_hint = f"课程名称：{course_name}\n\n请根据该课程名称生成一份合理的知识点路线图。顶层最多 {max_top} 个知识点，每个顶层知识点最多 {max_children} 个子知识点。"
 
-    check_usage_limit(user.username, "knowledge_generate", db)
-
     try:
-        ai_response = call_deepseek(
+        ai_response = _course_ai_content(db, user, "knowledge.structure",
             [
                 {"role": "system", "content": KP_GENERATION_PROMPT},
                 {"role": "user", "content": prompt_hint},
-            ]
+            ], course_id=course_id, material_ids=material_ids,
         )
-
-        record_ai_usage(user.username, "knowledge_generate", db, estimated_tokens=estimate_tokens_from_text(ai_response), status="success", service_key="course_learning")
 
         # Parse JSON
         json_match = re.search(r"\{[\s\S]*\}", ai_response)
@@ -22407,11 +23400,10 @@ def generate_knowledge_path_from_materials(
 """.strip()
 
     try:
-        raw = call_deepseek([
+        raw = _course_ai_content(db, user, "knowledge.structure", [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
-        ])
-        record_ai_usage(user.username, "material_learning_path", db, service_key="course_learning")
+        ], course_id=subject, material_ids=material_ids)
         path_data = _normalize_generated_path(
             _parse_learning_path_json(raw),
             subject,
@@ -22794,6 +23786,18 @@ def submit_practice_result(req: dict, db: Session = Depends(get_db), current_use
     )
     db.add(record); db.commit(); db.refresh(record)
 
+    # STEP 7G: record the completed practice batch as a canonical PracticeSession. Its
+    # per-question correctness is client-asserted and never persisted, so it is
+    # deliberately NOT promoted into immutable canonical attempts.
+    try:
+        from learning.practice.adapters import course as _practice_course
+        _practice_course.mirror_practice_batch(
+            db, user, record,
+            payload={"course_id": course_id, "source": source, "task_id": task_id,
+                     "knowledge_point_id": kp_id})
+    except Exception as _pc_exc:  # noqa: BLE001
+        logger.warning("practice batch mirror hook failed: %s", type(_pc_exc).__name__)
+
     # Update knowledge mastery (only based on auto-graded questions)
     kp_updates = {}
     for q in graded_qs:
@@ -22804,6 +23808,7 @@ def submit_practice_result(req: dict, db: Session = Depends(get_db), current_use
         if q.get("is_correct"): kp_updates[q_kp_id]["correct"] += 1
 
     if graded_total > 0 and kp_updates:
+        _kp_transitions = []
         for kp_id_key, stats in kp_updates.items():
             acc = stats["correct"] / stats["total"] if stats["total"] > 0 else 0
             prog = db.query(models.UserKnowledgeProgress).filter(
@@ -22814,13 +23819,25 @@ def submit_practice_result(req: dict, db: Session = Depends(get_db), current_use
                 prog = models.UserKnowledgeProgress(username=user.username, course_id=course_id, knowledge_point_id=kp_id_key, mastery_score=50, status="learning", practice_count=0, task_count=0)
                 db.add(prog); db.flush()
             delta = max(3, min(12, int(acc * 15))) if acc >= 0.8 else (max(3, min(6, int(acc * 8))) if acc >= 0.5 else max(-8, min(-3, int((acc - 0.5) * 10))))
-            new_status = "mastered" if (prog.mastery_score or 0) + delta >= 80 else ("improving" if acc >= 0.8 else ("reviewing" if acc >= 0.5 else "weak"))
-            prog.mastery_score = max(0, min(100, (prog.mastery_score or 0) + delta))
-            prog.status = new_status; prog.practice_count = (prog.practice_count or 0) + stats["total"]
-            prog.last_studied_at = utc_now(); prog.updated_at = utc_now()
+            # STEP 7G: practice-result deltas go through the ONE canonical knowledge
+            # writer (durable state + shared status rule + shared event).
+            from learning.spaces.course_learning import knowledge as _course_knowledge
+            _kp_transition = _course_knowledge.apply_knowledge_change(
+                db, username=user.username, course_id=course_id,
+                event_type="practice_result", knowledge_point_id=kp_id_key,
+                delta=delta,
+                reason=f"练习正确率 {int(acc*100)}%，{stats['total']} 题",
+                source_type="task_practice" if task_id else "normal_practice",
+                source_id=record.id, touch_activity=False,
+                target_user_id=user.id)
+            if _kp_transition is not None:
+                prog.practice_count = (prog.practice_count or 0) + stats["total"]
             evt = models.KnowledgeProgressEvent(username=user.username, course_id=course_id, knowledge_point_id=kp_id_key, event_type="practice_result", delta=delta, reason=f"练习正确率 {int(acc*100)}%，{stats['total']} 题", source_type="task_practice" if task_id else "normal_practice", source_id=record.id)
             db.add(evt)
+            _kp_transitions.append(_kp_transition)
         db.commit()
+        for _t in _kp_transitions:
+            _emit_knowledge_transition(_t)
 
     kp_updates_count = len(kp_updates) if graded_total > 0 else 0
     return {
@@ -23491,28 +24508,28 @@ def structure_practice_paper_text(
     try:
         if username and db:
             user = get_user_by_username(username, db)
-            if is_exam_408_context(course_norm, ""):
-                check_exam_408_usage_limit(user, "question_generate", db)
-                usage_service = "exam_11408"
-            else:
-                check_usage_limit(username, "question_generate", db, "course_learning")
+            # STEP7H3 B7: both branches are authorized by the unified capability/budget
+            # path; the legacy exam quota no longer decides whether the AI runs.
         logger.info("%s deepseek start input_text_len=%d", log_prefix, len(extracted_text[:PRACTICE_PAPER_MAX_CHARS]))
         t_deepseek = time.perf_counter()
-        raw = call_deepseek([
+        _paper_messages = [
             {"role": "system", "content": "你是试卷题目结构化识别助手，只输出 JSON 对象。"},
             {"role": "user", "content": prompt},
-        ], timeout_seconds=PRACTICE_IMPORT_DEEPSEEK_TIMEOUT_SECONDS)
+        ]
+        # B12: a paper is structured into QUESTIONS, so the capability is question.generate
+        # — not knowledge.structure (the product is not a knowledge graph). OCR runs
+        # upstream in the import pipeline and stays PARSER_OCR infra.
+        if username and db:
+            raw = _scoped_ai_content(
+                db, user, "question.generate", _paper_messages,
+                course_id=course_norm or "course_learning",
+                exam_scope_values=(course_norm,),
+            )
+        else:
+            raw = call_deepseek(_paper_messages,
+                                timeout_seconds=PRACTICE_IMPORT_DEEPSEEK_TIMEOUT_SECONDS)
         t_deepseek_elapsed = time.perf_counter() - t_deepseek
         logger.info("%s deepseek done elapsed=%.2fs output_len=%d", log_prefix, t_deepseek_elapsed, len(raw))
-        if username and db:
-            record_ai_usage(
-                username,
-                "question_generate",
-                db,
-                estimated_tokens=estimate_tokens_from_text(raw),
-                status="success",
-                service_key=usage_service,
-            )
 
         parsed_object = extract_json_object(raw)
         if parsed_object:
@@ -23523,7 +24540,7 @@ def structure_practice_paper_text(
         parsed = normalized.get("questions") or []
     except json.JSONDecodeError as exc:
         logger.exception("%s JSON decode failed", log_prefix)
-        if username and db:
+        if username and db and usage_service != "course_learning":
             record_ai_usage(username, "question_generate", db, status="failed", error_message=str(exc), service_key=usage_service)
         raise ValueError(
             f"试卷题目识别失败，AI 返回了包含公式或特殊符号的内容导致解析失败。请重试，或先上传文字版 PDF/TXT。错误详情：{exc}"
@@ -23535,7 +24552,7 @@ def structure_practice_paper_text(
         raise
     except Exception as exc:
         logger.exception("%s unexpected error", log_prefix)
-        if username and db:
+        if username and db and usage_service != "course_learning":
             record_ai_usage(username, "question_generate", db, status="failed", error_message=str(exc), service_key=usage_service)
         raise
 
@@ -24114,31 +25131,15 @@ def explain_practice_question(question_id: int, req: schemas.QuestionAiExplainRe
 已有解析：
 {question.explanation or "无"}
 """
-    prompt = f"""请为下面这道练习题生成清晰解析。若题目没有标准答案，可以给出"参考解析"，不要编造唯一答案。
-请输出 JSON 对象：{{"explanation":"...", "answer":"可选，仅当能从题目推理出参考答案时填写"}}
-
-课程：{question.course_id or "未指定"}
-知识点 ID：{question.knowledge_point_id or "未指定"}
-题型：{question.type}
-题目：{question.title}
-题干：
-{question.content}
-选项：
-{question.options or "无"}
-已有答案：
-{question.answer or "无"}
-已有解析：
-{question.explanation or "无"}
-"""
-    check_usage_limit(user.username, "question_feedback", db)
     try:
-        raw = call_deepseek([
+        raw = _course_ai_content(db, user, "question.explain", [
             {"role": "system", "content": "你是练习题解析助手，输出严格 JSON 对象。"},
             {"role": "user", "content": prompt},
-        ])
-        record_ai_usage(user.username, "question_feedback", db, estimated_tokens=estimate_tokens_from_text(raw), status="success", service_key="course_learning")
+        ], course_id=question.course_id or "course_learning",
+           knowledge_point_id=question.knowledge_point_id)
+    except HTTPException:
+        raise
     except Exception as exc:
-        record_ai_usage(user.username, "question_feedback", db, status="failed", error_message=str(exc), service_key="course_learning")
         raise HTTPException(status_code=500, detail=f"AI 解析失败：{str(exc)}") from exc
 
     parsed = extract_json_object(raw)
@@ -24149,7 +25150,7 @@ def explain_practice_question(question_id: int, req: schemas.QuestionAiExplainRe
             raw_explanation,
             question.content or "",
             question.answer or "",
-            db, user, "course_learning",
+            db, user, "course_learning", question.course_id or "course_learning",
         )
         if refined_explanation:
             explanation = clean_question_analysis(refined_explanation)
@@ -24224,9 +25225,10 @@ def submit_attempt(question_id: int, req: schemas.QuestionAttemptCreate, db: Ses
     db.refresh(attempt)
 
     # Auto-update knowledge point mastery
+    _kp_transition = None
     if question.knowledge_point_id and question.course_id:
         if self_result == "correct":
-            apply_knowledge_progress_event(
+            _kp_transition = apply_knowledge_progress_event(
                 username=user.username,
                 course_id=question.course_id,
                 knowledge_point_id=question.knowledge_point_id,
@@ -24238,7 +25240,7 @@ def submit_attempt(question_id: int, req: schemas.QuestionAttemptCreate, db: Ses
                 db=db,
             )
         elif self_result == "incorrect":
-            apply_knowledge_progress_event(
+            _kp_transition = apply_knowledge_progress_event(
                 username=user.username,
                 course_id=question.course_id,
                 knowledge_point_id=question.knowledge_point_id,
@@ -24250,7 +25252,7 @@ def submit_attempt(question_id: int, req: schemas.QuestionAttemptCreate, db: Ses
                 db=db,
             )
         elif self_result == "unknown" and question.type == "short_answer":
-            apply_knowledge_progress_event(
+            _kp_transition = apply_knowledge_progress_event(
                 username=user.username,
                 course_id=question.course_id,
                 knowledge_point_id=question.knowledge_point_id,
@@ -24262,6 +25264,17 @@ def submit_attempt(question_id: int, req: schemas.QuestionAttemptCreate, db: Ses
                 db=db,
             )
         db.commit()
+        _emit_knowledge_transition(_kp_transition)
+
+    # STEP 7G: mirror this ordinary practice attempt into the shared Practice Core.
+    # The legacy row above is already committed and stays the durable fact; the mirror
+    # is failure-isolated and its identity is deterministic, so a failure here is
+    # observable, recoverable and backfillable.
+    try:
+        from learning.practice.adapters import course as _practice_course
+        _practice_course.mirror_question_attempt(db, user, attempt, question)
+    except Exception as _pc_exc:  # noqa: BLE001
+        logger.warning("practice mirror hook failed: %s", type(_pc_exc).__name__)
 
     return {"success": True, "attempt": serialize_attempt(attempt)}
 
@@ -24337,20 +25350,55 @@ def request_feedback(question_id: int, req: schemas.QuestionFeedbackRequest, db:
 
 请根据以上信息给出反馈。"""
 
-    check_usage_limit(user.username, "question_feedback", db)
+    # The learner's answer is the durable FACT; the AI feedback is an enrichment of it.
+    # The fact is committed before the model is called, so a provider outage can never
+    # erase what the learner did (and a retry cannot fabricate a second attempt).
+    attempt = models.QuestionAttempt(
+        username=user.username,
+        question_id=question_id,
+        course_id=question.course_id,
+        knowledge_point_id=question.knowledge_point_id,
+        user_answer=req.user_answer,
+        self_result="unknown",
+    )
+    db.add(attempt)
+    db.commit()
+    db.refresh(attempt)
 
     try:
-        ai_response = call_deepseek(
+        ai_response = _course_ai_content(db, user, "question.explain",
             [
                 {"role": "system", "content": PRACTICE_FEEDBACK_PROMPT},
                 {"role": "user", "content": user_prompt},
-            ]
+            ], course_id=question.course_id or "course_learning",
+            knowledge_point_id=question.knowledge_point_id,
         )
-
-        record_ai_usage(user.username, "question_feedback", db, estimated_tokens=estimate_tokens_from_text(ai_response), status="success", service_key="course_learning")
     except Exception as e:
-        record_ai_usage(user.username, "question_feedback", db, status="failed", error_message=str(e), service_key="course_learning")
-        raise HTTPException(status_code=500, detail=f"AI 反馈请求失败：{str(e)}")
+        logger.warning("practice AI feedback unavailable: %s", str(e)[:200])
+        ai_response = None
+
+    if ai_response is not None:
+        attempt.ai_feedback = ai_response
+        db.commit()
+        db.refresh(attempt)
+
+    # STEP 7G: mirror the ordinary practice attempt into the shared Practice Core, with
+    # whatever the already-committed durable row ended up holding. The mirror is
+    # failure-isolated and its identity is deterministic, so a failure here is
+    # observable, recoverable and backfillable — and it can never roll back the fact.
+    try:
+        from learning.practice.adapters import course as _practice_course
+        _practice_course.mirror_question_attempt(db, user, attempt, question)
+    except Exception as _pc_exc:  # noqa: BLE001
+        logger.warning("practice mirror hook failed: %s", type(_pc_exc).__name__)
+
+    if ai_response is None:
+        return {
+            "success": True,
+            "feedback": None,
+            "ai_feedback_available": False,
+            "attempt": serialize_attempt(attempt),
+        }
 
     # Keyword-based sentiment analysis on AI feedback
     feedback_lower = ai_response.lower()
@@ -24373,21 +25421,8 @@ def request_feedback(question_id: int, req: schemas.QuestionFeedbackRequest, db:
         feedback_event = "ai_feedback_neutral"
         feedback_delta = 2
 
-    attempt = models.QuestionAttempt(
-        username=user.username,
-        question_id=question_id,
-        course_id=question.course_id,
-        knowledge_point_id=question.knowledge_point_id,
-        user_answer=req.user_answer,
-        ai_feedback=ai_response,
-        self_result="unknown",
-    )
-    db.add(attempt)
-    db.commit()
-    db.refresh(attempt)
-
     if question.knowledge_point_id and question.course_id:
-        apply_knowledge_progress_event(
+        _kp_transition = apply_knowledge_progress_event(
             username=user.username,
             course_id=question.course_id,
             knowledge_point_id=question.knowledge_point_id,
@@ -24399,8 +25434,10 @@ def request_feedback(question_id: int, req: schemas.QuestionFeedbackRequest, db:
             db=db,
         )
         db.commit()
+        _emit_knowledge_transition(_kp_transition)
 
-    return {"success": True, "feedback": ai_response, "attempt": serialize_attempt(attempt)}
+    return {"success": True, "feedback": ai_response, "ai_feedback_available": True,
+            "attempt": serialize_attempt(attempt)}
 
 
 @app.get("/practice/summary")
@@ -24666,7 +25703,8 @@ def clean_question_analysis(analysis: str, max_length: int = 1200) -> str:
     return cleaned_text
 
 
-def refine_question_analysis_with_ai(raw_analysis: str, stem: str, answer: str, db: Session, user: models.User, service_key: str) -> str:
+def refine_question_analysis_with_ai(raw_analysis: str, stem: str, answer: str, db: Session, user: models.User,
+                                     service_key: str, course_id: str | None = None) -> str:
     """
     将混乱解析压缩成适合学生阅读的正式解析。
     仅在解析明显过长或包含内部推理痕迹时调用，避免不必要成本。
@@ -24695,14 +25733,24 @@ def refine_question_analysis_with_ai(raw_analysis: str, stem: str, answer: str, 
 原始解析：
 {raw_text[:3000]}"""
     try:
-        refined = call_deepseek(
-            [
+        messages = [
                 {"role": "system", "content": "你是题目解析净化助手，只输出面向学生的正式解析。"},
                 {"role": "user", "content": prompt},
-            ],
-            timeout_seconds=30,
-        )
-        record_ai_usage(user.username, "parse_cleanup", db, service_key=service_key)
+            ]
+        # STEP7H3 B9: the SECOND real provider invocation for one question is still a real
+        # invocation — it goes through the same boundary, gets its own AIRequest, its own
+        # reservation and its own settlement, and is never hidden as free postprocessing.
+        # Only the two spaces that own this helper are routed; anything else keeps the
+        # legacy behaviour rather than being silently filed under a space it does not
+        # belong to.
+        if service_key == "course_learning" or _is_exam_ai_scope(service_key, course_id):
+            refined = _scoped_ai_content(
+                db, user, "question.explain", messages,
+                course_id=course_id or "course_learning",
+                exam_scope_values=(service_key, course_id),
+                max_tokens=1000)
+        else:
+            refined = call_deepseek(messages, timeout_seconds=30)
     except Exception as exc:
         logger.warning("[practice-generate] refine analysis failed: %s", str(exc)[:200])
         return ""
@@ -25012,10 +26060,11 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
         user_prompt = f"{course_preference_context}\n\n{user_prompt}"
 
     if is_exam_408_context(course_id, course_name):
-        check_exam_408_usage_limit(user, "question_generate", db)
+        # STEP7H3 B7: the exam branch is authorized by the unified capability/budget
+        # path, exactly like the course branch. The legacy exam quota no longer decides
+        # whether the AI runs.
         usage_service = "exam_11408"
     else:
-        check_usage_limit(user.username, "question_generate", db, "course_learning")
         usage_service = "course_learning"
 
     raw_responses_preview = []
@@ -25036,15 +26085,16 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
             )
             if attempt_index > 0:
                 prompt += f"\n\n上一轮合格题不足，还需要至少 {remaining} 道有效题，请补生成更具体、更有推理步骤的题。"
-            ai_response = call_deepseek(
+            ai_response = _scoped_ai_content(db, user, "question.generate",
                 [
                     {"role": "system", "content": GENERATE_QUESTION_PROMPT},
                     {"role": "user", "content": prompt},
-                ]
+                ], course_id=course_name or "course_learning",
+                exam_scope_values=(course_id, course_name),
+                knowledge_point_id=kp_title or None,
             )
             # Each quality retry is a separately billable provider request but
             # inherits this HTTP action_id, so quota/action and cost stay apart.
-            record_ai_usage(user.username, "question_generate", db, estimated_tokens=estimate_tokens_from_text(ai_response), status="success", service_key=usage_service)
             total_ai_text += "\n" + ai_response
             preview = ai_response[:1500] if ai_response else "(empty)"
             raw_responses_preview.append(preview)
@@ -25091,7 +26141,8 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
     except HTTPException:
         raise
     except Exception as e:
-        record_ai_usage(user.username, "question_generate", db, status="failed", error_message=str(e), service_key=usage_service)
+        if usage_service != "course_learning":
+            record_ai_usage(user.username, "question_generate", db, status="failed", error_message=str(e), service_key=usage_service)
         logger.error("[practice-generate] exception: %s", e)
         raise HTTPException(status_code=500, detail=f"AI 生成题目失败：{str(e)}")
 
@@ -25127,7 +26178,7 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
                 raw_analysis,
                 normalized.get("content") or "",
                 normalized.get("answer") or "",
-                db, user, usage_service,
+                db, user, usage_service, course_name or "course_learning",
             )
             if refined_analysis:
                 cleaned_analysis = clean_question_analysis(refined_analysis)
@@ -25295,10 +26346,11 @@ def generate_task_question_preview(req: schemas.GenerateTaskQuestionPreviewReque
     course_preference_context = build_course_preference_prompt(course_preference, course_id)
 
     if is_exam_408_context(course_id, ""):
-        check_exam_408_usage_limit(user, "question_generate", db)
+        # STEP7H3 B7: the exam branch is authorized by the unified capability/budget
+        # path, exactly like the course branch. The legacy exam quota no longer decides
+        # whether the AI runs.
         usage_service = "exam_11408"
     else:
-        check_usage_limit(user.username, "question_generate", db, "course_learning")
         usage_service = "course_learning"
 
     # Build prompt
@@ -25317,25 +26369,19 @@ def generate_task_question_preview(req: schemas.GenerateTaskQuestionPreviewReque
         user_prompt = f"{course_preference_context}\n\n{user_prompt}"
 
     try:
-        raw = call_deepseek(
+        raw = _scoped_ai_content(db, user, "question.generate",
             [
                 {"role": "system", "content": TASK_PREVIEW_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
-            temperature=0.5,
-            max_tokens=3000,
+            course_id=course_id, exam_scope_values=(course_id,),
+            temperature=0.5, max_tokens=3000,
         )
     except HTTPException:
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail="AI 题目生成失败，请稍后重试") from exc
 
-    record_ai_usage(
-        user.username, "question_generate", db,
-        estimated_tokens=estimate_tokens_from_text(user_prompt) + estimate_tokens_from_text(raw),
-        status="success",
-        service_key=usage_service,
-    )
 
     # Parse JSON
     text = raw.strip()
@@ -25906,7 +26952,9 @@ def _extract_json_bracket_balanced(text: str) -> str | None:
     return None
 
 
-def _repair_json_with_ai(bad_json_text: str, parse_error: str, db: Session | None = None, user: models.User | None = None, service_key: str = "course_learning") -> str | None:
+def _repair_json_with_ai(bad_json_text: str, parse_error: str, db: Session | None = None,
+                         user: models.User | None = None, service_key: str = "course_learning",
+                         course_id: str | None = None) -> str | None:
     """Call AI to repair malformed JSON.
 
     Returns repaired JSON string, or None if repair fails.
@@ -25935,9 +26983,16 @@ def _repair_json_with_ai(bad_json_text: str, parse_error: str, db: Session | Non
             {"role": "system", "content": "你是一个 JSON 修复工具。只输出修复后的合法 JSON，不要任何其他内容。"},
             {"role": "user", "content": repair_prompt},
         ]
-        repaired = call_deepseek(messages, timeout_seconds=45)
-        if db and user:
-            record_ai_usage(user.username, "json_repair", db, service_key=service_key)
+        # STEP7H3 B9: a repair retry is a real provider invocation and settles like one.
+        if db is not None and user is not None and (
+                service_key == "course_learning" or _is_exam_ai_scope(service_key, course_id)):
+            repaired = _scoped_ai_content(
+                db, user, "planning.generate", messages,
+                course_id=course_id or "course_learning",
+                exam_scope_values=(service_key, course_id), max_tokens=1000,
+            )
+        else:
+            repaired = call_deepseek(messages, timeout_seconds=45)
         if not repaired or not repaired.strip():
             return None
         # Extract JSON from repaired response
@@ -26069,7 +27124,9 @@ def _normalize_plan_items(
     return items
 
 
-def _parse_plan_json(raw_text: str, valid_kp_ids: set[int], username: str, db: Session | None = None, user: models.User | None = None, service_key: str = "course_learning") -> dict:
+def _parse_plan_json(raw_text: str, valid_kp_ids: set[int], username: str, db: Session | None = None,
+                     user: models.User | None = None, service_key: str = "course_learning",
+                     course_id: str | None = None) -> dict:
     """Parse and validate AI-generated plan JSON with repair retry and fallback.
 
     Strategy:
@@ -26113,7 +27170,7 @@ def _parse_plan_json(raw_text: str, valid_kp_ids: set[int], username: str, db: S
     # ── Step 4: AI repair retry ──
     if data is None:
         logger.info("plan_parser: attempting AI repair...")
-        repaired = _repair_json_with_ai(json_text, parse_error, db, user, service_key)
+        repaired = _repair_json_with_ai(json_text, parse_error, db, user, service_key, course_id)
         if repaired:
             try:
                 data = json.loads(repaired)
@@ -26412,17 +27469,15 @@ def _generate_plan_preview_core(
         {"role": "user", "content": user_prompt},
     ]
 
-    if is_exam_408_context(req.course_id, ""):
-        check_exam_408_usage_limit(user, "learning_plan_generate", db)
-    else:
-        check_usage_limit(user.username, "learning_plan_generate", db)
+    # STEP7H3 B7: both branches are authorized by the unified capability/budget path.
 
     ai_call_failed = False
     raw = ""
     try:
-        raw = call_deepseek(messages)
-
-        record_ai_usage(user.username, "learning_plan_generate", db, estimated_tokens=estimate_tokens_from_text(raw), status="success", service_key="course_learning")
+        raw = _scoped_ai_content(
+            db, user, "planning.generate", messages,
+            course_id=req.course_id or "course_learning",
+            exam_scope_values=(req.course_id,))
     except HTTPException:
         raise
     except Exception as exc:
@@ -26440,7 +27495,11 @@ def _generate_plan_preview_core(
             daily_minutes=req.daily_minutes,
         )
     else:
-        result = _parse_plan_json(raw, valid_kp_ids, req.username, db, user, "exam_11408" if is_exam_408_context(req.course_id, "") else "course_learning")
+        result = _parse_plan_json(
+            raw, valid_kp_ids, req.username, db, user,
+            "exam_11408" if is_exam_408_context(req.course_id, "") else "course_learning",
+            req.course_id or "course_learning",
+        )
 
     if _looks_english(result["plan_title"]):
         result["plan_title"] = _fallback_plan_title(req.course_id, req.plan_type, req.plan_scene)
@@ -27110,12 +28169,9 @@ def recommend_material_knowledge_links(
         {"role": "user", "content": user_prompt},
     ]
 
-    check_usage_limit(user.username, "material_link_recommend", db)
-
     try:
-        raw = call_deepseek(messages)
-
-        record_ai_usage(user.username, "material_link_recommend", db, estimated_tokens=estimate_tokens_from_text(raw), status="success", service_key="course_learning")
+        raw = _course_ai_content(db, user, "knowledge.structure", messages,
+                                 course_id=target_course, material_ids=[material_id])
     except HTTPException:
         raise
     except Exception as exc:
@@ -27415,13 +28471,11 @@ def _analyze_knowledge_preview_impl(req, db):
 
 {combined_content}"""
 
-    check_usage_limit(user.username, "knowledge_generate", db)
-
     try:
-        raw = call_deepseek(
+        raw = _course_ai_content(db, user, "knowledge.structure",
             [{"role": "system", "content": ANALYZE_KNOWLEDGE_PROMPT},
              {"role": "user", "content": user_prompt}],
-            temperature=0.3,
+            course_id=course_id, material_ids=material_ids, temperature=0.3,
             max_tokens=3000,
         )
     except HTTPException:
@@ -27429,12 +28483,6 @@ def _analyze_knowledge_preview_impl(req, db):
     except Exception as exc:
         raise HTTPException(status_code=500, detail="AI 分析失败，请稍后重试") from exc
 
-    record_ai_usage(
-        user.username, "knowledge_generate", db,
-        estimated_tokens=estimate_tokens_from_text(user_prompt) + estimate_tokens_from_text(raw),
-        status="success",
-        service_key="course_learning",
-    )
 
     # Parse JSON response
     text = raw.strip()
@@ -27689,6 +28737,40 @@ class RedeemRequest(BaseModel):
     service_key: str | None = None
 
 
+class MembershipFeatureEntitlement(BaseModel):
+    """One feature's entitlement in one learning direction.
+
+    ``required_plan`` is the CHEAPEST plan code that grants the feature *in this direction*
+    — it is direction-specific, which is why it is a string and not a shared enum:
+    ``learning_plan`` requires ``monthly_sprint`` under ``exam_11408`` but ``monthly``
+    under ``course_learning``. ``allowed`` is the caller's own effective answer.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    allowed: bool
+    required_plan: str
+
+
+class MembershipEntitlementsResponse(BaseModel):
+    """The caller's effective entitlements for one learning direction.
+
+    ``features`` is a MAPPING, not a closed record, because the key set is derived from the
+    direction's feature-quota config and is genuinely not fixed: ``exam_11408`` and
+    ``course_learning`` answer with ``learning_plan`` + ``learning_report``, while
+    ``programming`` legitimately answers with an empty mapping. Modelling the keys as
+    required fields would claim all three directions share a shape, and would make the
+    frontend's access to ``features.learning_plan`` look safe when it is only safe after a
+    presence check — which is exactly what the generated type now forces.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    service_key: str
+    current_plan: str
+    features: dict[str, MembershipFeatureEntitlement]
+
+
 class ManualRecommendRequest(BaseModel):
     selected_plan: str
 
@@ -27775,7 +28857,7 @@ def get_service_membership_catalog(
     }
 
 
-@app.get("/membership/entitlements")
+@app.get("/membership/entitlements", response_model=MembershipEntitlementsResponse)
 def get_service_feature_entitlements(
     service_key: str = "course_learning",
     db: Session = Depends(get_db),
@@ -29055,7 +30137,6 @@ def admin_operations_dashboard(db: Session = Depends(get_db), current_user: mode
         "risks": {"pending_material_issues": mat_issues, "today_failed_ai_calls": today_failed, "high_risk_audits_7d": high_risk_audits, "alerts": alerts},
         "todos": todos,
     }
-
 
 
 @app.get("/admin/dashboard-v1")
@@ -31164,13 +32245,13 @@ def _kp_title(kp_progress, db):
 @app.post("/learning/reports/generate-preview")
 def generate_report_preview(req: schemas.LearningReportGenerateRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     assert_username_matches_current_user(req.username, current_user)
-    require_learning_context_feature(current_user, db, "learning_report", req.course_id, req.course_name)
     user = current_user
 
     if is_exam_408_context(req.course_id, req.course_name):
-        check_exam_408_usage_limit(user, "learning_report_generate", db)
-    else:
-        check_usage_limit(user.username, "learning_report_generate", db)
+        # STEP7H3 B7: exam AI is authorized by the unified capability/budget path. The
+        # legacy report entitlement no longer decides whether the AI runs.
+        pass
+    # course_learning is authorized by the unified capability/budget path.
 
     report_type = (req.report_type or "weekly").strip()
     if report_type not in REPORT_TYPE_LABELS:
@@ -31222,18 +32303,16 @@ def generate_report_preview(req: schemas.LearningReportGenerateRequest, db: Sess
 请根据以上数据生成学习报告。"""
 
     try:
-        raw = call_deepseek([
+        raw = _scoped_ai_content(db, user, "report.generate", [
             {"role": "system", "content": REPORT_PROMPT},
             {"role": "user", "content": user_prompt},
-        ])
+        ], course_id=req.course_id or req.course_name or "course_learning",
+            exam_scope_values=(req.course_id, req.course_name))
     except HTTPException:
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail="AI 报告生成失败，请稍后重试") from exc
 
-    record_ai_usage(user.username, "learning_report_generate", db,
-                    estimated_tokens=estimate_tokens_from_text(user_prompt) + estimate_tokens_from_text(raw),
-                    status="success", service_key="course_learning")
 
     # Parse JSON
     text = raw.strip()

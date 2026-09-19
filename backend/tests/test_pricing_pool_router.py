@@ -25,7 +25,27 @@ def test_pricing_version_retained():
     p = get_pricing("deepseek", "deepseek-flash")
     assert p.verified is True
     assert p.source == "OFFICIAL_DOC"
-    assert PRICING_VERSION == "v3"
+    assert PRICING_VERSION == "v4"
+
+
+def test_doubao_pricing_is_verified_official():
+    # Ark rows are registered against the canonical alias; the vendor model the price
+    # belongs to is recorded separately for audit.
+    for alias, upstream in (("doubao-general", "doubao-seed-2.1-pro"),
+                            ("doubao-agent", "doubao-seed-evolving")):
+        p = get_pricing("doubao", alias)
+        assert p is not None and p.verified is True
+        assert p.source == "OFFICIAL_DOC"
+        assert p.upstream_model == upstream
+        assert (p.input_cny_per_1m, p.output_cny_per_1m,
+                p.cached_input_cny_per_1m) == (6.0, 30.0, 1.2)
+        # Ark publishes no peak/off-peak schedule for these models
+        assert p.peak_input_cny_per_1m is None
+
+
+def test_doubao_cost_estimable():
+    r = cost.estimate_credits("doubao", "doubao-general", 2000, 1500)
+    assert r["ok"] is True and r["credits"] > 0
 
 
 def test_peak_offpeak_not_flattened():
@@ -97,11 +117,111 @@ def test_unknown_capability_fails_closed():
     assert pool.qualified_models_for("free", "bogus.cap") == []
 
 
+def test_knowledge_structure_inherits_question_generate_pool():
+    for tier in ("standard", "advanced"):
+        generated = [(entry.provider, entry.model) for entry in
+                     pool.qualified_models_for(tier, "question.generate")]
+        structured = [(entry.provider, entry.model) for entry in
+                      pool.qualified_models_for(tier, "knowledge.structure")]
+        assert structured == generated
+
+
 def test_coding_models_for_programming():
     # standard programming.debug must have a coding-capable model
     models = [e.model for e in pool.qualified_models_for("standard", "programming.debug")]
     assert "MiniMax-M2.7-highspeed" in models
     assert "qwen3.8-max" in models
+
+
+def test_pool_version_v4():
+    assert pool.POOL_VERSION == "v4"
+
+
+def test_all_six_providers_present_in_qualified_pool():
+    # "all six integrated" is the hard requirement; NOT "every capability shows six".
+    providers = {e.provider for e in pool.QUALIFIED_POOL}
+    assert providers == {"deepseek", "qwen", "glm", "minimax", "kimi", "doubao"}
+
+
+def test_doubao_entries_are_advanced_and_priced():
+    for model, upstream in (("doubao-general", "doubao-seed-2.1-pro"),
+                            ("doubao-agent", "doubao-seed-evolving")):
+        entries = [e for e in pool.QUALIFIED_POOL if e.model == model]
+        assert len(entries) == 1
+        e = entries[0]
+        assert e.provider == "doubao"
+        assert e.eligible_tiers == ("advanced",)
+        assert e.high_cost is True and e.thinking is True
+        assert e.has_pricing() and e.pricing_verified()
+        assert get_pricing("doubao", model).upstream_model == upstream
+
+
+def test_doubao_agent_is_programming_scoped():
+    # screened by the agent probe, not the general paper: only probed capabilities
+    agent = next(e for e in pool.QUALIFIED_POOL if e.model == "doubao-agent")
+    assert set(agent.capabilities) == {"programming.debug", "programming.explain"}
+    internal = pool.qualified_models_for("advanced", "programming.debug",
+                                         include_non_production=True)
+    assert "doubao-agent" in [e.model for e in internal]
+
+
+def test_doubao_not_in_free_or_standard():
+    for tier in ("free", "standard"):
+        for cap in pool.ALL_CAPABILITIES:
+            models = [e.model for e in pool.qualified_models_for(tier, cap)]
+            assert "doubao-general" not in models, (tier, cap)
+            assert "doubao-agent" not in models, (tier, cap)
+
+
+# ---- B: deployment eligibility (collaboration-reward endpoint isolation) ----
+
+def test_production_pool_excludes_non_production_endpoint():
+    for cap in pool.ALL_CAPABILITIES:
+        models = [e.model for e in pool.qualified_models_for("advanced", cap)]
+        assert "doubao-agent" not in models, cap
+
+
+def test_non_production_endpoint_is_reachable_for_internal_tooling(monkeypatch):
+    internal = pool.qualified_models_for("advanced", "programming.debug",
+                                         include_non_production=True)
+    assert "doubao-agent" in [e.model for e in internal]
+    # The benchmark/probe path builds its adapter straight from the factory, so it
+    # reaches the internal endpoint without production eligibility ever being asked.
+    monkeypatch.setenv("ARK_API_KEY", "test-key")
+    monkeypatch.setenv("ARK_ENDPOINT_DOUBAO_AGENT", "ep-agent-test")
+    from ai.orchestrator import default_provider_factory
+    adapter = default_provider_factory("doubao")
+    assert adapter.model_map["doubao-agent"] == "ep-agent-test"
+
+
+def test_production_candidate_system_still_covers_all_six_providers():
+    # Part C: isolating the collaboration endpoint must NOT drop Doubao (or anyone)
+    # from production model selection.
+    providers = set()
+    for cap in pool.ALL_CAPABILITIES:
+        providers |= {e.provider for e in pool.qualified_models_for("advanced", cap)}
+    assert providers == {"deepseek", "qwen", "doubao", "kimi", "glm", "minimax"}
+    assert "doubao-general" in [e.model for e in
+                                pool.qualified_models_for("advanced", "tutor.chat")]
+
+
+def test_deployment_eligibility_metadata_is_explicit():
+    general = next(e for e in pool.QUALIFIED_POOL if e.model == "doubao-general")
+    agent = next(e for e in pool.QUALIFIED_POOL if e.model == "doubao-agent")
+    assert general.deployment_eligibility == pool.PRODUCTION
+    assert general.production_eligible() is True
+    assert agent.deployment_eligibility == pool.BENCHMARK_ONLY
+    assert agent.production_eligible() is False
+    # every other entry is production by default
+    for e in pool.QUALIFIED_POOL:
+        if e.model != "doubao-agent":
+            assert e.production_eligible() is True, e.model
+
+
+def test_explicit_model_cannot_bypass_production_eligibility():
+    d = select_model("advanced", "programming.debug", explicit_model="doubao-agent",
+                     input_tokens=100, expected_output_tokens=200, available_budget=100000)
+    assert d.ok is False and d.reason == "model_not_qualified"
 
 
 # ---- B41: Router V0 ----

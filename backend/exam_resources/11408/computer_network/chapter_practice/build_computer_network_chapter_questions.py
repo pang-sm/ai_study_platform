@@ -7,6 +7,7 @@ BASE = Path(__file__).resolve().parent.parent.parent.parent.parent
 sys.path.insert(0, str(BASE))
 from database import SessionLocal
 import models
+import chapter_question_upsert
 
 TXT = BASE / "exam_resources/11408/computer_network/chapter_practice/raw/2027计算机网络_原创配套习题_全章总汇_带知识点标注.txt"
 CHKD = BASE / "exam_resources/11408/computer_network/chapter_practice/checked"
@@ -236,36 +237,29 @@ def main():
         print("DRY-RUN: skipping DB import.")
         return
 
-    # Import to DB
+    # Import to DB — content-hash upsert (never DELETE): chapter questions have no
+    # year/question_number, so their identity is their whole content; the upsert
+    # preserves existing exam_question_bank.id, which every done-record /
+    # wrong-answer / favorite / attempt depends on.
     db = SessionLocal()
-    deleted = db.query(models.ExamQuestionBank).filter(
-        models.ExamQuestionBank.subject_key == SUBJECT_KEY,
-        models.ExamQuestionBank.source_type == "chapter",
-    ).delete()
-    db.commit()
-    print(f"Deleted {deleted} old CN chapter practice questions")
 
-    ins = 0
-    for q in questions:
-        item = models.ExamQuestionBank(
-            subject_key=SUBJECT_KEY, subject_name=SUBJECT_NAME,
-            source_type="chapter", visibility="public",
-            knowledge_point_id=q.get('knowledge_point_code', '') or '',
-            knowledge_point_name=q.get('knowledge_point_title', '') or '',
-            knowledge_point_path="",
-            year=None, question_number=q.get('global_index', 0),
-            question_type=q['question_type'],
-            stem=q['question_text'],
-            options_json=json.dumps(q.get('options', {}), ensure_ascii=False),
-            standard_answer=q.get('answer', ''),
-            analysis=q.get('explanation', ''),
-            difficulty="基础",
-            source_ref=f"chapter:{q.get('chapter_no', '')}:{q.get('section_code', '')}",
-            quality_status=q['text_quality'],
-            is_active=True,
-        )
-        db.add(item); ins += 1
-    db.commit()
+    qs = [{
+        'kp': q.get('knowledge_point_code', '') or '',
+        'kp_name': q.get('knowledge_point_title', '') or '',
+        'ch_title': q.get('chapter_title', '') or '',
+        'type': q['question_type'],
+        'stem': q['question_text'],
+        'opts': q.get('options', {}),
+        'ans': q.get('answer', ''),
+        'raw_kp': q.get('section_code', '') or '',
+        'analysis': q.get('explanation', ''),
+        'quality_status': q.get('text_quality', 'unchecked'),
+        'source_ref': f"chapter:{q.get('chapter_no', '')}:{q.get('section_code', '')}",
+    } for q in questions]
+
+    ins, upd, deact = chapter_question_upsert.upsert_chapter_questions(
+        db, models, SUBJECT_KEY, SUBJECT_NAME, qs)
+    print(f"DB: {ins} inserted, {upd} updated in place, {deact} deactivated")
 
     act = db.query(models.ExamQuestionBank).filter(
         models.ExamQuestionBank.subject_key == SUBJECT_KEY,

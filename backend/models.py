@@ -1354,3 +1354,33 @@ class SupportMessage(Base):
     content = Column(Text, nullable=False)
     is_read = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, default=utc_now, nullable=False)
+
+
+class ExamPrepProfile(Base):
+    """The learner's Exam Prep profile — ONE current profile per user.
+
+    USER STATE, not catalog: the catalog is versioned config (``exam_prep.catalog``) and is
+    never duplicated here. The profile stores WHICH direction and WHICH subjects the learner
+    is preparing for, which may include a ``framework_only`` subject — a goal is a goal even
+    when the content for it does not exist yet. Reaching content is what the availability
+    gate checks, not saving a profile.
+
+    Deliberately absent: school / institution / college / major-code / school exam code /
+    reference books / syllabi. Institution-specific exams are out of scope for Exam Prep.
+    """
+
+    __tablename__ = "exam_prep_profiles"
+    __table_args__ = (
+        UniqueConstraint("user_id", name="uq_exam_prep_profile_user"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    exam_type = Column(String(50), nullable=False, default="postgraduate")
+    selected_track = Column(String(64), nullable=True)
+    selected_subjects_json = Column(Text, nullable=False, default="[]")
+    # The learner's TARGET year. Never confused with a past paper's question_year, and never
+    # part of any practice / wrong / event identity.
+    target_exam_year = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)

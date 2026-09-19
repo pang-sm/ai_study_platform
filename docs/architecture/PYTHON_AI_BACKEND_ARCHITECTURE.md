@@ -109,10 +109,10 @@ modularization — no big-bang rewrite of the ~20k-line `main.py`).
 scientific_runtime_service/
     app/
         __init__.py
-        main.py             # /health /v1/capabilities /v1/inference/student-twin
+        main.py             # /health /v1/capabilities + 5 /v1/inference/* components
         config.py           # frozen release id + provenance constants
-        contracts.py        # typed StudentTwin DTOs (contract v1)
-        runtime_bridge.py   # get_adapter("student_twin") + deterministic replay
+        contracts.py        # typed per-component DTOs (contract v1)
+        runtime_bridge.py   # get_adapter(<component>) + per-component execution
     tests/
     requirements.txt        # numpy + fastapi + uvicorn + pydantic (NO torch/transformers)
     run.py

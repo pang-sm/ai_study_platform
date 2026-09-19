@@ -4,3 +4,5 @@ import { afterEach } from 'vitest';
 
 // Vitest does not expose globals here, so register RTL cleanup explicitly.
 afterEach(cleanup);
+
+Object.defineProperty(window, 'scrollTo', { value: () => undefined, writable: true });

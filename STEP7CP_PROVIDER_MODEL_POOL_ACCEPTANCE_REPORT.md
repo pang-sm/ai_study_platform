@@ -2,41 +2,72 @@
 
 > 智学AI — Clean-Slate 产品重构 · STEP 7C-P 验收报告
 > 范围：Provider Onboarding / Live Validation / Model Pool Calibration
-> 生成：2026-09-16 · 本轮为 IMPLEMENTATION（有代码变更，未 commit）
+> （含 REASONING RESERVATION HARDENING / COLLABORATION-ENDPOINT ISOLATION /
+> NON_ARK_REASONING_BILLING_VALIDATION）
+> 生成：2026-09-16 · FINAL_SIX_PROVIDER_RUN → HARDENING → NON_ARK_REASONING_FINAL
+> 本轮为 IMPLEMENTATION（有代码变更，未 commit / 未 push）
 
 ---
 
 ## 1. EXECUTIVE VERDICT
 
 ```text
-STEP7CP_COMPLETE = YES
-STEP7D_READY     = YES
+SIX_PROVIDER_MODEL_ACCESS        = PASS
+PROVIDER_AWARE_RESERVATION       = PASS
+REASONING_UNKNOWN_FAILS_CONSERVATIVE = PASS
+REASONING_BUDGET_BYPASS          = NO
+ADVANCED_WEEKLY_BUDGET_PROTECTED = PASS
+
+DEEPSEEK_REASONING_BILLING_SAFE  = PASS
+MINIMAX_REASONING_BILLING_SAFE   = PASS
+GLM_REASONING_BILLING_SAFE       = PASS
+KIMI_REASONING_BILLING_SAFE      = PASS
+QWEN_REASONING_BILLING_SAFE      = PASS
+ARK_REASONING_BILLING_SAFE       = PASS
+
+DOUBAO_GENERAL_PRODUCTION_ELIGIBLE                = YES
+DOUBAO_AGENT_COLLAB_ENDPOINT_PRODUCTION_ELIGIBLE  = NO
+COLLAB_ENDPOINT_HIDDEN_FROM_PRODUCTION_MODEL_API  = PASS
+
+FULL_BACKEND_TESTS = PASS（391 passed / 0 failed）
+
+STEP7CP_FINAL_FROZEN = YES
+STEP7D_READY         = YES
 ```
-
-**核心结论：**
-
-1. 6 个 Provider 全部完成 secret 配置（hidden 输入，`.env.local` gitignored），SHA256 指纹审计，全流程无 raw key 泄露。
-
-2. Live validation 完成：6 家 `/models` discovery 全通；minimal smoke 5 家 PASS，Doubao 为 `NO_MODEL_ACCESS`（Ark endpoint-id 模式，需 `ep-xxx` 映射——adapter 已支持 `model_map`）。
-
-3. Pricing Registry v3：DeepSeek/Qwen/Kimi/GLM 采用官方文档定价（verified），MiniMax 采用保守 cost ceiling（unverified）。peak/off-peak 不压扁。
-
-4. ZHIXUE_MODEL_POOL_CALIBRATION_V1 Stage 2 已执行（66 请求，总成本 ≈ ¥0.03），据此重建 Qualified Pool v3（`POOL_QUALIFICATION_LEVEL = FINAL`），5-provider cross-provider fallback。
-
-5. 全量后端回归通过。
 
 ---
 
-## 2. PREVIOUS_PARTIAL_RUN（审计链保留）
+## 2. AUDIT CHAIN（五段历史逐段保留，不覆盖）
 
 ```text
-上一轮（2026-09-16 早）误将「2/6 provider 已配置」写成 COMPLETE。已立即更正：
-  STEP7CP_COMPLETE = NO
-  STEP7CP_STATUS   = PARTIAL
-  STEP7D_READY     = NO
+[1] Doubao = AUTH_OK / NO_MODEL_ACCESS
+    Ark 账户为 endpoint-id 模式：/models 返回 132 个目录模型，但 chat completion 报
+    InvalidEndpointOrModel.NotFound（404）。
 
-更正动作：SSOT 恢复（用户提供完整副本）+ 4 个 missing key 由用户本地 hidden 输入完成。
-本报告为 FINAL_SIX_PROVIDER_RUN，保留上一轮审计事实，不覆盖、不假装上一轮已完成。
+[2] Endpoint-ID configured → six provider connectivity
+    控制台创建两个推理接入点；model_map wiring 完成；双 endpoint live smoke PASS；
+    GENERAL_BENCHMARK doubao-general 6/6；AGENT_CAPABILITY_PROBE doubao-agent 3/3。
+
+[3] reasoning reservation risk discovered → provider-aware reservation fixed
+    实测 max_tokens=64 仍计费 completion=566（reasoning=520）→
+    「max_tokens == 最大计费 completion」假设失效 → reserve 严重低估 → Usage Budget 正确性问题。
+    修复 = ai/cost.py ModelCostPolicy（provider/model 级 reservation policy）。
+
+[4] collaboration endpoint → production isolated
+    zhixue-doubao-agent 带「协作奖励计划」标记 → 不承载真实学生私有学习数据 →
+    deployment_eligibility = BENCHMARK_ONLY（生产 router 与 /ai/models 均不可见）。
+
+[5] NON_ARK_REASONING_BILLING_VALIDATION → 第二个 UNBOUNDED provider（Qwen）被发现并修复
+    [3] 的结论当时只覆盖 Ark；deepseek-v4-pro / MiniMax-M3 / glm-5 / kimi-k2.6 仍按
+    「max_tokens_covers_reasoning=True」这一未实测假设处理。
+    本轮逐模型 live 实测后：
+      · 上述四个模型 + deepseek-flash / glm-5.3-flash / MiniMax-M2.7-highspeed = BOUNDED（证实）
+      · qwen3.8-flash / qwen3.8-max = UNBOUNDED（新发现；max_tokens=64 实际计费
+        completion 105/452 与 197/78）——且 qwen3.8-flash 是 FREE 档主模型
+    修复 = 逐模型 reasoning_billing 登记 + UNVERIFIED 一律 fail conservative。
+
+另有一次更早的更正记录（「误将 2/6 provider 写成 COMPLETE」→ STEP7CP_STATUS = PARTIAL），
+同样保留，本报告不假装历史已完成。
 ```
 
 ---
@@ -44,247 +75,404 @@ STEP7D_READY     = YES
 ## 3. GIT BASELINE
 
 ```text
-HEAD = 95b7dccc（feat: add learning event data plane foundation）
-WORKTREE 原本 DIRTY；本轮未执行 git 写操作（NO commit / push / reset / clean / checkout）
+HEAD = ebad5282（merge: reconcile local clean-slate frontend/governance with origin backend intelligence）
+本轮未执行任何 git 写操作（NO commit / push / reset / clean / rebase）
 ```
 
 ---
 
-## 4. SECRET SECURITY
+## 4. SECRET / CONFIG SECURITY
 
 ```text
-RAW_SECRET_IN_GIT = NO
+RAW_SECRET_IN_GIT           = NO
 RAW_SECRET_IN_TRACKED_FILES = NO
-RAW_SECRET_IN_REPORT = NO
-RAW_SECRET_IN_DB = NO
+RAW_SECRET_IN_REPORT        = NO（只输出 token 计数与 usage 结构，无 key、无 endpoint id）
+ARK_API_KEY                 = 未修改
 ```
 
-- `backend/.env.local`（gitignored）为 canonical secret file；`git check-ignore` 确认忽略。
-- 已配置 provider 指纹（SHA256 prefix-8，非 key）：deepseek=95a99062、qwen=30cbc775、doubao=597c6878、kimi=72a1e919、glm=b492f9cf、minimax=9cbada25。
-- 本轮仅回显 fingerprint + configured 布尔，绝无 raw key / 首尾字符。
+- endpoint id 仅存在于 `backend/.env.local`（`.gitignore:18` 确认忽略）。tracked 文件中**不存在**
+  任何 `ep-` 推理接入点 id：以实际两个 id 的全量字符串分别 grep（`.py` / `.md` / `.json`）命中均为 **0**
+  （本报告此处刻意不写出 id 片段，以免污染后续同名检索）。
+- provider 指纹（SHA256 prefix-8，非 key）：deepseek=95a99062、qwen=30cbc775、doubao=597c6878、kimi=72a1e919、glm=b492f9cf、minimax=9cbada25。
 
 ---
 
-## 5. PROVIDER ACCOUNT MATRIX（FINAL）
+## 5. A2 — ARK LIVE PARAMETER PROBE（只依据实测）
 
-| Provider | Configured | Auth | Discovery | Smoke | Usage | Pricing | Final |
-| -------- | ---------- | ---- | --------- | ----- | ----- | ------- | ----- |
-| deepseek | yes | PASS | 2 models | PASS | PROVIDER_REPORTED | VERIFIED | QUALIFIED |
-| qwen     | yes | PASS | 251 models | PASS | PROVIDER_REPORTED | VERIFIED | QUALIFIED |
-| doubao   | yes | PASS | 132 models | NO_MODEL_ACCESS | — | — | endpoint-id required |
-| kimi     | yes | PASS | 2 models | PASS | PROVIDER_REPORTED | VERIFIED | QUALIFIED |
-| glm      | yes | PASS | 10 models | PASS | PROVIDER_REPORTED | VERIFIED | QUALIFIED |
-| minimax  | yes | PASS | 8 models | PASS | PROVIDER_REPORTED | CEILING | QUALIFIED |
-
-```text
-PROVIDER_COUNT_CONFIGURED = 6
-PROVIDER_COUNT_AUTH_OK   = 6
-PROVIDER_COUNT_STAGE1_PASS = 5（doubao 除外，NO_MODEL_ACCESS）
-PROVIDER_COUNT_WITH_QUALIFIED_MODELS = 5
-```
-
-- `MODEL_EXISTS` ≠ `MODEL_ACCESSIBLE_TO_THIS_ACCOUNT`：Doubao `/models` 返回 132 个目录模型，但 chat completion 报 `InvalidEndpointOrModel.NotFound`（404）——账户为 endpoint-id 模式，需在 Ark 控制台建推理端点后用 `ep-xxx` 映射（`ArkProvider.model_map` 已支持）。
-
----
-
-## 6. PROVIDER ADAPTERS
+| 变体（max_tokens=64） | doubao-general completion / reasoning | doubao-agent completion / reasoning |
+| --- | --- | --- |
+| baseline | 516 / 488 | 1306 / 1268 |
+| `thinking={"type":"disabled"}` | **38 / 0** | **48 / 0** |
+| `thinking={"type":"enabled"}` | 1228 / 1198 | 1504 / 1465 |
+| `thinking={"type":"auto"}` | 400 InvalidParameter | 400 InvalidParameter |
+| `thinking.enabled + budget_tokens=32` | 1344 / **1308** | 1367 / **1338** |
+| `reasoning_effort="minimal"` | 30 / 0 | 42 / 0 |
 
 ```text
-deepseek.py（DeepSeek）· qwen.py（DashScope）· ark.py（Doubao，model_map）·
-moonshot.py（Kimi）· zhipu.py（GLM）· minimax.py（MiniMax）· fake.py（测试）· common.py
-```
-
-全部 OpenAI-compatible；错误经 `map_openai_error` 规范化为 `GatewayErrorCategory`；provider-specific 兼容仅在 adapter。温度参数兼容：Kimi k2.6 仅接受 `temperature=1`，smoke/benchmark 已改为省略 temperature（`temperature=None`）。
-
----
-
-## 7. MODEL DISCOVERY（live 2026-09-16）
-
-```text
-deepseek: deepseek-flash, deepseek-v4-pro
-qwen:     251（qwen-native: qwen3.8-flash/max、qwen3.7-plus/max/flash、coder/vision/...）
-doubao:   132（doubao-1-5-*、doubao-1.5-*、thinking-pro 等；endpoint-id 模式）
-kimi:     kimi-k2.6, kimi-k2.7-code
-glm:      glm-4.5/4.5-air/4.6/4.7/5/5-turbo/5.1/5.2/5.3/5.3-flash
-minimax:  MiniMax-M3/M2.7/M2.7-highspeed/M2.5/M2.5-highspeed/M2.1/M2.1-highspeed/M2
+THINKING_DISABLE_SUPPORTED  = YES
+REASONING_LIMIT_SUPPORTED   = NO（budget_tokens 被接受后被忽略）
+MAX_TOKENS_COVERS_REASONING = NO
+USAGE_DETAIL                = YES（completion_tokens_details.reasoning_tokens 上报）
 ```
 
 ---
 
-## 8. LIVE CONNECTIVITY（smoke，≤32 tokens）
+## 6. NON_ARK_REASONING_BILLING_VALIDATION（本轮主体）
+
+**探针方法**：固定 prompt（进程/线程根本区别，≤50 字）、`max_tokens=64`、provider 默认
+temperature（不传）、输入尽量一致；每个 provider 走其生产 base_url 与 canonical key，
+原始 usage 逐字打印（无 key 输出）。SDK 命名与训练知识**不作为依据**。
+
+### 6.1 逐模型结论
+
+| provider / model | requested max_tokens | input | completion | reasoning | cached | total | finish | raw usage 语义 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| deepseek/deepseek-v4-pro | 64 | 100 | **64** | 64 | 0 | 164 | length | `completion_tokens_details.reasoning_tokens`；另有 `prompt_cache_hit/miss_tokens` |
+| deepseek/deepseek-flash | 64 | 47 | **64** | 64 | 0 | 111 | length | 同上 |
+| glm/glm-5 | 64 | 29 | **64** | 64 | 0 | 93 | length | 同上 |
+| glm/glm-5.3-flash | 64 | 29 | **64** | 64 | 0 | 93 | length | 同上 |
+| kimi/kimi-k2.6 | 64 | 24 | **64** | 63 | n/a | 88 | length | `prompt_tokens_details` 为 null → cached 未知 |
+| minimax/MiniMax-M3 | 64 | 193 | **64** | 0 | 128 | — | length | thinking 以 `<think>…</think>` **内联在 content**，计入 completion |
+| minimax/MiniMax-M2.7-highspeed | 64 | 58 | **64** | 未上报 | 未上报 | 122 | length | `completion_tokens_details` 为 null |
+| **qwen/qwen3.8-flash** | 64 | 79 | **105 / 452** | 83 / 429 | 0 | 184 / 531 | stop | reasoning 计入 completion_tokens **之上** |
+| **qwen/qwen3.8-max** | 64 | 79 | **197 / 78** | 174 / 52 | 0 | 276 / 157 | stop | 同上 |
+| doubao/doubao-general | 64 | 56 | **516** | 488 | 0 | 572 | stop | 同 Ark（[3]） |
+| doubao/doubao-agent | 64 | 56 | **1306** | 1268 | 0 | 1362 | stop | 同 Ark（[3]） |
+
+MiniMax 追加验证（排除「completion 与 content 长度单位不一致」的可能）：
+`MiniMax-M2.7-highspeed` 64→64（length）、512→453（stop）；`MiniMax-M3` 64→64（length）、
+512→512（length）。completion_tokens 随 cap 缩放且从不超出。
+
+### 6.2 判定
+
+| model | MAX_TOKENS_COVERS_REASONING | THINKING_DEFAULT | REASONING_USAGE_REPORTED | RESERVATION_POLICY_SAFE |
+| --- | --- | --- | --- | --- |
+| deepseek-v4-pro | **YES** | ON（无开关） | YES | YES |
+| deepseek-flash | **YES** | ON（无开关） | YES | YES |
+| glm-5 | **YES** | ON（无开关） | YES | YES |
+| glm-5.3-flash | **YES** | ON（无开关） | YES | YES |
+| kimi-k2.6 | **YES** | ON（无开关） | YES | YES |
+| MiniMax-M3 | **YES** | PROVIDER_CONTROLLED（内联） | NO（内联计入 content） | YES |
+| MiniMax-M2.7-highspeed | **YES** | PROVIDER_CONTROLLED | NO（未上报） | YES |
+| **qwen3.8-flash** | **NO** | ON（`enable_thinking` 可关） | YES | **修复后 YES** |
+| **qwen3.8-max** | **NO** | ON（`enable_thinking` 可关） | YES | **修复后 YES** |
+| doubao-general | NO | ON（可关，生产关） | YES | YES |
+| doubao-agent | NO | ON（保留开） | YES | YES |
+
+**BOUNDED 的判定依据（深/GLM/Kimi 类）**：completion_tokens 恰好 == max_tokens，
+reasoning_tokens == completion_tokens，且 content 为空、finish_reason=length。三者合起来
+只能解释为「completion_tokens 完全由 reasoning 构成、且被 max_tokens 截断」——
+即 reasoning 确实被 max_tokens 覆盖，而不是「恰好 64」。
+
+### 6.3 Qwen 修复方式 = OPTION B（不是 A）
+
+Qwen 支持关闭 thinking（实测 `extra_body={"enable_thinking": False}` →
+completion 15/21、无 reasoning 字段、有界），因此 §5 允许普通能力默认 thinking OFF。
+但**实测该关闭会损失质量**，故未采用：
 
 ```text
-deepseek/flash 918ms · deepseek/v4-pro 1420ms · qwen3.8-flash 1306ms · qwen3.8-max 1385ms
-kimi/k2.6 4041ms · kimi/k2.7-code 1378ms · glm/5.3-flash 930ms · glm/5.3 5971ms · glm/5 1237ms
-MiniMax/M3 1117ms · MiniMax/M2.7-highspeed 991ms
+gen-json-1（question.generate，json_valid 判定）
+  qwen3.8-max   thinking OFF · max_tokens=200 → 0/3
+  qwen3.8-max   thinking OFF · max_tokens=800 → 2/3
+  qwen3.8-max   thinking ON  · max_tokens=200 → 3/3
+  qwen3.8-max   thinking ON  · max_tokens=800 → 3/3
+  qwen3.8-flash thinking ON  · 两种预算 → 3/3
+  qwen3.8-flash thinking OFF → 独立复测 3/3，但在 6-case run 中失败 gen-json-1（1 次）
 ```
 
-qwen3.7-plus = AUTH_FAIL（本账户不可达，非 catalog 所有模型都可访问）。
+结论：**没有观测到「质量中性」的关闭配置**，因此不基于「其余 5 个 case 通过」把 Qwen
+切换到 thinking OFF（那正是 §6 禁止的外推）。Qwen 采用 **OPTION B**：保留 thinking ON
+（显式发 `enable_thinking=true`）+ model-specific conservative reserve。
+
+`thinking_budget=0` 被服务端拒绝（must be a positive integer），故不存在「把 reasoning 调到 0」的第三条路。
 
 ---
 
-## 9. PRICING REGISTRY（v3）
+## 7. RESERVATION POLICY（冻结形态）
+
+`ai/cost.py::ModelCostPolicy` —— provider/model 级 CONFIG，非 SQL 表：
 
 ```text
-deepseek/deepseek-flash    VERIFIED  ¥1.08 / ¥0.0216(cache) / ¥4.32（peak 2x）
-deepseek/deepseek-v4-pro   VERIFIED  ¥4.752 / ¥0.1584 / ¥14.256（peak 2x）
-qwen/qwen3.8-flash         VERIFIED  ¥0.8 / ¥0.1 / ¥2.7
-qwen/qwen3.8-max           VERIFIED  ¥12 / ¥1.5 / ¥36
-kimi/kimi-k2.6             VERIFIED  ¥6.84 / ¥1.152 / ¥28.8
-kimi/kimi-k2.7-code        VERIFIED  ¥6.84 / ¥1.368 / ¥28.8
-glm/glm-5.3-flash          VERIFIED  ¥0.8 / ¥2.8
-glm/glm-5.3                VERIFIED  ¥8 / ¥28
-glm/glm-5                  VERIFIED  ¥4 / ¥18
-minimax/MiniMax-M3         CEILING   ¥6 / ¥30（unverified）
-minimax/MiniMax-M2.7-highspeed CEILING ¥1 / ¥5（unverified）
+reasoning_billing          NONE / BOUNDED / UNBOUNDED / UNVERIFIED
+supports_thinking_control  provider 是否暴露 thinking 开关
+reasoning_reserve_tokens   reasoning 可能溢出 max_tokens 时叠加的 conservative 预留
+thinking_capabilities      thinking 默认关时，哪些 capability 单独开启
+thinking_default_on        thinking 默认开（provider-controlled，可用开关重申）
 ```
 
-来源：DeepSeek（api-docs.deepseek.com）、Qwen（developer.aliyun.com）、Kimi（platform.kimi.ai）、GLM（docs.bigmodel.cn）；MiniMax 官方 per-model 价未确认 → conservative ceiling。
+```text
+reservation_output_tokens = requested(或 capability 期望) + reserve_if_reasoning_can_escape
+
+reasoning_can_escape =
+    reasoning_billing != NONE
+    AND NOT (thinking 开关存在 且 本次请求 thinking=off)
+    AND reasoning_billing in {UNBOUNDED, UNVERIFIED}
+```
+
+- **`UNVERIFIED` 一律 fail conservative**：未注册模型（无实测证据）reservation 直接叠加
+  conservative allowance，绝不按 0 reasoning 估算。
+- `DEFAULT_REASONING_RESERVE_TOKENS = 2048`：取自最大实测样本（Ark 11 次 thinking-ON 采样
+  397–1608 reasoning tokens，最大 1608）的 ≈1.27x。reasoning 无硬上界，故用保守上限而非计算值。
+- `estimate_credits(..., capability=...)` 经同一 policy 计算 reserve；router 与 orchestrator
+  均传入 capability → 预算判断口径统一。
+- orchestrator 用**同一条 policy** 决定实际发送的 thinking 开关
+  （`AIRequestSpec.thinking` 三态；QwenProvider → `enable_thinking`，ArkProvider → `thinking.type`）。
+  **provider 专有参数只在 adapter 内出现**，endpoint 与业务层无 magic number。
+
+冻结的 execution policy：
+
+| provider | 开关 | 普通能力（tutor.chat / question.explain / material.qa / question.generate / programming.explain / programming.debug / planning.generate / report.generate） | reserve |
+| --- | --- | --- | --- |
+| deepseek | 无 | provider-controlled（ON） | 无（BOUNDED） |
+| glm | 无 | provider-controlled（ON） | 无（BOUNDED） |
+| kimi | 无 | provider-controlled（ON） | 无（BOUNDED） |
+| minimax | 无 | provider-controlled（内联） | 无（BOUNDED） |
+| qwen | `enable_thinking` | **ON**（质量实测要求） | +2048 |
+| doubao-general | `thinking.type` | **OFF** | 无 |
+| doubao-agent | `thinking.type` | OFF（programming.* 除外，且该 endpoint 非生产） | +2048（programming.*） |
+
+未提前实现 `tutor.strong_reasoning` / advanced workflow 等新 capability API。
 
 ---
 
-## 10. ZHIXUE CALIBRATION BENCHMARK（Stage 2）
+## 8. SETTLEMENT（actual vs reserve）
 
-```text
-BENCHMARK_VERSION = ZHIXUE_MODEL_POOL_CALIBRATION_V1
-STAGE2_BENCHMARK_EXECUTED = YES（11 models × 6 cases，TOTAL_ESTIMATED_COST ≈ ¥0.03）
-```
-
-6 个固定 provider-neutral case（中文讲解/11408 解析/资料问答/AI 出题 JSON/编程解释/debugging）。确定性评分（contains/contains_any/json_valid），rule-based，无单一模型作裁判。
-
-```text
-qwen3.8-flash          6/6  ⭐  qwen3.8-max            6/6  ⭐
-glm-5.3-flash          5/6     MiniMax-M2.7-highspeed 5/6
-MiniMax-M3             5/6     deepseek-flash         4/6
-deepseek-v4-pro        4/6     glm-5                  4/6
-kimi-k2.6              4/6     kimi-k2.7-code         2/6（code 专精，benchmark 无真实代码编译题，排除）
-```
-
-> 注：thinking 模型（GLM/Kimi/DeepSeek-v4-pro/MiniMax-M3）在 max_tokens=200 下 reasoning 吃满预算致 content 空，已用 max_tokens=800 重测（+3s 间隔避免 Kimi org rate-limit），上表为公平结果。
+| 情形 | 行为 | 测试 |
+| --- | --- | --- |
+| actual < reserve | settle actual，释放差额，`reserved` 归零 | `test_actual_below_reservation_releases_difference` |
+| actual == reserve | 精确结算 | `test_actual_equal_to_reservation_settles_exactly` |
+| actual > reserve | **绝不静默**：`reconciliation_pending` + `error_category=reservation_overage`，不返回内容 | `test_actual_above_reservation_is_never_silently_absorbed` |
 
 ---
 
-## 11. QUALIFIED MODEL POOLS（v3 FINAL）
+## 9. §7 — 逐模型 weekly budget 证明
+
+四个 Advanced 模型各有一对测试（reserve 是上界 + budget gate 在 provider 调用前拒绝）：
 
 ```text
-MODEL_POOL_VERSION = v3
-POOL_QUALIFICATION_LEVEL = FINAL
+deepseek / deepseek-v4-pro   : reserve = max_tokens（BOUNDED，reasoning_reserved=0）
+minimax  / MiniMax-M3        : 同上
+glm      / glm-5             : 同上
+kimi     / kimi-k2.6         : 同上
 
-FREE:     qwen3.8-flash（primary）· glm-5.3-flash · deepseek-flash
-STANDARD: + qwen3.8-max · MiniMax-M2.7-highspeed
-ADVANCED: + deepseek-v4-pro · MiniMax-M3 · glm-5 · kimi-k2.6
+test_advanced_model_cannot_bypass_weekly_budget[4 模型]
+  Advanced（无 daily cap）· weekly remaining 压到 1 credit → 请求被拒，
+  provider factory 调用次数 == 0，router.budget_compatible == False
+
+test_advanced_model_reservation_is_an_upper_bound[4 模型]
+  证明 reserve >= 该模型最大可计费 completion 的成本（BOUNDED 下 = max_tokens 输出）
+
+test_thinking_reserve_cannot_bypass_weekly_budget（Qwen/Doubao 型 UNBOUNDED）
+  weekly remaining = 3；visible-only reserve = 1 credit（本可放行）；
+  thinking-on reserve = 7 credits（> 3 → 拒绝）
+
+test_weekly_budget_rejects_before_any_provider_call
+  weekly remaining = 1 → 拒绝，provider 调用 0 次
 ```
 
-- Free 保有 tutor.chat / question.explain / material.qa 可用模型（≥3，跨 3 provider）。
-- cross-provider fallback：5 provider（deepseek/qwen/glm/minimax/kimi）。
-- 排除：Doubao（NO_MODEL_ACCESS）、kimi-k2.7-code（benchmark 2/6 且无代码编译测试）、qwen3.7-plus（AUTH_FAIL）。
-
----
-
-## 12. ROUTER V0
-
-仍为 `Capability + Tier + Budget + Availability`。auto 顺序改为：qualified quality gate → budget compatible → availability → cost preference（不再 cheapest-only）。`router.ordered_candidates()` 供 orchestrator cross-provider fallback。
-
----
-
-## 13. FALLBACK MATRIX
-
 ```text
-free tutor.chat: qwen3.8-flash → glm-5.3-flash → deepseek-flash（跨 3 provider）
-advanced programming.debug: qwen3.8-max → MiniMax-M2.7-highspeed → deepseek-v4-pro → MiniMax-M3 → kimi-k2.6
-```
-
-fallback 仅可重试错误触发；绝无 tier/budget/qualified bypass（`test_no_tier_bypass`/`test_no_unqualified_model_via_fallback`/`test_no_fallback_on_permanent_error` 固化）。
-
----
-
-## 14. USER-VISIBLE MODEL OPTIONS
-
-`GET /ai/models?capability=...` 返回 `auto` + qualified 选项；`INTERNAL_PROVIDER_REGISTRY != USER_VISIBLE_MODEL_POOL`（candidate/disabled/failed-smoke/unverified-inaccessible 不暴露）。
-
----
-
-## 15. BUDGET RECALIBRATION
-
-```text
-BUDGET_RECALIBRATION = KEEP（provisional）
-```
-
-依据 verified 价格 sanity：qwen3.8-flash 基础回合 ≈ ¥0.001（1 credit 下限），Free daily 100 ≈ 100 回合；数值仍为 PROVISIONAL，生产前 STEP12 再校准。
-
-```text
-CREDIT_NORMALIZATION_STATUS = KEEP_PROVISIONAL
-```
-
-1 credit ≈ ¥0.01 暂维持；cheap 模型（~¥0.001/回合）低于 1-credit 下限，粒度偏粗，建议后续评估 ¥0.001/credit 但本轮不改。
-
----
-
-## 16. PRODUCTION SECRET HANDOFF
-
-```text
-PRODUCTION_REQUIRED_SECRETS = DEEPSEEK_API_KEY, DASHSCOPE_API_KEY（进入 production pool 的 primary/fallback）
-OPTIONAL_PROVIDER_SECRETS = MOONSHOT_API_KEY, ZHIPUAI_API_KEY, MINIMAX_API_KEY（qualified 备用）
-                            ARK_API_KEY（需 endpoint-id 映射后才启用）
+ADVANCED_WEEKLY_BUDGET_PROTECTED = PASS
+REASONING_BUDGET_BYPASS          = NO
+REASONING_UNKNOWN_FAILS_CONSERVATIVE = PASS
 ```
 
 ---
 
-## 17. TESTS
+## 10. B — 协作奖励计划 PRODUCTION ISOLATION
+
+**事实**：`zhixue-doubao-agent`（Doubao-Seed-Evolving）带「协作奖励计划」标记；火山方舟服务条款
+说明该计划属普通「不使用提交内容训练基础模型」规则的**例外情形**。
 
 ```text
-TARGETED_TESTS = PASS（0 failed）
-新增/更新：test_secret_loader / test_provider_adapters / test_provider_discovery /
-test_fallback / test_benchmark / test_pricing_pool_router（v3）/ test_ai_models_api（v3）
+ai/pool.py deployment_eligibility（CONFIG，非 SQL 表）：
+  PRODUCTION / INTERNAL_ONLY / BENCHMARK_ONLY
+
+doubao-general → PRODUCTION     （smoke PASS · benchmark 6/6）
+doubao-agent   → BENCHMARK_ONLY （collaboration reward endpoint）
+其余全部条目   → PRODUCTION（默认）
 ```
+
+- `qualified_models_for()` **默认只返回 PRODUCTION**；internal/benchmark 显式传
+  `include_non_production=True`。生产 router / orchestrator / `/ai/models` 从不传。
+- **禁止 Router normal production auto → doubao-agent**：默认过滤 + explicit 校验双重保证
+  （`test_explicit_model_cannot_bypass_production_eligibility`）。
+- **benchmark / internal 仍可用**：`run_agent_probe.py` / `run_calibration_benchmark.py`
+  直接经 `default_provider_factory` 取 adapter，不经 pool。
+- **B4**：未来另建**不含协作奖励计划**的 Seed-Evolving 接入点，重新 smoke/probe 后
+  只需把 `deployment_eligibility` 改回 `PRODUCTION`，无需改 Ark adapter。
+- **B5**：Doubao Provider 仍在 production model selection 中，由 `doubao-general` 代表。
+
+条款取证状态：官方文档 `docs.volcengine.com/docs/82379/1391869` 正文为 SPA 渲染，
+WebFetch ×3 + raw curl ×1 均只得空壳；WebSearch 仅命中论坛（非权威，未采信）；
+`agent-browser` 未安装。故隔离策略**不依赖条款解读**——只要存在「训练例外」这一已知语义，
+即按不承载真实学生数据处理；条款全文确认后可单向放开。
 
 ---
 
-## 18. FULL REGRESSION
+## 11. C — PRODUCTION POOL
 
 ```text
-FULL_BACKEND_TESTS = PASS（321 passed / 0 failed；另 +1 项 /ai/models permission gate 测试经 targeted run 验证）
-  321 baseline（full regression）+ 1 post-regression test（test_ai_models_free_denied_premium_capability）
+MODEL_POOL_VERSION = v4 / POOL_QUALIFICATION_LEVEL = FINAL
+PRICING_REGISTRY_VERSION = v4
+PRODUCTION_MODEL_POOL_VERSION = v4
+PRODUCTION_PROVIDER_COUNT = 6
 ```
+
+| Provider | Configured | Auth | Discovery | Smoke | Pricing | Qualified | Production |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| deepseek | yes | PASS | 2 models | PASS | VERIFIED | YES | YES |
+| qwen | yes | PASS | 252 models | PASS | VERIFIED | YES | YES |
+| doubao | yes | PASS | 133 models | PASS | VERIFIED | YES | YES（doubao-general） |
+| kimi | yes | PASS | 2 models | PASS | VERIFIED | YES | YES |
+| glm | yes | PASS | 10 models | PASS | VERIFIED | YES | YES |
+| minimax | yes | PASS | 8 models | PASS | CEILING | YES | YES |
+
+```text
+FREE (3)     : qwen3.8-flash · glm-5.3-flash · deepseek-flash
+STANDARD (5) : + qwen3.8-max · MiniMax-M2.7-highspeed
+ADVANCED (10): + deepseek-v4-pro · MiniMax-M3 · glm-5 · kimi-k2.6 · doubao-general
+```
+
+`doubao-agent` 不在生产池（BENCHMARK_ONLY），仍在 `QUALIFIED_POOL` 供 internal 使用。
+未为「六家齐全」降低 capability quality gate；Doubao 入池依据是 6/6，不是供应商数量要求。
 
 ---
 
-## 19. FINAL VERDICT
+## 12. D — /ai/models 验收
 
 ```text
-PROVIDER_COUNT_CONFIGURED = 6
-PROVIDER_COUNT_AUTH_OK   = 6
-PROVIDER_COUNT_STAGE1_PASS = 5
-PROVIDER_COUNT_WITH_QUALIFIED_MODELS = 5
-
-DEEPSEEK = PASS（qualified）
-QWEN     = PASS（qualified）
-DOUBAO   = AUTH_OK / NO_MODEL_ACCESS（endpoint-id 模式）
-KIMI     = PASS（qualified）
-GLM      = PASS（qualified）
-MINIMAX  = PASS（qualified）
-
-RAW_SECRET_IN_GIT = NO
-RAW_SECRET_IN_REPORT = NO
-RAW_SECRET_IN_DB = NO
-
-MODEL_POOL_VERSION = v3
-POOL_QUALIFICATION_LEVEL = FINAL
-PRICING_REGISTRY_VERSION = v3
-BENCHMARK_VERSION = ZHIXUE_MODEL_POOL_CALIBRATION_V1
-STAGE2_BENCHMARK_EXECUTED = YES
-
-FREE_POOL = qwen3.8-flash, glm-5.3-flash, deepseek-flash
-STANDARD_POOL = + qwen3.8-max, MiniMax-M2.7-highspeed
-ADVANCED_POOL = + deepseek-v4-pro, MiniMax-M3, glm-5, kimi-k2.6
-
-CROSS_PROVIDER_FALLBACK = YES（5 provider）
-BUDGET_RECALIBRATION = KEEP
-CREDIT_NORMALIZATION_STATUS = KEEP_PROVISIONAL
-
-SSOT_RESTORED = YES
-SSOT_UPDATED = YES
-
-STEP7CP_COMPLETE = YES
-STEP7D_READY = YES
+FULL_REGISTRY_USER_VISIBLE = NO
+COLLAB_ENDPOINT_HIDDEN_FROM_PRODUCTION_MODEL_API = PASS
 ```
+
+| capability (advanced) | n | providers | doubao-general | doubao-agent |
+| --- | --- | --- | --- | --- |
+| tutor.chat | 6 | 5 | 可见 | 隐藏 |
+| question.explain | 8 | 5 | 可见 | 隐藏 |
+| material.qa | 6 | 5 | 可见 | 隐藏 |
+| question.generate | 8 | 5 | 可见 | 隐藏 |
+| programming.debug | 8 | 6 | 可见 | **隐藏** |
+| programming.explain | 6 | 5 | 可见 | **隐藏** |
+| planning.generate | 7 | 5 | 未声称 | 隐藏 |
+| report.generate | 4 | 4 | 未声称 | 隐藏 |
+
+Free / Standard 均不含任何 Doubao 条目（advanced-only）。
+
+---
+
+## 13. TESTS
+
+```text
+TARGETED_TESTS     = PASS
+FULL_BACKEND_TESTS = PASS（391 passed / 0 failed / 185.77s）
+PY_COMPILE         = OK
+```
+
+`backend/tests/test_reservation_policy.py`（39 项）覆盖：
+
+```text
+ordinary non-thinking estimate / 未注册模型 fail-conservative（含「不得按 0 reasoning 估算」）
+thinking-model conservative estimate / reserve 严格大于 visible-only
+conservative reserve 覆盖 Ark 实测最坏样本（64 请求 / 1504 计费）
+conservative reserve 覆盖 Qwen 实测溢出（64 请求 / 452 计费）
+BOUNDED 参数化（7 个模型：completion <= max_tokens、reserve == max_tokens、不发送开关）
+Qwen UNBOUNDED + thinking_default_on + reserve 生效
+每个生产池模型必须已有实测 verdict（禁止依赖 fail-conservative 默认值碰巧安全）
+doubao-general 生产 thinking OFF；doubao-agent programming.* 保留 thinking + reserve
+Ark thinking budget 参数未被依赖（回归守卫）
+orchestrator 实际发送 policy 的 thinking 开关 / 无开关 provider 不发送该参数
+reserve > actual → release；actual == reserve → exact；actual > reserve → reservation_overage
+§7 四模型 cannot bypass weekly budget + reservation 是上界
+Advanced 无 daily cap / weekly 受保护
+```
+
+`test_provider_adapters.py` 新增：Qwen `enable_thinking` 映射、未指定时不发开关（Qwen / Ark）。
+`test_pricing_pool_router.py` / `test_ai_models_api.py`：生产池排除内部 endpoint、internal 可达、
+生产候选覆盖 6 provider、eligibility 元数据、explicit 不可绕过、协作 endpoint 全 capability 隐藏。
+
+live probe 独立执行，普通 pytest **不调用真实 provider**。
+
+---
+
+## 14. RISK / 后续 hardening 项（不阻断 STEP7CP）
+
+1. **Qwen reserve 是保守上界而非精确值。** 实测溢出为 105–452 tokens（max_tokens=64 时）；
+   在更大 max_tokens 下 reasoning 可能更长，2048 未必永远覆盖。已有
+   `reservation_overage` 异常通道兜底；若生产观测到该异常频率上升，应提高
+   `DEFAULT_REASONING_RESERVE_TOKENS`，而非放宽异常通道。
+
+2. **`max_tokens=None` 时的预留口径**（既有行为，本轮未改）：orchestrator 在调用方不传
+   `max_tokens` 时按 `DEFAULT_MAX_TOKENS=2000` 预留，但发给 provider 的 `max_tokens` 仍为
+   未设置 → provider 用自身默认上限。若该默认上限 > 2000，存在同族低估。建议后续把
+   二者统一（或对无 `max_tokens` 的请求显式使用同一上界）。**本轮未改动**，以免影响
+   已验证行为。
+
+3. **MiniMax reasoning 未上报**：M2.7-highspeed 的 `completion_tokens_details` 为 null，
+   M3 的 thinking 内联在 content。二者 billable output 均等于 completion_tokens 且被
+   max_tokens 封顶，故安全；但「reasoning 占比」不可观测，无法据此做质量分析。
+
+4. **协作奖励计划条款全文未获取**（§10）。当前策略保守（隔离），条款确认后可单向放开。
+
+---
+
+## 15. 变更文件清单
+
+```text
+本轮（NON_ARK_REASONING_BILLING_VALIDATION）
+backend/ai/cost.py                         reasoning_billing 四态 + thinking_default_on
+                                           + 逐模型实测登记 + UNVERIFIED fail-conservative
+backend/ai/providers/qwen.py               enable_thinking 开关映射
+backend/tests/test_reservation_policy.py   BOUNDED 参数化 / Qwen / fail-conservative /
+                                           §7 四模型 budget 证明 / 生产池 verdict 完整性
+backend/tests/test_provider_adapters.py    Qwen 与 Ark 的 thinking 开关映射与「不发送」
+ZHIXUE_AI_PRODUCT_REDESIGN_SSOT.md         §73 审计链 [5] + 判定 + 质量措辞更正
+
+上一轮（REASONING RESERVATION HARDENING）—— 保留
+backend/ai/cost.py / ai/pool.py / ai/router.py / ai/orchestrator.py
+backend/ai/gateway/__init__.py / ai/providers/ark.py / usage/service.py
+scripts/run_calibration_benchmark.py
+
+更早（PROVIDER ONBOARDING）—— 保留
+backend/ai/secrets.py / ai/pricing.py / ai/benchmark.py / ai/providers/ark.py
+scripts/verify_ai_providers.py / scripts/configure_ai_provider_secrets.py
+scripts/run_agent_probe.py
+```
+
+`backend/app.db` 未改；无 schema 变更；**不需要迁移**（HEAD 仍为 `20260915_0002`）。
+
+---
+
+## 16. FINAL VERDICT
+
+```text
+DEEPSEEK_REASONING_BILLING_SAFE = PASS（BOUNDED，实测证实）
+MINIMAX_REASONING_BILLING_SAFE  = PASS（BOUNDED，实测证实）
+GLM_REASONING_BILLING_SAFE      = PASS（BOUNDED，实测证实）
+KIMI_REASONING_BILLING_SAFE     = PASS（BOUNDED，实测证实）
+QWEN_REASONING_BILLING_SAFE     = PASS（UNBOUNDED → OPTION B：thinking ON + reserve）
+ARK_REASONING_BILLING_SAFE      = PASS（UNBOUNDED → thinking OFF / reserve）
+
+ADVANCED_WEEKLY_BUDGET_PROTECTED     = PASS
+REASONING_UNKNOWN_FAILS_CONSERVATIVE = PASS
+REASONING_BUDGET_BYPASS              = NO
+PROVIDER_AWARE_RESERVATION           = PASS
+
+SIX_PROVIDER_MODEL_ACCESS = PASS
+DOUBAO_GENERAL_PRODUCTION_ELIGIBLE                = YES
+DOUBAO_AGENT_COLLAB_ENDPOINT_PRODUCTION_ELIGIBLE  = NO
+COLLAB_ENDPOINT_HIDDEN_FROM_PRODUCTION_MODEL_API  = PASS
+
+MODEL_POOL_VERSION            = v4
+PRODUCTION_MODEL_POOL_VERSION = v4
+PRODUCTION_PROVIDER_COUNT     = 6
+
+FULL_REGISTRY_USER_VISIBLE = NO
+RAW_SECRET_IN_GIT = NO / ENDPOINT_ID_IN_SOURCE = NO
+FULL_BACKEND_TESTS = PASS（391 passed / 0 failed）
+MIGRATION_REQUIRED = NO
+
+STEP7CP_FINAL_FROZEN = YES
+STEP7D_READY         = YES
+```
+
+`BLOCKERS = 无阻断项。残留项（见 §14）：Qwen reserve 为保守上界而非精确值；max_tokens=None 时的预留口径为既有行为未在本轮改动；MiniMax reasoning 占比不可观测；协作奖励计划条款全文未获取。`

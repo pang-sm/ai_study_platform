@@ -9,16 +9,36 @@
 
 ## 当前阶段
 
-- 当前处于 **STEP 7：后端实现 / 重构**。
+- 当前处于 **STEP 7：后端实现 / 重构**（STEP 7 已进入收尾，后端停止继续扩展）。
   - `CURRENT_STEP = STEP_7`
-  - `CURRENT_SUBSTEP = STEP_7C-P`
-  - `NEXT_SUBSTEP = STEP_7D`
+  - `CURRENT_SUBSTEP = STEP_7H5`
+  - `NEXT_SUBSTEP = FRONTEND`
+  - `NEXT_MAJOR_PHASE = FRONTEND_REBUILD / FRONTEND_PRODUCT_IMPLEMENTATION`
   - 权威状态块见 SSOT `# 73. SSOT 状态`。
-- `STEP7A` / `STEP7B` / `STEP7C` / `STEP7C-P` 均已 **FROZEN**：
+- `STEP7A` / `STEP7B` / `STEP7C` / `STEP7C-P` / `STEP7D` / `STEP7E` / `STEP7F` /
+  `STEP7G`（含 STEP7G-C2）/ `STEP7H0` / `STEP7H1` / `STEP7H2` / `STEP7H3` / `STEP7H4` /
+  `STEP7H5` 均已 **FROZEN**；**`STEP7H` 整体 FROZEN**：
   STEP7A = Core Backend Foundation + LearningContext + Data Plane SHADOW-ready（Alembic 基础）；
   STEP7B = Unified Subscription + Capability Permission + Usage Budget/Ledger + Cost；
   STEP7C = External AI Gateway + Qualified Model Pool + Router V0；
-  STEP7C-P = Provider Onboarding / Live Validation / Model Pool Calibration。
+  STEP7C-P = Provider Onboarding / Live Validation / Model Pool Calibration；
+  STEP7D = Unified Practice Core；
+  STEP7E = Unified Wrong Answer Core；
+  STEP7F = Records / Data Plane Consolidation；
+  STEP7G = Course Learning Space Consolidation（含 STEP7G-C2：Course AI → Unified AI Boundary）；
+  STEP7H0 = Exam Prep 域审计 + 架构冻结（只设计不实施）；
+  STEP7H1 = Exam Prep canonical namespace + context compatibility foundation；
+  STEP7H2 = CS408 Practice / Wrong Answers / Records consolidation（含 H2-C1 并发收尾）；
+  STEP7H3 = Exam AI → Unified AIOrchestrator；
+  STEP7H4 = Multi-track / Multi-subject Exam Preparation catalog foundation
+  （catalog = versioned CONFIG；`cs_408` = ACTIVE，其余 13 个全国统考科目 = FRAMEWORK_ONLY 零内容；
+  `exam_prep_profiles` = 真实用户态；Exam knowledge 唯一写入边界收敛）；
+  STEP7H5 = Exam Prep / CS408 final backend acceptance + deployment hardening + frontend handoff
+  （Exam 运行时 schema 纳入 Alembic：fresh 部署可仅靠 `alembic upgrade head`）。
+- **`NEXT_SUBSTEP = FRONTEND`**：后端停止继续扩展，进入全新前端产品实现。
+  前端契约见 `STEP7H_FRONTEND_API_HANDOFF.md`（新前端只需读该文件）。
+  **`MIGRATION_HEAD = 20260917_0008`**；真实 `backend/app.db` **尚未**迁移到 0008，线上可用需走既有部署流程。
+  非 408 真实内容导入**仍未发生**，必须等用户明确批准。
 - `STEP1`–`STEP6` 已冻结；不得把「当前处于 STEP 6」「下一步做 Scientific Component 产品化设计」「STEP7A 是 NEXT」当作当前状态。
 - 全新前端 = **NOT_STARTED**。`frontend/` 目前只有 Clean-Slate 骨架与首页（`routes/`、`features/home/`）。不得恢复旧前端 UI，不得从旧 frontend 复制页面。
 
@@ -118,8 +138,11 @@
 
 - 权威边界见 SSOT §35（Productization Gate）、§36（13 个 Scientific Component 的 FROZEN 科学语义）、§49、§72。
 - 13 个 scientific component 中，当前 `runtime pass = 13 / 13`，但 **runtime ready ≠ product ready**。
-  当前 `RUNTIME_ONLY = 13`、`SHADOW = 0`、`ADVISORY = 0`、`ACTIVE = 0`。
-  仅 `student_twin` 有正式 Product Backend 链，且 `controls_product_decision = false`；MVP 目标是 `SHADOW_ONLY`，**无用户可见功能**。
+  当前 `USER_VISIBLE_PREVIEW = 1`（`student_twin`）、`RUNTIME_ONLY = 12`、`ADVISORY = 0`、`ACTIVE = 0`。
+  仅 `student_twin` 有正式 Product Backend 链，且 `controls_product_decision = false`、`writes_learner_fact = false`；
+  其 `MVP_TARGET = USER_VISIBLE_PREVIEW`，用户可见功能 = **学习状态实验视图**（确定性学习状态引擎（实验），
+  **不是**掌握度预测 / 神经网络 / 掌握概率）。权威状态见 SSOT「StudentTwin 冻结状态」。
+  `misconception_v2` 与 `tutor_policy` 只有 SHADOW 桥，**未晋升**（`RUNTIME_PROVISIONED ≠ PRODUCT_ELIGIBLE`）。
 - 任何 scientific component 上线必须通过 Productization Gate：
   `Runtime Pass → Input Availability → Ontology Compatibility → Domain Compatibility → Offline Validation → Shadow → Decision Influence → Production`。
 - 禁止改写 FROZEN 科学语义：

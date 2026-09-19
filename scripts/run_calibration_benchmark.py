@@ -26,6 +26,26 @@ from ai.orchestrator import default_provider_factory  # noqa: E402
 from ai.pricing import compute_cost_cny, get_pricing  # noqa: E402
 
 MAX_OUTPUT = 200
+# Thinking models spend their budget on hidden reasoning before emitting content; at
+# max_tokens=200 the content came back empty for every thinking model, so they are
+# measured at 800 (identical policy for every model — fair, not per-model tuning).
+MAX_OUTPUT_THINKING = 800
+CASE_INTERVAL_SECONDS = 3  # courtesy spacing; Kimi org rate-limits tight loops
+
+THINKING_MODELS = {
+    ("deepseek", "deepseek-v4-pro"),
+    ("kimi", "kimi-k2.6"),
+    ("kimi", "kimi-k2.7-code"),
+    ("glm", "glm-5"),
+    ("minimax", "MiniMax-M3"),
+    ("doubao", "doubao-general"),
+    ("doubao", "doubao-agent"),
+}
+
+
+def max_output_for(provider: str, model: str) -> int:
+    return MAX_OUTPUT_THINKING if (provider, model) in THINKING_MODELS else MAX_OUTPUT
+
 
 SHORTLIST = [
     ("deepseek", "deepseek-flash"),
@@ -39,34 +59,51 @@ SHORTLIST = [
     ("glm", "glm-5"),
     ("minimax", "MiniMax-M3"),
     ("minimax", "MiniMax-M2.7-highspeed"),
+    ("doubao", "doubao-general"),
 ]
 
 
-def run_model(provider: str, model: str) -> dict:
+def run_model(provider: str, model: str, cases=None,
+              thinking: bool | None = None, max_tokens: int | None = None) -> dict:
+    import time
+    cases = cases if cases is not None else benchmark.CASES
+    max_tokens = max_tokens if max_tokens is not None else max_output_for(provider, model)
     adapter = default_provider_factory(provider)
     responses = {}
     lat = {}
-    in_tok = out_tok = 0
-    for case in benchmark.CASES:
+    in_tok = out_tok = reasoning_tok = 0
+    for i, case in enumerate(cases):
+        if i:
+            time.sleep(CASE_INTERVAL_SECONDS)
         spec = AIRequestSpec(messages=(ChatMessage(role="user", content=case["prompt"]),),
-                             model=model, temperature=None, max_tokens=MAX_OUTPUT)
+                             model=model, temperature=None, max_tokens=max_tokens,
+                             thinking=thinking)
         try:
             resp = adapter.complete(spec)
             responses[case["id"]] = resp.content or ""
             lat[case["id"]] = resp.latency_ms
             in_tok += resp.usage.input_tokens or 0
             out_tok += resp.usage.output_tokens or 0
+            reasoning_tok += resp.usage.reasoning_tokens or 0
         except Exception as exc:
             responses[case["id"]] = ""
             lat[case["id"]] = -1
-    score = benchmark.score_all(responses)
-    return {"score": score, "lat": lat, "in_tok": in_tok, "out_tok": out_tok}
+    score = benchmark.score_all(responses, cases)
+    return {"score": score, "lat": lat, "in_tok": in_tok, "out_tok": out_tok,
+            "reasoning_tok": reasoning_tok, "max_tokens": max_tokens,
+            "thinking": thinking, "responses": responses}
 
 
 def main() -> int:
-    print(f"Benchmark {benchmark.BENCHMARK_VERSION} · {len(SHORTLIST)} models × {len(benchmark.CASES)} cases\n")
+    # Optional filters: `... run_calibration_benchmark.py doubao-general` runs one model.
+    filters = [a.lower() for a in sys.argv[1:] if not a.startswith("-")]
+    shortlist = [t for t in SHORTLIST
+                 if not filters or any(f in t[1].lower() or f == t[0] for f in filters)]
+    label = "GENERAL_BENCHMARK"
+    print(f"{label} {benchmark.BENCHMARK_VERSION} · "
+          f"{len(shortlist)} models × {len(benchmark.CASES)} cases\n")
     total_cost = 0.0
-    for provider, model in SHORTLIST:
+    for provider, model in shortlist:
         r = run_model(provider, model)
         s = r["score"]
         pricing = get_pricing(provider, model)
@@ -74,11 +111,11 @@ def main() -> int:
         if pricing:
             cny = compute_cost_cny(pricing, r["in_tok"], r["out_tok"])
         total_cost += cny
-        avg_lat = sum(v for v in r["lat"].values() if v >= 0)
-        n_lat = sum(1 for v in r["lat"].values() if v >= 0)
-        lat_s = f"{avg_lat // n_lat}ms" if n_lat else "-"
+        lats = [v for v in r["lat"].values() if v >= 0]
+        lat_s = f"{sum(lats) // len(lats)}ms" if lats else "-"
         print(f"{provider}/{model}: {s['passed']}/{s['total']} passed · "
-              f"in={r['in_tok']} out={r['out_tok']} · ~¥{cny:.4f} · avg_lat={lat_s}")
+              f"max_tokens={r['max_tokens']} · in={r['in_tok']} out={r['out_tok']} "
+              f"(reasoning={r['reasoning_tok']}) · ~¥{cny:.4f} · avg_lat={lat_s}")
         for c in s["results"]:
             print(f"    {'PASS' if c['passed'] else 'FAIL'} {c['id']}")
     print(f"\nTOTAL_ESTIMATED_COST ≈ ¥{total_cost:.4f}")

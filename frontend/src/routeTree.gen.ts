@@ -10,33 +10,202 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ExamRouteImport } from './routes/exam'
+import { Route as ExamIndexRouteImport } from './routes/exam/index'
+import { Route as ExamCs408RouteImport } from './routes/exam/cs408'
+import { Route as ExamSetupRouteImport } from './routes/exam/setup'
+import { Route as ExamCs408IndexRouteImport } from './routes/exam/cs408/index'
+import { Route as ExamCs408KnowledgeRouteImport } from './routes/exam/cs408/knowledge'
+import { Route as ExamCs408PastPapersRouteImport } from './routes/exam/cs408/past-papers'
+import { Route as ExamCs408PlanRouteImport } from './routes/exam/cs408/plan'
+import { Route as ExamCs408PracticeRouteImport } from './routes/exam/cs408/practice'
+import { Route as ExamCs408RecordsRouteImport } from './routes/exam/cs408/records'
+import { Route as ExamCs408StateRouteImport } from './routes/exam/cs408/state'
+import { Route as ExamCs408WrongRouteImport } from './routes/exam/cs408/wrong'
+import { Route as ExamSubjectsIndexRouteImport } from './routes/exam/subjects/index'
+import { Route as ExamSubjectsSubjectIdRouteImport } from './routes/exam/subjects/$subjectId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ExamRoute = ExamRouteImport.update({
+  id: '/exam',
+  path: '/exam',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExamIndexRoute = ExamIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ExamRoute,
+} as any)
+const ExamCs408Route = ExamCs408RouteImport.update({
+  id: '/cs408',
+  path: '/cs408',
+  getParentRoute: () => ExamRoute,
+} as any)
+const ExamSetupRoute = ExamSetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => ExamRoute,
+} as any)
+const ExamCs408IndexRoute = ExamCs408IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ExamCs408Route,
+} as any)
+const ExamCs408KnowledgeRoute = ExamCs408KnowledgeRouteImport.update({
+  id: '/knowledge',
+  path: '/knowledge',
+  getParentRoute: () => ExamCs408Route,
+} as any)
+const ExamCs408PastPapersRoute = ExamCs408PastPapersRouteImport.update({
+  id: '/past-papers',
+  path: '/past-papers',
+  getParentRoute: () => ExamCs408Route,
+} as any)
+const ExamCs408PlanRoute = ExamCs408PlanRouteImport.update({
+  id: '/plan',
+  path: '/plan',
+  getParentRoute: () => ExamCs408Route,
+} as any)
+const ExamCs408PracticeRoute = ExamCs408PracticeRouteImport.update({
+  id: '/practice',
+  path: '/practice',
+  getParentRoute: () => ExamCs408Route,
+} as any)
+const ExamCs408RecordsRoute = ExamCs408RecordsRouteImport.update({
+  id: '/records',
+  path: '/records',
+  getParentRoute: () => ExamCs408Route,
+} as any)
+const ExamCs408StateRoute = ExamCs408StateRouteImport.update({
+  id: '/state',
+  path: '/state',
+  getParentRoute: () => ExamCs408Route,
+} as any)
+const ExamCs408WrongRoute = ExamCs408WrongRouteImport.update({
+  id: '/wrong',
+  path: '/wrong',
+  getParentRoute: () => ExamCs408Route,
+} as any)
+const ExamSubjectsIndexRoute = ExamSubjectsIndexRouteImport.update({
+  id: '/subjects/',
+  path: '/subjects/',
+  getParentRoute: () => ExamRoute,
+} as any)
+const ExamSubjectsSubjectIdRoute = ExamSubjectsSubjectIdRouteImport.update({
+  id: '/subjects/$subjectId',
+  path: '/subjects/$subjectId',
+  getParentRoute: () => ExamRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/exam': typeof ExamRouteWithChildren
+  '/exam/cs408': typeof ExamCs408RouteWithChildren
+  '/exam/setup': typeof ExamSetupRoute
+  '/exam/': typeof ExamIndexRoute
+  '/exam/cs408/knowledge': typeof ExamCs408KnowledgeRoute
+  '/exam/cs408/past-papers': typeof ExamCs408PastPapersRoute
+  '/exam/cs408/plan': typeof ExamCs408PlanRoute
+  '/exam/cs408/practice': typeof ExamCs408PracticeRoute
+  '/exam/cs408/records': typeof ExamCs408RecordsRoute
+  '/exam/cs408/state': typeof ExamCs408StateRoute
+  '/exam/cs408/wrong': typeof ExamCs408WrongRoute
+  '/exam/subjects/$subjectId': typeof ExamSubjectsSubjectIdRoute
+  '/exam/cs408/': typeof ExamCs408IndexRoute
+  '/exam/subjects/': typeof ExamSubjectsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/exam/setup': typeof ExamSetupRoute
+  '/exam': typeof ExamIndexRoute
+  '/exam/cs408/knowledge': typeof ExamCs408KnowledgeRoute
+  '/exam/cs408/past-papers': typeof ExamCs408PastPapersRoute
+  '/exam/cs408/plan': typeof ExamCs408PlanRoute
+  '/exam/cs408/practice': typeof ExamCs408PracticeRoute
+  '/exam/cs408/records': typeof ExamCs408RecordsRoute
+  '/exam/cs408/state': typeof ExamCs408StateRoute
+  '/exam/cs408/wrong': typeof ExamCs408WrongRoute
+  '/exam/subjects/$subjectId': typeof ExamSubjectsSubjectIdRoute
+  '/exam/cs408': typeof ExamCs408IndexRoute
+  '/exam/subjects': typeof ExamSubjectsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/exam': typeof ExamRouteWithChildren
+  '/exam/cs408': typeof ExamCs408RouteWithChildren
+  '/exam/setup': typeof ExamSetupRoute
+  '/exam/': typeof ExamIndexRoute
+  '/exam/cs408/knowledge': typeof ExamCs408KnowledgeRoute
+  '/exam/cs408/past-papers': typeof ExamCs408PastPapersRoute
+  '/exam/cs408/plan': typeof ExamCs408PlanRoute
+  '/exam/cs408/practice': typeof ExamCs408PracticeRoute
+  '/exam/cs408/records': typeof ExamCs408RecordsRoute
+  '/exam/cs408/state': typeof ExamCs408StateRoute
+  '/exam/cs408/wrong': typeof ExamCs408WrongRoute
+  '/exam/subjects/$subjectId': typeof ExamSubjectsSubjectIdRoute
+  '/exam/cs408/': typeof ExamCs408IndexRoute
+  '/exam/subjects/': typeof ExamSubjectsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/exam'
+    | '/exam/cs408'
+    | '/exam/setup'
+    | '/exam/'
+    | '/exam/cs408/knowledge'
+    | '/exam/cs408/past-papers'
+    | '/exam/cs408/plan'
+    | '/exam/cs408/practice'
+    | '/exam/cs408/records'
+    | '/exam/cs408/state'
+    | '/exam/cs408/wrong'
+    | '/exam/subjects/$subjectId'
+    | '/exam/cs408/'
+    | '/exam/subjects/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/exam/setup'
+    | '/exam'
+    | '/exam/cs408/knowledge'
+    | '/exam/cs408/past-papers'
+    | '/exam/cs408/plan'
+    | '/exam/cs408/practice'
+    | '/exam/cs408/records'
+    | '/exam/cs408/state'
+    | '/exam/cs408/wrong'
+    | '/exam/subjects/$subjectId'
+    | '/exam/cs408'
+    | '/exam/subjects'
+  id:
+    | '__root__'
+    | '/'
+    | '/exam'
+    | '/exam/cs408'
+    | '/exam/setup'
+    | '/exam/'
+    | '/exam/cs408/knowledge'
+    | '/exam/cs408/past-papers'
+    | '/exam/cs408/plan'
+    | '/exam/cs408/practice'
+    | '/exam/cs408/records'
+    | '/exam/cs408/state'
+    | '/exam/cs408/wrong'
+    | '/exam/subjects/$subjectId'
+    | '/exam/cs408/'
+    | '/exam/subjects/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ExamRoute: typeof ExamRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +217,154 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/exam': {
+      id: '/exam'
+      path: '/exam'
+      fullPath: '/exam'
+      preLoaderRoute: typeof ExamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/exam/': {
+      id: '/exam/'
+      path: '/'
+      fullPath: '/exam/'
+      preLoaderRoute: typeof ExamIndexRouteImport
+      parentRoute: typeof ExamRoute
+    }
+    '/exam/cs408': {
+      id: '/exam/cs408'
+      path: '/cs408'
+      fullPath: '/exam/cs408'
+      preLoaderRoute: typeof ExamCs408RouteImport
+      parentRoute: typeof ExamRoute
+    }
+    '/exam/setup': {
+      id: '/exam/setup'
+      path: '/setup'
+      fullPath: '/exam/setup'
+      preLoaderRoute: typeof ExamSetupRouteImport
+      parentRoute: typeof ExamRoute
+    }
+    '/exam/cs408/': {
+      id: '/exam/cs408/'
+      path: '/'
+      fullPath: '/exam/cs408/'
+      preLoaderRoute: typeof ExamCs408IndexRouteImport
+      parentRoute: typeof ExamCs408Route
+    }
+    '/exam/cs408/knowledge': {
+      id: '/exam/cs408/knowledge'
+      path: '/knowledge'
+      fullPath: '/exam/cs408/knowledge'
+      preLoaderRoute: typeof ExamCs408KnowledgeRouteImport
+      parentRoute: typeof ExamCs408Route
+    }
+    '/exam/cs408/past-papers': {
+      id: '/exam/cs408/past-papers'
+      path: '/past-papers'
+      fullPath: '/exam/cs408/past-papers'
+      preLoaderRoute: typeof ExamCs408PastPapersRouteImport
+      parentRoute: typeof ExamCs408Route
+    }
+    '/exam/cs408/plan': {
+      id: '/exam/cs408/plan'
+      path: '/plan'
+      fullPath: '/exam/cs408/plan'
+      preLoaderRoute: typeof ExamCs408PlanRouteImport
+      parentRoute: typeof ExamCs408Route
+    }
+    '/exam/cs408/practice': {
+      id: '/exam/cs408/practice'
+      path: '/practice'
+      fullPath: '/exam/cs408/practice'
+      preLoaderRoute: typeof ExamCs408PracticeRouteImport
+      parentRoute: typeof ExamCs408Route
+    }
+    '/exam/cs408/records': {
+      id: '/exam/cs408/records'
+      path: '/records'
+      fullPath: '/exam/cs408/records'
+      preLoaderRoute: typeof ExamCs408RecordsRouteImport
+      parentRoute: typeof ExamCs408Route
+    }
+    '/exam/cs408/state': {
+      id: '/exam/cs408/state'
+      path: '/state'
+      fullPath: '/exam/cs408/state'
+      preLoaderRoute: typeof ExamCs408StateRouteImport
+      parentRoute: typeof ExamCs408Route
+    }
+    '/exam/cs408/wrong': {
+      id: '/exam/cs408/wrong'
+      path: '/wrong'
+      fullPath: '/exam/cs408/wrong'
+      preLoaderRoute: typeof ExamCs408WrongRouteImport
+      parentRoute: typeof ExamCs408Route
+    }
+    '/exam/subjects/': {
+      id: '/exam/subjects/'
+      path: '/subjects'
+      fullPath: '/exam/subjects/'
+      preLoaderRoute: typeof ExamSubjectsIndexRouteImport
+      parentRoute: typeof ExamRoute
+    }
+    '/exam/subjects/$subjectId': {
+      id: '/exam/subjects/$subjectId'
+      path: '/subjects/$subjectId'
+      fullPath: '/exam/subjects/$subjectId'
+      preLoaderRoute: typeof ExamSubjectsSubjectIdRouteImport
+      parentRoute: typeof ExamRoute
+    }
   }
 }
 
+interface ExamCs408RouteChildren {
+  ExamCs408KnowledgeRoute: typeof ExamCs408KnowledgeRoute
+  ExamCs408PastPapersRoute: typeof ExamCs408PastPapersRoute
+  ExamCs408PlanRoute: typeof ExamCs408PlanRoute
+  ExamCs408PracticeRoute: typeof ExamCs408PracticeRoute
+  ExamCs408RecordsRoute: typeof ExamCs408RecordsRoute
+  ExamCs408StateRoute: typeof ExamCs408StateRoute
+  ExamCs408WrongRoute: typeof ExamCs408WrongRoute
+  ExamCs408IndexRoute: typeof ExamCs408IndexRoute
+}
+
+const ExamCs408RouteChildren: ExamCs408RouteChildren = {
+  ExamCs408KnowledgeRoute: ExamCs408KnowledgeRoute,
+  ExamCs408PastPapersRoute: ExamCs408PastPapersRoute,
+  ExamCs408PlanRoute: ExamCs408PlanRoute,
+  ExamCs408PracticeRoute: ExamCs408PracticeRoute,
+  ExamCs408RecordsRoute: ExamCs408RecordsRoute,
+  ExamCs408StateRoute: ExamCs408StateRoute,
+  ExamCs408WrongRoute: ExamCs408WrongRoute,
+  ExamCs408IndexRoute: ExamCs408IndexRoute,
+}
+
+const ExamCs408RouteWithChildren = ExamCs408Route._addFileChildren(
+  ExamCs408RouteChildren,
+)
+
+interface ExamRouteChildren {
+  ExamCs408Route: typeof ExamCs408RouteWithChildren
+  ExamSetupRoute: typeof ExamSetupRoute
+  ExamIndexRoute: typeof ExamIndexRoute
+  ExamSubjectsSubjectIdRoute: typeof ExamSubjectsSubjectIdRoute
+  ExamSubjectsIndexRoute: typeof ExamSubjectsIndexRoute
+}
+
+const ExamRouteChildren: ExamRouteChildren = {
+  ExamCs408Route: ExamCs408RouteWithChildren,
+  ExamSetupRoute: ExamSetupRoute,
+  ExamIndexRoute: ExamIndexRoute,
+  ExamSubjectsSubjectIdRoute: ExamSubjectsSubjectIdRoute,
+  ExamSubjectsIndexRoute: ExamSubjectsIndexRoute,
+}
+
+const ExamRouteWithChildren = ExamRoute._addFileChildren(ExamRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ExamRoute: ExamRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

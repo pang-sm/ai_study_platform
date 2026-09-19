@@ -396,7 +396,15 @@ def get_year_questions(subject_key: str, year: int) -> dict:
     }
 
 
-def grade_submission(subject_key: str, year: int, answers: list[dict]) -> dict:
+def grade_submission(subject_key: str, year: int, answers: list[dict], *,
+                     grade_big=None) -> dict:
+    """Grade one past-paper submission.
+
+    ``grade_big(q, user_answer, standard) -> (score, feedback)`` is INJECTED by the caller.
+    This module deliberately owns no provider client and no model name: it parses documents,
+    extracts questions and (via ``qwen_parser``) runs OCR. Grading a learner's subjective
+    answer is learning AI and belongs to the Exam AI boundary.
+    """
     parsed = get_year_questions(subject_key, year)
     questions = parsed.get("questions", [])
     qmap = {q["id"]: q for q in questions}
@@ -433,7 +441,9 @@ def grade_submission(subject_key: str, year: int, answers: list[dict]) -> dict:
                 "full_score": 2, "standard_answer": standard, "user_answer": user_answer,
             })
         else:
-            score, feedback = _grade_big_question(q, user_answer, standard, subject_key)
+            score, feedback = (
+                grade_big(q, user_answer, standard) if grade_big is not None
+                else _ungraded_big_answer(user_answer, standard))
             total_score += score
             max_score += 10
             if score < 7:
@@ -463,36 +473,16 @@ def grade_submission(subject_key: str, year: int, answers: list[dict]) -> dict:
     }
 
 
-def _grade_big_question(q: dict, user_answer: str, standard: str, subject_key: str) -> tuple[int, str]:
-    if not user_answer.strip():
+def _ungraded_big_answer(user_answer: str, standard: str) -> tuple[int, str]:
+    """Provider-free fallback for a subjective answer.
+
+    Used only when no AI grader is injected. It is a keyword-overlap heuristic, NOT a
+    judgement of the learner, and it is labelled as such. Before STEP7H3 this heuristic
+    ran only after a failed model call from inside this module; the model call is gone, so
+    this module never reaches a provider at all.
+    """
+    if not (user_answer or "").strip():
         return 0, "未作答"
-    try:
-        from openai import OpenAI
-        client = OpenAI(
-            api_key=os.getenv("DEEPSEEK_API_KEY", ""),
-            base_url="https://api.deepseek.com",
-        )
-        prompt = f"""你是11408考研阅卷老师。请评分(满分10分,按参考答案符合度)。
-
-科目:{EXAM_SUBJECTS.get(subject_key,'')} 题号:第{q.get('number','')}题
-题目:{q.get('content','')[:300]}
-参考答案:{standard[:500]}
-用户答案:{user_answer[:500]}
-
-严格返回JSON(不要markdown):{{"score":8,"feedback":"评语"}}"""
-        resp = client.chat.completions.create(
-            model="deepseek-chat", messages=[{"role":"user","content":prompt}],
-            temperature=0.3, max_tokens=300,
-        )
-        content = resp.choices[0].message.content.strip()
-        if "```" in content:
-            content = content.split("```")[1]
-            if content.startswith("json"): content = content[4:]
-        result = json.loads(content)
-        return int(result.get("score", 0)), result.get("feedback", "")
-    except Exception as e:
-        logger.warning("AI grading failed: %s", str(e)[:120])
-        if user_answer.strip():
-            score = min(9, max(1, len(set(user_answer.lower().split()) & set(standard.lower().split())) * 10 // max(1, len(set(standard.lower().split())))))
-            return score, "AI暂不可用,基础评分"
-        return 0, "AI评分不可用"
+    overlap = set(user_answer.lower().split()) & set((standard or "").lower().split())
+    denom = max(1, len(set((standard or "").lower().split())))
+    return min(9, max(1, len(overlap) * 10 // denom)), "AI暂不可用,基础评分"

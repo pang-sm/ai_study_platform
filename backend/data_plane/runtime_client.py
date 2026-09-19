@@ -1,16 +1,20 @@
-"""Product-side HTTP client for the Scientific Runtime Service (contract v1).
+"""Evidence-pipeline contract layer for the StudentTwin Scientific Runtime call.
 
 The Product Backend does NOT import ``zhixue_runtime``; it delegates scientific inference
-to the separate Scientific Runtime Service over localhost HTTP.  This module maps a
-product LearningEvent to the contract-v1 event, computes the canonical scientific-input
-hash, and performs the HTTP call + full contract validation.
+to the separate Scientific Runtime Service over localhost HTTP. This module maps a product
+LearningEvent to the contract-v1 event, computes the canonical scientific-input hash, and
+performs full response-contract validation before any Prediction row may be written.
+
+TRANSPORT is owned by :mod:`science.client` — the ONE Scientific Runtime HTTP client. This
+module keeps only what is specific to the evidence pipeline (event mapping, canonical
+input hash, strict contract validation), so there is a single place where base URL,
+timeout and bounded failure handling live.
 """
 import hashlib
 import json
 
-import httpx
-
 from core import config
+from science import client as sci_client
 
 CONTRACT_VERSION = 1
 COMPONENT_ID = "student_twin"
@@ -22,6 +26,16 @@ ACTIVITY_TYPE_PRACTICE = "PRACTICE"
 
 class RuntimeClientError(RuntimeError):
     """Raised when the Scientific Runtime Service call fails or returns an invalid contract."""
+
+
+class RuntimeUnavailableError(RuntimeClientError):
+    """The Scientific Runtime could not be reached: transport error, timeout, or 5xx.
+
+    Deliberately distinct from a contract violation. An unreachable runtime fails the SAME
+    way for every remaining target, so a producer run stops on the first one instead of
+    paying one timeout per target. A contract mismatch is per-target (a product-side bug
+    for that payload) and must never halt the run.
+    """
 
 
 def map_learning_event(le) -> dict:
@@ -96,24 +110,24 @@ def canonical_input_hash(request: dict) -> str:
 class StudentTwinRuntimeClient:
     """Synchronous HTTP client to the Scientific Runtime Service (127.0.0.1:8101)."""
 
-    def __init__(self, base_url=None, timeout=None):
+    def __init__(self, base_url=None, timeout=None, transport=None):
         self.base_url = (base_url or config.scientific_runtime_base_url()).rstrip("/")
         self.timeout = timeout or config.scientific_runtime_timeout()
+        self._transport = transport
 
     def infer(self, request: dict) -> dict:
-        url = f"{self.base_url}/v1/inference/student-twin"
+        client = sci_client.ScientificClient(base_url=self.base_url, timeout=self.timeout,
+                                             transport=self._transport)
         try:
-            resp = httpx.post(url, json=request, timeout=self.timeout)
-        except httpx.HTTPError as exc:
-            raise RuntimeClientError(f"runtime service unreachable: {exc}") from exc
-        if resp.status_code != 200:
-            raise RuntimeClientError(
-                f"runtime service HTTP {resp.status_code}: {resp.text[:200]}"
-            )
-        try:
-            data = resp.json()
-        except ValueError as exc:
-            raise RuntimeClientError(f"runtime service returned non-JSON: {exc}") from exc
+            data = client.infer("/v1/inference/student-twin", request,
+                                component=COMPONENT_ID)
+        except sci_client.ScientificUnavailable as exc:
+            # the CONFIRMED-OUTAGE class: unreachable, timed out, or 5xx
+            raise RuntimeUnavailableError(
+                f"runtime service {exc.message}: {exc.detail}") from exc
+        except sci_client.ScientificRuntimeError as exc:
+            # 4xx — our request was refused. A product-side contract bug, not an outage.
+            raise RuntimeClientError(f"runtime service {exc.message}: {exc.detail}") from exc
 
         # --- full contract validation (a mismatch must never produce a Prediction) ---
         if data.get("contract_version") != CONTRACT_VERSION:

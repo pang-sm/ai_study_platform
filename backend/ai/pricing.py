@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-PRICING_VERSION = "v3"
+PRICING_VERSION = "v4"
 USD_CNY = 7.2  # matches the codebase's existing deepseek cost conversion
 
 
@@ -30,6 +30,7 @@ class ModelPricing:
     verified: bool = False
     source: str = "UNVERIFIED"   # OFFICIAL_DOC / CONSERVATIVE_CEILING / UNVERIFIED
     verified_at: str | None = None
+    upstream_model: str = ""     # vendor model the price was registered against
 
 
 def _usd_per_1m(usd: float) -> float:
@@ -90,6 +91,21 @@ _PRICING = {
         "glm", "glm-5", 4.0, 18.0, 0.0,
         effective_from="2026-09-01", verified=True, source="OFFICIAL_DOC",
         verified_at="2026-09-16"),
+
+    # Volcengine Ark / Doubao — official 「模型价格」 doc
+    # (docs.volcengine.com/docs/82379/1544106, UpdatedTime 2026-09-16T03:41:44Z).
+    # Keyed by the product's canonical ALIAS, not the vendor id: the account is on the
+    # endpoint-id model, so ``doubao-general`` / ``doubao-agent`` are what the router,
+    # pool and settlement use. Both models: single input-length tier [0,1024]k, no
+    # peak/off-peak schedule, and reasoning tokens billed at the output rate.
+    ("doubao", "doubao-general"): ModelPricing(
+        "doubao", "doubao-general", 6.0, 30.0, 1.2,
+        effective_from="2026-09-16", verified=True, source="OFFICIAL_DOC",
+        verified_at="2026-09-16", upstream_model="doubao-seed-2.1-pro"),
+    ("doubao", "doubao-agent"): ModelPricing(
+        "doubao", "doubao-agent", 6.0, 30.0, 1.2,
+        effective_from="2026-09-16", verified=True, source="OFFICIAL_DOC",
+        verified_at="2026-09-16", upstream_model="doubao-seed-evolving"),
 
     # MiniMax — official per-model pricing not confirmable this round → conservative
     # cost CEILING (unverified). Model IDs are case-sensitive ("MiniMax-M3").

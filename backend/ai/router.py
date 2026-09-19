@@ -81,7 +81,7 @@ def select_model(tier: str, capability: str, explicit_model: str | None = None,
     budget_fits = []
     for e in candidates:
         est = cost.estimate_credits(e.provider, e.model, input_tokens,
-                                    expected_output_tokens)
+                                    expected_output_tokens, capability=capability)
         if not est["ok"]:
             continue  # pricing missing → cannot verify cost, skip (fail closed)
         if available_budget is None or est["credits"] <= available_budget:
@@ -130,7 +130,7 @@ def ordered_candidates(tier: str, capability: str,
     out = []
     for e in candidates:
         est = cost.estimate_credits(e.provider, e.model, input_tokens,
-                                    expected_output_tokens)
+                                    expected_output_tokens, capability=capability)
         if not est["ok"]:
             continue  # pricing missing → skip (fail closed)
         if available_budget is None or est["credits"] <= available_budget:

@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
@@ -6,18 +7,19 @@ from conftest import register_and_login
 import main
 
 
-def _fake_ai(_messages, timeout_seconds=60):
+def _fake_ai(*_args, **_kwargs):
     return json.dumps({
         "stem": "哪个选项最适合描述当前知识点？",
         "options": {"A": "理解概念", "B": "只背标题", "C": "跳过练习", "D": "忽略条件"},
         "standard_answer": "A",
-        "analysis": "先理解概念，再通过练习验证边界条件。",
+        "analysis": "先理解线性表的顺序存储概念，再通过随机访问和边界条件的练习验证结论，不能只背诵标题。",
     }, ensure_ascii=False)
 
 
 def test_course_practice_generate_submit_history_and_user_isolation(client: TestClient, monkeypatch):
     register_and_login(client, "practice-a")
-    monkeypatch.setattr(main, "call_deepseek", _fake_ai)
+    monkeypatch.setattr("learning.spaces.course_learning.ai.execute_course_ai",
+                        lambda *_a, **_kw: SimpleNamespace(content=_fake_ai()))
 
     generated = client.post("/course-learning/practice/generate", json={
         "username": "practice-a",

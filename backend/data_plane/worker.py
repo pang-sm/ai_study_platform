@@ -16,6 +16,21 @@ including the target, ordered by occurred_at/event_id, no future leakage).
 The worker is a DATA_PRODUCER: it writes ``model_versions`` / ``model_inference_runs`` /
 ``model_predictions`` only.  It never mutates product tables, never runs a scientific
 formula in-process, and never changes a product decision.
+
+Runtime outage (ACCEL_SPRINT_S3, PART A)
+----------------------------------------
+A run makes one blocking runtime call per ELIGIBLE target. When the runtime is
+unreachable that is the SAME failure repeated once per target, so the run stops at the
+FIRST confirmed :class:`~data_plane.runtime_client.RuntimeUnavailableError` instead of
+paying one timeout per target. The stop is honest and non-destructive:
+
+  * no prediction is faked for the target that tripped the breaker;
+  * that target is left exactly as it was — NOT marked scientifically processed;
+  * every remaining target is left untouched;
+  * the next run retries all of them, so nothing is lost, only deferred.
+
+No default ``--limit`` is introduced: ``--limit`` keeps its exact meaning (how many
+TARGETS to consider), and healthy-runtime processing is byte-for-byte unchanged.
 """
 import logging
 import time
@@ -31,6 +46,10 @@ logger = logging.getLogger("data_plane.worker")
 
 DEFAULT_COMPONENT = "student_twin"
 
+# The families whose TYPE may feed StudentTwin (data_plane.eligibility, S2 gate). The
+# per-event rule still decides: type eligibility is necessary, never sufficient.
+STUDENT_TWIN_INPUT_EVENT_TYPES = eligibility.STUDENT_TWIN_INPUT_EVENT_TYPES
+
 
 def execution_enabled(session=None) -> bool:
     """Worker runs only when the data-producer flag is on AND the effective StudentTwin
@@ -44,18 +63,29 @@ def execution_enabled(session=None) -> bool:
 
 
 def _is_eligible_event(ev) -> bool:
-    """A course_practice event is runtime-ELIGIBLE for student_twin only with a real outcome."""
-    if ev.correct is None:
+    """The S2 input-domain rule decides, per event.
+
+    Type eligibility is necessary but not sufficient: the component matrix says the
+    COMPONENT is supported, and ``student_twin_event_eligibility`` says whether THIS event
+    carries an authoritative binary correctness fact.
+    """
+    if eligibility.evaluate(DEFAULT_COMPONENT, {})["eligibility_status"] != "ELIGIBLE":
         return False
-    return eligibility.evaluate(DEFAULT_COMPONENT, {})["eligibility_status"] == "ELIGIBLE"
+    return eligibility.student_twin_event_eligibility(ev).eligible
 
 
 def _load_history(session, target) -> list:
     """Full eligible history for the target's user, up to and including the target.
 
-    Canonical boundary: same user, ``occurred_at < target`` OR (``==`` AND
-    ``event_id <= target.event_id``), ordered by (occurred_at, event_id). The last item is
-    always the target. No future leakage, no cross-user leakage.
+    Canonical boundary: same user, SAME LEARNING SPACE, ``occurred_at < target`` OR
+    (``==`` AND ``event_id <= target.event_id``), ordered by (occurred_at, event_id). The
+    last item is always the target. No future leakage, no cross-user leakage.
+
+    The learning space is part of the boundary because a state replay mixes evidence
+    freely: folding a course-practice history into a CS408 exam event (or the reverse)
+    would produce a state that describes neither. Every course_practice event is already
+    ``course_learning``-scoped, so this is a no-op for the pre-existing family and the
+    correct boundary for CS408.
     """
     if target.user_id is not None:
         identity = LearningEvent.user_id == target.user_id
@@ -67,20 +97,24 @@ def _load_history(session, target) -> list:
         and_(LearningEvent.occurred_at == target.occurred_at,
              LearningEvent.event_id <= target.event_id),
     )
-    return (session.query(LearningEvent)
-            .filter(LearningEvent.event_type == "course_practice",
-                    LearningEvent.correct.isnot(None),
+    rows = (session.query(LearningEvent)
+            .filter(LearningEvent.event_type.in_(STUDENT_TWIN_INPUT_EVENT_TYPES),
+                    LearningEvent.service_key == target.service_key,
                     identity,
                     boundary)
             .order_by(LearningEvent.occurred_at, LearningEvent.event_id)
             .all())
+    return [ev for ev in rows if _is_eligible_event(ev)]
 
 
 def run_once(SessionLocal, limit: int = None, event_id: str = None) -> dict:
     """Run one pass of the worker over eligible LearningEvent TARGETS (full history each)."""
     report = {"events_scanned": 0, "events_eligible": 0, "events_inferred": 0,
               "inference_runs_created": 0, "predictions_created": 0,
-              "errors": 0, "skipped_not_enabled": False}
+              "errors": 0, "skipped_not_enabled": False,
+              # PART A outage outcome — factual, never a fabricated success
+              "runtime_unavailable": False, "outage": None,
+              "targets_not_attempted": 0}
 
     # fast path: data-producer flag alone can short-circuit without opening a session
     if not config.data_producer_execution_enabled():
@@ -96,7 +130,7 @@ def run_once(SessionLocal, limit: int = None, event_id: str = None) -> dict:
 
         # ---- target selection (independent of history) ----
         target_q = (session.query(LearningEvent)
-                    .filter(LearningEvent.event_type == "course_practice",
+                    .filter(LearningEvent.event_type.in_(STUDENT_TWIN_INPUT_EVENT_TYPES),
                             LearningEvent.correct.isnot(None))
                     .order_by(LearningEvent.user_id, LearningEvent.occurred_at, LearningEvent.event_id))
         if event_id:
@@ -108,7 +142,7 @@ def run_once(SessionLocal, limit: int = None, event_id: str = None) -> dict:
 
         client = runtime_client.StudentTwinRuntimeClient()
 
-        for target in targets:
+        for position, target in enumerate(targets):
             if not _is_eligible_event(target):
                 continue
             report["events_eligible"] += 1
@@ -125,6 +159,22 @@ def run_once(SessionLocal, limit: int = None, event_id: str = None) -> dict:
                 response = client.infer(request)
                 finished = time.time()
                 state = response["state"]
+            except runtime_client.RuntimeUnavailableError as exc:
+                # PART A: the runtime is confirmed down. This is not a per-target defect,
+                # so the run stops here rather than repeating the same wait per target.
+                # No run/prediction row was written for this target and none is faked; the
+                # target stays untouched and every later target is left for the next run.
+                logger.warning("runtime unavailable; stopping run at event %s: %s",
+                               target.event_id, exc)
+                report["errors"] += 1
+                report["runtime_unavailable"] = True
+                report["outage"] = {"component": DEFAULT_COMPONENT,
+                                    "target_event_id": target.event_id,
+                                    "detail": str(exc)}
+                # counted with the pure eligibility predicate — no runtime call is made
+                report["targets_not_attempted"] = sum(
+                    1 for later in targets[position + 1:] if _is_eligible_event(later))
+                break
             except Exception as exc:
                 logger.warning("student_twin inference failed for event %s: %s",
                                target.event_id, type(exc).__name__)
@@ -166,17 +216,22 @@ def run_loop(SessionLocal, interval_seconds: float = 30.0, max_iterations: int =
     cumulative = {
         "iterations": 0, "events_scanned": 0, "events_eligible": 0, "events_inferred": 0,
         "inference_runs_created": 0, "predictions_created": 0, "errors": 0,
-        "skipped_not_enabled": False,
+        "skipped_not_enabled": False, "runtime_unavailable": False, "outage": None,
+        "targets_not_attempted": 0,
     }
     iterations = 0
     while True:
         iterations += 1
         report = run_once(SessionLocal)
         for key in ("events_scanned", "events_eligible", "events_inferred",
-                    "inference_runs_created", "predictions_created", "errors"):
+                    "inference_runs_created", "predictions_created", "errors",
+                    "targets_not_attempted"):
             cumulative[key] = cumulative[key] + report.get(key, 0)
         if report.get("skipped_not_enabled"):
             cumulative["skipped_not_enabled"] = True
+        if report.get("runtime_unavailable"):
+            cumulative["runtime_unavailable"] = True
+            cumulative["outage"] = cumulative["outage"] or report.get("outage")
         cumulative["iterations"] = iterations
         if max_iterations is not None and iterations >= max_iterations:
             break

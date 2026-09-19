@@ -34,4 +34,20 @@ describe('App', () => {
     renderApp('/does-not-exist');
     expect(await screen.findByText('页面不存在')).toBeInTheDocument();
   });
+
+  it('renders the CS408 home for its exact route and mounts the knowledge child route', async () => {
+    const home = renderApp('/exam/cs408');
+    expect(await screen.findByRole('heading', { name: '学习工作区' })).toBeInTheDocument();
+    home.unmount();
+
+    renderApp('/exam/cs408/knowledge?module=data_structure');
+    expect(await screen.findByRole('heading', { name: '数据结构知识脉络' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '学习工作区' })).not.toBeInTheDocument();
+  });
+
+  it('resolves the CS408 chapter practice route without inventing a chapter context', async () => {
+    renderApp('/exam/cs408/practice');
+    expect(await screen.findByRole('heading', { name: '选择学习模块' })).toBeInTheDocument();
+    expect(screen.getByText('选择学习模块')).toBeInTheDocument();
+  });
 });

@@ -4,7 +4,7 @@ Normalized credits are integers (an internal cost unit, NOT tokens / request cou
 raw currency). Provider currency cost is preserved separately in ai_cost_records.
 """
 from sqlalchemy import (
-    Boolean, Column, DateTime, Float, Index, Integer, String, UniqueConstraint,
+    Boolean, Column, DateTime, Float, Index, Integer, JSON, String, UniqueConstraint,
 )
 
 from database import Base
@@ -51,6 +51,8 @@ class UsageLedger(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, nullable=False, index=True)
     request_id = Column(String(64), nullable=True)
+    # Nullable for legacy ledger facts; new orchestrated requests mirror AIRequest.
+    service_namespace = Column(String(50), nullable=True, index=True)
     entry_type = Column(String(20), nullable=False)     # reserve / settle / release / adjustment
     amount = Column(Integer, nullable=False)            # credits; positive debit, negative credit
     reference_key = Column(String(255), nullable=False, unique=True)  # idempotency
@@ -64,6 +66,10 @@ class AIRequest(Base):
     request_id = Column(String(64), nullable=False, unique=True)
     user_id = Column(Integer, nullable=False, index=True)
     capability = Column(String(50), nullable=False)
+    # NULL is retained for pre-STEP7G rows.  New context-aware requests persist the
+    # canonical LearningContext snapshot; no space-specific columns are introduced.
+    service_namespace = Column(String(50), nullable=True, index=True)
+    context_json = Column(JSON, nullable=True)
     tier = Column(String(20), nullable=True)
     status = Column(String(20), nullable=False)         # reserved / executing / settled / released / failed
     estimated_credits = Column(Integer, nullable=True)

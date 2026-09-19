@@ -1,0 +1,3 @@
+.wrong-answer__row--active .wrong-answer__status {
+  color: var(--color-primary-hover);
+}

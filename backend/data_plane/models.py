@@ -41,6 +41,13 @@ class LearningEvent(Base):
     response_time_ms = Column(Integer, nullable=True)
     attempt_no = Column(Integer, nullable=True)
 
+    # ACCEL_SPRINT_S5 attempt telemetry, carried onto the canonical fact stream so a
+    # scientific reader can tell a measured duration from an unmeasured one without
+    # opening the source row. NULL means the provenance was not observed; it is never
+    # guessed. See ``learning.practice.telemetry`` for the admissible sources.
+    response_time_source = Column(String(30), nullable=True)
+    attempt_index = Column(Integer, nullable=True)
+
     occurred_at = Column(Float, nullable=False)
     ingested_at = Column(Float, nullable=False)
     source_payload_version = Column(Integer, nullable=False, default=1)
@@ -57,6 +64,10 @@ class LearningEvent(Base):
         UniqueConstraint("source_type", "source_attempt_id", "source_item_key", name="uq_learning_event_source_item"),
         Index("ix_learning_events_user_id", "user_id"),
         Index("ix_learning_events_source_attempt", "source_type", "source_attempt_id"),
+        # STEP 7F: the Learning Records query pattern — user-scoped, newest-first,
+        # optional time window / namespace filter.
+        Index("ix_learning_events_user_occurred", "user_id", "occurred_at"),
+        Index("ix_learning_events_ns_occurred", "service_key", "occurred_at"),
     )
 
 

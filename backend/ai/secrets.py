@@ -53,6 +53,14 @@ PROVIDER_SPECS = {
                 "note": "OpenAI-compatible path; native SDK differs"},
 }
 
+# Volcengine Ark endpoint-id mapping (STEP 7C-P). On the endpoint-id access model the
+# account cannot call catalog model names — it calls inference endpoints (``ep-...``).
+# The endpoint id is therefore CONFIG (env), never source: canonical alias → env var.
+ARK_ENDPOINT_ENV = {
+    "doubao-general": "ARK_ENDPOINT_DOUBAO_GENERAL",
+    "doubao-agent": "ARK_ENDPOINT_DOUBAO_AGENT",
+}
+
 ALL_PROVIDERS = tuple(CANONICAL_ENV.keys())
 
 
@@ -98,3 +106,17 @@ def provider_status(provider: str) -> dict:
 
 def configured_providers() -> dict[str, dict]:
     return {p: provider_status(p) for p in ALL_PROVIDERS}
+
+
+def ark_endpoint_map() -> dict[str, str]:
+    """Canonical Ark alias → endpoint id, for aliases whose endpoint is configured.
+
+    The single mapping read by ``default_provider_factory``, discovery, the benchmark
+    runner and tests — there is no second Ark configuration system.
+    """
+    out: dict[str, str] = {}
+    for alias, env_var in ARK_ENDPOINT_ENV.items():
+        value = os.getenv(env_var, "").strip()
+        if value:
+            out[alias] = value
+    return out

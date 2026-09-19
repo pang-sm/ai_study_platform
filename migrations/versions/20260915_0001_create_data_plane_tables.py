@@ -18,6 +18,8 @@ This is additive-only: no DROP, no destructive rename, no legacy table modificat
 from typing import Sequence, Union
 
 from alembic import op
+
+from migrations.guards import create_index_if_absent, create_table_if_absent
 import sqlalchemy as sa
 
 revision: str = "20260915_0001"
@@ -27,7 +29,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.create_table(
+    create_table_if_absent(
         "learning_events",
         sa.Column("event_id", sa.String(36), primary_key=True),
         sa.Column("event_schema_version", sa.Integer(), nullable=False, server_default="2"),
@@ -62,11 +64,11 @@ def upgrade() -> None:
         sa.UniqueConstraint("source_type", "source_attempt_id", "source_item_key",
                             name="uq_learning_event_source_item"),
     )
-    op.create_index("ix_learning_events_user_id", "learning_events", ["user_id"])
-    op.create_index("ix_learning_events_source_attempt", "learning_events",
+    create_index_if_absent("ix_learning_events_user_id", "learning_events", ["user_id"])
+    create_index_if_absent("ix_learning_events_source_attempt", "learning_events",
                     ["source_type", "source_attempt_id"])
 
-    op.create_table(
+    create_table_if_absent(
         "model_versions",
         sa.Column("model_version_id", sa.String(64), primary_key=True),
         sa.Column("component_id", sa.String(50), nullable=False, index=True),
@@ -83,7 +85,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(), nullable=True),
     )
 
-    op.create_table(
+    create_table_if_absent(
         "model_inference_runs",
         sa.Column("inference_run_id", sa.String(64), primary_key=True),
         sa.Column("event_id", sa.String(36), nullable=False, index=True),
@@ -104,7 +106,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(), nullable=True),
     )
 
-    op.create_table(
+    create_table_if_absent(
         "model_predictions",
         sa.Column("prediction_id", sa.String(64), primary_key=True),
         sa.Column("inference_run_id", sa.String(64), nullable=False, index=True),

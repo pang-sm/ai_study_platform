@@ -57,6 +57,43 @@ CASES = [
     },
 ]
 
+# AGENT_CAPABILITY_PROBE — separate from the general 6-case benchmark. A coding/agent
+# model must not be eliminated for failing general pedagogy cases; it is screened on
+# programming explanation, non-trivial debugging, and strict structured output.
+# Same deterministic scoring (contains_any / json_fields), no model-as-judge.
+AGENT_PROBE_VERSION = "v1"
+
+AGENT_PROBE_CASES = [
+    {
+        "capability": "programming.explain",
+        "id": "agent-explain-1",
+        "prompt": ("用中文解释下面 Python 代码的求值过程，并说明它为什么是惰性的：\n"
+                   "```python\ndef fib(n):\n    a, b = 0, 1\n    for _ in range(n):\n"
+                   "        yield a\n        a, b = b, a + b\n```"),
+        "check": "contains_any",
+        "expect": ["生成器", "generator", "yield", "惰性"],
+    },
+    {
+        "capability": "programming.debug",
+        "id": "agent-debug-1",
+        "prompt": ("下面代码两次调用的输出结果不是预期的 `[1]` 和 `[2]`，指出根本原因：\n"
+                   "```python\ndef add(item, lst=[]):\n    lst.append(item)\n    return lst\n\n"
+                   "print(add(1))\nprint(add(2))\n```"),
+        "check": "contains_any",
+        "expect": ["默认参数", "可变", "mutable", "共享", "同一个", "同一", "持久"],
+    },
+    {
+        "capability": "programming.debug",
+        "id": "agent-structured-1",
+        "prompt": ("只输出一个 JSON 对象，不要 markdown 代码块、不要任何解释文字。\n"
+                   "它必须包含且仅包含三个字段：`line`（整数，出错行号）、`cause`（字符串，根本原因）、"
+                   "`fix`（字符串，最小修复方案）。\n"
+                   "待分析代码：\n```python\ndef add(item, lst=[]):\n    lst.append(item)\n    return lst\n```"),
+        "check": "json_fields",
+        "expect": ["line", "cause", "fix"],
+    },
+]
+
 
 def _json_valid(text: str) -> bool:
     import json
@@ -65,6 +102,16 @@ def _json_valid(text: str) -> bool:
         return True
     except Exception:
         return False
+
+
+def _json_fields(text: str, fields: list[str]) -> bool:
+    """Valid JSON object carrying every required field (extras allowed)."""
+    import json
+    try:
+        obj = json.loads(text[text.find("{"):text.rfind("}") + 1])
+    except Exception:
+        return False
+    return isinstance(obj, dict) and all(f in obj for f in fields)
 
 
 def score_case(text: str, case: dict) -> dict:
@@ -76,15 +123,17 @@ def score_case(text: str, case: dict) -> dict:
         passed = any(e in text for e in case["expect"])
     elif check == "json_valid":
         passed = _json_valid(text)
+    elif check == "json_fields":
+        passed = _json_fields(text, case["expect"])
     else:
         passed = False
     return {"id": case["id"], "capability": case["capability"],
             "passed": passed, "method": check}
 
 
-def score_all(responses: dict[str, str]) -> dict:
+def score_all(responses: dict[str, str], cases: list[dict] | None = None) -> dict:
     """responses: case id → model output. Returns per-case + aggregate."""
-    by_id = {c["id"]: c for c in CASES}
+    by_id = {c["id"]: c for c in (cases if cases is not None else CASES)}
     results = []
     for case_id, text in responses.items():
         case = by_id.get(case_id)

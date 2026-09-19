@@ -36,6 +36,11 @@ class QwenProvider:
             kwargs["temperature"] = spec.temperature
         if spec.max_tokens is not None:
             kwargs["max_tokens"] = spec.max_tokens
+        if spec.thinking is not None:
+            # DashScope thinking switch. Live-verified: with thinking on, max_tokens
+            # does NOT cap billable completion (max_tokens=64 still billed 105–452
+            # completion tokens); with it off the output is bounded (15–21 tokens).
+            kwargs["extra_body"] = {"enable_thinking": bool(spec.thinking)}
         try:
             response = self._client.chat.completions.create(
                 model=spec.model or self.model,

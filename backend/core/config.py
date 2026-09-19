@@ -5,7 +5,8 @@ All scientific work is delegated to the Scientific Runtime Service over localhos
 """
 import os
 
-# frozen scientific runtime release the Product Backend targets (engineering patch P1)
+# frozen scientific runtime release the Product Backend targets (engineering patch P1).
+# Unchanged by S1: the sprint added HTTP capabilities, not scientific behaviour.
 SCIENTIFIC_RUNTIME_RELEASE_ID = "zhixue-runtime-v1-phase1gr-p1"
 
 

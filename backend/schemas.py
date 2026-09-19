@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class UserCreate(BaseModel):
@@ -672,6 +672,24 @@ class ExamStudyPlanChapterPracticeUpdate(BaseModel):
 
 
 class ExamStudyPlanTaskCreate(BaseModel):
+    """An Exam/CS408 study-plan task as the learner authors it.
+
+    A task carries NO writable status. `computed_status` is derived on every read from the
+    learner's factual knowledge and practice state (see `_compute_task_completion`), so
+    "completed" is earned by learning or practising, never asserted here.
+
+    `extra="forbid"` is deliberate and load-bearing: without it a body containing
+    `{"status": "completed"}` was silently accepted, returned 200, and changed nothing —
+    the worst possible answer to a field the caller clearly cared about. It is now a loud
+    422 naming the field. Completing a task means performing the factual action for its
+    type: practising its questions (`chapter_practice`), clearing its review-due leaves
+    (`review`), or marking its knowledge points learned (`knowledge`). `/learning/tasks`
+    is a different system (course_learning / programming) whose completion DOES write
+    mastery, and it must not be used for the CS408 plan.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
     username: str
     subject_key: str
     title: str
@@ -683,6 +701,10 @@ class ExamStudyPlanTaskCreate(BaseModel):
 
 
 class ExamStudyPlanTaskUpdate(BaseModel):
+    """Editable task fields. Status is not one of them — see `ExamStudyPlanTaskCreate`."""
+
+    model_config = ConfigDict(extra="forbid")
+
     username: str
     subject_key: str
     title: str | None = None

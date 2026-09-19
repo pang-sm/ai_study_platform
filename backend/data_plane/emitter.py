@@ -10,6 +10,8 @@ import time
 
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
+from core import timeutil
+
 from . import identity, snapshots
 from .models import LearningEvent
 
@@ -32,7 +34,7 @@ def build_course_practice_events(attempt, item, answer, correct, user) -> list:
     """
     import json as _json
     qids = _json.loads(attempt.question_ids_json or "[]")
-    occurred = (attempt.submitted_at.timestamp() if getattr(attempt, "submitted_at", None) else time.time())
+    occurred = timeutil.to_epoch_or_now(getattr(attempt, "submitted_at", None))
     events = []
     for idx, qid in enumerate(qids):
         qid_str = str(qid)

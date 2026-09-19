@@ -9,3 +9,11 @@ import { env } from '@/lib/env';
 // All API access must go through this typed client — never fetch('/api/...') in
 // components, and never hand-write backend DTO interfaces.
 export const apiClient = createClient<paths>({ baseUrl: env.apiBaseUrl, credentials: 'include' });
+
+/** Resolves a backend-normalized public resource without losing an API base pathname. */
+export function resolveApiResourceUrl(resourceUrl: string, apiBaseUrl = env.apiBaseUrl) {
+  const base = new URL(apiBaseUrl);
+  const basePath = base.pathname.replace(/\/$/, '');
+  const resourcePath = resourceUrl.startsWith('/') ? resourceUrl : `/${resourceUrl}`;
+  return new URL(`${basePath}${resourcePath}`, base.origin).toString();
+}

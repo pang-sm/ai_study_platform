@@ -17,6 +17,12 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
+# ... and the repository root, so revision modules can import ``migrations.guards``
+# without depending on the caller's working directory.
+REPO_DIR = Path(__file__).resolve().parents[1]
+if str(REPO_DIR) not in sys.path:
+    sys.path.insert(0, str(REPO_DIR))
+
 # Register all models on Base.metadata (including data_plane LearningEvent/Model* tables).
 from database import Base, DATABASE_URL  # noqa: E402
 import data_plane.models  # noqa: E402,F401  — registers Data Plane tables

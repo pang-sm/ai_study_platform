@@ -2,6 +2,7 @@
 import threading
 
 from ai.orchestrator import AIOrchestrator
+from core.learning_context import LearningContext, ServiceNamespace
 from ai.providers import FakeProvider
 from models import User
 from usage import service
@@ -155,3 +156,28 @@ def test_all_capabilities_have_a_qualified_model_somewhere():
     for cap in ALL_CAPABILITIES:
         covered = any(cap in e.capabilities for e in QUALIFIED_POOL)
         assert covered, f"capability {cap} has no qualified model"
+
+def test_course_context_is_persisted_and_reused_for_ai_called(db_session, monkeypatch):
+    """A Course AI request and its canonical event share one durable context snapshot."""
+    u = _make_user(db_session, "orch-course-context")
+    emitted = []
+    monkeypatch.setattr("learning.records.producers.emit_ai_called",
+                        lambda **kwargs: emitted.append(kwargs) or {"ok": True})
+    context = LearningContext(
+        user_id=u.id,
+        service_namespace=ServiceNamespace.COURSE_LEARNING,
+        course_id="data_structure",
+        chapter_id="1",
+        material_ids=["7"],
+    )
+    result = _orch("success").execute(
+        db_session, u.id, "tutor.chat", _messages(), learning_context=context)
+    assert result.ok is True
+    req = db_session.query(AIRequest).filter(AIRequest.request_id == result.request_id).one()
+    assert req.service_namespace == "course_learning"
+    assert req.context_json == context.to_dict()
+    assert emitted[0]["learning_context"] == context
+    ledger_rows = db_session.query(UsageLedger).filter(
+        UsageLedger.request_id == result.request_id).all()
+    assert ledger_rows
+    assert {row.service_namespace for row in ledger_rows} == {"course_learning"}

@@ -68,6 +68,15 @@ def test_advanced_allowed_report():
     assert check_capability_permission("advanced", "report.generate")["allowed"] is True
 
 
+def test_knowledge_structure_is_standard_and_advanced_only():
+    free = check_capability_permission("free", "knowledge.structure")
+    standard = check_capability_permission("standard", "knowledge.structure")
+    advanced = check_capability_permission("advanced", "knowledge.structure")
+    assert free["allowed"] is False and free["reason"] == "tier_not_permitted"
+    assert standard["allowed"] is True
+    assert advanced["allowed"] is True
+
+
 def test_unknown_capability_fails_closed():
     r = check_capability_permission("advanced", "bogus.cap")
     assert r["allowed"] is False and r["reason"] == "unknown_capability"

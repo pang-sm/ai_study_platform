@@ -412,6 +412,7 @@ jobs:
           # ── Persistent database outside git worktree ──
           sudo mkdir -p /var/lib/ai_study_platform
           DATA_DB=/var/lib/ai_study_platform/app.db
+          CATALOG_BACKUP=""
           if [ -f backend/app.db ] && [ ! -f "$DATA_DB" ]; then
             echo "[deploy] 首次部署：迁移本地 app.db 到持久目录"
             cp backend/app.db "$DATA_DB"
@@ -462,6 +463,57 @@ jobs:
             echo "[deploy] Persistent database integrity_check: ok"
           fi
           echo "[deploy] Persistent DB at $DATA_DB"
+
+          # ── ACCEL_SPRINT_S6 PART A: migrate BEFORE the application starts ──
+          # The application refuses to start on a database that is behind HEAD
+          # (backend/core/schema_preflight.py), and SQLAlchemy's create_all can never
+          # repair one: it does not add columns to a table that already exists. So the
+          # migration is not optional and cannot be deferred past the restart below.
+          # The writers are already stopped, and a verified backup exists above; if the
+          # migration fails, the application is NOT started and the operator restores
+          # from that backup.
+          if [ -n "${CATALOG_BACKUP:-}" ]; then
+            test -s "$CATALOG_BACKUP" || {
+              echo "[deploy] ERROR: refusing to migrate without a non-empty backup"
+              exit 1
+            }
+            echo "[deploy] Migration proceeds under backup: $CATALOG_BACKUP"
+          else
+            echo "[deploy] No existing database to back up; the migration starts a new one"
+          fi
+
+          cd "$REPO_ROOT"
+          MIGRATION_LOG="$REPO_ROOT/backend/backups/migration.$(date +%Y%m%d_%H%M%S).log"
+          mkdir -p "$(dirname "$MIGRATION_LOG")"
+          echo "=== alembic upgrade head ==="
+          set +e
+          DATABASE_URL="sqlite:///$DATA_DB" "$PYTHON_BIN" -m alembic -c alembic.ini \
+            upgrade head 2>&1 | tee "$MIGRATION_LOG"
+          MIGRATION_RC="${PIPESTATUS[0]}"
+          set -e
+          if [ "$MIGRATION_RC" -ne 0 ]; then
+            echo "[deploy] ERROR: alembic upgrade head failed (rc=$MIGRATION_RC)"
+            echo "[deploy] The application has NOT been started."
+            echo "[deploy] Migration log: $MIGRATION_LOG"
+            echo "[deploy] Restore from the verified pre-migration backup before retrying:"
+            echo "[deploy]   ${CATALOG_BACKUP:-<no backup was taken — the database did not exist>}"
+            exit 1
+          fi
+          echo "[deploy] Migration log: $MIGRATION_LOG"
+
+          # An Alembic exit code is not evidence that the schema the APPLICATION needs is
+          # present — it is evidence that the revision chain ran. The preflight re-reads
+          # the database and answers the deployment's actual question.
+          echo "=== Verifying schema revision after migration ==="
+          if ! DATABASE_URL="sqlite:///$DATA_DB" "$PYTHON_BIN" scripts/deploy/check_schema.py; then
+            echo "[deploy] ERROR: schema check failed after migration; not starting app"
+            exit 1
+          fi
+          if ! sudo sqlite3 "$DATA_DB" 'PRAGMA integrity_check;' | grep -qx 'ok'; then
+            echo "[deploy] ERROR: integrity_check failed after migration; not starting app"
+            exit 1
+          fi
+          echo "[deploy] Post-migration integrity_check: ok"
 
           # ── Configure persistent database for systemd service ──
           sudo mkdir -p /etc/systemd/system/ai-backend.service.d

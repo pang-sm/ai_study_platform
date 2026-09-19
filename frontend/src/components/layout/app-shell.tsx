@@ -12,10 +12,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             <img src="/brand/zhixue-v2/04_智学平台_图标标识_Icon_Only_transparent.png" alt="智学平台" className="size-9 object-contain sm:hidden" />
           </Link>
           <div className="ml-4 hidden border-l border-lab-paper/35 pl-4 text-[10px] leading-[1.35] tracking-[0.08em] text-lab-paper-muted lg:block" aria-label="品牌宣言">
-            <span className="block">更好的学习</span><span className="block">从这里开始</span><span className="mt-1 block text-[7px] tracking-[0.14em] text-lab-paper/60">A BRIGHTER YOU TOMORROW</span>
+            <span className="block">更好的学习</span><span className="block">从这里开始</span>
           </div>
           <nav className="ml-8 hidden items-center gap-7 text-body !text-lab-paper-muted md:flex lg:ml-10" aria-label="主导航">
-            <a href="#learning-worlds" className="!text-lab-paper-muted transition-colors hover:!text-lab-paper">探索学习</a>
+            <Link to="/exam" className="!text-lab-paper-muted transition-colors hover:!text-lab-paper" activeProps={{ 'aria-current': 'page' }}>考研学习</Link>
             <Link to="/" className="font-medium !text-lab-paper" activeProps={{ 'aria-current': 'page' }}>首页</Link>
           </nav>
           <div className="ml-auto flex items-center gap-2">

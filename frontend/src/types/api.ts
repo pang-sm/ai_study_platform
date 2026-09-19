@@ -140,6 +140,706 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/subscription": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Subscription */
+        get: operations["get_subscription_subscription_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subscription/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Subscription Plans */
+        get: operations["get_subscription_plans_subscription_plans_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subscription/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Subscription Order
+         * @description Create a PENDING order. Subscription is NOT activated here.
+         */
+        post: operations["create_subscription_order_subscription_orders_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subscription/orders/{order_id}/pay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pay Subscription Order
+         * @description Local/test mock payment. Verified success activates the unified subscription.
+         *
+         *     Explicit test-only: mock payment is not available in production mode.
+         */
+        post: operations["pay_subscription_order_subscription_orders__order_id__pay_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subscription/redeem/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Redeem
+         * @description Preview a REAL redemption code, mapped to a unified tier.
+         */
+        post: operations["preview_redeem_subscription_redeem_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subscription/redeem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Redeem
+         * @description Redeem a REAL redemption code (atomic consume) → activate unified subscription.
+         */
+        post: operations["redeem_subscription_redeem_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/usage/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Usage Summary */
+        get: operations["get_usage_summary_usage_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Ai Models */
+        get: operations["list_ai_models_ai_models_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/practice/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Sessions */
+        get: operations["list_sessions_practice_sessions_get"];
+        put?: never;
+        /** Create Session */
+        post: operations["create_session_practice_sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/practice/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Session */
+        get: operations["get_session_practice_sessions__session_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/practice/sessions/{session_id}/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Session Summary */
+        get: operations["session_summary_practice_sessions__session_id__summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/practice/sessions/{session_id}/attempts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Session Attempts */
+        get: operations["list_session_attempts_practice_sessions__session_id__attempts_get"];
+        put?: never;
+        /** Record Attempt */
+        post: operations["record_attempt_practice_sessions__session_id__attempts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/practice/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Practice History */
+        get: operations["practice_history_practice_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/practice/sessions/{session_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Complete Session */
+        post: operations["complete_session_practice_sessions__session_id__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/practice/sessions/{session_id}/abandon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Abandon Session */
+        post: operations["abandon_session_practice_sessions__session_id__abandon_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wrong-answers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Wrong Answers */
+        get: operations["list_wrong_answers_wrong_answers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wrong-answers/{state_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Wrong Answer */
+        get: operations["get_wrong_answer_wrong_answers__state_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Wrong Answer */
+        patch: operations["update_wrong_answer_wrong_answers__state_id__patch"];
+        trace?: never;
+    };
+    "/learning-records/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Records Summary */
+        get: operations["records_summary_learning_records_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/learning-records/taxonomy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Records Taxonomy
+         * @description The frozen event taxonomy + ownership registry (read-only reference).
+         */
+        get: operations["records_taxonomy_learning_records_taxonomy_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/learning-records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Records */
+        get: operations["list_records_learning_records_get"];
+        put?: never;
+        /** Create Learning Record */
+        post: operations["create_learning_record_learning_records_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/learning-records/{event_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Record */
+        get: operations["get_record_learning_records__event_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam/prep/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Exam Prep Profile */
+        get: operations["get_exam_prep_profile_exam_prep_profile_get"];
+        /** Put Exam Prep Profile */
+        put: operations["put_exam_prep_profile_exam_prep_profile_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam/prep/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Exam Prep Catalog */
+        get: operations["get_exam_prep_catalog_exam_prep_catalog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam/prep/catalog/tracks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Exam Prep Tracks */
+        get: operations["get_exam_prep_tracks_exam_prep_catalog_tracks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam/prep/catalog/subjects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Exam Prep Subjects */
+        get: operations["get_exam_prep_subjects_exam_prep_catalog_subjects_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam/prep/subjects/{subject_id}/content-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Subject Content Status
+         * @description The ONE honest answer to "can I study this subject yet?".
+         *
+         *     An ACTIVE subject answers with its module list (metadata only — the questions and the
+         *     knowledge tree live behind the subject's own routes). A framework-only subject answers
+         *     with an explicit ``EXAM_CONTENT_NOT_AVAILABLE`` and 409, never an empty success.
+         */
+        get: operations["get_subject_content_status_exam_prep_subjects__subject_id__content_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam/prep/records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Exam Study Records
+         * @description Newest-first page of the caller's exam-space study history.
+         *
+         *     Audit-only facts (AI accounting) are never part of this timeline. Wrong answers are
+         *     honestly derivable by the client from ``question_answered`` records with
+         *     ``summary.correct == false`` — there is no synthetic wrong-answer event.
+         */
+        get: operations["list_exam_study_records_exam_prep_records_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam/prep/scientific/student-twin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Student Twin Preview
+         * @description The caller's CS408 learning-state EXPERIMENT view (PART C).
+         *
+         *     Student Twin is a deterministic rule-based state engine written in Python — NOT a
+         *     neural network, NOT an AI prediction model, and its output is NOT a mastery score. It
+         *     replays the caller's REAL practice facts and returns the resulting state.
+         *
+         *     PREVIEW ONLY: this writes nothing. Knowledge status, mastery, wrong-answer state, plan
+         *     status and grades are untouched, and the result controls no product decision. If the
+         *     Scientific Runtime is unavailable the response is an explicit bounded ``UNAVAILABLE``
+         *     state — the rest of the platform is unaffected.
+         */
+        get: operations["get_student_twin_preview_exam_prep_scientific_student_twin_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam/prep/scientific/learner-state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Learner State Gate
+         * @description The caller's learner_state capability report. PRODUCES NO NUMBER, by design.
+         *
+         *     learner_state is a real trained knowledge-tracing model that outputs the probability
+         *     the learner's NEXT response is correct. The product cannot honestly feed it: the model
+         *     reads an index in its own ontology (ASSISTments 123 skills / Junyi 835 concepts) and
+         *     the product has CS408 knowledge points with no mapping between them, so any index
+         *     would be invented. This endpoint states that gate and the real evidence that exists
+         *     rather than fabricating the missing input.
+         *
+         *     READ-ONLY: writes nothing, changes no knowledge status, wrong state, plan or grade,
+         *     and controls no product decision.
+         */
+        get: operations["get_learner_state_gate_exam_prep_scientific_learner_state_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam/prep/scientific/evidence-reliability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Evidence Reliability Gate
+         * @description The caller's evidence_reliability capability report. PRODUCES NO WEIGHT, by design.
+         *
+         *     evidence_reliability scores how much ONE observation should count in a
+         *     reliability-weighted learner-state update. Its output is a weight ``w in (0,1)`` — NOT
+         *     the probability the response is correct, NOT a confidence, NOT a judgement about the
+         *     learner.
+         *
+         *     The five checkpoints are real and executable, but the product cannot honestly build
+         *     their input: it persists no hint signal, does not guarantee a response time or an
+         *     attempt count, and has no mapping from CS408 knowledge points to the scientific skill
+         *     ontology that ``log_opp`` and ``b_s`` are indexed by. The IRT ``b_map`` and the
+         *     training-set standardization statistics are not bundled either, and the dynamic feature
+         *     ``p_t`` is the component's own running prediction. This endpoint states that gate and
+         *     the real evidence that exists rather than inventing any of it.
+         *
+         *     READ-ONLY: writes nothing, changes no knowledge status, wrong state, plan or grade,
+         *     and controls no product decision.
+         */
+        get: operations["get_evidence_reliability_gate_exam_prep_scientific_evidence_reliability_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam/prep/scientific/kt-dataset-audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Kt Dataset Audit
+         * @description Whether a CS408-NATIVE knowledge-tracing model could be trained from real facts yet.
+         *
+         *     This is the dataset contract's health, not the dataset. It reports how many ordered
+         *     interactions the product actually holds under a STABLE NATIVE CONCEPT identity, at
+         *     which concept level, and what was excluded and why — because "the export is thin" and
+         *     "the export silently dropped half the facts" look identical from a row count.
+         *
+         *     It trains nothing and predicts nothing: no model exists behind this endpoint, and none
+         *     is claimed. The full export is an offline path (``science.kt_dataset.build``) that
+         *     carries rows; this surface deliberately does not, so no learner data leaves through it.
+         *
+         *     READ-ONLY: writes nothing, changes no learner fact, grade, plan or knowledge status.
+         */
+        get: operations["get_kt_dataset_audit_exam_prep_scientific_kt_dataset_audit_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam/prep/scientific/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Scientific Capabilities
+         * @description Which scientific capabilities this product can actually use, and their authority.
+         *
+         *     This reports PRODUCT-FACING readiness, not the existence of a runtime endpoint: a
+         *     component is ``available`` only when the product can produce its output from real
+         *     facts it holds. Every entry states its mode, whether the learner may be shown it,
+         *     whether it may control a product decision or write a learner fact, and the stable
+         *     reason codes for any blocker.
+         *
+         *     It calls no runtime and exposes no filesystem path or internal stack trace. Read-only
+         *     and deterministic for a given build.
+         */
+        get: operations["get_scientific_capabilities_exam_prep_scientific_capabilities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/science/misconception-advisory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Misconception Advisory
+         * @description Candidate misconceptions for one wrong-answer record — ADVISORY, SHADOW today.
+         *
+         *     The learner explicitly asks for this; nothing is computed in the background. The
+         *     response exposes a SIMILARITY, never a probability or a diagnosis, and it changes no
+         *     learner fact. ``metadata.mode`` is SHADOW_NOT_USER_VISIBLE while the ontology question
+         *     is unresolved, so the candidates are computed for validation and must not be presented
+         *     as a diagnosis.
+         */
+        post: operations["request_misconception_advisory_science_misconception_advisory_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/science/tutor-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Tutor Policy Shadow
+         * @description The SHADOW hook's current answer.
+         *
+         *     It reports the exact blocker rather than fabricating a turn state, and
+         *     ``controls_response`` is always false: a suggested action never changes the tutor's
+         *     reply.
+         */
+        get: operations["get_tutor_policy_shadow_science_tutor_policy_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/home/summary": {
         parameters: {
             query?: never;
@@ -1135,24 +1835,6 @@ export interface paths {
         post?: never;
         /** Delete Material */
         delete: operations["delete_material_materials__material_id__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/learning-records": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Learning Records */
-        get: operations["get_learning_records_learning_records_get"];
-        put?: never;
-        /** Create Learning Record */
-        post: operations["create_learning_record_learning_records_post"];
-        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -2238,7 +2920,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Exam Study Plan Tasks Summary */
+        /**
+         * Get Exam Study Plan Tasks Summary
+         * @description Aggregate incomplete study-plan tasks across the four 11408 subjects,
+         *     ordered by urgency, for the 11408 home page. Top 4 are returned.
+         */
         get: operations["get_exam_study_plan_tasks_summary_exam_11408_study_plan_tasks_summary_get"];
         put?: never;
         post?: never;
@@ -2347,7 +3033,11 @@ export interface paths {
         };
         /**
          * Serve Past Paper Image
-         * @description Serve past paper question images from exam_resources assets.
+         * @description Serve one past-paper figure — the ONE resource route the frontend uses.
+         *
+         *     Resolution is confined to the curated asset roots (see `exam_past_paper.resolve_resource_file`)
+         *     and the filename is validated, so a traversal attempt is rejected rather than resolved. Only a
+         *     figure is served: these carry question diagrams, never answers.
          */
         get: operations["serve_past_paper_image_exam_11408_past_paper_images__subject_key___year___filename__get"];
         put?: never;
@@ -2365,7 +3055,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Exam Past Papers */
+        /**
+         * Get Exam Past Papers
+         * @description Paper index: one source-normalized entry per paper that actually has real questions.
+         *
+         *     Availability is factual — a year appears only when a source can actually serve it.
+         */
         get: operations["get_exam_past_papers_exam_11408__subject_key__past_papers_get"];
         put?: never;
         post?: never;
@@ -2399,7 +3094,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Past Paper Questions */
+        /**
+         * Get Past Paper Questions
+         * @description Pre-submit question list, normalized over whichever source owns the paper.
+         *
+         *     Requires a session: the payload is question content for a learner's own practice, and BC6 no
+         *     longer serves answer-bearing material anonymously. The response model carries no
+         *     `standard_answer` and no `analysis`, so neither source can leak through it.
+         */
         get: operations["get_past_paper_questions_exam_11408__subject_key__past_paper_questions_get"];
         put?: never;
         post?: never;
@@ -2433,7 +3135,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Past Paper Attempt */
+        /**
+         * Get Past Paper Attempt
+         * @description Attempt detail.
+         *
+         *     While `in_progress` this is a pre-submit payload: the questions carry no `standard_answer`, no
+         *     `analysis` and no grading state. Once `submitted` the same question payload is served and the
+         *     authoritative per-question `results` are REPLAYED from what submit persisted — this endpoint
+         *     never grades and never re-compares an answer.
+         */
         get: operations["get_past_paper_attempt_exam_11408__subject_key__past_paper_attempts__attempt_id__get"];
         put?: never;
         post?: never;
@@ -2452,7 +3162,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Save Attempt Answers */
+        /**
+         * Save Attempt Answers
+         * @description Save draft answers, keyed by the public question number.
+         */
         post: operations["save_attempt_answers_exam_11408__subject_key__past_paper_attempts__attempt_id__answers_post"];
         delete?: never;
         options?: never;
@@ -2940,6 +3653,9 @@ export interface paths {
         /**
          * Generate Question Analysis
          * @description Generate on-demand AI analysis for a question. Not persisted.
+         *
+         *     STEP 7C: routed through the AI Orchestrator (permission → router → estimate →
+         *     reserve → gateway → cost → settle); no direct provider HTTP.
          */
         post: operations["generate_question_analysis_exam_11408__subject_key__question_analysis_post"];
         delete?: never;
@@ -5393,6 +6109,63 @@ export interface components {
             /** Questions */
             questions: unknown[];
         };
+        /** AttemptCreate */
+        AttemptCreate: {
+            /** Question Source Type */
+            question_source_type: string;
+            /** Question Source Id */
+            question_source_id: string;
+            /** Answer */
+            answer?: string | null;
+            /** Correct */
+            correct?: boolean | null;
+            /** Score */
+            score?: number | null;
+            /** Max Score */
+            max_score?: number | null;
+            /** Result */
+            result?: {
+                [key: string]: unknown;
+            } | null;
+            /** Submitted At */
+            submitted_at?: string | null;
+            /** Response Time Ms */
+            response_time_ms?: number | null;
+            /** Attempt No */
+            attempt_no?: number | null;
+            telemetry?: components["schemas"]["AttemptTelemetryPayload"] | null;
+            /** Question Context */
+            question_context?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /**
+         * AttemptTelemetryPayload
+         * @description ACCEL_SPRINT_S5: the caller's factual per-attempt observations, with provenance.
+         *
+         *     ``duration_source`` is required whenever a duration is supplied — a number without a
+         *     measured boundary is refused rather than stored. ``hint_source`` defaults to the value
+         *     that matches every CS408 surface today (there is no hint mechanism), and a count may
+         *     only accompany ``COUNTED``.
+         */
+        AttemptTelemetryPayload: {
+            /** Duration Ms */
+            duration_ms?: number | null;
+            /**
+             * Duration Source
+             * @default UNAVAILABLE
+             */
+            duration_source: string;
+            /** Hint Count */
+            hint_count?: number | null;
+            /**
+             * Hint Source
+             * @default NO_HINT_MECHANISM
+             */
+            hint_source: string;
+            /** Attempt Index */
+            attempt_index?: number | null;
+        };
         /** Body_create_practice_import_job_practice_import_paper_jobs_post */
         Body_create_practice_import_job_practice_import_paper_jobs_post: {
             /**
@@ -6222,6 +6995,826 @@ export interface components {
             /** Email */
             email: string;
         };
+        /**
+         * EvidenceReliabilityPreviewResponse
+         * @description A GATED capability report: the exact reason no reliability weight exists.
+         *
+         *     ``reliability_weight`` is typed nullable and is null in every response this mode can
+         *     produce — there is no honest input to compute it from. The field is named after the
+         *     component's real output (never a bare ``score``, never ``probability``, never
+         *     ``confidence``), so the contract itself cannot be misread as a correctness estimate.
+         */
+        EvidenceReliabilityPreviewResponse: {
+            metadata: components["schemas"]["ScientificAuthority"];
+            /** Score Semantics */
+            score_semantics: string;
+            /**
+             * Reliability Weight
+             * @description reliability weight w in (0,1). Null while the mode is SHADOW_NOT_USER_VISIBLE. NOT a probability of correctness.
+             */
+            reliability_weight?: number | null;
+            model_requirement: components["schemas"]["EvidenceReliabilityRequirement"];
+            scaler_gate: components["schemas"]["ScalerGate"];
+            evidence_window: components["schemas"]["LearnerStateEvidenceWindow"];
+            /** Runtime Reachable */
+            runtime_reachable?: boolean | null;
+            /** Runtime Provenance */
+            runtime_provenance: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * EvidenceReliabilityRequirement
+         * @description What the RELIABILITY PANEL needs as INPUT. A requirement, never a claim of execution.
+         *
+         *     ``variants`` maps each frozen checkpoint to its own input dimension; the five are
+         *     feature ablations and are not interchangeable.
+         */
+        EvidenceReliabilityRequirement: {
+            /** Component */
+            component: string;
+            /** Scientific Source Class */
+            scientific_source_class: string;
+            /** Scientific Source Commit */
+            scientific_source_commit: string;
+            /**
+             * Variants
+             * @description variant id -> that checkpoint's input feature dimension
+             */
+            variants: {
+                [key: string]: number;
+            };
+            /**
+             * Variant Mode
+             * @description PANEL — never averaged, voted, or auto-selected
+             */
+            variant_mode: string;
+            /** Active Product Variant */
+            active_product_variant?: string | null;
+            /** Replacement Readiness */
+            replacement_readiness: string;
+            /** Required Input */
+            required_input: string[];
+            /** Available Product Input */
+            available_product_input: string[];
+            /** Missing Input */
+            missing_input: string[];
+            /**
+             * Feature Vector
+             * @description the 8-wide vector in position order: 7 static features then the dynamic p_t, concatenated last
+             */
+            feature_vector: string[];
+            /**
+             * Feature Schema
+             * @description per position: name, block, dtype, semantics, raw unit, transform, and the source expression it was read from
+             */
+            feature_schema: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Feature Availability
+             * @description per position: AVAILABLE_NOW | CAN_BE_COLLECTED_FACTUALLY | NOT_AVAILABLE | SEMANTICALLY_INCOMPATIBLE, with the product source and the reason
+             */
+            feature_availability: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Product Feature Compatibility
+             * @description COMPATIBLE only when every required feature is honestly constructible
+             */
+            product_feature_compatibility: string;
+            /** Incompatible Features */
+            incompatible_features: string[];
+            /**
+             * Standardization
+             * @description which features are z-scored, the formula, and the fact that the training mean/std are not bundled
+             */
+            standardization: {
+                [key: string]: unknown;
+            };
+            /** Missing Value Policy */
+            missing_value_policy: {
+                [key: string]: unknown;
+            };
+            /**
+             * Training Pipeline
+             * @description dataset, cohort filter, split, sequence grouping and how alpha was chosen — transcribed from the frozen source
+             */
+            training_pipeline: {
+                [key: string]: unknown;
+            };
+            /**
+             * Source Sha256
+             * @description sha256 of the exact source bytes each transcription was read from
+             */
+            source_sha256: {
+                [key: string]: unknown;
+            };
+            /** Score Semantics */
+            score_semantics: string;
+            /**
+             * Scientific Threshold
+             * @description null — no calibration/validity threshold was established
+             */
+            scientific_threshold?: number | null;
+            /**
+             * User Facing Label Zh
+             * @description the only permitted user-facing framing for this semantic; NOT surfaced while the mode is SHADOW_NOT_USER_VISIBLE
+             */
+            user_facing_label_zh: string;
+            /** User Facing Label Note */
+            user_facing_label_note: string;
+        };
+        /**
+         * ExamBigPracticeResult
+         * @description Big question: not auto-graded. The learner compares against the reference answer.
+         */
+        ExamBigPracticeResult: {
+            /** Question Id */
+            question_id: number;
+            /** Correct */
+            correct: null;
+            /**
+             * Judge
+             * @constant
+             */
+            judge: "self_review";
+            /** Standard Answer */
+            standard_answer: string;
+            /** User Answer */
+            user_answer: string;
+            /** Stem */
+            stem: string;
+            /** Options */
+            options: {
+                [key: string]: string;
+            };
+            /** Analysis */
+            analysis: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            question_type: "big";
+            /** Hint */
+            hint: string;
+        };
+        /** ExamCatalogSubjectsResponse */
+        ExamCatalogSubjectsResponse: {
+            /** Catalog Version */
+            catalog_version: string;
+            /** Subjects */
+            subjects: components["schemas"]["ExamSubjectSummary"][];
+        };
+        /** ExamCatalogTracksResponse */
+        ExamCatalogTracksResponse: {
+            /** Catalog Version */
+            catalog_version: string;
+            /** Tracks */
+            tracks: components["schemas"]["ExamTrackSummary"][];
+        };
+        /** ExamChapterPracticeOutlineResponse */
+        ExamChapterPracticeOutlineResponse: {
+            /** Subject Key */
+            subject_key: string;
+            /** Knowledge Points */
+            knowledge_points: {
+                [key: string]: number;
+            };
+            /** Total */
+            total: number;
+            /** Chapters */
+            chapters: components["schemas"]["ExamPracticeChapter"][];
+        };
+        /**
+         * ExamChapterPracticeQuestionsResponse
+         * @description Pre-submit chapter question list. `debug_info` is emitted only when the result is empty.
+         */
+        ExamChapterPracticeQuestionsResponse: {
+            /** Items */
+            items: components["schemas"]["ExamPracticeQuestion"][];
+            /** Total */
+            total: number;
+            /** Debug Info */
+            debug_info?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /**
+         * ExamChoicePracticeResult
+         * @description Deterministic server-side choice grading result — no provider call is involved.
+         *
+         *     ``correct`` is tri-state. It is a real bool for an ANSWERED question and ``null`` for
+         *     one submitted blank: an unanswered question has no verdict (未作答 != 答错), so the
+         *     grader states "not answered" rather than inventing a failure. It is null for exactly
+         *     the same reason ``ExamBigPracticeResult.correct`` is — no authoritative judgement was
+         *     applied. A blank is not a wrong answer, is counted in neither tally, and never enters
+         *     the wrong book.
+         */
+        ExamChoicePracticeResult: {
+            /** Question Id */
+            question_id: number;
+            /** Correct */
+            correct: boolean | null;
+            /** Standard Answer */
+            standard_answer: string;
+            /** User Answer */
+            user_answer: string;
+            /** Stem */
+            stem: string;
+            /** Options */
+            options: {
+                [key: string]: string;
+            };
+            /** Analysis */
+            analysis: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            question_type: "choice";
+        };
+        /**
+         * ExamContentStatusResponse
+         * @description The 200 body of the availability gate — an ACTIVE subject with its module list.
+         *
+         *     A framework-only subject never reaches this model: it answers 409 with
+         *     ``EXAM_CONTENT_NOT_AVAILABLE`` instead. ``display_name`` is intentionally absent
+         *     because the handler does not return it.
+         */
+        ExamContentStatusResponse: {
+            /** Subject Id */
+            subject_id: string;
+            /**
+             * Availability
+             * @enum {string}
+             */
+            availability: "active" | "framework_only";
+            /** Has Questions */
+            has_questions: boolean;
+            /** Has Past Papers */
+            has_past_papers: boolean;
+            /** Has Knowledge Tree */
+            has_knowledge_tree: boolean;
+            /** Modules */
+            modules: components["schemas"]["ExamModuleSummary"][];
+        };
+        /**
+         * ExamDashboardCountQuota
+         * @description ai_chat / ai_question: counted in whole units, so every number is an int.
+         */
+        ExamDashboardCountQuota: {
+            /** Used */
+            used: number;
+            /** Limit */
+            limit: number;
+            /** Remaining */
+            remaining: number;
+            /** Unit */
+            unit: string;
+        };
+        /** ExamDashboardMaterials */
+        ExamDashboardMaterials: {
+            /** Lecture Notes */
+            lecture_notes: number;
+            /** Exercises */
+            exercises: number;
+            /** References */
+            references: number;
+            /** Code Examples */
+            code_examples: number;
+            /** Total Materials */
+            total_materials: number;
+        };
+        /** ExamDashboardOverview */
+        ExamDashboardOverview: {
+            /** Total Chapters */
+            total_chapters: number;
+            /** Total Knowledge Points */
+            total_knowledge_points: number;
+            /** Learned Percent */
+            learned_percent: number;
+            /** Study Minutes */
+            study_minutes: number;
+        };
+        /** ExamDashboardPlanTask */
+        ExamDashboardPlanTask: {
+            /** Id */
+            id: number;
+            /** Title */
+            title: string;
+            /** Knowledge Point Name */
+            knowledge_point_name: string;
+            /** Task Type */
+            task_type: string;
+            /**
+             * Computed Status
+             * @enum {string}
+             */
+            computed_status: "not_started" | "in_progress" | "completed";
+            /** Due Date */
+            due_date: string;
+        };
+        /** ExamDashboardQuota */
+        ExamDashboardQuota: {
+            ai_chat: components["schemas"]["ExamDashboardCountQuota"];
+            ai_question: components["schemas"]["ExamDashboardCountQuota"];
+            material_upload: components["schemas"]["ExamDashboardUploadQuota"];
+        };
+        /**
+         * ExamDashboardUploadQuota
+         * @description material_upload: measured in MB.
+         *
+         *     `used` is always a float (bytes / MB, rounded). `remaining` is normally a float too,
+         *     but `max(0, limit - used)` yields an *int* 0 once the user is over the cap, and the
+         *     two serialise differently ("0" vs "0.0"). The union records that real second shape
+         *     rather than coercing one into the other.
+         */
+        ExamDashboardUploadQuota: {
+            /** Used */
+            used: number;
+            /** Limit */
+            limit: number;
+            /** Remaining */
+            remaining: number;
+            /** Unit */
+            unit: string;
+        };
+        /**
+         * ExamKnowledgeItemUpdateResponse
+         * @description PATCH success envelope. `status` is the DISPLAY status, `stored_status` is the
+         *     value the canonical writer put in the row — they differ when a mastered point is
+         *     already due for review.
+         */
+        ExamKnowledgeItemUpdateResponse: {
+            /** Success */
+            success: boolean;
+            /** Knowledge Point Code */
+            knowledge_point_code: string;
+            /** Knowledge Point Title */
+            knowledge_point_title: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "not_started" | "learning" | "mastered" | "review_due";
+            /** Stored Status */
+            stored_status: string;
+        };
+        /**
+         * ExamKnowledgeProgressDetail
+         * @description `_serialize_map_progress` — the `progress` block attached to a node that has a row.
+         *
+         *     `stored_status` / `user_confirmed_status` are raw column values passed through a
+         *     `or` fallback, so they stay plain strings: a legacy Chinese or unknown status is
+         *     preserved verbatim and must not be narrowed to the display enum.
+         */
+        ExamKnowledgeProgressDetail: {
+            /** Id */
+            id: number;
+            /** Course Id */
+            course_id: string;
+            /** Knowledge Point Code */
+            knowledge_point_code: string;
+            /** Knowledge Point Title */
+            knowledge_point_title: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "not_started" | "learning" | "mastered" | "review_due";
+            /** Stored Status */
+            stored_status: string;
+            /** User Confirmed Status */
+            user_confirmed_status: string;
+            /** System Suggested Status */
+            system_suggested_status: string | null;
+            /** Ai Recommended Status */
+            ai_recommended_status: string | null;
+            /** Ai Assessment */
+            ai_assessment: string | null;
+            /** Learned At */
+            learned_at: string | null;
+            /** Review Due At */
+            review_due_at: string | null;
+            /** Review Interval Days */
+            review_interval_days: number;
+            /** Updated At */
+            updated_at: string | null;
+        };
+        /**
+         * ExamKnowledgeStatusCounts
+         * @description `_collect_leaf_statuses` always emits exactly these four counters.
+         */
+        ExamKnowledgeStatusCounts: {
+            /** Not Started */
+            not_started: number;
+            /** Learning */
+            learning: number;
+            /** Mastered */
+            mastered: number;
+            /** Review Due */
+            review_due: number;
+        };
+        /**
+         * ExamModuleSummary
+         * @description One teaching unit of a subject — ``catalog.ExamModuleDefinition``.
+         */
+        ExamModuleSummary: {
+            /** Id */
+            id: string;
+            /** Display Name */
+            display_name: string;
+        };
+        /** ExamPracticeAnswerSaveResponse */
+        ExamPracticeAnswerSaveResponse: {
+            /** Success */
+            success: boolean;
+        };
+        /** ExamPracticeAttemptCreateRequest */
+        ExamPracticeAttemptCreateRequest: {
+            /** Question Ids */
+            question_ids?: number[];
+            /** Username */
+            username?: string | null;
+            /** Knowledge Point Id */
+            knowledge_point_id?: string | null;
+            /** Knowledge Point Name */
+            knowledge_point_name?: string | null;
+            /** Knowledge Point Path */
+            knowledge_point_path?: string | null;
+        };
+        /** ExamPracticeAttemptCreateResponse */
+        ExamPracticeAttemptCreateResponse: {
+            /** Attempt Id */
+            attempt_id: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "in_progress" | "submitted";
+            /** Total Questions */
+            total_questions: number;
+        };
+        /**
+         * ExamPracticeAttemptDetailResponse
+         * @description Attempt detail: the question set plus the learner's saved answers.
+         *
+         *     `results` is the SUBMITTED-result replay: the authoritative per-question grading persisted by
+         *     submit, keyed by `question_id`, reusing the exact `ExamPracticeSubmitResult` union so the submit
+         *     response and the reloaded detail cannot drift apart. It is absent while the attempt is
+         *     `in_progress` (the response is served with `response_model_exclude_unset=True`), which is what
+         *     keeps the pre-submit payload free of the correct answer, the explanation and any grading result.
+         */
+        ExamPracticeAttemptDetailResponse: {
+            attempt: components["schemas"]["ExamPracticeAttemptSummary"];
+            /** Questions */
+            questions: components["schemas"]["ExamPracticeAttemptQuestion"][];
+            /** Saved Answers */
+            saved_answers: {
+                [key: string]: string;
+            };
+            /** Results */
+            results?: (components["schemas"]["ExamChoicePracticeResult"] | components["schemas"]["ExamBigPracticeResult"])[];
+        };
+        /**
+         * ExamPracticeAttemptQuestion
+         * @description A question inside an attempt attempt: pre-submit while `in_progress`, post-submit after.
+         *
+         *     `standard_answer` / `analysis` are genuinely conditional: the handler removes them from every
+         *     question while the attempt is `in_progress`. The response is served with
+         *     `response_model_exclude_unset=True`, so an absent key stays absent rather than becoming a
+         *     `null` that was never there.
+         */
+        ExamPracticeAttemptQuestion: {
+            /** Id */
+            id: number;
+            /** Subject Key */
+            subject_key: string;
+            /** Source Type */
+            source_type: string;
+            /** Visibility */
+            visibility: string;
+            /** Knowledge Point Id */
+            knowledge_point_id: string | null;
+            /** Knowledge Point Name */
+            knowledge_point_name: string | null;
+            /** Knowledge Point Path */
+            knowledge_point_path: string | null;
+            /** Knowledge Points */
+            knowledge_points: string[];
+            /** Chapter Id */
+            chapter_id: string;
+            /** Chapter Name */
+            chapter_name: string;
+            /** Year */
+            year: number | null;
+            /** Question Number */
+            question_number: number | null;
+            /**
+             * Question Type
+             * @enum {string}
+             */
+            question_type: "choice" | "big";
+            /** Stem */
+            stem: string;
+            /** Options */
+            options: {
+                [key: string]: string;
+            };
+            /** Difficulty */
+            difficulty: string | null;
+            /** Quality Status */
+            quality_status: string | null;
+            /** Created At */
+            created_at: string | null;
+            /** Standard Answer */
+            standard_answer?: string | null;
+            /** Analysis */
+            analysis?: string | null;
+        };
+        /** ExamPracticeAttemptSummary */
+        ExamPracticeAttemptSummary: {
+            /** Id */
+            id: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "in_progress" | "submitted";
+            /** Total Questions */
+            total_questions: number;
+            /** Knowledge Point Path */
+            knowledge_point_path: string | null;
+            /** Started At */
+            started_at: string | null;
+        };
+        /**
+         * ExamPracticeChapter
+         * @description One canonical chapter of a CS408 module.
+         *
+         *     `chapter_code` is URL-safe (digits), unique within the module, and matches `chapter.code` in
+         *     the module knowledge-map seed — the identity the knowledge workspace already exposes, so the
+         *     knowledge → practice deep link can carry it directly.
+         */
+        ExamPracticeChapter: {
+            /** Chapter Code */
+            chapter_code: string;
+            /** Chapter No */
+            chapter_no: number;
+            /** Chapter Title */
+            chapter_title: string;
+            /** Question Count */
+            question_count: number;
+        };
+        /**
+         * ExamPracticeQuestion
+         * @description A chapter-practice question as served BEFORE submission.
+         *
+         *     Deliberately carries no `standard_answer` and no `analysis`: those two keys are removed from the
+         *     question-list payload so the solution cannot be read off the network response. They become
+         *     available only through the submit response and the submitted attempt detail.
+         */
+        ExamPracticeQuestion: {
+            /** Id */
+            id: number;
+            /** Subject Key */
+            subject_key: string;
+            /** Source Type */
+            source_type: string;
+            /** Visibility */
+            visibility: string;
+            /** Knowledge Point Id */
+            knowledge_point_id: string | null;
+            /** Knowledge Point Name */
+            knowledge_point_name: string | null;
+            /** Knowledge Point Path */
+            knowledge_point_path: string | null;
+            /** Knowledge Points */
+            knowledge_points: string[];
+            /** Chapter Id */
+            chapter_id: string;
+            /** Chapter Name */
+            chapter_name: string;
+            /** Year */
+            year: number | null;
+            /** Question Number */
+            question_number: number | null;
+            /**
+             * Question Type
+             * @enum {string}
+             */
+            question_type: "choice" | "big";
+            /** Stem */
+            stem: string;
+            /** Options */
+            options: {
+                [key: string]: string;
+            };
+            /** Difficulty */
+            difficulty: string | null;
+            /** Quality Status */
+            quality_status: string | null;
+            /** Created At */
+            created_at: string | null;
+            /** Practiced */
+            practiced: boolean;
+        };
+        /** ExamPracticeSubmitResponse */
+        ExamPracticeSubmitResponse: {
+            /** Total Questions */
+            total_questions: number;
+            /** Choice Total */
+            choice_total: number;
+            /** Big Count */
+            big_count: number;
+            /** Correct Count */
+            correct_count: number;
+            /** Wrong Count */
+            wrong_count: number;
+            /** Accuracy */
+            accuracy: number;
+            /** Mistake Saved Count */
+            mistake_saved_count: number;
+            /** Results */
+            results: (components["schemas"]["ExamChoicePracticeResult"] | components["schemas"]["ExamBigPracticeResult"])[];
+        };
+        /**
+         * ExamPracticeWriteRequest
+         * @description Shared body of `answers` (save) and `submit`.
+         *
+         *     The server coerces each answer with `str(...)` before grading, and the only known producers
+         *     send option letters / free text, so the value side is closed to `str`.
+         */
+        ExamPracticeWriteRequest: {
+            /** Answers */
+            answers?: {
+                [key: string]: string;
+            };
+            /** Username */
+            username?: string | null;
+        };
+        /**
+         * ExamPrepCatalogResponse
+         * @description The whole Exam Prep taxonomy: tracks, subjects and which side of the gate each is on.
+         */
+        ExamPrepCatalogResponse: {
+            /** Catalog Version */
+            catalog_version: string;
+            /** Exam Type */
+            exam_type: string;
+            /** Tracks */
+            tracks: components["schemas"]["ExamTrackSummary"][];
+            /** Subjects */
+            subjects: components["schemas"]["ExamSubjectSummary"][];
+            /** Active Subject Ids */
+            active_subject_ids: string[];
+            /** Framework Only Subject Ids */
+            framework_only_subject_ids: string[];
+        };
+        /**
+         * ExamPrepProfileResponse
+         * @description ``_profile_payload`` — the learner's Exam Prep profile.
+         *
+         *     ``subjects`` carries each selected subject's own availability and capability flags, so
+         *     a client never has to guess which of them can actually be entered. An unconfigured
+         *     profile is NOT an error: every field is explicitly null/empty and ``configured`` says
+         *     which case it is.
+         */
+        ExamPrepProfileResponse: {
+            /** Configured */
+            configured: boolean;
+            /** Exam Type */
+            exam_type: string;
+            /** Selected Track */
+            selected_track: string | null;
+            /** Selected Subjects */
+            selected_subjects: string[];
+            /** Target Exam Year */
+            target_exam_year: number | null;
+            /** Subjects */
+            subjects: (components["schemas"]["ExamSubjectSummary"] | components["schemas"]["UnknownExamSubject"])[];
+        };
+        /** ExamPrepProfileUpsert */
+        ExamPrepProfileUpsert: {
+            /** Selected Track */
+            selected_track?: string | null;
+            /** Selected Subjects */
+            selected_subjects?: string[];
+            /** Target Exam Year */
+            target_exam_year?: number | null;
+        };
+        /**
+         * ExamQuestionAnalysisRequest
+         * @description Body of `POST /exam/11408/{subject_key}/question-analysis`.
+         *
+         *     This endpoint is STATELESS and answer-blind: it holds no `question_id`, reads no question
+         *     row, and resolves nothing from storage. Every field below — including `standard_answer` —
+         *     is caller-supplied prompt material, so nothing here is an authoritative server-side answer
+         *     and nothing here can disclose one. The caller (UI) is responsible for only sending
+         *     answer context after the attempt has been submitted.
+         *
+         *     `stem` is Optional rather than required so an omitted stem keeps the handler's own 400
+         *     "stem is required" instead of turning into a 422 from validation; `context` is accepted
+         *     for historical callers and is currently not used to build the prompt.
+         */
+        ExamQuestionAnalysisRequest: {
+            /** Stem */
+            stem?: string | null;
+            /** Options */
+            options?: {
+                [key: string]: string;
+            };
+            /** Standard Answer */
+            standard_answer?: string | null;
+            /** User Answer */
+            user_answer?: string | null;
+            /** Question Type */
+            question_type?: string | null;
+            /** Context */
+            context?: string | null;
+        };
+        /**
+         * ExamQuestionAnalysisResponse
+         * @description 200 of the same route. Nothing is persisted: this is a single model answer.
+         *
+         *     `model` / `request_id` are the pre-existing public fields (the AIRequest identity of the
+         *     billed call). They are NOT a provider/model chooser and must not be surfaced as provider
+         *     branding; F1C2C renders `analysis` only.
+         */
+        ExamQuestionAnalysisResponse: {
+            /** Analysis */
+            analysis: string;
+            /** Generated At */
+            generated_at: string | null;
+            /** Model */
+            model: string | null;
+            /** Request Id */
+            request_id: string;
+        };
+        /**
+         * ExamStudyPlanChapter
+         * @description Depth 0 node — carries the seed `chapter_no` plus chapter-level rollups.
+         */
+        ExamStudyPlanChapter: {
+            /** Code */
+            code: string;
+            /** Title */
+            title: string;
+            /** Children */
+            children: components["schemas"]["ExamStudyPlanSection"][];
+            /** Chapter No */
+            chapter_no: number;
+            /** Id */
+            id: string;
+            /** Is Leaf */
+            is_leaf: boolean;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "not_started" | "learning" | "mastered" | "review_due";
+            /** Stored Status */
+            stored_status: string | null;
+            /** User Confirmed Status */
+            user_confirmed_status: string | null;
+            /** System Suggested Status */
+            system_suggested_status: string | null;
+            /** Ai Recommended Status */
+            ai_recommended_status: string | null;
+            /** Ai Assessment */
+            ai_assessment: string | null;
+            progress?: components["schemas"]["ExamKnowledgeProgressDetail"] | null;
+            /** Learned At */
+            learned_at?: string | null;
+            /** Review Due At */
+            review_due_at?: string | null;
+            /** Review Interval Days */
+            review_interval_days?: number | null;
+            status_counts: components["schemas"]["ExamKnowledgeStatusCounts"];
+            /** Chapter Completion Rate */
+            chapter_completion_rate: number;
+            /**
+             * Chapter Status
+             * @enum {string}
+             */
+            chapter_status: "not_started" | "learning" | "completed";
+            /** Section Count */
+            section_count: number;
+            /** Sections Completed */
+            sections_completed: number;
+        };
+        /** ExamStudyPlanChapterPracticeResponse */
+        ExamStudyPlanChapterPracticeResponse: {
+            /** Success */
+            success: boolean;
+            /** Section Code */
+            section_code: string;
+            /** Completed */
+            completed: boolean;
+            /** Completed At */
+            completed_at: string | null;
+        };
         /** ExamStudyPlanChapterPracticeUpdate */
         ExamStudyPlanChapterPracticeUpdate: {
             /** Username */
@@ -6256,6 +7849,155 @@ export interface components {
             /** Status */
             status: string;
         };
+        /**
+         * ExamStudyPlanKnowledgeNode
+         * @description Depth >= 2 node. `children` is recursive — seed maps nest to depth 3.
+         */
+        ExamStudyPlanKnowledgeNode: {
+            /** Code */
+            code: string;
+            /** Title */
+            title: string;
+            /** Children */
+            children: components["schemas"]["ExamStudyPlanKnowledgeNode"][];
+            /** Optional */
+            optional?: boolean | null;
+            /** Id */
+            id: string;
+            /** Is Leaf */
+            is_leaf: boolean;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "not_started" | "learning" | "mastered" | "review_due";
+            /** Stored Status */
+            stored_status: string | null;
+            /** User Confirmed Status */
+            user_confirmed_status: string | null;
+            /** System Suggested Status */
+            system_suggested_status: string | null;
+            /** Ai Recommended Status */
+            ai_recommended_status: string | null;
+            /** Ai Assessment */
+            ai_assessment: string | null;
+            progress?: components["schemas"]["ExamKnowledgeProgressDetail"] | null;
+            /** Learned At */
+            learned_at?: string | null;
+            /** Review Due At */
+            review_due_at?: string | null;
+            /** Review Interval Days */
+            review_interval_days?: number | null;
+            status_counts: components["schemas"]["ExamKnowledgeStatusCounts"];
+        };
+        /** ExamStudyPlanLeafStats */
+        ExamStudyPlanLeafStats: {
+            /** Total */
+            total: number;
+            /** Mastered */
+            mastered: number;
+            /** Learning */
+            learning: number;
+            /** Not Started */
+            not_started: number;
+            /** Review Due */
+            review_due: number;
+        };
+        /** ExamStudyPlanResponse */
+        ExamStudyPlanResponse: {
+            /** Course Id */
+            course_id: string;
+            /** Course Name */
+            course_name: string;
+            /** Subject Key */
+            subject_key: string;
+            /** Subject Name */
+            subject_name: string;
+            settings: components["schemas"]["ExamStudyPlanSettings"];
+            stats: components["schemas"]["ExamStudyPlanStats"];
+            /** Review Interval Days */
+            review_interval_days: number;
+            /** Chapters */
+            chapters: components["schemas"]["ExamStudyPlanChapter"][];
+            /** Tasks */
+            tasks: components["schemas"]["ExamStudyPlanTaskItem"][];
+        };
+        /**
+         * ExamStudyPlanSection
+         * @description Depth 1 node — `_build_study_plan_tree` adds the section-level plan fields.
+         */
+        ExamStudyPlanSection: {
+            /** Code */
+            code: string;
+            /** Title */
+            title: string;
+            /** Children */
+            children: components["schemas"]["ExamStudyPlanKnowledgeNode"][];
+            /** Optional */
+            optional?: boolean | null;
+            /** Id */
+            id: string;
+            /** Is Leaf */
+            is_leaf: boolean;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "not_started" | "learning" | "mastered" | "review_due";
+            /** Stored Status */
+            stored_status: string | null;
+            /** User Confirmed Status */
+            user_confirmed_status: string | null;
+            /** System Suggested Status */
+            system_suggested_status: string | null;
+            /** Ai Recommended Status */
+            ai_recommended_status: string | null;
+            /** Ai Assessment */
+            ai_assessment: string | null;
+            progress?: components["schemas"]["ExamKnowledgeProgressDetail"] | null;
+            /** Learned At */
+            learned_at?: string | null;
+            /** Review Due At */
+            review_due_at?: string | null;
+            /** Review Interval Days */
+            review_interval_days?: number | null;
+            status_counts: components["schemas"]["ExamKnowledgeStatusCounts"];
+            leaf_stats: components["schemas"]["ExamStudyPlanLeafStats"];
+            /** Chapter Practice Completed */
+            chapter_practice_completed: boolean;
+            /**
+             * Section Status
+             * @enum {string}
+             */
+            section_status: "not_started" | "learning" | "completed";
+            /** Completion Rate */
+            completion_rate: number;
+        };
+        /**
+         * ExamStudyPlanSettings
+         * @description Every column here is nullable except `show_completed`, and the handler passes
+         *     `plan_settings.<col>` through without a fallback once a row exists.
+         */
+        ExamStudyPlanSettings: {
+            /** Learning Goal */
+            learning_goal: string | null;
+            /** Start Date */
+            start_date: string | null;
+            /** Daily Hours */
+            daily_hours: string | null;
+            /** Weekly Days */
+            weekly_days: number | null;
+            /** Review Strategy */
+            review_strategy: string | null;
+            /** Show Completed */
+            show_completed: boolean;
+        };
+        /** ExamStudyPlanSettingsMutationResponse */
+        ExamStudyPlanSettingsMutationResponse: {
+            /** Success */
+            success: boolean;
+            settings: components["schemas"]["ExamStudyPlanSettings"];
+        };
         /** ExamStudyPlanSettingsUpdate */
         ExamStudyPlanSettingsUpdate: {
             /** Username */
@@ -6275,7 +8017,75 @@ export interface components {
             /** Show Completed */
             show_completed?: boolean | null;
         };
-        /** ExamStudyPlanTaskCreate */
+        /** ExamStudyPlanStats */
+        ExamStudyPlanStats: {
+            /** Total Knowledge Points */
+            total_knowledge_points: number;
+            /** Mastered */
+            mastered: number;
+            /** Total Sections */
+            total_sections: number;
+            /** Sections Completed */
+            sections_completed: number;
+            /** Sections Learning */
+            sections_learning: number;
+            /** Sections Not Started */
+            sections_not_started: number;
+            /** Overall Progress */
+            overall_progress: number;
+            /**
+             * Overall Status
+             * @enum {string}
+             */
+            overall_status: "not_started" | "learning" | "completed";
+        };
+        /** ExamStudyPlanSubjectSummary */
+        ExamStudyPlanSubjectSummary: {
+            /** Subject Key */
+            subject_key: string;
+            /** Subject Name */
+            subject_name: string;
+            /** Overall Progress */
+            overall_progress: number;
+            /** Total Sections */
+            total_sections: number;
+            /** Sections Completed */
+            sections_completed: number;
+            /** Total Knowledge Points */
+            total_knowledge_points: number;
+            /** Mastered Knowledge Points */
+            mastered_knowledge_points: number;
+            /** Has Activity */
+            has_activity: boolean;
+            /** Is Completed */
+            is_completed: boolean;
+        };
+        /** ExamStudyPlanSubjectsSummaryResponse */
+        ExamStudyPlanSubjectsSummaryResponse: {
+            /** Subjects */
+            subjects: components["schemas"]["ExamStudyPlanSubjectSummary"][];
+            /** Total Progress */
+            total_progress: number;
+            /** Total Subjects Completed */
+            total_subjects_completed: number;
+        };
+        /**
+         * ExamStudyPlanTaskCreate
+         * @description An Exam/CS408 study-plan task as the learner authors it.
+         *
+         *     A task carries NO writable status. `computed_status` is derived on every read from the
+         *     learner's factual knowledge and practice state (see `_compute_task_completion`), so
+         *     "completed" is earned by learning or practising, never asserted here.
+         *
+         *     `extra="forbid"` is deliberate and load-bearing: without it a body containing
+         *     `{"status": "completed"}` was silently accepted, returned 200, and changed nothing —
+         *     the worst possible answer to a field the caller clearly cared about. It is now a loud
+         *     422 naming the field. Completing a task means performing the factual action for its
+         *     type: practising its questions (`chapter_practice`), clearing its review-due leaves
+         *     (`review`), or marking its knowledge points learned (`knowledge`). `/learning/tasks`
+         *     is a different system (course_learning / programming) whose completion DOES write
+         *     mastery, and it must not be used for the CS408 plan.
+         */
         ExamStudyPlanTaskCreate: {
             /** Username */
             username: string;
@@ -6300,7 +8110,75 @@ export interface components {
             /** Note */
             note?: string | null;
         };
-        /** ExamStudyPlanTaskUpdate */
+        /** ExamStudyPlanTaskDeleteResponse */
+        ExamStudyPlanTaskDeleteResponse: {
+            /** Success */
+            success: boolean;
+            /** Deleted Id */
+            deleted_id: number;
+        };
+        /**
+         * ExamStudyPlanTaskItem
+         * @description `_serialize_task` — the full task shape (a superset of the dashboard summary's
+         *     `today_plan` entry, which is deliberately not reused here).
+         */
+        ExamStudyPlanTaskItem: {
+            /** Id */
+            id: number;
+            /** Username */
+            username: string;
+            /** Subject Key */
+            subject_key: string;
+            /** Subject Name */
+            subject_name: string;
+            /** Title */
+            title: string;
+            /** Knowledge Point Name */
+            knowledge_point_name: string;
+            /** Scope Type */
+            scope_type: string;
+            /** Task Type */
+            task_type: string;
+            /**
+             * Computed Status
+             * @enum {string}
+             */
+            computed_status: "not_started" | "in_progress" | "completed";
+            /** Completion Reason */
+            completion_reason: string;
+            /**
+             * Action Target
+             * @enum {string}
+             */
+            action_target: "knowledge_map" | "practice_center";
+            /** Due Date */
+            due_date: string;
+            /** Note */
+            note: string;
+            /** Created At */
+            created_at: string | null;
+            /** Updated At */
+            updated_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "not_started" | "in_progress" | "completed";
+            /** Primary Knowledge */
+            primary_knowledge: string;
+            /** Secondary Knowledge */
+            secondary_knowledge: string;
+        };
+        /** ExamStudyPlanTaskMutationResponse */
+        ExamStudyPlanTaskMutationResponse: {
+            /** Success */
+            success: boolean;
+            task: components["schemas"]["ExamStudyPlanTaskItem"];
+        };
+        /**
+         * ExamStudyPlanTaskUpdate
+         * @description Editable task fields. Status is not one of them — see `ExamStudyPlanTaskCreate`.
+         */
         ExamStudyPlanTaskUpdate: {
             /** Username */
             username: string;
@@ -6318,6 +8196,80 @@ export interface components {
             due_date?: string | null;
             /** Note */
             note?: string | null;
+        };
+        /**
+         * ExamStudyPlanTasksSummaryResponse
+         * @description Incomplete tasks across all four subjects, urgency-ordered, capped at 4.
+         */
+        ExamStudyPlanTasksSummaryResponse: {
+            /** Tasks */
+            tasks: components["schemas"]["ExamStudyPlanTaskItem"][];
+        };
+        /** ExamSubjectDashboardSummaryResponse */
+        ExamSubjectDashboardSummaryResponse: {
+            /** Subject Key */
+            subject_key: string;
+            /** Subject Name */
+            subject_name: string;
+            overview: components["schemas"]["ExamDashboardOverview"];
+            /** Today Plan */
+            today_plan: components["schemas"]["ExamDashboardPlanTask"][];
+            materials: components["schemas"]["ExamDashboardMaterials"];
+            quota: components["schemas"]["ExamDashboardQuota"];
+        };
+        /**
+         * ExamSubjectSummary
+         * @description ``catalog.ExamSubjectDefinition.to_dict()`` — a national standardized exam paper.
+         */
+        ExamSubjectSummary: {
+            /** Id */
+            id: string;
+            /** Display Name */
+            display_name: string;
+            /** Category */
+            category: string;
+            /**
+             * Availability
+             * @enum {string}
+             */
+            availability: "active" | "framework_only";
+            /** Has Questions */
+            has_questions: boolean;
+            /** Has Past Papers */
+            has_past_papers: boolean;
+            /** Has Knowledge Tree */
+            has_knowledge_tree: boolean;
+            /** Description */
+            description: string;
+            /** Suggested Tracks */
+            suggested_tracks: string[];
+            /** Modules */
+            modules: components["schemas"]["ExamModuleSummary"][];
+        };
+        /**
+         * ExamTrackSummary
+         * @description ``catalog.ExamTrackDefinition.to_dict()`` — a preparation direction / bundle.
+         */
+        ExamTrackSummary: {
+            /** Id */
+            id: string;
+            /** Display Name */
+            display_name: string;
+            /** Exam Type */
+            exam_type: string;
+            /**
+             * Availability
+             * @enum {string}
+             */
+            availability: "active" | "framework_only";
+            /** Has Content */
+            has_content: boolean;
+            /** Description */
+            description: string;
+            /** Subject Options */
+            subject_options: string[];
+            /** Suggested Subjects */
+            suggested_subjects: string[];
         };
         /** FirstTimeGuideCompleteRequest */
         FirstTimeGuideCompleteRequest: {
@@ -6585,6 +8537,179 @@ export interface components {
             /** Status */
             status?: string | null;
         };
+        /**
+         * KtDatasetAuditResponse
+         * @description The future training dataset's contract health. Carries NO rows and no learner data.
+         *
+         *     It reports coverage and exclusions, never content: the full export is an offline path,
+         *     so nothing a learner produced can leave through this endpoint.
+         */
+        KtDatasetAuditResponse: {
+            /** Dataset Contract Version */
+            dataset_contract_version: string;
+            /** Sequence Count */
+            sequence_count: number;
+            /** Interaction Count */
+            interaction_count: number;
+            /**
+             * Concept Levels
+             * @description how many interactions were filed at each native concept level
+             */
+            concept_levels: {
+                [key: string]: number;
+            };
+            /**
+             * Excluded
+             * @description why facts were excluded, by stable reason code — an exclusion that is counted is not a silent one
+             */
+            excluded: {
+                [key: string]: number;
+            };
+            /** Exclusion Semantics */
+            exclusion_semantics: {
+                [key: string]: string;
+            };
+            /**
+             * Dataset Hash
+             * @description sha256 over the canonical dataset body, so an export can be audited by re-running it
+             */
+            dataset_hash: string;
+            /** Scope */
+            scope: {
+                [key: string]: unknown;
+            };
+            /** Semantics */
+            semantics: string;
+            readiness: components["schemas"]["KtDatasetReadiness"];
+        };
+        /**
+         * KtDatasetReadiness
+         * @description What is still missing before a CS408-native KT model could actually be trained.
+         */
+        KtDatasetReadiness: {
+            /** Interactions Collected */
+            interactions_collected: number;
+            /** Learners Collected */
+            learners_collected: number;
+            /**
+             * Native Concept Identity
+             * @description AVAILABLE | NO_DATA_YET — whether any interaction carries a stable native concept reference at all
+             */
+            native_concept_identity: string;
+            /**
+             * Blockers
+             * @description stable reason codes; includes NO_TRAINING_RUN_ATTEMPTED because this module builds a dataset and trains nothing
+             */
+            blockers: string[];
+        };
+        /**
+         * LearnerStateEvidenceWindow
+         * @description The REAL canonical facts the product holds, and what the input rule rejected.
+         */
+        LearnerStateEvidenceWindow: {
+            /** Event Count */
+            event_count: number;
+            /** Event Types */
+            event_types: {
+                [key: string]: number;
+            };
+            /** Distinct Items */
+            distinct_items: number;
+            /** Excluded Event Count */
+            excluded_event_count: number;
+            /** Excluded Reasons */
+            excluded_reasons?: {
+                [key: string]: number;
+            } | null;
+            /** Scanned Events */
+            scanned_events: number;
+            /** Bounded To */
+            bounded_to: number;
+            /** Window */
+            window: {
+                [key: string]: unknown;
+            };
+            /** Scope */
+            scope: {
+                [key: string]: unknown;
+            };
+            /** Eligibility Rule */
+            eligibility_rule: string;
+            /** Semantics */
+            semantics: string;
+        };
+        /**
+         * LearnerStateModelRequirement
+         * @description What the model needs as INPUT. A requirement, never a claim that it was executed.
+         */
+        LearnerStateModelRequirement: {
+            /** Component */
+            component: string;
+            /** Scientific Source Commit */
+            scientific_source_commit: string;
+            /** Families */
+            families: string[];
+            /**
+             * Ontologies
+             * @description ontology name -> index-space size the model was trained on
+             */
+            ontologies: {
+                [key: string]: number;
+            };
+            /** Required Input */
+            required_input: string[];
+            /** Available Product Input */
+            available_product_input: string[];
+            /** Missing Input */
+            missing_input: string[];
+            /**
+             * Ontology Mapping
+             * @description NONE — no mapping from the product concept space exists
+             */
+            ontology_mapping: string;
+            /** Active Product Variant */
+            active_product_variant?: string | null;
+            /** Variant Mode */
+            variant_mode: string;
+            /** Engineering Representative Only */
+            engineering_representative_only: boolean;
+            /** Score Semantics */
+            score_semantics: string;
+            /**
+             * User Facing Label Zh
+             * @description the only permitted user-facing framing for this semantic; NOT surfaced while the mode is SHADOW_NOT_USER_VISIBLE
+             */
+            user_facing_label_zh: string;
+            /** User Facing Label Note */
+            user_facing_label_note: string;
+        };
+        /**
+         * LearnerStatePreviewResponse
+         * @description A GATED capability report: the exact reason no next-response probability exists.
+         *
+         *     ``next_response_probability`` is typed nullable and is null in every response this
+         *     mode can produce — there is no honest input to compute it from. The field is named
+         *     after the model's real output (never a bare ``probability``, never ``prediction``,
+         *     never ``mastery``), so the contract itself cannot be mistaken for a mastery score.
+         */
+        LearnerStatePreviewResponse: {
+            metadata: components["schemas"]["ScientificAuthority"];
+            /** Score Semantics */
+            score_semantics: string;
+            /**
+             * Next Response Probability
+             * @description P(correct on the learner's NEXT response). Null while the mode is SHADOW_NOT_USER_VISIBLE. NOT a mastery probability.
+             */
+            next_response_probability?: number | null;
+            model_requirement: components["schemas"]["LearnerStateModelRequirement"];
+            evidence_window: components["schemas"]["LearnerStateEvidenceWindow"];
+            /** Runtime Reachable */
+            runtime_reachable?: boolean | null;
+            /** Runtime Provenance */
+            runtime_provenance: {
+                [key: string]: unknown;
+            };
+        };
         /** LearningReportAiGenerateRequest */
         LearningReportAiGenerateRequest: {
             /** Username */
@@ -6840,6 +8965,43 @@ export interface components {
             /** Username */
             username?: string | null;
         };
+        /**
+         * MembershipEntitlementsResponse
+         * @description The caller's effective entitlements for one learning direction.
+         *
+         *     ``features`` is a MAPPING, not a closed record, because the key set is derived from the
+         *     direction's feature-quota config and is genuinely not fixed: ``exam_11408`` and
+         *     ``course_learning`` answer with ``learning_plan`` + ``learning_report``, while
+         *     ``programming`` legitimately answers with an empty mapping. Modelling the keys as
+         *     required fields would claim all three directions share a shape, and would make the
+         *     frontend's access to ``features.learning_plan`` look safe when it is only safe after a
+         *     presence check — which is exactly what the generated type now forces.
+         */
+        MembershipEntitlementsResponse: {
+            /** Service Key */
+            service_key: string;
+            /** Current Plan */
+            current_plan: string;
+            /** Features */
+            features: {
+                [key: string]: components["schemas"]["MembershipFeatureEntitlement"];
+            };
+        };
+        /**
+         * MembershipFeatureEntitlement
+         * @description One feature's entitlement in one learning direction.
+         *
+         *     ``required_plan`` is the CHEAPEST plan code that grants the feature *in this direction*
+         *     — it is direction-specific, which is why it is a string and not a shared enum:
+         *     ``learning_plan`` requires ``monthly_sprint`` under ``exam_11408`` but ``monthly``
+         *     under ``course_learning``. ``allowed`` is the caller's own effective answer.
+         */
+        MembershipFeatureEntitlement: {
+            /** Allowed */
+            allowed: boolean;
+            /** Required Plan */
+            required_plan: string;
+        };
         /** MembershipOrderCreateRequest */
         MembershipOrderCreateRequest: {
             /** Service Key */
@@ -6854,6 +9016,48 @@ export interface components {
              * @default
              */
             reason: string;
+        };
+        /** MisconceptionAdvisoryResponse */
+        MisconceptionAdvisoryResponse: {
+            metadata: components["schemas"]["ScientificAuthority"];
+            wrong_record: components["schemas"]["MisconceptionWrongRecord"];
+            /** Score Semantics */
+            score_semantics: string;
+            /** Candidates */
+            candidates: components["schemas"]["MisconceptionCandidate"][];
+            /** Available */
+            available: boolean;
+            /** Ontology Domain */
+            ontology_domain?: string | null;
+            /** Weak Label */
+            weak_label?: boolean | null;
+        };
+        /** MisconceptionCandidate */
+        MisconceptionCandidate: {
+            /** Rank */
+            rank?: number | null;
+            /** Candidate Id */
+            candidate_id?: string | null;
+            /** Candidate Label */
+            candidate_label?: string | null;
+            /**
+             * Similarity
+             * @description cosine-like similarity. NOT a probability and NOT a diagnosis confidence.
+             */
+            similarity?: number | null;
+        };
+        /** MisconceptionWrongRecord */
+        MisconceptionWrongRecord: {
+            /** State Id */
+            state_id?: number | null;
+            /** Service Namespace */
+            service_namespace?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Question Source Type */
+            question_source_type?: string | null;
+            /** Question Source Id */
+            question_source_id?: string | null;
         };
         /** OnboardingUpdateRequest */
         OnboardingUpdateRequest: {
@@ -6890,6 +9094,21 @@ export interface components {
              * @default true
              */
             onboarding_completed: boolean;
+        };
+        /** OwnershipEntry */
+        OwnershipEntry: {
+            /** Business Fact */
+            business_fact: string;
+            /** Event Type */
+            event_type: string;
+            /** Authoritative Producer */
+            authoritative_producer: string;
+            /** Event Identity */
+            event_identity: string;
+            /** Scientific Eligible */
+            scientific_eligible: boolean;
+            /** Status */
+            status: string;
         };
         /** PaperImportConfirmRequest */
         PaperImportConfirmRequest: {
@@ -6955,6 +9174,257 @@ export interface components {
             source_style?: string | null;
             /** Raw Text */
             raw_text?: string | null;
+        };
+        /**
+         * PastPaperAnswerGrade
+         * @description Whether an authoritative AI grade was actually applied, and why not when it was not.
+         *
+         *     Same runtime semantics submit already reported; ``applied=False`` now never yields a learner
+         *     score — the affected question becomes ``self_review`` instead.
+         */
+        PastPaperAnswerGrade: {
+            /** Applied */
+            applied: boolean;
+            /** Reason */
+            reason?: string | null;
+        };
+        /** PastPaperAnswerSaveResponse */
+        PastPaperAnswerSaveResponse: {
+            /** Success */
+            success: boolean;
+            /** Attempt Id */
+            attempt_id: number;
+        };
+        /** PastPaperAttemptCreateRequest */
+        PastPaperAttemptCreateRequest: {
+            /** Year */
+            year: number;
+            /** Username */
+            username?: string | null;
+        };
+        /** PastPaperAttemptCreateResponse */
+        PastPaperAttemptCreateResponse: {
+            /** Attempt Id */
+            attempt_id: number;
+            /** Attempt No */
+            attempt_no: number;
+            /** Subject Key */
+            subject_key: string;
+            /** Year */
+            year: number;
+            /**
+             * Status
+             * @constant
+             */
+            status: "in_progress";
+            /** Total Questions */
+            total_questions: number;
+        };
+        /**
+         * PastPaperAttemptDetailResponse
+         * @description Attempt detail. ``results`` is present only once the attempt is submitted, and is a replay
+         *     of what submit persisted — this endpoint never grades.
+         */
+        PastPaperAttemptDetailResponse: {
+            attempt: components["schemas"]["PastPaperAttemptSummary"];
+            /** Questions */
+            questions: components["schemas"]["PastPaperQuestion"][];
+            /** Saved Answers */
+            saved_answers: {
+                [key: string]: string;
+            };
+            /** Results */
+            results?: components["schemas"]["PastPaperQuestionResult"][];
+        };
+        /** PastPaperAttemptSummary */
+        PastPaperAttemptSummary: {
+            /** Id */
+            id: number;
+            /** Attempt No */
+            attempt_no: number;
+            /** Subject Key */
+            subject_key: string;
+            /** Year */
+            year: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "in_progress" | "submitted";
+            /** Total Questions */
+            total_questions: number;
+            /** Started At */
+            started_at: string | null;
+            /** Submitted At */
+            submitted_at: string | null;
+        };
+        /** PastPaperIndexResponse */
+        PastPaperIndexResponse: {
+            /** Subject Key */
+            subject_key: string;
+            /** Subject Name */
+            subject_name: string;
+            /** Papers */
+            papers: components["schemas"]["PastPaperSummary"][];
+        };
+        /**
+         * PastPaperQuestion
+         * @description A past-paper question BEFORE submission.
+         *
+         *     Carries no ``standard_answer``, no ``analysis`` and no grading state: the projection happens in
+         *     :func:`public_question`, so neither source can leak through this model.
+         */
+        PastPaperQuestion: {
+            /** Subject Key */
+            subject_key: string;
+            /** Year */
+            year: number;
+            /** Question Number */
+            question_number: number;
+            /**
+             * Question Type
+             * @enum {string}
+             */
+            question_type: "choice" | "big";
+            /** Stem */
+            stem: string;
+            /** Options */
+            options: {
+                [key: string]: string;
+            };
+            /** Resources */
+            resources: components["schemas"]["PastPaperResource"][];
+            /** Full Score */
+            full_score?: number | null;
+            /** Missing Resources */
+            missing_resources?: string[];
+        };
+        /**
+         * PastPaperQuestionResult
+         * @description The authoritative per-question outcome, keyed by public identity.
+         *
+         *     One canonical model for both branches:
+         *
+         *     * ``choice``     — ``correct`` is a bool, ``judge`` is null;
+         *     * ``self_review``— ``correct`` is null, ``judge`` is ``self_review``, ``score`` is null because
+         *       no authoritative grading was applied;
+         *     * ``ai_graded``  — ``correct`` is null, ``judge`` is ``ai_graded``, ``score`` is the model's
+         *       real authoritative score.
+         */
+        PastPaperQuestionResult: {
+            /** Subject Key */
+            subject_key: string;
+            /** Year */
+            year: number;
+            /** Question Number */
+            question_number: number;
+            /**
+             * Question Type
+             * @enum {string}
+             */
+            question_type: "choice" | "big";
+            /** User Answer */
+            user_answer: string;
+            /** Correct */
+            correct: boolean | null;
+            /** Judge */
+            judge: ("self_review" | "ai_graded") | null;
+            /** Standard Answer */
+            standard_answer: string;
+            /** Analysis */
+            analysis: string | null;
+            /** Score */
+            score: number | null;
+            /** Full Score */
+            full_score: number | null;
+            /** Feedback */
+            feedback: string | null;
+        };
+        /** PastPaperQuestionsResponse */
+        PastPaperQuestionsResponse: {
+            /** Subject Key */
+            subject_key: string;
+            /** Subject Name */
+            subject_name: string;
+            /** Year */
+            year: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "bank" | "document";
+            /** Questions */
+            questions: components["schemas"]["PastPaperQuestion"][];
+        };
+        /**
+         * PastPaperResource
+         * @description A figure reference. ``url`` is relative to the API base URL — never a filesystem path.
+         */
+        PastPaperResource: {
+            /** Url */
+            url: string;
+        };
+        /** PastPaperSubmitResponse */
+        PastPaperSubmitResponse: {
+            /** Attempt Id */
+            attempt_id: number;
+            /** Attempt No */
+            attempt_no: number;
+            /** Subject Key */
+            subject_key: string;
+            /** Year */
+            year: number;
+            /** Total Questions */
+            total_questions: number;
+            /** Choice Total */
+            choice_total: number;
+            /** Choice Correct */
+            choice_correct: number;
+            /** Self Review Count */
+            self_review_count: number;
+            /** Ai Graded Count */
+            ai_graded_count: number;
+            /** Total Score */
+            total_score: number;
+            /** Max Score */
+            max_score: number;
+            answer_grade: components["schemas"]["PastPaperAnswerGrade"];
+            /** Results */
+            results: components["schemas"]["PastPaperQuestionResult"][];
+        };
+        /**
+         * PastPaperSummary
+         * @description One available paper. Availability is factual, never inferred from a hardcoded year list.
+         */
+        PastPaperSummary: {
+            /** Year */
+            year: number;
+            /** Question Count */
+            question_count: number;
+            /** Choice Count */
+            choice_count: number;
+            /** Big Count */
+            big_count: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "bank" | "document";
+        };
+        /**
+         * PastPaperWriteRequest
+         * @description Shared body of `answers` (save) and `submit`.
+         *
+         *     Keyed by ``question_number`` as a string — the public identity — so the frontend never handles a
+         *     source-specific id.
+         */
+        PastPaperWriteRequest: {
+            /** Answers */
+            answers?: {
+                [key: string]: string;
+            };
+            /** Username */
+            username?: string | null;
         };
         /** PlanGeneratePreviewRequest */
         PlanGeneratePreviewRequest: {
@@ -7208,6 +9678,203 @@ export interface components {
             /** Raw Text */
             raw_text?: string | null;
         };
+        /**
+         * RecordContext
+         * @description Domain references carried by the event, when the producing space has them.
+         */
+        RecordContext: {
+            /** Knowledge Point Id */
+            knowledge_point_id?: string | null;
+            /** Exam Module Id */
+            exam_module_id?: string | null;
+            /** Course Id */
+            course_id?: string | null;
+            /** Subject Key */
+            subject_key?: string | null;
+        };
+        /**
+         * RecordDetail
+         * @description A single record, with the honest statement of what recovery is possible.
+         */
+        RecordDetail: {
+            /** Event Id */
+            event_id: string;
+            /** Event Type */
+            event_type: string;
+            /** Record Category */
+            record_category?: string | null;
+            /** Service Namespace */
+            service_namespace: string;
+            /**
+             * Occurred At
+             * @description UTC ISO-8601 with +00:00 offset
+             */
+            occurred_at?: string | null;
+            /** Schema Version */
+            schema_version?: number | null;
+            context?: components["schemas"]["RecordContext"] | null;
+            source: components["schemas"]["RecordSourceRef"];
+            summary?: components["schemas"]["RecordSummary"] | null;
+            /** Recovery */
+            recovery: string;
+        };
+        /**
+         * RecordPage
+         * @description Cursor-paginated newest-first page. There is no total count by design.
+         */
+        RecordPage: {
+            /** Records */
+            records: components["schemas"]["RecordView"][];
+            /**
+             * Next Cursor
+             * @description Opaque; pass back as ?cursor= to fetch the next page
+             */
+            next_cursor?: string | null;
+            /** Has More */
+            has_more: boolean;
+        };
+        /**
+         * RecordSourceRef
+         * @description A REFERENCE to the domain row that owns the fact. Never the fact itself.
+         */
+        RecordSourceRef: {
+            /** Type */
+            type: string;
+            /** Id */
+            id?: string | null;
+            /** Item Key */
+            item_key?: string | null;
+        };
+        /**
+         * RecordSummary
+         * @description Small per-event-type factual metadata.
+         *
+         *     Fields are populated per event type; unset fields are omitted. There is no
+         *     ``mastery`` / ``confidence`` / probability field by design — a record states what
+         *     factually happened, not what a model thinks.
+         */
+        RecordSummary: {
+            /** Correct */
+            correct?: boolean | null;
+            /** Score */
+            score?: number | null;
+            /** Question Source Type */
+            question_source_type?: string | null;
+            /** Question Source Id */
+            question_source_id?: string | null;
+            /** New Status */
+            new_status?: string | null;
+            /** Old Status */
+            old_status?: string | null;
+            /** Material Id */
+            material_id?: string | null;
+            /** Capability */
+            capability?: string | null;
+            /** Status */
+            status?: string | null;
+        };
+        /** RecordSummaryWindow */
+        RecordSummaryWindow: {
+            /** Start At */
+            start_at?: string | null;
+            /** End At */
+            end_at?: string | null;
+            /**
+             * Timezone
+             * @default UTC
+             */
+            timezone: string;
+        };
+        /**
+         * RecordView
+         * @description One user-facing learning record.
+         */
+        RecordView: {
+            /** Event Id */
+            event_id: string;
+            /** Event Type */
+            event_type: string;
+            /** Record Category */
+            record_category?: string | null;
+            /** Service Namespace */
+            service_namespace: string;
+            /**
+             * Occurred At
+             * @description UTC ISO-8601 with +00:00 offset
+             */
+            occurred_at?: string | null;
+            /** Schema Version */
+            schema_version?: number | null;
+            context?: components["schemas"]["RecordContext"] | null;
+            source: components["schemas"]["RecordSourceRef"];
+            summary?: components["schemas"]["RecordSummary"] | null;
+        };
+        /**
+         * RecordsSummaryResponse
+         * @description Deterministic study-history counts. NOT mastery, ability, or learner state.
+         */
+        RecordsSummaryResponse: {
+            window: components["schemas"]["RecordSummaryWindow"];
+            /** Service Namespace */
+            service_namespace?: string | null;
+            /** Exam Module Id */
+            exam_module_id?: string | null;
+            /** Total Events */
+            total_events: number;
+            /** Practice Attempts */
+            practice_attempts: number;
+            /** Graded Attempts */
+            graded_attempts: number;
+            /** Factual Correct */
+            factual_correct: number;
+            /** Factual Incorrect */
+            factual_incorrect: number;
+            /** Ungraded Attempts */
+            ungraded_attempts: number;
+            /** Programming Submissions */
+            programming_submissions: number;
+            /** Material Interactions */
+            material_interactions: number;
+            /** Knowledge Status Changes */
+            knowledge_status_changes: number;
+            /** By Category */
+            by_category: {
+                [key: string]: number;
+            };
+            /** By Event Type */
+            by_event_type: {
+                [key: string]: number;
+            };
+            /** Metrics Semantics */
+            metrics_semantics: string;
+        };
+        /**
+         * RecordsTaxonomyResponse
+         * @description The frozen taxonomy + the one-fact-one-owner registry (developer reference).
+         */
+        RecordsTaxonomyResponse: {
+            /** Event Schema Version */
+            event_schema_version: number;
+            /** Active Event Types */
+            active_event_types: string[];
+            /** Deferred Event Types */
+            deferred_event_types: string[];
+            /** User Facing Event Types */
+            user_facing_event_types: string[];
+            /** Audit Only Event Types */
+            audit_only_event_types: string[];
+            /** Categories */
+            categories: string[];
+            /** Student Twin Eligible Types */
+            student_twin_eligible_types: string[];
+            /** Ownership Matrix */
+            ownership_matrix: components["schemas"]["OwnershipEntry"][];
+        };
+        /** RedeemIn */
+        RedeemIn: {
+            /** Code */
+            code: string;
+        };
         /** RedeemRequest */
         RedeemRequest: {
             /** Code */
@@ -7279,10 +9946,221 @@ export interface components {
              */
             description: string;
         };
+        /**
+         * ScalerGate
+         * @description Whether the training standardizer may be used, and on what grounds (ACCEL_SPRINT_S5).
+         *
+         *     The standardizer is part of the frozen model: without the training mean/std no caller
+         *     can scale a raw value into the space the checkpoints were trained on, and no substitute
+         *     is admissible. ``gate_passed`` is derived from ``recovery_method`` — it is never set
+         *     independently, so the flag cannot disagree with the method that justified it.
+         */
+        ScalerGate: {
+            /** Component */
+            component: string;
+            /** Applies To Features */
+            applies_to_features: string[];
+            /** Standardizer Required */
+            standardizer_required: boolean;
+            /**
+             * Recovery Method
+             * @description NOT_RECOVERED | FOUND_FITTED_ARTIFACT | RECONSTRUCTED_FROM_FROZEN_DATA
+             */
+            recovery_method: string;
+            /**
+             * Recovery Evidence
+             * @description digests and source identity of the artifact the method was applied to; null while nothing has been recovered
+             */
+            recovery_evidence?: {
+                [key: string]: unknown;
+            } | null;
+            /** Accepted Methods */
+            accepted_methods: string[];
+            /**
+             * Forbidden Methods
+             * @description the routes that may NOT be used: fitting on product users, on a test split or on the inference batch, assuming a standard normal, borrowing another experiment's statistics, or inverting the checkpoint weights
+             */
+            forbidden_methods: string[];
+            /** Missing Artifacts */
+            missing_artifacts: string[];
+            /** Gate Passed */
+            gate_passed: boolean;
+            /** Note */
+            note: string;
+        };
+        /**
+         * ScientificAuthority
+         * @description Who produced this number, and what it is allowed to do. Never optional.
+         */
+        ScientificAuthority: {
+            /** Component */
+            component: string;
+            /**
+             * Mode
+             * @description PREVIEW | SHADOW | SHADOW_NOT_USER_VISIBLE | UNAVAILABLE
+             */
+            mode: string;
+            /** Controls Product Decision */
+            controls_product_decision: boolean;
+            /** Writes Learner Fact */
+            writes_learner_fact: boolean;
+            /** Generated At */
+            generated_at: string;
+            /** Request Id */
+            request_id?: string | null;
+            /** Runtime Release Id */
+            runtime_release_id?: string | null;
+            /** Source Class */
+            source_class?: string | null;
+            /** Latency Ms */
+            latency_ms?: number | null;
+            /** Blockers */
+            blockers?: string[] | null;
+            /** Semantics */
+            semantics?: string | null;
+        };
+        /**
+         * ScientificCapabilitiesResponse
+         * @description The product-facing scientific capability summary. Carries no scientific number.
+         */
+        ScientificCapabilitiesResponse: {
+            /** Generated At */
+            generated_at: string;
+            /** Source Class */
+            source_class: string;
+            /**
+             * Terminology
+             * @description what each reported field means, so no reader has to infer it
+             */
+            terminology: {
+                [key: string]: string;
+            };
+            totals: components["schemas"]["ScientificCapabilityTotals"];
+            /** Components */
+            components: components["schemas"]["ScientificCapabilityEntry"][];
+        };
+        /**
+         * ScientificCapabilityEntry
+         * @description One component's PRODUCT-FACING readiness.
+         *
+         *     ``available`` is not "a runtime endpoint exists": it means the product can produce this
+         *     component's output from real facts it holds today.
+         */
+        ScientificCapabilityEntry: {
+            /** Component */
+            component: string;
+            /**
+             * Mode
+             * @description PREVIEW | SHADOW | SHADOW_NOT_USER_VISIBLE | UNAVAILABLE
+             */
+            mode: string;
+            /** Available */
+            available: boolean;
+            /** User Visible */
+            user_visible: boolean;
+            /** Controls Product Decision */
+            controls_product_decision: boolean;
+            /** Writes Learner Fact */
+            writes_learner_fact: boolean;
+            /**
+             * Blockers
+             * @description stable reason codes; empty when none
+             */
+            blockers: string[];
+            /**
+             * Semantics
+             * @description short label for what the component's output IS
+             */
+            semantics: string;
+        };
+        /** ScientificCapabilityTotals */
+        ScientificCapabilityTotals: {
+            /** Components */
+            components: number;
+            /** Available */
+            available: number;
+            /** User Visible */
+            user_visible: number;
+            /** Controls Product Decision */
+            controls_product_decision: number;
+            /** Writes Learner Fact */
+            writes_learner_fact: number;
+        };
         /** SendEmailCodeRequest */
         SendEmailCodeRequest: {
             /** Email */
             email: string;
+        };
+        /** SessionCreate */
+        SessionCreate: {
+            /** Service Namespace */
+            service_namespace: string;
+            /** Mode */
+            mode?: string | null;
+            /** Context */
+            context?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** StateUpdate */
+        StateUpdate: {
+            /** Resolved */
+            resolved: boolean;
+        };
+        /**
+         * StudentTwinInputSummary
+         * @description What evidence the preview actually used, and what it declined to use.
+         *
+         *     ``excluded_reasons`` maps a stable reason code (``NO_USER_ANSWER``,
+         *     ``CORRECTNESS_NOT_BINARY``, ``JUDGE_NOT_AUTHORITATIVE``,
+         *     ``EVENT_FAMILY_NOT_STUDENT_TWIN_CAPABLE``) to how many real events it rejected.
+         *     ``eligibility_rule`` is the S2 input-domain rule in one sentence; no scientific
+         *     algorithm is described here because none is involved.
+         */
+        StudentTwinInputSummary: {
+            /** Event Count */
+            event_count: number;
+            /** Event Types */
+            event_types: {
+                [key: string]: number;
+            };
+            /** Excluded Event Count */
+            excluded_event_count: number;
+            /** Excluded Reasons */
+            excluded_reasons?: {
+                [key: string]: number;
+            } | null;
+            /** Scanned Events */
+            scanned_events: number;
+            /** Bounded To */
+            bounded_to: number;
+            /** Scope */
+            scope: {
+                [key: string]: unknown;
+            };
+            /** Eligibility Rule */
+            eligibility_rule: string;
+            /** Semantics */
+            semantics: string;
+        };
+        /**
+         * StudentTwinPreviewResponse
+         * @description A learning-state EXPERIMENT view. Not a mastery score, not a prediction.
+         */
+        StudentTwinPreviewResponse: {
+            metadata: components["schemas"]["ScientificAuthority"];
+            input_summary: components["schemas"]["StudentTwinInputSummary"];
+            /** State */
+            state?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** SubscriptionOrderIn */
+        SubscriptionOrderIn: {
+            /** Tier */
+            tier: string;
+            /** Duration Days */
+            duration_days?: number | null;
         };
         /** SupportMessageCreate */
         SupportMessageCreate: {
@@ -7341,6 +10219,37 @@ export interface components {
              */
             source_page: string;
         };
+        /** TutorPolicyShadowResponse */
+        TutorPolicyShadowResponse: {
+            metadata: components["schemas"]["ScientificAuthority"];
+            /** Controls Response */
+            controls_response: boolean;
+            /** Action Ontology */
+            action_ontology: string[];
+            /** Suggested Action */
+            suggested_action?: string | null;
+            /** Action Probabilities */
+            action_probabilities?: {
+                [key: string]: number;
+            } | null;
+            /** Available */
+            available: boolean;
+        };
+        /**
+         * UnknownExamSubject
+         * @description A stored subject id that is no longer in the catalog.
+         *
+         *     ``_profile_payload`` degrades to this 2-key shape rather than fabricating catalog
+         *     metadata for an id it cannot resolve. ``extra="forbid"`` keeps the union in
+         *     ``ExamPrepProfileResponse`` unambiguous: a full catalog payload can never be
+         *     deserialized as this model, so it always serializes back at full width.
+         */
+        UnknownExamSubject: {
+            /** Id */
+            id: string;
+            /** Availability */
+            availability: string;
+        };
         /** UpdateLearningRecordRequest */
         UpdateLearningRecordRequest: {
             /** Note */
@@ -7385,6 +10294,205 @@ export interface components {
             email: string;
             /** Code */
             code: string;
+        };
+        /**
+         * WrongAnswerAttemptView
+         * @description One factual attempt behind a state. Read from ``practice_attempts`` only.
+         */
+        WrongAnswerAttemptView: {
+            /** Attempt Id */
+            attempt_id: number;
+            /** Submitted At */
+            submitted_at?: string | null;
+            /** Answer */
+            answer?: string | null;
+            /** Correct */
+            correct?: boolean | null;
+            /** Score */
+            score?: number | null;
+            /** Max Score */
+            max_score?: number | null;
+            /** Source Attempt Type */
+            source_attempt_type?: string | null;
+        };
+        /**
+         * WrongAnswerDetailResponse
+         * @description The record plus the factual history the record was derived from.
+         */
+        WrongAnswerDetailResponse: {
+            /** Wrong Record Id */
+            wrong_record_id: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "resolved";
+            /** Service Namespace */
+            service_namespace: string;
+            /** Module Key */
+            module_key: string;
+            /** Module Name */
+            module_name: string;
+            /**
+             * Source Kind
+             * @enum {string}
+             */
+            source_kind: "chapter_practice" | "past_paper" | "ai_generated" | "other";
+            /** Source Label */
+            source_label: string;
+            /** Question Type */
+            question_type?: string | null;
+            /**
+             * Stem
+             * @default
+             */
+            stem: string;
+            /** Options */
+            options?: {
+                [key: string]: string;
+            };
+            /**
+             * User Answer
+             * @default
+             */
+            user_answer: string;
+            /**
+             * Reference Answer
+             * @default
+             */
+            reference_answer: string;
+            /** Analysis */
+            analysis?: string | null;
+            /** Year */
+            year?: number | null;
+            /** Question Number */
+            question_number?: number | null;
+            /** Question Bank Id */
+            question_bank_id?: number | null;
+            /** Knowledge Point Id */
+            knowledge_point_id?: string | null;
+            /** Knowledge Point Name */
+            knowledge_point_name?: string | null;
+            /** Knowledge Point Path */
+            knowledge_point_path?: string | null;
+            /** Resources */
+            resources?: components["schemas"]["WrongAnswerResource"][];
+            /** First Wrong At */
+            first_wrong_at?: string | null;
+            /** Last Wrong At */
+            last_wrong_at?: string | null;
+            /** Resolved At */
+            resolved_at?: string | null;
+            /**
+             * Repeat Wrong Count
+             * @default 0
+             */
+            repeat_wrong_count: number;
+            /** Attempt History */
+            attempt_history?: components["schemas"]["WrongAnswerAttemptView"][];
+            /** Error Analysis */
+            error_analysis?: string | null;
+        };
+        /** WrongAnswerListResponse */
+        WrongAnswerListResponse: {
+            /** Items */
+            items: components["schemas"]["WrongAnswerRecord"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+        };
+        /**
+         * WrongAnswerRecord
+         * @description ONE canonical wrong-answer record.
+         *
+         *     Fields that only one source can fill are nullable rather than absent, so the frontend
+         *     never has to branch on which legacy table a row came from. ``repeat_wrong_count`` is
+         *     the number of distinct FACTUAL incorrect attempts for this question — it is not a view
+         *     count, not a retry count, and not a review count.
+         */
+        WrongAnswerRecord: {
+            /** Wrong Record Id */
+            wrong_record_id: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "resolved";
+            /** Service Namespace */
+            service_namespace: string;
+            /** Module Key */
+            module_key: string;
+            /** Module Name */
+            module_name: string;
+            /**
+             * Source Kind
+             * @enum {string}
+             */
+            source_kind: "chapter_practice" | "past_paper" | "ai_generated" | "other";
+            /** Source Label */
+            source_label: string;
+            /** Question Type */
+            question_type?: string | null;
+            /**
+             * Stem
+             * @default
+             */
+            stem: string;
+            /** Options */
+            options?: {
+                [key: string]: string;
+            };
+            /**
+             * User Answer
+             * @default
+             */
+            user_answer: string;
+            /**
+             * Reference Answer
+             * @default
+             */
+            reference_answer: string;
+            /** Analysis */
+            analysis?: string | null;
+            /** Year */
+            year?: number | null;
+            /** Question Number */
+            question_number?: number | null;
+            /** Question Bank Id */
+            question_bank_id?: number | null;
+            /** Knowledge Point Id */
+            knowledge_point_id?: string | null;
+            /** Knowledge Point Name */
+            knowledge_point_name?: string | null;
+            /** Knowledge Point Path */
+            knowledge_point_path?: string | null;
+            /** Resources */
+            resources?: components["schemas"]["WrongAnswerResource"][];
+            /** First Wrong At */
+            first_wrong_at?: string | null;
+            /** Last Wrong At */
+            last_wrong_at?: string | null;
+            /** Resolved At */
+            resolved_at?: string | null;
+            /**
+             * Repeat Wrong Count
+             * @default 0
+             */
+            repeat_wrong_count: number;
+        };
+        /**
+         * WrongAnswerResource
+         * @description A figure reference, relative to the API base URL — the same contract BC6 uses.
+         *
+         *     ``resolveApiResourceUrl()`` on the frontend already resolves this form; the
+         *     wrong-answer workspace must not invent a second one.
+         */
+        WrongAnswerResource: {
+            /** Url */
+            url: string;
         };
     };
     responses: never;
@@ -7622,6 +10730,1152 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    get_subscription_subscription_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    get_subscription_plans_subscription_plans_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    create_subscription_order_subscription_orders_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubscriptionOrderIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pay_subscription_order_subscription_orders__order_id__pay_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_redeem_subscription_redeem_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RedeemIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    redeem_subscription_redeem_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RedeemIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_usage_summary_usage_summary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    list_ai_models_ai_models_get: {
+        parameters: {
+            query?: {
+                capability?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_sessions_practice_sessions_get: {
+        parameters: {
+            query?: {
+                service_namespace?: string;
+                status?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_session_practice_sessions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SessionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_session_practice_sessions__session_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    session_summary_practice_sessions__session_id__summary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_session_attempts_practice_sessions__session_id__attempts_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_attempt_practice_sessions__session_id__attempts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttemptCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    practice_history_practice_history_get: {
+        parameters: {
+            query?: {
+                service_namespace?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    complete_session_practice_sessions__session_id__complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    abandon_session_practice_sessions__session_id__abandon_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_wrong_answers_wrong_answers_get: {
+        parameters: {
+            query?: {
+                /** @description canonical learning space; legacy aliases accepted */
+                service_namespace?: string;
+                /** @description active | resolved | empty for all */
+                status?: string;
+                /** @description exam module filter, e.g. operating_system */
+                module?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WrongAnswerListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_wrong_answer_wrong_answers__state_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                state_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WrongAnswerDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_wrong_answer_wrong_answers__state_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                state_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StateUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WrongAnswerRecord"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    records_summary_learning_records_summary_get: {
+        parameters: {
+            query?: {
+                start_at?: string;
+                end_at?: string;
+                service_namespace?: string;
+                exam_module_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordsSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    records_taxonomy_learning_records_taxonomy_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordsTaxonomyResponse"];
+                };
+            };
+        };
+    };
+    list_records_learning_records_get: {
+        parameters: {
+            query?: {
+                start_at?: string;
+                end_at?: string;
+                service_namespace?: string;
+                category?: string;
+                event_type?: string;
+                exam_module_id?: string;
+                /** @description Include audit-only facts (e.g. ai_called). Never study history; defaults to false. */
+                include_audit?: boolean;
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_learning_record_learning_records_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateLearningRecordRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_record_learning_records__event_id__get: {
+        parameters: {
+            query?: {
+                include_audit?: boolean;
+            };
+            header?: never;
+            path: {
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_exam_prep_profile_exam_prep_profile_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamPrepProfileResponse"];
+                };
+            };
+        };
+    };
+    put_exam_prep_profile_exam_prep_profile_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExamPrepProfileUpsert"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamPrepProfileResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_exam_prep_catalog_exam_prep_catalog_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamPrepCatalogResponse"];
+                };
+            };
+        };
+    };
+    get_exam_prep_tracks_exam_prep_catalog_tracks_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamCatalogTracksResponse"];
+                };
+            };
+        };
+    };
+    get_exam_prep_subjects_exam_prep_catalog_subjects_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamCatalogSubjectsResponse"];
+                };
+            };
+        };
+    };
+    get_subject_content_status_exam_prep_subjects__subject_id__content_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subject_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamContentStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_exam_study_records_exam_prep_records_get: {
+        parameters: {
+            query?: {
+                exam_module_id?: string;
+                event_type?: string;
+                start_at?: string;
+                end_at?: string;
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_student_twin_preview_exam_prep_scientific_student_twin_get: {
+        parameters: {
+            query?: {
+                exam_module_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentTwinPreviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_learner_state_gate_exam_prep_scientific_learner_state_get: {
+        parameters: {
+            query?: {
+                exam_module_id?: string;
+                probe_runtime?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LearnerStatePreviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_evidence_reliability_gate_exam_prep_scientific_evidence_reliability_get: {
+        parameters: {
+            query?: {
+                exam_module_id?: string;
+                probe_runtime?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvidenceReliabilityPreviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_kt_dataset_audit_exam_prep_scientific_kt_dataset_audit_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KtDatasetAuditResponse"];
+                };
+            };
+        };
+    };
+    get_scientific_capabilities_exam_prep_scientific_capabilities_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScientificCapabilitiesResponse"];
+                };
+            };
+        };
+    };
+    request_misconception_advisory_science_misconception_advisory_post: {
+        parameters: {
+            query: {
+                /** @description the canonical wrong-answer record to analyse */
+                state_id: number;
+                top_k?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MisconceptionAdvisoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_tutor_policy_shadow_science_tutor_policy_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TutorPolicyShadowResponse"];
                 };
             };
         };
@@ -9653,73 +13907,6 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_learning_records_learning_records_get: {
-        parameters: {
-            query?: {
-                username?: string;
-                subject?: string;
-                record_type?: string;
-                review_status?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_learning_record_learning_records_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateLearningRecordRequest"];
-            };
-        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -12254,7 +16441,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ExamStudyPlanResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12289,7 +16476,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ExamStudyPlanSettingsMutationResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12325,7 +16512,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ExamKnowledgeItemUpdateResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12361,7 +16548,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ExamStudyPlanChapterPracticeResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12392,7 +16579,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ExamStudyPlanSubjectsSummaryResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12423,7 +16610,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ExamStudyPlanTasksSummaryResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12458,7 +16645,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ExamStudyPlanTaskMutationResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12492,7 +16679,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ExamStudyPlanTaskDeleteResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12528,7 +16715,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ExamStudyPlanTaskMutationResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12663,7 +16850,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ExamSubjectDashboardSummaryResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12690,14 +16877,24 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description Past-paper figure */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "image/jpeg": unknown;
+                    "image/png": unknown;
+                    "image/webp": unknown;
+                    "image/gif": unknown;
                 };
+            };
+            /** @description Image not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -12727,7 +16924,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["PastPaperIndexResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12793,7 +16990,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["PastPaperQuestionsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12818,9 +17015,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["PastPaperAttemptCreateRequest"];
             };
         };
         responses: {
@@ -12830,7 +17025,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["PastPaperAttemptCreateResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12862,7 +17057,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["PastPaperAttemptDetailResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12888,9 +17083,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["PastPaperWriteRequest"];
             };
         };
         responses: {
@@ -12900,7 +17093,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["PastPaperAnswerSaveResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12926,9 +17119,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["PastPaperWriteRequest"];
             };
         };
         responses: {
@@ -12938,7 +17129,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["PastPaperSubmitResponse"];
                 };
             };
             /** @description Validation Error */
@@ -13599,7 +17790,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ExamChapterPracticeOutlineResponse"];
                 };
             };
             /** @description Validation Error */
@@ -13617,6 +17808,7 @@ export interface operations {
         parameters: {
             query?: {
                 knowledge_point_id?: string;
+                chapter_code?: string;
                 knowledge_point_path?: string;
                 include_children?: boolean;
                 username?: string;
@@ -13635,7 +17827,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ExamChapterPracticeQuestionsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -13693,9 +17885,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["ExamPracticeAttemptCreateRequest"];
             };
         };
         responses: {
@@ -13705,7 +17895,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ExamPracticeAttemptCreateResponse"];
                 };
             };
             /** @description Validation Error */
@@ -13739,7 +17929,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ExamPracticeAttemptDetailResponse"];
                 };
             };
             /** @description Validation Error */
@@ -13765,9 +17955,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["ExamPracticeWriteRequest"];
             };
         };
         responses: {
@@ -13777,7 +17965,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ExamPracticeAnswerSaveResponse"];
                 };
             };
             /** @description Validation Error */
@@ -13803,9 +17991,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["ExamPracticeWriteRequest"];
             };
         };
         responses: {
@@ -13815,7 +18001,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ExamPracticeSubmitResponse"];
                 };
             };
             /** @description Validation Error */
@@ -13983,9 +18169,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["ExamQuestionAnalysisRequest"];
             };
         };
         responses: {
@@ -13995,7 +18179,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ExamQuestionAnalysisResponse"];
                 };
             };
             /** @description Validation Error */
@@ -15468,7 +19652,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["MembershipEntitlementsResponse"];
                 };
             };
             /** @description Validation Error */

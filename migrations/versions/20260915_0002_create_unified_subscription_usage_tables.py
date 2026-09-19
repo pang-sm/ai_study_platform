@@ -13,6 +13,8 @@ qualified_model_pool table (CONFIG). Mirrors backend/usage/models.py exactly.
 from typing import Sequence, Union
 
 from alembic import op
+
+from migrations.guards import create_index_if_absent, create_table_if_absent
 import sqlalchemy as sa
 
 revision: str = "20260915_0002"
@@ -22,7 +24,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.create_table(
+    create_table_if_absent(
         "subscriptions",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column("user_id", sa.Integer(), nullable=False, index=True),
@@ -35,7 +37,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(), nullable=True),
     )
 
-    op.create_table(
+    create_table_if_absent(
         "usage_budgets",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column("user_id", sa.Integer(), nullable=False, index=True),
@@ -51,7 +53,7 @@ def upgrade() -> None:
                             name="uq_usage_budget_period"),
     )
 
-    op.create_table(
+    create_table_if_absent(
         "usage_ledger",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column("user_id", sa.Integer(), nullable=False, index=True),
@@ -62,7 +64,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(), nullable=True),
     )
 
-    op.create_table(
+    create_table_if_absent(
         "ai_requests",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column("request_id", sa.String(64), nullable=False, unique=True),
@@ -81,7 +83,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(), nullable=True),
     )
 
-    op.create_table(
+    create_table_if_absent(
         "ai_cost_records",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column("request_id", sa.String(64), nullable=False, index=True),

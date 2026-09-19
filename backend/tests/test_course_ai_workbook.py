@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
@@ -6,7 +7,7 @@ from conftest import register_and_login
 import main
 
 
-def _fake_ai(_messages, timeout_seconds=60):
+def _fake_ai(*_args, **_kwargs):
     return json.dumps({
         "stem": "线性表的顺序存储结构最适合哪种访问方式？",
         "options": {"A": "按下标随机访问", "B": "只允许尾部访问", "C": "不支持元素定位", "D": "只能反向访问"},
@@ -17,7 +18,8 @@ def _fake_ai(_messages, timeout_seconds=60):
 
 def test_course_ai_workbook_keeps_question_and_attempt_history(client: TestClient, monkeypatch):
     register_and_login(client, "workbook-owner")
-    monkeypatch.setattr(main, "call_deepseek", _fake_ai)
+    monkeypatch.setattr("learning.spaces.course_learning.ai.execute_course_ai",
+                        lambda *_a, **_kw: SimpleNamespace(content=_fake_ai()))
 
     generated = client.post("/course-learning/practice/generate", json={
         "username": "workbook-owner",

@@ -11,12 +11,15 @@ then the provider is called, then settlement is committed.
 """
 from __future__ import annotations
 
+import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Callable
 
 from sqlalchemy.orm import Session
+
+from core.learning_context import LearningContext
 
 from usage import service as usage_service
 from usage.capabilities import check_capability_permission
@@ -29,9 +32,21 @@ from .providers import (
     MoonshotProvider, QwenProvider, ZhipuProvider,
 )
 from .router import RouterDecision, ordered_candidates, select_model
+from .secrets import ark_endpoint_map
+
+logger = logging.getLogger("ai.orchestrator")
 
 DEFAULT_MAX_TOKENS = 2000
 MAX_FALLBACK_ATTEMPTS = 3
+
+# Orchestrator terminal status → the coarse status carried by an `ai_called` event.
+# `already_exists` is absent on purpose: a replayed request_id is not a new call.
+_AI_EVENT_STATUS = {
+    "settled": "succeeded",
+    "released": "failed",
+    "reconciliation_pending": "pending",
+    "denied": "denied",
+}
 
 # Error categories that prove NO billable usage occurred (release full).
 _NO_USAGE_CATEGORIES = {"authentication", "invalid_request", "content_policy",
@@ -44,7 +59,8 @@ def default_provider_factory(name: str) -> GatewayProvider:
     if name == "qwen":
         return QwenProvider()
     if name == "doubao":
-        return ArkProvider()
+        # Canonical alias → Ark endpoint id, from the one shared mapping (ai.secrets).
+        return ArkProvider(model_map=ark_endpoint_map())
     if name == "kimi":
         return MoonshotProvider()
     if name == "glm":
@@ -102,7 +118,56 @@ class AIOrchestrator:
                 explicit_model: str | None = None,
                 temperature: float | None = None,
                 max_tokens: int | None = None,
-                request_id: str | None = None) -> OrchestratorResult:
+                request_id: str | None = None,
+                learning_context: LearningContext | None = None) -> OrchestratorResult:
+        """Public boundary: run the lifecycle, then record the terminal fact.
+
+        The `ai_called` event is emitted here rather than at each of the six return
+        paths so that every outcome — settled, failed, denied, pending — is recorded by
+        one rule (§16). Emission is failure-isolated and happens strictly after the
+        AIRequest row has committed.
+        """
+        if learning_context is not None and learning_context.user_id != user_id:
+            raise ValueError("LearningContext user_id must match orchestrator user_id")
+        result = self._execute(db, user_id, capability, messages,
+                               explicit_model=explicit_model, temperature=temperature,
+                               max_tokens=max_tokens, request_id=request_id,
+                               learning_context=learning_context)
+        self._emit_ai_called(db, user_id, result, learning_context=learning_context)
+        return result
+
+    @staticmethod
+    def _emit_ai_called(db: Session, user_id: int, result: OrchestratorResult,
+                        learning_context: LearningContext | None = None) -> None:
+        try:
+            from learning.records import producers
+            status = _AI_EVENT_STATUS.get(result.status)
+            if status is None:
+                return                     # no new call happened → no event
+            username = None
+            try:
+                from models import User
+                user = db.query(User).filter(User.id == user_id).first()
+                username = getattr(user, "username", None)
+            except Exception:  # noqa: BLE001
+                username = None
+            producers.emit_ai_called(
+                user_id=user_id, ai_request_id=result.request_id,
+                capability=result.capability, status=status,
+                occurred_at=None, provider=result.provider,
+                credits=result.actual_credits,
+                error_category=result.error_category if status == "failed" else None,
+                source_user_ref=username, learning_context=learning_context)
+        except Exception as exc:  # noqa: BLE001 — never fail the AI request
+            logger.warning("records ai_called hook failed: %s", type(exc).__name__)
+
+    def _execute(self, db: Session, user_id: int, capability: str,
+                messages: list[ChatMessage] | list[dict],
+                explicit_model: str | None = None,
+                temperature: float | None = None,
+                max_tokens: int | None = None,
+                request_id: str | None = None,
+                learning_context: LearningContext | None = None) -> OrchestratorResult:
         request_id = request_id or uuid.uuid4().hex
         tier = usage_service.effective_subscription(db, user_id)
 
@@ -144,7 +209,10 @@ class AIOrchestrator:
 
         # 3. reserve once for the primary (cheapest) estimate
         reservation = usage_service.reserve_credits(
-            db, user_id, request_id, capability, primary_estimate["credits"])
+            db, user_id, request_id, capability, primary_estimate["credits"],
+            service_namespace=(learning_context.service_namespace.value
+                               if learning_context is not None else None),
+            context_json=(learning_context.to_dict() if learning_context is not None else None))
         if reservation.get("reason") == "already_exists":
             return OrchestratorResult(
                 ok=False, request_id=request_id, capability=capability, tier=tier,
@@ -166,9 +234,14 @@ class AIOrchestrator:
         last_entry, last_error = primary_entry, None
         for entry, estimate in candidates[:MAX_FALLBACK_ATTEMPTS]:
             last_entry = entry
+            # The reservation already priced this model's thinking behaviour; the same
+            # policy decides the switch actually sent, so reserved and billed output
+            # are governed by one rule.
+            thinking = cost.cost_policy_for(entry.provider, entry.model).request_thinking(
+                capability)
             spec = AIRequestSpec(messages=tuple(chat_messages), model=entry.model,
                                  capability=capability, temperature=temperature,
-                                 max_tokens=max_tokens, stream=False)
+                                 max_tokens=max_tokens, stream=False, thinking=thinking)
             try:
                 provider = self._provider_factory(entry.provider)
                 response = provider.complete(spec)
@@ -210,14 +283,19 @@ class AIOrchestrator:
             base.content = response.content
             base.actual_credits = settle.get("settled_credits")
         elif settle["reason"] == "overage_not_permitted":
-            usage_service.mark_reconciliation_pending(db, request_id)
+            # Real cost exceeded the conservative reservation. Never silently absorbed:
+            # flagged with its own category so it is measurable as an anomaly.
+            usage_service.mark_reconciliation_pending(
+                db, request_id, error_category="reservation_overage")
             base.status = "reconciliation_pending"
+            base.error_category = "reservation_overage"
         else:
             base.status = "released"
         base.usage = {
             "input_tokens": actual["input_tokens"],
             "output_tokens": actual["output_tokens"],
             "cached_input_tokens": actual["cached_input_tokens"],
+            "reasoning_tokens": actual["reasoning_tokens"],
             "usage_source": actual["usage_source"],
             "cost_cny": actual["cost_cny"],
         }

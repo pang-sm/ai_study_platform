@@ -9,6 +9,7 @@ BASE = Path(__file__).resolve().parent.parent.parent.parent.parent
 sys.path.insert(0, str(BASE))
 from database import SessionLocal
 import models
+import past_paper_upsert
 
 DOCX = BASE / "exam_resources/11408/computer_organization/past_papers/raw/11408_2022_2026_computer_organization_questions_answers.docx"
 ASSETS = BASE / "exam_resources/11408/computer_organization/past_papers/assets"
@@ -228,23 +229,24 @@ def main():
         print("DRY-RUN: skipping DB import.")
         return
 
-    # Import to DB
+    # Import to DB via stable key (subject_key, year, question_number).
+    #
+    # History: this file used to deactivate-all-then-insert, which accumulated one
+    # duplicate batch per run — the 65 superseded image-placeholder rows still present
+    # in the bank are its residue. The reconcile below updates IN PLACE and preserves
+    # ids, so it can neither accumulate duplicates nor break references.
+    #
+    # NOTE: the TEXT builder (build_computer_organization_past_papers_text.py) owns the
+    # current CO past-paper content. Running this image builder afterwards will overwrite
+    # the stems with image references — that ordering hazard is pre-existing and is a
+    # content-ops decision, not something this step changes.
     db = SessionLocal()
-    # Deactivate old CO past papers
-    db.query(models.ExamQuestionBank).filter(
-        models.ExamQuestionBank.subject_key == SUBJECT_KEY,
-        models.ExamQuestionBank.source_type == "past_paper"
-    ).update({"is_active": False})
-    db.commit()
 
-    ins = 0
-    for q in questions:
-        item = models.ExamQuestionBank(
-            subject_key=SUBJECT_KEY, subject_name=SUBJECT_NAME,
-            source_type="past_paper", visibility="public",
+    def _row_values(q):
+        return dict(
+            subject_name=SUBJECT_NAME, visibility="public",
             knowledge_point_id="", knowledge_point_name="",
             knowledge_point_path="",
-            year=q["year"], question_number=q["question_number"],
             question_type=q["question_type"],
             stem=json.dumps({
                 "text": q["question_text"],
@@ -256,11 +258,12 @@ def main():
             analysis="",
             difficulty="基础",
             source_ref=f"past_paper:{q['source_ref']}",
-            is_active=True,
         )
-        db.add(item)
-        ins += 1
-    db.commit()
+
+    ins, upd, deact, dup_groups, unkeyed = past_paper_upsert.upsert_past_paper_questions(
+        db, models, SUBJECT_KEY, questions, _row_values)
+    print(f"DB: {ins} inserted, {upd} updated in place, {deact} deactivated, "
+          f"{dup_groups} legacy duplicate groups left untouched, {unkeyed} unkeyed")
     act = db.query(models.ExamQuestionBank).filter(
         models.ExamQuestionBank.subject_key == SUBJECT_KEY,
         models.ExamQuestionBank.source_type == "past_paper",

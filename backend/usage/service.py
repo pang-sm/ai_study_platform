@@ -123,13 +123,15 @@ def _atomic_release(session, budget: UsageBudget, amount: int) -> None:
 
 
 def _ledger_entry(session, user_id: int, request_id: str, entry_type: str,
-                  amount: int, reference_key: str) -> bool:
+                  amount: int, reference_key: str,
+                  service_namespace: str | None = None) -> bool:
     """Append an idempotent ledger entry. Returns False if already present."""
     existing = (session.query(UsageLedger)
                 .filter(UsageLedger.reference_key == reference_key).first())
     if existing is not None:
         return False
     session.add(UsageLedger(user_id=user_id, request_id=request_id, entry_type=entry_type,
+                            service_namespace=service_namespace,
                             amount=amount, reference_key=reference_key,
                             created_at=_utcnow()))
     session.flush()
@@ -137,7 +139,8 @@ def _ledger_entry(session, user_id: int, request_id: str, entry_type: str,
 
 
 def reserve_credits(session, user_id: int, request_id: str, capability: str,
-                    amount: int) -> dict:
+                    amount: int, *, service_namespace: str | None = None,
+                    context_json: dict | None = None) -> dict:
     """Permission check → budget check → atomic reservation. Idempotent per request_id."""
     tier = effective_subscription(session, user_id)
     perm = check_capability_permission(tier, capability)
@@ -170,11 +173,12 @@ def reserve_credits(session, user_id: int, request_id: str, capability: str,
     for period_type in ("daily", "weekly"):
         if budget_amount_for(tier, period_type) is not None:
             _ledger_entry(session, user_id, request_id, "reserve", amount,
-                          f"reserve:{request_id}:{period_type}")
+                          f"reserve:{request_id}:{period_type}", service_namespace)
 
     session.add(AIRequest(request_id=request_id, user_id=user_id, capability=capability,
                           tier=tier, status="reserved", estimated_credits=amount,
-                          reserved_credits=amount, created_at=_utcnow()))
+                          reserved_credits=amount, service_namespace=service_namespace,
+                          context_json=context_json, created_at=_utcnow()))
     try:
         session.commit()
     except IntegrityError:
@@ -206,7 +210,7 @@ def release_credits(session, request_id: str) -> dict:
         if b is not None:
             _atomic_release(session, b, reserved)
     _ledger_entry(session, req.user_id, request_id, "release", -reserved,
-                  f"release:{request_id}")
+                  f"release:{request_id}", req.service_namespace)
     req.status = "released"
     req.finished_at = _utcnow()
     session.commit()
@@ -250,10 +254,10 @@ def settle_credits(session, request_id: str, actual_amount: int,
             )
 
     _ledger_entry(session, req.user_id, request_id, "settle", settle_amount,
-                  f"settle:{request_id}")
+                  f"settle:{request_id}", req.service_namespace)
     if diff > 0:
         _ledger_entry(session, req.user_id, request_id, "release", -diff,
-                      f"release:{request_id}:settle")
+                      f"release:{request_id}:settle", req.service_namespace)
 
     if provider is not None or model is not None:
         session.add(AICostRecord(request_id=request_id, provider=provider or "unknown",
@@ -272,9 +276,13 @@ def settle_credits(session, request_id: str, actual_amount: int,
             "released_credits": diff}
 
 
-def mark_reconciliation_pending(session, request_id: str) -> dict:
+def mark_reconciliation_pending(session, request_id: str,
+                                error_category: str = "cost_reconciliation_pending") -> dict:
     """Mark a request whose provider may have billed usage but whose usage/cost is
     unavailable. Does NOT settle zero and does NOT full-release (conservation-safe).
+
+    ``error_category`` distinguishes the cause so anomalies stay measurable — e.g.
+    ``reservation_overage`` when real cost exceeded the conservative reservation.
 
     A later reconcile_credits (or a confirmed-zero release) resolves the reservation.
     """
@@ -284,7 +292,7 @@ def mark_reconciliation_pending(session, request_id: str) -> dict:
     if req.status in _TERMINAL_STATUSES:
         return {"ok": False, "reason": "already_terminal"}
     req.status = "reconciliation_pending"
-    req.error_category = req.error_category or "cost_reconciliation_pending"
+    req.error_category = req.error_category or error_category
     req.finished_at = _utcnow()
     session.commit()
     return {"ok": True, "reason": "reconciliation_pending"}
@@ -327,10 +335,10 @@ def reconcile_credits(session, request_id: str, actual_amount: int,
             )
 
     _ledger_entry(session, req.user_id, request_id, "settle", settle_amount,
-                  f"settle:{request_id}")
+                  f"settle:{request_id}", req.service_namespace)
     if diff > 0:
         _ledger_entry(session, req.user_id, request_id, "release", -diff,
-                      f"release:{request_id}:settle")
+                      f"release:{request_id}:settle", req.service_namespace)
 
     if provider is not None or model is not None:
         session.add(AICostRecord(request_id=request_id, provider=provider or "unknown",

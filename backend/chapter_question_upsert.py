@@ -65,6 +65,10 @@ def upsert_chapter_questions(db, models, subject_key, subject_name, questions):
             q.get("opts", {}), q.get("ans", ""),
         )
         seen.add(key)
+        # Optional per-question extras. A builder that does not pass them keeps the
+        # exact behaviour it had before (analysis empty on insert, untouched on update;
+        # source_ref "annotated:<raw_kp>").
+        source_ref = q.get("source_ref") or f"annotated:{q.get('raw_kp', '')}"
         row = existing.get(key)
         if row is not None:
             row.knowledge_point_id = q.get("kp", "")
@@ -74,7 +78,11 @@ def upsert_chapter_questions(db, models, subject_key, subject_name, questions):
             row.stem = q.get("stem", "")
             row.options_json = json.dumps(q.get("opts", {}), ensure_ascii=False)
             row.standard_answer = q.get("ans", "")
-            row.source_ref = f"annotated:{q.get('raw_kp', '')}"
+            row.source_ref = source_ref
+            if "analysis" in q:
+                row.analysis = q["analysis"]
+            if "quality_status" in q:
+                row.quality_status = q["quality_status"]
             row.is_active = True
             updated += 1
         else:
@@ -86,8 +94,11 @@ def upsert_chapter_questions(db, models, subject_key, subject_name, questions):
                 knowledge_point_path=f"{q.get('ch_title', '')} / {q.get('kp_name', '')}",
                 question_type=qt, stem=q.get("stem", ""),
                 options_json=json.dumps(q.get("opts", {}), ensure_ascii=False),
-                standard_answer=q.get("ans", ""), analysis="", difficulty="基础",
-                source_ref=f"annotated:{q.get('raw_kp', '')}", is_active=True,
+                standard_answer=q.get("ans", ""),
+                analysis=q.get("analysis", ""), difficulty="基础",
+                source_ref=source_ref,
+                quality_status=q.get("quality_status", "unchecked"),
+                is_active=True,
             ))
             inserted += 1
 

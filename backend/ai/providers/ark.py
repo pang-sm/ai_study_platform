@@ -12,8 +12,9 @@ import time
 
 from openai import OpenAI
 
-from ai.gateway import AIRequestSpec, GatewayResponse
+from ai.gateway import AIRequestSpec, GatewayError, GatewayErrorCategory, GatewayResponse
 from ai.providers.common import extract_openai_usage, map_openai_error
+from ai.secrets import ARK_ENDPOINT_ENV
 
 DEFAULT_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
 
@@ -30,8 +31,18 @@ class ArkProvider:
         self.model_map = model_map or {}
 
     def _resolve_model(self, model: str) -> str:
-        # Allow canonical alias → endpoint-id mapping; unknown ids pass through.
-        return self.model_map.get(model, model)
+        # Canonical alias → endpoint id; unknown ids (e.g. a raw ``ep-...``) pass through.
+        resolved = self.model_map.get(model)
+        if resolved:
+            return resolved
+        if model in ARK_ENDPOINT_ENV:
+            # Known alias, no configured endpoint. Retriable so the orchestrator falls
+            # over to another qualified provider instead of failing the request.
+            raise GatewayError(
+                GatewayErrorCategory.provider_unavailable,
+                f"ark endpoint not configured for {model} "
+                f"(set {ARK_ENDPOINT_ENV[model]})", self.name, retriable=True)
+        return model
 
     def complete(self, spec: AIRequestSpec) -> GatewayResponse:
         started_at = time.perf_counter()
@@ -40,6 +51,12 @@ class ArkProvider:
             kwargs["temperature"] = spec.temperature
         if spec.max_tokens is not None:
             kwargs["max_tokens"] = spec.max_tokens
+        if spec.thinking is not None:
+            # Ark thinking switch. Only enabled/disabled are accepted by Doubao seed
+            # models ("auto" is rejected with InvalidParameter); reasoning has no hard
+            # token cap, so disabling thinking is the only way to bound billable output.
+            kwargs["extra_body"] = {
+                "thinking": {"type": "enabled" if spec.thinking else "disabled"}}
         model = self._resolve_model(spec.model or "")
         try:
             response = self._client.chat.completions.create(
@@ -51,10 +68,16 @@ class ArkProvider:
             raise map_openai_error(exc, self.name) from exc
 
         content = (response.choices[0].message.content or "") if response and response.choices else ""
+        # For aliased endpoints Ark echoes the deployment's underlying model id
+        # (version-dated, e.g. "doubao-seed-2-1-pro-260915"), which is not a pricing or
+        # pool key. Report the canonical alias the router selected instead; the wire id
+        # stays visible in the request itself.
+        reported = getattr(response, "model", None)
+        canonical = spec.model if spec.model in self.model_map else (reported or spec.model or model)
         return GatewayResponse(
             content=content.strip(),
             provider=self.name,
-            model=getattr(response, "model", None) or spec.model or model,
+            model=canonical,
             usage=extract_openai_usage(response),
             finish_reason=getattr(response.choices[0], "finish_reason", None) if response and response.choices else None,
             latency_ms=round((time.perf_counter() - started_at) * 1000),

@@ -532,6 +532,29 @@
 
 ---
 
+## 附注：快照之后新增的路由（DELTA，不是快照的一部分）
+
+上面正文是 **2026-09-10 的只读盘点**。下表只登记该日期之后新增的路由，**不回写快照正文**——
+快照的价值在于它记录了那一天的真实状态，改写它等于伪造历史。
+
+| Method | Path | 认证 | 说明 |
+|---|---|---|---|
+| GET | `/exam/prep/scientific/student-twin` | 需登录 | 学习状态实验视图（PREVIEW，用户可见） |
+| GET | `/exam/prep/scientific/learner-state` | 需登录 | learner_state 能力门报告（SHADOW_NOT_USER_VISIBLE，不产出数值） |
+| GET | `/exam/prep/scientific/evidence-reliability` | 需登录 | evidence_reliability 能力门报告（SHADOW_NOT_USER_VISIBLE，不产出数值） |
+| GET | `/exam/prep/scientific/capabilities` | 需登录 | 13 个科学组件的产品面就绪度汇总 |
+| GET | `/exam/prep/scientific/kt-dataset-audit` | 需登录 | CS408-native KT 数据集契约健康度（不含任何数据行） |
+| POST | `/practice/sessions`、`/practice/sessions/{id}/attempts` 等 | 需登录 | 统一 Practice Core（STEP 7D）；`attempts` 的 payload 自 S5 起接受 `telemetry` 对象 |
+| — | `/v1/inference/*` | — | Scientific Runtime Service，**不是** Product Backend 路由，前端不可达 |
+
+`POST /practice/sessions/{id}/attempts` 的 `telemetry` 为可选对象，字段
+`duration_ms` / `duration_source` / `hint_count` / `hint_source` / `attempt_index`。
+`duration_source = UNAVAILABLE` 时不得携带 `duration_ms`（400）；`hint_source` 非
+`COUNTED` 时不得携带 `hint_count`（400）。响应新增 `response_time_source` /
+`attempt_index` 两个可空字段。旧的 `response_time_ms` 仍照常接受。
+
+---
+
 ## 附注：清理期后端耦合点说明
 
 - 后端 `main.py` 不托管任何前端 SPA：无 `app.mount("/", StaticFiles)`、无返回 `index.html` 的 `FileResponse`。所有 `FileResponse` 均为业务资源（头像 / 资料下载 / 资料预览 / 真题图片 / 管理备份下载）。

@@ -11,6 +11,12 @@
   --color-primary-soft: #eff6ff;
   --color-success: #16a34a;
   --color-success-soft: #f0fdf4;
+  /* Text-safe success. `--color-success` is a FILL/dot/border green: as small text it is
+     2.61:1 on the paper background, far below the 4.5:1 WCAG AA floor. This variant is the
+     same hue at a weight that reads as text (5.65:1 at its worst background, ≥6.2:1
+     elsewhere). Use it wherever the colour carries meaning in a glyph; keep the base token
+     for fills, dots and inset accents. */
+  --color-success-ink: #166534;
   --color-warning: #f59e0b;
   --color-warning-soft: #fffbeb;
   --color-danger: #dc2626;

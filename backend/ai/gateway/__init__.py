@@ -45,13 +45,20 @@ class GatewayError(Exception):
 @dataclass(frozen=True)
 class AIRequestSpec:
     """Normalized request spec. Providers are not forced to be fully isomorphic; only
-    the common fields are normalized. ``model=None`` means "router auto-selected". """
+    the common fields are normalized. ``model=None`` means "router auto-selected".
+
+    ``thinking`` is tri-state: None = provider default, True/False = explicit. It
+    exists because a thinking model's hidden reasoning is billable output that
+    ``max_tokens`` does NOT bound (live-verified on Ark), so the reservation layer has
+    to know whether this request will produce reasoning tokens.
+    """
     messages: tuple[ChatMessage, ...] = ()
     model: str | None = None
     capability: str | None = None
     temperature: float | None = None
     max_tokens: int | None = None
     stream: bool = False
+    thinking: bool | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
 

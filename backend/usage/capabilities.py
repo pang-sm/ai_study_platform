@@ -10,6 +10,16 @@ from __future__ import annotations
 
 POLICY_VERSION = "v1"
 
+# STEP7G-C2: this is a product capability, not a newly benchmarked model task.
+# It temporarily uses the question.generate qualification profile; see ai.pool.
+KNOWLEDGE_STRUCTURE_PROFILE = "STRUCTURED_GENERATION_PROXY_V1"
+
+# STEP7H1: grading a learner's answer against the reference answer is a distinct
+# semantic operation from explaining the question (score + feedback vs explanation).
+# Approved by the user as a first-class capability; it temporarily uses the
+# question.explain qualification profile — see ai.pool.
+ANSWER_GRADE_PROFILE = "QUESTION_EXPLAIN_PROXY_V1"
+
 # Tier → allowed capability set (CONFIG). Unknown capability → fail closed.
 CAPABILITY_TIER_POLICY = {
     "free": {
@@ -25,6 +35,8 @@ CAPABILITY_TIER_POLICY = {
         "programming.debug",
         "programming.explain",
         "planning.generate",
+        "knowledge.structure",
+        "answer.grade",
     },
     "advanced": {
         "tutor.chat",
@@ -34,6 +46,8 @@ CAPABILITY_TIER_POLICY = {
         "programming.debug",
         "programming.explain",
         "planning.generate",
+        "knowledge.structure",
+        "answer.grade",
         "report.generate",
     },
 }

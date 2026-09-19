@@ -25,18 +25,27 @@ for env_path in (BACKEND_DIR / ".env.local", BACKEND_DIR / ".env"):
         load_dotenv(env_path)
 
 from ai import discovery  # noqa: E402
-from ai.secrets import ALL_PROVIDERS, provider_status  # noqa: E402
+from ai.secrets import ALL_PROVIDERS, ark_endpoint_map, provider_status  # noqa: E402
 
 # Probe models: canonical aliases used ONLY as a smoke-test entry point. Live
 # discovery / the candidate registry is the source of truth for real model IDs.
+# Doubao is on the Ark endpoint-id model: the alias is smoke-testable only once its
+# endpoint is mapped (same mapping the orchestrator and benchmark read).
 PROBE_MODELS = {
     "deepseek": "deepseek-chat",
     "qwen": "qwen-plus",
-    "doubao": None,   # Ark may require endpoint-id; smoke skipped unless mapped
+    "doubao": "doubao-general",
     "kimi": None,     # discovered via /models where supported
     "glm": None,
     "minimax": None,
 }
+
+
+def probe_model_for(provider: str) -> str | None:
+    probe = PROBE_MODELS.get(provider)
+    if provider == "doubao" and probe not in ark_endpoint_map():
+        return None
+    return probe
 
 
 def _masked_fingerprint(status: dict) -> str:
@@ -64,7 +73,7 @@ def main() -> int:
         else:
             print(f"[{p}] model discovery: UNSUPPORTED/FAILED ({listing['error']})")
 
-        probe = PROBE_MODELS.get(p)
+        probe = probe_model_for(p)
         if probe:
             r = discovery.smoke_test(p, probe)
             if r["ok"]:

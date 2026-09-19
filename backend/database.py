@@ -2330,12 +2330,20 @@ def ensure_user_service_memberships_schema(conn):
                 continue
             is_enabled = 1 if sk == "exam_11408" else 0
             plan = legacy_plan if sk == "exam_11408" else "free"
+            # `status` has to be written explicitly. On a database built by
+            # `Base.metadata.create_all` the column comes from the model, whose
+            # `default="active"` is Python-side only, so the DDL carries no
+            # DEFAULT — and `ensure_columns` above cannot add one because the
+            # column already exists. Omitting it there violates NOT NULL.
+            # The value follows the same is_enabled -> status rule this helper
+            # already applies to existing rows.
+            status = "active" if is_enabled else "inactive"
             conn.execute(
                 text(
-                    "INSERT INTO user_service_memberships (user_id, service_key, is_enabled, plan) "
-                    "VALUES (:uid, :sk, :enabled, :plan)"
+                    "INSERT INTO user_service_memberships (user_id, service_key, is_enabled, plan, status) "
+                    "VALUES (:uid, :sk, :enabled, :plan, :status)"
                 ),
-                {"uid": uid, "sk": sk, "enabled": is_enabled, "plan": plan},
+                {"uid": uid, "sk": sk, "enabled": is_enabled, "plan": plan, "status": status},
             )
 
 

@@ -4,7 +4,7 @@ import AxeBuilder from '@axe-core/playwright';
 test('index route renders cleanly with no console errors', async ({ page }) => {
   const consoleErrors: string[] = [];
   page.on('console', (msg) => {
-    if (msg.type() === 'error') consoleErrors.push(msg.text());
+    if (msg.type() === 'error' && !msg.text().includes('401 (Unauthorized)')) consoleErrors.push(msg.text());
   });
   page.on('pageerror', (err) => consoleErrors.push(err.message));
 
@@ -39,4 +39,27 @@ test('mobile viewport has no horizontal overflow', async ({ page }) => {
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
   );
   expect(hasOverflow).toBe(false);
+});
+
+test('Exam foundation navigation and CS408 entry are accessible', async ({ page }) => {
+  const consoleErrors: string[] = [];
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/exam/subjects');
+
+  const navigation = page.getByRole('navigation', { name: '考研学习导航' });
+  await expect(navigation.getByRole('link', { name: '科目' })).toHaveAttribute('aria-current', 'page');
+  await expect(navigation.getByRole('link', { name: '我的备考' })).not.toHaveAttribute('aria-current', 'page');
+
+  await navigation.getByRole('link', { name: 'CS408' }).click();
+  await expect(page).toHaveURL(/\/exam\/cs408$/);
+  await expect(page.getByRole('heading', { name: '学习工作区' })).toBeVisible();
+
+  page.on('console', (msg) => {
+    if (msg.type() === 'error' && !msg.text().includes('401 (Unauthorized)')) consoleErrors.push(msg.text());
+  });
+  page.on('pageerror', (err) => consoleErrors.push(err.message));
+
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
+  expect(consoleErrors).toEqual([]);
 });

@@ -98,9 +98,19 @@ def main() -> int:
         print("未输入任何新 key，未写入文件。")
         return 0
 
-    # Write only canonical keys that were entered or already present.
+    # Write canonical keys entered/present, PRESERVING every other line of the file
+    # (e.g. ARK_ENDPOINT_* — non-secret provider config lives here too).
+    preserved: list[str] = []
+    if ENV_LOCAL.exists():
+        for line in ENV_LOCAL.read_text(encoding="utf-8").splitlines():
+            name = line.split("=", 1)[0].strip() if "=" in line else ""
+            if name and name in out:
+                continue
+            preserved.append(line)
+
     lines = [f"{name}={value}" for name, value in out.items()]
-    ENV_LOCAL.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    body = [ln for ln in preserved if ln.strip()] + lines
+    ENV_LOCAL.write_text("\n".join(body) + "\n", encoding="utf-8")
     print(f"\n已写入 {ENV_LOCAL}")
     print("确认指纹（SHA256 prefix，非 key）：")
     for name, value in out.items():

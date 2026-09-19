@@ -98,15 +98,22 @@ def test_exam_scope_endpoint_persists_sources_isolates_and_injects_ai_context(cl
     assert other_course.json()["scope"]["manual_text"] == ""
 
     captured = []
-    def fail_after_capture(messages):
+    capabilities = []
+    def capture_course_ai(_db, _user, capability, messages, **_kwargs):
+        capabilities.append(capability)
         captured.extend(messages)
         raise RuntimeError("test AI fallback")
-    monkeypatch.setattr(main, "call_deepseek", fail_after_capture)
+    monkeypatch.setattr(main, "_course_ai_content", capture_course_ai)
+    monkeypatch.setattr(main, "call_deepseek", lambda *_a, **_kw: (_ for _ in ()).throw(
+        AssertionError("Course plan preview reached a direct provider call")))
     generated = client.post("/learning/plans/generate-preview", json={
         "username": "exam-scope-user-a", "course_id": course_id, "plan_scene": "exam", "plan_type": "exam", "days": 3,
     })
     assert generated.status_code == 200, generated.text
     assert generated.json()["exam_scope_context"]["material_ids"] == [material.id]
+    # A course_learning plan carries its exam scope INTO the unified AI boundary; the
+    # exam scope is prompt context, it does not move the request to another space.
+    assert capabilities == ["planning.generate"]
     assert "只考进程管理和虚拟内存" in captured[-1]["content"]
     assert "进程管理" in captured[-1]["content"]
 

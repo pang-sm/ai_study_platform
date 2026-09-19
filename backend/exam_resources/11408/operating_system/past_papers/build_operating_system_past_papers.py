@@ -7,6 +7,7 @@ BASE = Path(__file__).resolve().parent.parent.parent.parent.parent
 sys.path.insert(0, str(BASE))
 from database import SessionLocal
 import models
+import past_paper_upsert
 
 OCR_TXT = BASE / "exam_resources/11408/operating_system/past_papers/raw/11408_2022_2026_operating_system_OCR.txt"
 CHKD = BASE / "exam_resources/11408/operating_system/past_papers/checked"
@@ -380,25 +381,16 @@ def main():
         print("DRY-RUN: skipping DB import.")
         return
 
-    # Import to DB — delete old records first to avoid duplicates
+    # Import to DB — stable-key reconcile (never DELETE): a re-import must not change
+    # exam_question_bank.id, or every done-record / wrong-answer / favorite / attempt
+    # referencing these rows breaks silently.
     db = SessionLocal()
-    deleted = db.query(models.ExamQuestionBank).filter(
-        models.ExamQuestionBank.subject_key == SUBJECT_KEY,
-        models.ExamQuestionBank.source_type == "past_paper",
-    ).delete()
-    db.commit()
-    print(f"Deleted {deleted} old OS past papers")
 
-    ins = 0
-    ready_count = 0
-    review_count = 0
-    for q in questions:
+    def _row_values(q):
         quality = q.get('text_quality', 'unchecked')
-        item = models.ExamQuestionBank(
-            subject_key=SUBJECT_KEY, subject_name=SUBJECT_NAME,
-            source_type="past_paper", visibility="public",
+        return dict(
+            subject_name=SUBJECT_NAME, visibility="public",
             knowledge_point_id="", knowledge_point_name="", knowledge_point_path="",
-            year=q['year'], question_number=q['question_number'],
             question_type=q['question_type'],
             stem=q['question_text'],
             options_json=json.dumps(q.get('options', {}), ensure_ascii=False),
@@ -407,14 +399,14 @@ def main():
             difficulty="基础",
             source_ref=f"past_paper:{q['source_ref']}",
             quality_status=quality,
-            is_active=True,  # ALL questions visible; quality_status drives UX
         )
-        db.add(item); ins += 1
-        if quality == 'ready':
-            ready_count += 1
-        else:
-            review_count += 1
-    db.commit()
+
+    ins, upd, deact, dup_groups, unkeyed = past_paper_upsert.upsert_past_paper_questions(
+        db, models, SUBJECT_KEY, questions, _row_values)
+    ready_count = sum(1 for q in questions if q.get('text_quality', 'unchecked') == 'ready')
+    review_count = len(questions) - ready_count
+    print(f"DB: {ins} inserted, {upd} updated in place, {deact} deactivated, "
+          f"{dup_groups} legacy duplicate groups left untouched, {unkeyed} unkeyed")
 
     act = db.query(models.ExamQuestionBank).filter(
         models.ExamQuestionBank.subject_key == SUBJECT_KEY,
