@@ -19,8 +19,18 @@ from sqlalchemy.exc import IntegrityError
 
 from models import MembershipOrder
 
-from .capabilities import CAPABILITY_TIER_POLICY, check_capability_permission
+from .capabilities import (
+    CAPABILITY_TIER_POLICY,
+    VALID_TIERS,
+    check_capability_permission,
+    normalize_tier,
+)
 from .models import AICostRecord, AIRequest, Subscription, UsageBudget, UsageLedger
+
+__all__ = [
+    "CAPABILITY_TIER_POLICY", "VALID_TIERS", "normalize_tier",
+    "effective_subscription", "budget_amount_for",
+]
 
 CREDIT_UNIT_CNY = 0.01  # 1 credit ≈ ¥0.01 (SSOT §6, provisional)
 
@@ -39,16 +49,9 @@ _TERMINAL_STATUSES = ("settled", "released")
 DAILY_BUDGET = {"free": 100, "standard": 1000, "advanced": None}
 WEEKLY_BUDGET = {"free": 500, "standard": 5000, "advanced": 20000}
 
-VALID_TIERS = ("free", "standard", "advanced")
-
 
 def _utcnow() -> datetime:
     return datetime.utcnow()
-
-
-def normalize_tier(tier) -> str:
-    t = (tier or "").strip().lower()
-    return t if t in VALID_TIERS else "free"
 
 
 def effective_subscription(session, user_id: int, now: datetime | None = None) -> str:

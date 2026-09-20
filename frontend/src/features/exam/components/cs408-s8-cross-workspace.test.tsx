@@ -159,7 +159,7 @@ describe('Cs408LearningRecordsWorkspace → source', () => {
 // ---------------------------------------------------------------- locked plan (PART 13)
 
 vi.mock('@/features/exam/api/cs408-study-plan', () => ({
-  useExamPlanEntitlement: () => ({ data: { service_key: 'exam_11408', current_plan: 'free', features: { learning_plan: { allowed: false, required_plan: 'monthly_sprint' } } }, isPending: false, isError: false, refetch: vi.fn() }),
+  useExamPlanEntitlement: () => ({ data: { service_key: 'exam_11408', current_tier: 'free', policy_version: 'v1', features: { learning_plan: { allowed: false, required_tier: 'standard', required_capability: 'planning.generate' } } }, isPending: false, isError: false, refetch: vi.fn() }),
   useCs408StudyPlans: () => [],
 }));
 
@@ -170,14 +170,16 @@ describe('Cs408StudyPlanWorkspace locked state', () => {
   // because no membership route existed; a canonical one now does, so the locked state
   // points at it and the dead-end behaviour is gone. The requirement is still stated in
   // terms of the value the entitlement endpoint returns — never invented.
-  it('states the requirement and points at the canonical membership route', () => {
+  //
+  // ACCEL_PRODUCT_S10 made that value a UNIFIED TIER, so the sentence names `Standard`
+  // rather than describing a plan code in words.
+  it('states the tier requirement and points at the canonical membership route', () => {
     renderWithClient(<Cs408StudyPlanWorkspace />);
-    expect(screen.getByText('学习计划需要开通对应的备考方案，当前账号尚未开通。')).toBeInTheDocument();
+    expect(screen.getByText('学习计划需要 Standard 及以上档位，当前账号尚未开通。')).toBeInTheDocument();
     const link = screen.getByRole('link', { name: '查看会员档位与权益' });
     expect(link).toHaveAttribute('href', '/membership');
-    // `required_plan` is the LEGACY plan code ('monthly_sprint' in this fixture), not a
-    // unified tier — it is not relabelled into one on this page.
-    expect(screen.queryByText('monthly_sprint')).not.toBeInTheDocument();
+    // No legacy plan code anywhere: the entitlement contract no longer carries one.
+    expect(screen.queryByText(/monthly_sprint|备考方案/)).not.toBeInTheDocument();
     // still no fake action: the only control is navigation, not a purchase that cannot finish
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });

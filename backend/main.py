@@ -54,6 +54,8 @@ from course_workbench import (
 import models
 from data_plane import models as data_plane_models  # noqa: F401 — registers Data Plane tables for create_all
 from usage import models as usage_models  # noqa: F401 — registers Unified Subscription/Usage tables
+from usage.capabilities import POLICY_VERSION as CAPABILITY_POLICY_VERSION
+from usage.service import effective_subscription as unified_tier
 from routers.health import router as health_router
 from routers.subscription import router as subscription_router
 from routers.ai_models import router as ai_models_router
@@ -79,7 +81,9 @@ from membership import (
     serialize_service_plan,
     service_plan_rank,
     check_user_entitlement,
-    SERVICE_FEATURE_QUOTAS,
+    SERVICE_FEATURES,
+    effective_service_plan,
+    raise_unified_tier,
     get_feature_entitlement,
     normalize_major,
     recommend_plan_by_major,
@@ -1643,24 +1647,17 @@ def get_user_service_membership(db: Session, user_id: int, service_key: str):
 
 
 def get_effective_service_plan(db: Session, user_id: int, service_key: str) -> str:
-    """Return the effective plan for a service direction.
+    """Return the effective legacy catalog plan for a service direction.
 
-    Returns the membership's plan if enabled, otherwise 'free'.
-    Falls back to 'free' if no membership record exists.
+    ACCEL_PRODUCT_S10: delegates to ``membership.effective_service_plan``, which is the
+    HIGHER of the per-direction compatibility row and the plan the UNIFIED tier represents
+    in that direction's catalog. The unified subscription is the tier authority (SSOT §4), so
+    every caller of this function — quotas, admin surfaces, programming plan normalization —
+    moves with the unified tier instead of with a second membership row.
 
-    This is the SINGLE source of truth for service-direction plan lookups.
+    Monotone by construction: a unified upgrade can only raise this value.
     """
-    canonical_key = canonical_service_key(service_key) or service_key
-    m = get_user_service_membership(db, user_id, canonical_key)
-    if m and m.is_enabled and (getattr(m, "status", None) or "active") == "active":
-        expires_at = getattr(m, "expires_at", None)
-        if expires_at:
-            if expires_at.tzinfo is None:
-                expires_at = expires_at.replace(tzinfo=timezone.utc)
-            if expires_at <= utc_now():
-                return "free"
-        return m.plan or "free"
-    return "free"
+    return effective_service_plan(db, user_id, service_key)
 
 
 def require_feature_entitlement(current_user: models.User, db: Session, service_key: str, feature_key: str) -> dict:
@@ -1674,8 +1671,9 @@ def require_feature_entitlement(current_user: models.User, db: Session, service_
             "code": "FEATURE_REQUIRES_UPGRADE",
             "feature": entitlement["feature"],
             "service_key": entitlement["service_key"],
-            "current_plan": entitlement["current_plan"],
-            "required_plan": entitlement["required_plan"],
+            "current_tier": entitlement["current_tier"],
+            "required_tier": entitlement["required_tier"],
+            "required_capability": entitlement["required_capability"],
         })
     return entitlement
 
@@ -28938,23 +28936,30 @@ class RedemptionResultResponse(BaseModel):
 class MembershipFeatureEntitlement(BaseModel):
     """One feature's entitlement in one learning direction.
 
-    ``required_plan`` is the CHEAPEST plan code that grants the feature *in this direction*
-    — it is direction-specific, which is why it is a string and not a shared enum:
-    ``learning_plan`` requires ``monthly_sprint`` under ``exam_11408`` but ``monthly``
-    under ``course_learning``. ``allowed`` is the caller's own effective answer.
+    ACCEL_PRODUCT_S10: ``required_tier`` is the UNIFIED tier (``free`` / ``standard`` /
+    ``advanced``) that first grants the feature, and ``required_capability`` is the
+    capability whose permission decides it (``null`` for a base feature open to every tier).
+    It is no longer a per-direction plan code: those were legacy aliases that must not reach
+    a user, and carrying them here forced every consumer to invent a plan→tier translation
+    the backend never made.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     allowed: bool
-    required_plan: str
+    required_tier: str
+    required_capability: str | None
 
 
 class MembershipEntitlementsResponse(BaseModel):
     """The caller's effective entitlements for one learning direction.
 
+    ``current_tier`` is the caller's unified subscription tier — the ONE membership they
+    hold. ``policy_version`` names the capability policy the verdict was resolved under, so a
+    cached page cannot be mistaken for a verdict under a different policy.
+
     ``features`` is a MAPPING, not a closed record, because the key set is derived from the
-    direction's feature-quota config and is genuinely not fixed: ``exam_11408`` and
+    direction's feature config and is genuinely not fixed: ``exam_11408`` and
     ``course_learning`` answer with ``learning_plan`` + ``learning_report``, while
     ``programming`` legitimately answers with an empty mapping. Modelling the keys as
     required fields would claim all three directions share a shape, and would make the
@@ -28965,7 +28970,8 @@ class MembershipEntitlementsResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     service_key: str
-    current_plan: str
+    current_tier: str
+    policy_version: str
     features: dict[str, MembershipFeatureEntitlement]
 
 
@@ -29067,14 +29073,16 @@ def get_service_feature_entitlements(
     features = {
         feature_key: {
             "allowed": entitlement["allowed"],
-            "required_plan": entitlement["required_plan"],
+            "required_tier": entitlement["required_tier"],
+            "required_capability": entitlement["required_capability"],
         }
-        for feature_key in SERVICE_FEATURE_QUOTAS.get(canonical, {})
+        for feature_key in SERVICE_FEATURES.get(canonical, ())
         for entitlement in [get_feature_entitlement(current_user, db, canonical, feature_key)]
     }
     return {
         "service_key": canonical,
-        "current_plan": get_effective_service_plan(db, current_user.id, canonical),
+        "current_tier": unified_tier(db, current_user.id),
+        "policy_version": CAPABILITY_POLICY_VERSION,
         "features": features,
     }
 
@@ -29421,14 +29429,17 @@ def redeem_membership_code(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    """Redeem a membership code.
+    """Redeem a membership code — COMPATIBILITY entry point.
 
-    ACCEL_PRODUCT_S9: this is the path that actually OPENS a locked product feature. The
-    per-direction ``learning_plan`` / ``learning_report`` gates read
-    ``user_service_memberships`` (``membership.get_feature_entitlement``), which this
-    endpoint writes, and ``POST /subscription/redeem`` does not. The two systems are
-    deliberately independent until the unified migration lands (SSOT §41), so the membership
-    surface offers the one that resolves the lock rather than the one that only moves a tier.
+    ACCEL_PRODUCT_S10: the unified subscription is the single tier authority, so this path
+    and ``POST /subscription/redeem`` now perform the SAME activation through
+    ``membership.redeem_unified_code``; this one additionally writes the per-direction
+    compatibility row. There is no longer a redemption that moves a tier without opening the
+    feature it grants (the S9 gap: success reported, ``learning_plan`` still locked).
+
+    The per-direction ``service_key`` is still accepted and validated so an old client that
+    sends one is told when a code belongs to another direction, rather than having it applied
+    here silently.
     """
     if not req.code or not req.code.strip():
         raise HTTPException(status_code=400, detail="请输入兑换码")
@@ -31478,6 +31489,8 @@ def admin_update_user_memberships(
 
     now = utc_now()
     updated = {}
+    # sk -> (plan, expires_at) for every direction left ENABLED and ACTIVE by this edit.
+    admin_grants: dict[str, tuple[str, object]] = {}
     for sk, data in memberships_data.items():
         if sk not in ADMIN_MEMBERSHIP_SERVICE_KEYS:
             raise HTTPException(status_code=400, detail=f"无效的 service_key: {sk}")
@@ -31539,7 +31552,22 @@ def admin_update_user_memberships(
             membership.expires_at = expires_at
             if is_enabled and requested_status == "active": membership.activated_at = membership.activated_at or now
             membership.updated_at = now
+        if is_enabled and requested_status == "active" and plan != "free":
+            admin_grants[sk] = (plan, expires_at)
         updated[sk] = (membership, old_value)
+
+    # ACCEL_PRODUCT_S10: an admin grant goes through the SAME grant tail as a payment or a
+    # redemption, so the unified tier — the thing every capability gate reads — rises with it.
+    # Without this an admin opens a plan, the compatibility row records it, and the feature
+    # the plan grants stays locked. The real granted expiry is reused, so the tier and the
+    # per-direction row end at the same moment.
+    for sk, (granted_plan, granted_expiry) in admin_grants.items():
+        days = None
+        if granted_expiry:
+            expiry_utc = (granted_expiry.replace(tzinfo=timezone.utc)
+                          if granted_expiry.tzinfo is None else granted_expiry)
+            days = max(1, int((expiry_utc - now).total_seconds() // 86400))
+        raise_unified_tier(db, user_id, sk, granted_plan, days, source="admin")
 
     db.commit()
     result = {}

@@ -57,6 +57,7 @@ import json
 
 from sqlalchemy.orm import Session as DbSession
 
+from data_plane import origin
 from learning.records import native_concept
 
 DATASET_CONTRACT_VERSION = "kt-v1"
@@ -75,6 +76,22 @@ FORBIDDEN_FIELDS = (
 # Why a canonical event did not become an interaction. Stable codes.
 EXCLUDED_NOT_BINARY = "CORRECTNESS_NOT_AUTHORITATIVE_BOOLEAN"
 EXCLUDED_NO_CONCEPT = "NO_NATIVE_CONCEPT_REFERENCE"
+
+# ACCEL_PRODUCT_S10 PART G. A fact whose recorded origin is not LEARNER — a demo rehearsal,
+# an acceptance run, a test, a synthetic back-fill — is excluded from every model dataset and
+# from every readiness count. The specific origin is carried in the exclusion KEY (see
+# ``data_plane.origin.exclusion_reason``) so a demo leak is distinguishable from a test leak
+# rather than collapsing into one anonymous bucket.
+EXCLUDED_ORIGIN_PREFIX = "DATASET_ORIGIN_"
+
+
+def is_training_admissible(event) -> bool:
+    """Whether one recorded fact may train a model. Pure; fail-closed on a NULL origin."""
+    return origin.is_training_admissible(getattr(event, "data_origin", None))
+
+
+def origin_exclusion_code(event) -> str:
+    return f"{EXCLUDED_ORIGIN_PREFIX}{origin.normalize(getattr(event, 'data_origin', None))}"
 
 # ACCEL_PRODUCT_S9 — measured, not enforced here. See `interaction_coverage`.
 CONCEPT_CANONICAL = "canonical_leaf_of_module"
@@ -234,6 +251,10 @@ def build(db: DbSession, *, service_namespace: str | None = None,
     concept_levels: dict[str, int] = {}
 
     for event in _ordered_events(rows):
+        if not is_training_admissible(event):
+            code = origin_exclusion_code(event)
+            excluded[code] = excluded.get(code, 0) + 1
+            continue
         eligible, reason = is_kt_eligible(event)
         if not eligible:
             excluded[reason] = excluded.get(reason, 0) + 1
@@ -469,7 +490,35 @@ def interaction_coverage(db: DbSession, *, service_namespace: str | None = None,
     per_module: dict[str, dict] = {}
     non_canonical_ids: dict[tuple[str, str], int] = {}
 
+    # PART H — provenance is counted BEFORE any eligibility rule, and never folded into the
+    # learner counts. A demo rehearsal and a real learner are two populations; a report that
+    # added them would answer neither "is the product used?" nor "is the demo intact?".
+    #
+    # A non-LEARNER row is still measured for whether it WOULD have been an interaction, so
+    # `demo_interactions` means "demo facts that reached the same bar", not "demo rows that
+    # exist". Comparing a demo count taken at a lower bar against a real count would be a
+    # comparison of two different things.
+    rows_by_origin: dict[str, int] = {}
+    non_learner_interactions: dict[str, int] = {}
+    learners_with_non_learner_events: set[int] = set()
+
+    def _counts_as_interaction(ev) -> bool:
+        if not is_kt_eligible(ev)[0]:
+            return False
+        return interaction_of(ev) is not None
+
     for event in rows:
+        event_origin = origin.normalize(getattr(event, "data_origin", None))
+        rows_by_origin[event_origin] = rows_by_origin.get(event_origin, 0) + 1
+        if not is_training_admissible(event):
+            code = origin_exclusion_code(event)
+            excluded[code] = excluded.get(code, 0) + 1
+            if _counts_as_interaction(event):
+                non_learner_interactions[event_origin] = (
+                    non_learner_interactions.get(event_origin, 0) + 1)
+                if event.user_id is not None:
+                    learners_with_non_learner_events.add(int(event.user_id))
+            continue
         if event.user_id is not None:
             learners_with_events.add(int(event.user_id))
         eligible, reason = is_kt_eligible(event)
@@ -517,16 +566,35 @@ def interaction_coverage(db: DbSession, *, service_namespace: str | None = None,
 
     from learning.practice.telemetry import (TELEMETRY_COLLECTION_START_VERSION,
                                             TELEMETRY_SCHEMA_VERSION)
+    real_eligible = totals["module_level"] + totals["concept_level_after"]
     return {
         "events_scanned": len(rows),
+        # PART H — the counts that feed a gate are REAL-LEARNER counts, and they are labelled
+        # as such. `users_with_events` / `users_with_eligible_interactions` keep their names
+        # for existing readers and now mean exactly the real population, because non-LEARNER
+        # facts are dropped above rather than mixed in.
         "users_with_events": len(learners_with_events),
         "users_with_eligible_interactions": len(learners_with_eligible),
+        "real_users_with_events": len(learners_with_events),
+        "real_eligible_interactions": real_eligible,
+        "real_concept_level_interactions": totals["concept_level_after"],
+        # Separated ON PURPOSE, never summed with the real numbers above.
+        "demo_interactions": (non_learner_interactions.get(origin.DEMO, 0)
+                              + non_learner_interactions.get(origin.ACCEPTANCE, 0)),
+        "test_interactions": non_learner_interactions.get(origin.TEST, 0),
+        "synthetic_backfill_interactions": non_learner_interactions.get(
+            origin.BACKFILL_SYNTHETIC, 0),
+        "unclassified_interactions": non_learner_interactions.get(origin.UNCLASSIFIED, 0),
+        "demo_users": len(learners_with_non_learner_events),
+        "rows_by_origin": dict(sorted(rows_by_origin.items())),
+        "interactions_by_origin": dict(sorted(non_learner_interactions.items())),
+        "real_vs_demo_separated": True,
         # The two ceilings, named so neither is read as the other.
         "content_ceiling": ("what the QUESTION BANK could produce — see "
                             "science.concept_coverage.question_bank_coverage"),
         "recorded_interactions": ("what the product has actually RECORDED — this report"),
         "totals": totals,
-        "eligible_interactions": (totals["module_level"] + totals["concept_level_after"]),
+        "eligible_interactions": real_eligible,
         "excluded": dict(sorted(excluded.items())),
         "exclusion_semantics": {
             EXCLUDED_NOT_BINARY: ("the fact carries no authoritative boolean verdict; an "
@@ -534,6 +602,13 @@ def interaction_coverage(db: DbSession, *, service_namespace: str | None = None,
             EXCLUDED_NO_CONCEPT: ("the fact carries neither a module nor a concept; it is "
                                   "excluded rather than grouped at a level it does not "
                                   "assert"),
+            f"{EXCLUDED_ORIGIN_PREFIX}{origin.DEMO}": ("recorded by the demo/acceptance seed "
+                                                       "path to show the product; excluded "
+                                                       "from every model dataset"),
+            f"{EXCLUDED_ORIGIN_PREFIX}{origin.UNCLASSIFIED}": ("the fact's origin was never "
+                                                               "recorded; fail-closed, so it "
+                                                               "counts as real data for "
+                                                               "NOTHING"),
         },
         "concept_identity": {
             CONCEPT_CANONICAL: ("the stored knowledge-point id IS a canonical leaf of the "

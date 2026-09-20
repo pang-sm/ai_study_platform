@@ -48,7 +48,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 APP_DB = BACKEND_DIR / "app.db"
 
-EXPECTED_HEAD = "20260919_0010"
+EXPECTED_HEAD = "20260919_0012"
 
 # The Exam Prep / CS408 runtime schema this step baselines (migration 0008). Derived from
 # the exam route handlers, not from a name pattern.

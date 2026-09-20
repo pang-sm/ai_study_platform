@@ -227,7 +227,10 @@ export interface paths {
         put?: never;
         /**
          * Preview Redeem
-         * @description Preview a REAL redemption code, mapped to a unified tier.
+         * @description Preview a REAL redemption code: the UNIFIED tier it grants, and for how long.
+         *
+         *     No legacy plan code is returned. The code's stored target is an internal alias; showing
+         *     it would put a string on screen that names no product tier the learner can act on.
          */
         post: operations["preview_redeem_subscription_redeem_preview_post"];
         delete?: never;
@@ -247,7 +250,11 @@ export interface paths {
         put?: never;
         /**
          * Redeem
-         * @description Redeem a REAL redemption code (atomic consume) → activate unified subscription.
+         * @description Redeem a REAL redemption code (atomic consume) → activate the unified subscription.
+         *
+         *     THIS IS THE ONE USER-FACING REDEEM FLOW. A success here changes the unified tier, and
+         *     because every capability gate resolves from that tier, the features the tier grants are
+         *     open by the time this response is written. There is no second membership to keep in sync.
          */
         post: operations["redeem_subscription_redeem_post"];
         delete?: never;
@@ -4574,14 +4581,17 @@ export interface paths {
         put?: never;
         /**
          * Redeem Membership Code
-         * @description Redeem a membership code.
+         * @description Redeem a membership code — COMPATIBILITY entry point.
          *
-         *     ACCEL_PRODUCT_S9: this is the path that actually OPENS a locked product feature. The
-         *     per-direction ``learning_plan`` / ``learning_report`` gates read
-         *     ``user_service_memberships`` (``membership.get_feature_entitlement``), which this
-         *     endpoint writes, and ``POST /subscription/redeem`` does not. The two systems are
-         *     deliberately independent until the unified migration lands (SSOT §41), so the membership
-         *     surface offers the one that resolves the lock rather than the one that only moves a tier.
+         *     ACCEL_PRODUCT_S10: the unified subscription is the single tier authority, so this path
+         *     and ``POST /subscription/redeem`` now perform the SAME activation through
+         *     ``membership.redeem_unified_code``; this one additionally writes the per-direction
+         *     compatibility row. There is no longer a redemption that moves a tier without opening the
+         *     feature it grants (the S9 gap: success reported, ``learning_plan`` still locked).
+         *
+         *     The per-direction ``service_key`` is still accepted and validated so an old client that
+         *     sends one is told when a code belongs to another direction, rather than having it applied
+         *     here silently.
          */
         post: operations["redeem_membership_code_membership_redeem_post"];
         delete?: never;
@@ -9026,8 +9036,12 @@ export interface components {
          * MembershipEntitlementsResponse
          * @description The caller's effective entitlements for one learning direction.
          *
+         *     ``current_tier`` is the caller's unified subscription tier — the ONE membership they
+         *     hold. ``policy_version`` names the capability policy the verdict was resolved under, so a
+         *     cached page cannot be mistaken for a verdict under a different policy.
+         *
          *     ``features`` is a MAPPING, not a closed record, because the key set is derived from the
-         *     direction's feature-quota config and is genuinely not fixed: ``exam_11408`` and
+         *     direction's feature config and is genuinely not fixed: ``exam_11408`` and
          *     ``course_learning`` answer with ``learning_plan`` + ``learning_report``, while
          *     ``programming`` legitimately answers with an empty mapping. Modelling the keys as
          *     required fields would claim all three directions share a shape, and would make the
@@ -9037,8 +9051,10 @@ export interface components {
         MembershipEntitlementsResponse: {
             /** Service Key */
             service_key: string;
-            /** Current Plan */
-            current_plan: string;
+            /** Current Tier */
+            current_tier: string;
+            /** Policy Version */
+            policy_version: string;
             /** Features */
             features: {
                 [key: string]: components["schemas"]["MembershipFeatureEntitlement"];
@@ -9048,16 +9064,20 @@ export interface components {
          * MembershipFeatureEntitlement
          * @description One feature's entitlement in one learning direction.
          *
-         *     ``required_plan`` is the CHEAPEST plan code that grants the feature *in this direction*
-         *     — it is direction-specific, which is why it is a string and not a shared enum:
-         *     ``learning_plan`` requires ``monthly_sprint`` under ``exam_11408`` but ``monthly``
-         *     under ``course_learning``. ``allowed`` is the caller's own effective answer.
+         *     ACCEL_PRODUCT_S10: ``required_tier`` is the UNIFIED tier (``free`` / ``standard`` /
+         *     ``advanced``) that first grants the feature, and ``required_capability`` is the
+         *     capability whose permission decides it (``null`` for a base feature open to every tier).
+         *     It is no longer a per-direction plan code: those were legacy aliases that must not reach
+         *     a user, and carrying them here forced every consumer to invent a plan→tier translation
+         *     the backend never made.
          */
         MembershipFeatureEntitlement: {
             /** Allowed */
             allowed: boolean;
-            /** Required Plan */
-            required_plan: string;
+            /** Required Tier */
+            required_tier: string;
+            /** Required Capability */
+            required_capability: string | null;
         };
         /** MembershipOrderCreateRequest */
         MembershipOrderCreateRequest: {
@@ -9956,12 +9976,52 @@ export interface components {
             /** Code */
             code: string;
         };
+        /**
+         * RedeemPreviewResponse
+         * @description What one redemption code would grant, in unified-tier terms only.
+         *
+         *     ``current_tier`` is stated so the learner can see the move before making it, and
+         *     ``projected_expires_at`` is the server's own projection — not a client guess.
+         */
+        RedeemPreviewResponse: {
+            /** Tier */
+            tier: string;
+            /** Tier Label */
+            tier_label: string;
+            /** Duration Days */
+            duration_days: number;
+            /** Current Tier */
+            current_tier: string;
+            /** Projected Expires At */
+            projected_expires_at: string;
+            /** Code Expires At */
+            code_expires_at: string | null;
+        };
         /** RedeemRequest */
         RedeemRequest: {
             /** Code */
             code: string;
             /** Service Key */
             service_key?: string | null;
+        };
+        /**
+         * RedeemResultResponse
+         * @description The consumed code's effect. ``current_tier`` is re-read AFTER activation, so it is the
+         *     tier the caller actually holds now — the same value every capability gate will resolve.
+         */
+        RedeemResultResponse: {
+            /** Tier */
+            tier: string;
+            /** Tier Label */
+            tier_label: string;
+            /** Status */
+            status: string | null;
+            /** End At */
+            end_at: string | null;
+            /** Duration Days */
+            duration_days: number | null;
+            /** Current Tier */
+            current_tier: string;
         };
         /** RedemptionCodeRequest */
         RedemptionCodeRequest: {
@@ -11097,7 +11157,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["RedeemPreviewResponse"];
                 };
             };
             /** @description Validation Error */
@@ -11130,7 +11190,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["RedeemResultResponse"];
                 };
             };
             /** @description Validation Error */

@@ -16,6 +16,7 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
+from data_plane import origin
 from core.learning_context import (
     LearningContext,
     ServiceNamespace,
@@ -281,6 +282,7 @@ def record_attempt(db: DbSession, user, session: PracticeSession, question_ref: 
         attempt_no=attempt_no,
         response_time_source=telemetry.duration_source if telemetry is not None else None,
         attempt_index=attempt_index,
+        data_origin=origin.active_origin(),
         context_json=_context_json(context) or session.context_json,
         fact_hash=digest,
     )

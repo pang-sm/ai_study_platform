@@ -48,6 +48,12 @@ class LearningEvent(Base):
     response_time_source = Column(String(30), nullable=True)
     attempt_index = Column(Integer, nullable=True)
 
+    # ACCEL_PRODUCT_S10 dataset provenance. WHY this fact exists, which its shape cannot
+    # say: only ``LEARNER`` may train a model. NULL/unknown is NOT admissible and is
+    # reported separately as UNCLASSIFIED rather than folded into the real data.
+    # See ``data_plane.origin``.
+    data_origin = Column(String(30), nullable=True, index=True)
+
     occurred_at = Column(Float, nullable=False)
     ingested_at = Column(Float, nullable=False)
     source_payload_version = Column(Integer, nullable=False, default=1)

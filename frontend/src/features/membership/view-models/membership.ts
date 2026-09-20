@@ -72,7 +72,10 @@ export interface EntitlementRow {
   featureKey: string;
   label: string;
   allowed: boolean;
-  requiredPlan: string | null;
+  /** The unified tier that first grants it. A TIER, not a legacy plan code. */
+  requiredTier: string;
+  /** The capability whose permission decides it; null for a base feature open to all tiers. */
+  requiredCapability: string | null;
 }
 
 // Feature keys the product actually gates. A key with no gloss is shown as its own id.
@@ -84,8 +87,16 @@ export function entitlementRows(entitlements?: ServiceEntitlements): Entitlement
     featureKey,
     label: FEATURE_LABELS[featureKey] ?? featureKey,
     allowed: feature.allowed === true,
-    requiredPlan: feature.required_plan ?? null,
+    requiredTier: feature.required_tier,
+    requiredCapability: feature.required_capability ?? null,
   }));
+}
+
+// The requirement stated the way the learner will act on it: the tier they need, in the same
+// vocabulary as the plan table below it. `Standard` is a tier the backend really stores and
+// really gates on — this is a read of the contract, not a translation invented for the page.
+export function requirementLabel(row: EntitlementRow): string {
+  return row.requiredCapability ? `${tierLabel(row.requiredTier)} 及以上` : '所有档位';
 }
 
 export interface PlanRow {

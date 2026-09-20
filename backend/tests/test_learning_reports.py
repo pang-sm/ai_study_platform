@@ -1,19 +1,13 @@
 from fastapi.testclient import TestClient
 
-from conftest import register_and_login
+from conftest import grant_unified_tier, register_and_login
 import models
 
 
 def test_learning_report_save_list_detail_and_isolation(client: TestClient, db_session):
     profile = register_and_login(client, "report-a")
-    db_session.add(models.UserServiceMembership(
-        user_id=profile["id"],
-        service_key="course_learning",
-        plan="monthly",
-        status="active",
-        is_enabled=True,
-    ))
-    db_session.commit()
+    # ACCEL_PRODUCT_S10: the report gate reads the unified tier.
+    grant_unified_tier(db_session, profile["username"], "standard")
     saved = client.post("/learning/reports/save", json={
         "username": "report-a",
         "course_id": "data_structure",

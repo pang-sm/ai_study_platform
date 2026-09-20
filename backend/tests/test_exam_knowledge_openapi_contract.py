@@ -27,7 +27,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from conftest import register_and_login
+from conftest import grant_unified_tier, register_and_login
 import database
 import main
 import models
@@ -100,13 +100,16 @@ def canonical(text):
 
 
 def grant_exam_plan(username, plan="monthly_sprint"):
-    """Entitlement for `learning_plan` — free resolves to 403, so the route needs a plan."""
+    """Entitlement for `learning_plan` — free resolves to 403, so the route needs a plan.
+
+    ACCEL_PRODUCT_S10: the entitlement comes from the UNIFIED tier, so the grant raises that
+    rather than writing a per-direction row that would open nothing.
+    """
+    from membership import tier_from_service_plan
+
     db = database.SessionLocal()
     try:
-        user = db.query(models.User).filter(models.User.username == username).first()
-        db.add(models.UserServiceMembership(user_id=user.id, service_key="exam_11408",
-                                            is_enabled=True, plan=plan, status="active"))
-        db.commit()
+        grant_unified_tier(db, username, tier_from_service_plan("exam_11408", plan))
     finally:
         db.close()
 

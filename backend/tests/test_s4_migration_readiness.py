@@ -350,7 +350,7 @@ def test_real_db_copy_reaches_head_with_integrity_ok(migrated):
     report = migrated["report"]
     assert report["integrity_check"] == "ok"
     assert report["foreign_key_check"] == []
-    assert report["alembic_version"] == ["20260919_0010"], report["alembic_version"]
+    assert report["alembic_version"] == ["20260919_0012"], report["alembic_version"]
 
 
 def test_no_table_was_dropped_and_every_legacy_row_survived(migrated):

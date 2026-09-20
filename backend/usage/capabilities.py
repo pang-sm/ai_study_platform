@@ -54,6 +54,64 @@ CAPABILITY_TIER_POLICY = {
 
 ALL_CAPABILITIES = frozenset().union(*CAPABILITY_TIER_POLICY.values())
 
+# Unified tier ordering. Declared HERE (not in service.py) because the ordering is policy:
+# every module that compares tiers must compare them the same way.
+VALID_TIERS = ("free", "standard", "advanced")
+TIER_RANK = {tier: rank for rank, tier in enumerate(VALID_TIERS)}
+
+
+def normalize_tier(tier) -> str:
+    t = (tier or "").strip().lower()
+    return t if t in VALID_TIERS else "free"
+
+
+# Product FEATURE → the capability whose tier permission decides it (CONFIG, like the tier
+# policy above). This is the ONLY path from a paid product feature to a tier: a feature is
+# opened by the unified subscription's capability permission, never by a second membership
+# row that could be activated independently of it (SSOT §4).
+#
+# ``None`` = a BASE product feature: available on every tier, including Free. It is not a
+# missing gate — SSOT §5.1 puts 学习记录 inside the Free learning loop, so ``learning_report``
+# deliberately has no capability requirement. It must not be given one by accident.
+FEATURE_CAPABILITY = {
+    "learning_plan": "planning.generate",
+    "learning_report": None,
+}
+
+
+def feature_requirement(feature_key: str) -> str | None:
+    """Lowest tier that grants ``feature_key``; ``None`` when the feature is unknown."""
+    if feature_key not in FEATURE_CAPABILITY:
+        return None
+    capability = FEATURE_CAPABILITY[feature_key]
+    if capability is None:
+        return "free"
+    for tier in VALID_TIERS:
+        if tier_allows(tier, capability):
+            return tier
+    return None
+
+
+def feature_entitlement(tier: str, feature_key: str) -> dict:
+    """Resolve one product feature from ONE unified tier. Pure; no database.
+
+    Raises KeyError for an unknown feature so a caller cannot accidentally receive a
+    verdict for something the product does not gate.
+    """
+    required_tier = feature_requirement(feature_key)
+    if required_tier is None:
+        raise KeyError(feature_key)
+    tier = normalize_tier(tier)
+    return {
+        "allowed": TIER_RANK[tier] >= TIER_RANK[required_tier],
+        "feature": feature_key,
+        # `current_tier` rather than `tier`: the whole point of the pair is to compare the
+        # tier held against the tier required, and a bare `tier` reads as either.
+        "current_tier": tier,
+        "required_tier": required_tier,
+        "required_capability": FEATURE_CAPABILITY[feature_key],
+    }
+
 
 def tier_allows(tier: str, capability: str) -> bool:
     return capability in CAPABILITY_TIER_POLICY.get(tier, set())

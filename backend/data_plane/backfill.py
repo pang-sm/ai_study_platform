@@ -12,7 +12,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from core import timeutil
 
-from . import identity, snapshots
+from . import identity, origin, snapshots
 from .emitter import SOURCE_TYPE, SERVICE_KEY, EVENT_TYPE
 from .models import LearningEvent
 
@@ -74,6 +74,10 @@ def build_backfill_events(attempt, user_id) -> list:
             "snapshot_completeness": "PARTIAL" if missing else "FULL",
             "snapshot_missing_fields_json": identity.canonical_json(missing),
         })
+        # This backfill RE-PROJECTS recorded source attempts; it invents nothing, so the
+        # fact keeps whatever origin the process is running under. A backfill that
+        # synthesized facts would have to stamp BACKFILL_SYNTHETIC (``data_plane.origin``).
+        origin.stamp(events[-1])
     return events
 
 

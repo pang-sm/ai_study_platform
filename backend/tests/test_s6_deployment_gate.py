@@ -32,6 +32,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import grant_unified_tier
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BACKEND = REPO_ROOT / "backend"
 if str(REPO_ROOT) not in sys.path:
@@ -42,7 +44,7 @@ RUNTIME_PYTHON = Path(r"D:\ZhixueAI\envs\runtime-service\Scripts\python.exe")
 RUNTIME_SERVICE_ROOT = REPO_ROOT / "scientific_runtime_service"
 
 DEPLOY_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "deploy.yml"
-EXPECTED_HEAD = "20260919_0010"
+EXPECTED_HEAD = "20260919_0012"
 
 # The legacy baseline the copy must still satisfy after migrating.
 PROTECTED_TABLES = ("exam_question_bank", "programming_exercises", "knowledge_points")
@@ -293,15 +295,22 @@ with client:
     report["login"] = login.status_code
     report["authenticated"] = "ai_session" in client.cookies
 
-    # grant the CS408 plan through the product's OWN membership row, so the knowledge and
-    # plan surfaces are exercised rather than merely gated. A 403 would prove nothing
-    # about the schema.
+    # grant the CS408 plan through the product's OWN grant path, so the knowledge and plan
+    # surfaces are exercised rather than merely gated. A 403 would prove nothing about the
+    # schema. ACCEL_PRODUCT_S10: the grant raises the UNIFIED tier, which is what the plan
+    # gate reads. Written inline because this script runs in its own subprocess and cannot
+    # import the test helpers.
+    from datetime import timedelta
+    from usage.models import Subscription
     db = SessionLocal()
     user = db.query(User).filter_by(username="s6mig").one()
-    # the real plan code that grants learning_plan on exam_11408
-    db.add(UserServiceMembership(user_id=user.id, service_key="exam_11408",
-                                 is_enabled=True, plan="monthly_sprint", status="active",
-                                 activated_at=datetime(2026, 9, 1)))
+    now = datetime.utcnow()
+    db.query(Subscription).filter(
+        Subscription.user_id == user.id, Subscription.status == "active",
+    ).update({"status": "cancelled", "updated_at": now})
+    db.add(Subscription(user_id=user.id, tier="standard", status="active", start_at=now,
+                        end_at=now + timedelta(days=30), source="rehearsal",
+                        created_at=now, updated_at=now))
     db.commit()
     user_id = user.id
     db.close()
@@ -805,8 +814,13 @@ def test_the_migrations_refuse_to_downgrade_rather_than_pretending_to_be_lossles
     telemetry columns would destroy the only record of where a measured duration came from,
     and the modules say so rather than implementing a lossy ``downgrade`` that looks safe.
     """
+    # ACCEL_PRODUCT_S10 added both of its revisions here. 0011 is a DATA migration with no
+    # schema change, and it refuses a downgrade for the same reason as the rest of the chain:
+    # a chain where some revisions reverse and others do not is worse than one where none do.
     for name in ("20260919_0009_wrong_answer_module_key",
-                 "20260919_0010_attempt_telemetry_provenance"):
+                 "20260919_0010_attempt_telemetry_provenance",
+                 "20260919_0011_unified_membership_backfill",
+                 "20260919_0012_data_origin_provenance"):
         text = (REPO_ROOT / "migrations" / "versions" / f"{name}.py").read_text(
             encoding="utf-8")
         assert "raise NotImplementedError" in text, name
@@ -824,7 +838,10 @@ def test_the_failure_before_start_names_the_migration_command(rehearsal):
 def test_the_migration_log_is_available_as_revision_evidence(rehearsal):
     """PART E: the revision evidence is the migration's own output, not a claim about it."""
     log = rehearsal["alembic_log"]
-    assert f"20260919_0009 -> {EXPECTED_HEAD}" in log
+    # The log must show the chain REACHING head, not one specific edge: a later sprint may
+    # legitimately insert a revision, and pinning an edge would fail on a correct deploy.
+    assert f"-> {EXPECTED_HEAD}, " in log
+    assert "20260919_0009 -> " in log
     assert "Running upgrade" in log
 
 

@@ -79,7 +79,11 @@ def test_admin_reopens_expired_memberships_and_keeps_directions_isolated(client:
     catalog = target_client.get("/membership/catalog", params={"service_key": "exam_11408"}).json()
     entitlement = target_client.get("/membership/entitlements", params={"service_key": "exam_11408"}).json()
     quota = target_client.get("/me/quota", params={"service_key": "exam_11408"}).json()
-    assert catalog["current"]["plan"] == entitlement["current_plan"] == "monthly_sprint"
+    assert catalog["current"]["plan"] == "monthly_sprint"
+    # ACCEL_PRODUCT_S10: the entitlement answers in UNIFIED TIER terms. The admin granted a
+    # rank-1 plan, which is the `standard` tier — and the admin grant raises the tier, so the
+    # feature really opens rather than merely being recorded.
+    assert entitlement["current_tier"] == "standard"
     assert entitlement["features"]["learning_plan"]["allowed"] is True
     assert quota["feature_limits"]["chat"]["limit"] == 300
 

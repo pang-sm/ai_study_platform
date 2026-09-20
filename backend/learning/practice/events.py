@@ -31,7 +31,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from core.learning_context import ServiceNamespace, resolve_event_subject_key
 from core import timeutil
-from data_plane import identity
+from data_plane import identity, origin
 from data_plane.models import LearningEvent
 
 from ..records.envelope import domain_context_json
@@ -178,10 +178,16 @@ def build_event(attempt: PracticeAttempt) -> dict | None:
 
 
 def emit_for_attempt(db, attempt: PracticeAttempt) -> dict:
-    """Best-effort emit for one durable attempt. Never raises."""
+    """Best-effort emit for one durable attempt. Never raises.
+
+    The emitted event inherits the ATTEMPT's recorded origin, not the emitting process's:
+    the fact was created when the attempt was created, and a later re-emit (a repair run, a
+    different process) must not be able to relabel it.
+    """
     event = build_event(attempt)
     if event is None:
         return {"emitted": 0, "reason": "not_practice_owned"}
+    event["data_origin"] = attempt.data_origin or origin.active_origin()
 
     # The caller's practice transaction is already committed; a distinct session keeps a
     # data-plane failure from rolling the attempt back.

@@ -181,8 +181,11 @@
 ## 修改后验证流程（长期）
 
 - 前端（在 `frontend/`）：`npm run check`（= typecheck + lint + test:run）+ `npm run build`；涉及页面/视觉改动再跑 `frontend-review` / `zhixue-ui-acceptance`；必要时 `npm run test:e2e`。
-- 后端（在 `backend/`，**必须用项目 venv**）：`./.venv/Scripts/python.exe -m py_compile <files>` 再 `./.venv/Scripts/python.exe -m pytest`（默认 collection = 45 个测试文件 / 322 tests）。
+- 后端（在 `backend/`，**必须用项目 venv**）：`./.venv/Scripts/python.exe -m py_compile <files>` 再 `./.venv/Scripts/python.exe -m pytest`。
   直接用系统 `python -m pytest backend/tests` **会失败**（Python 3.11，无 FastAPI）。
+  **测试数量会变化，不在本文件写死。** 每次运行现场测量并报告实测结果；不要引用本文件里的历史数字。
+  历史记录（仅作沿革，已过期）：本文件曾写「45 个测试文件 / 322 tests」；`ACCEL_PRODUCT_S10`（2026-09-20）
+  实测为 **1578 passed, 2 skipped**。该数字同样会过期，不得当作当前事实。
 - 数据库改动：先备份 → Alembic 迁移 → `PRAGMA integrity_check` = ok，并说明「是否需要迁移」。
 - 汇报：改了哪些文件、实现什么、如何测试、有无风险（含是否需要迁移）。
 

@@ -485,6 +485,20 @@ jobs:
           cd "$REPO_ROOT"
           MIGRATION_LOG="$REPO_ROOT/backend/backups/migration.$(date +%Y%m%d_%H%M%S).log"
           mkdir -p "$(dirname "$MIGRATION_LOG")"
+          # ── ACCEL_PRODUCT_S10 PART 3: pre-migration membership gate (READ ONLY) ──
+          # 0011 translates legacy paid entitlements to unified tiers. A row it cannot map
+          # deterministically is refused rather than guessed at, and this check answers that
+          # question BEFORE the migration is attempted — so a refusal costs the deployment
+          # nothing and never leaves a half-applied chain.
+          echo "=== Membership mapping precheck (read only) ==="
+          if ! DATABASE_URL="sqlite:///$DATA_DB" "$PYTHON_BIN" \
+               scripts/deploy/check_membership_mapping.py; then
+            echo "[deploy] ERROR: unmappable legacy membership state; NOT migrating and NOT"
+            echo "[deploy]        starting the application. Restore is unnecessary (nothing"
+            echo "[deploy]        was written); decide the listed rows by hand, then redeploy."
+            exit 1
+          fi
+
           echo "=== alembic upgrade head ==="
           set +e
           DATABASE_URL="sqlite:///$DATA_DB" "$PYTHON_BIN" -m alembic -c alembic.ini \
@@ -667,6 +681,7 @@ jobs:
           sudo tee /etc/systemd/system/ai-backend.service.d/security.conf > /dev/null <<INNEREOF
           [Service]
           Environment="AI_SESSION_COOKIE_SECURE=true"
+          Environment="APP_ENV=production"
           INNEREOF
           sudo systemctl daemon-reload
           sudo systemctl restart ai-backend

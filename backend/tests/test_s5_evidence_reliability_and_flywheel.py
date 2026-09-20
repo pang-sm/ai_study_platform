@@ -27,6 +27,7 @@ from pathlib import Path
 
 import pytest
 from conftest import register_and_login
+from data_plane import origin
 from fastapi.testclient import TestClient
 
 from core.learning_context import ServiceNamespace
@@ -95,7 +96,11 @@ def cs408_event(session, user, event_id, *, qid=None, correct=True, occurred_at=
         response_time_source=response_time_source, attempt_index=attempt_index,
         occurred_at=occurred_at, ingested_at=occurred_at, source_payload_version=1,
         idempotency_key=f"s5:{event_id}", snapshot_capture_mode="LIVE_EMITTER",
-        snapshot_completeness="FULL", snapshot_missing_fields_json="[]")
+        snapshot_completeness="FULL", snapshot_missing_fields_json="[]",
+        # ACCEL_PRODUCT_S10: this fixture is a REAL learner fact, so it declares itself one.
+        # An unstamped row is reported UNCLASSIFIED and excluded from every dataset — which
+        # is the correct behaviour and would make these tests measure an empty export.
+        data_origin=origin.LEARNER)
     session.add(ev)
     session.commit()
     return ev
@@ -1025,10 +1030,12 @@ def test_the_telemetry_migration_is_the_head_of_the_chain():
             revisions[str(values["revision"])] = values.get("down_revision")
 
     heads = set(revisions) - set(v for v in revisions.values() if v)
-    assert heads == {"20260919_0010"}, heads
+    assert heads == {"20260919_0012"}, heads
+    assert revisions["20260919_0012"] == "20260919_0011"
+    assert revisions["20260919_0011"] == "20260919_0010"
     assert revisions["20260919_0010"] == "20260919_0009"
     # the chain is linear and complete back to the first revision
-    seen, cursor, depth = set(), "20260919_0010", 0
+    seen, cursor, depth = set(), "20260919_0012", 0
     while cursor:
         assert cursor not in seen, f"cycle at {cursor}"
         seen.add(cursor)

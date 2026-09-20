@@ -15,6 +15,8 @@ from sqlalchemy.orm import Session
 
 import models
 from database import get_db
+from usage.capabilities import TIER_RANK, feature_entitlement
+from usage.service import effective_subscription
 
 logger = logging.getLogger("membership")
 
@@ -81,6 +83,12 @@ def _preview_payload(entry: models.RedemptionCode, user: models.User, db: Sessio
             current_expires_at = None
     if service_plan_rank(service_key, target_plan) < service_plan_rank(service_key, current_plan):
         raise ValueError("兑换码套餐低于当前套餐，不能降级")
+    # The UNIFIED tier is the authority, so the downgrade guard must be stated there too:
+    # a per-direction row can read "free" while the unified tier is Advanced (that is the
+    # normal state after an order-based activation), and redeeming a low code in that state
+    # would cancel the higher tier. Refusing is the only non-destructive answer.
+    if TIER_RANK[tier_from_service_plan(service_key, target_plan)] < TIER_RANK[effective_subscription(db, user.id)]:
+        raise ValueError("兑换码档位低于当前会员档位，不能降级")
     base_time = max(now, current_expires_at or now)
     projected_expiry = base_time + timedelta(days=int(entry.membership_duration_days))
     plan = get_service_plan(service_key, target_plan)
@@ -113,33 +121,26 @@ def preview_redemption_code(user: models.User, code_input: str, db: Session) -> 
         return {"success": False, "message": str(exc)}
 
 
-def redeem_membership_code(user: models.User, code_input: str, db: Session) -> dict:
-    """Atomically redeem one direction-bound code for the authenticated user."""
-    now = datetime.now(timezone.utc)
-    entry = db.query(models.RedemptionCode).filter(
-        models.RedemptionCode.code_hash == hash_code(code_input)
-    ).first()
-    error = _validate_redemption_entry(entry, now)
-    if error:
-        db.rollback()
-        return {"success": False, "message": error}
-    try:
-        if db.query(models.RedemptionCodeUsage).filter(
-            models.RedemptionCodeUsage.code_id == entry.id,
-            models.RedemptionCodeUsage.user_id == user.id,
-        ).first():
-            db.rollback()
-            return {"success": False, "message": "同一用户不能重复兑换此码"}
+def _legacy_direction_hook(now: datetime):
+    """Activation hook for the LEGACY per-direction redemption entry point.
 
-        payload = _preview_payload(entry, user, db, now)
-        updated = db.query(models.RedemptionCode).filter(
-            models.RedemptionCode.id == entry.id,
-            models.RedemptionCode.status == "active",
-            models.RedemptionCode.used_count < models.RedemptionCode.max_uses,
-        ).update({models.RedemptionCode.used_count: models.RedemptionCode.used_count + 1}, synchronize_session=False)
-        if updated != 1:
-            db.rollback()
-            return {"success": False, "message": "兑换码已用完"}
+    ACCEL_PRODUCT_S10: this path must do BOTH things, in one transaction, or it reintroduces
+    the exact gap S10 closes — a successful redeem that reports success while the product
+    feature stays locked.
+
+      1. activate the UNIFIED subscription (the tier authority — this is what opens
+         ``learning_plan``), and
+      2. write the per-direction ``user_service_memberships`` COMPATIBILITY row (what the
+         four legacy numeric quotas read).
+
+    Order matters: the unified activation runs first so that if it fails the whole
+    transaction rolls back and no legacy row records a grant that did not happen.
+    """
+    def hook(db: Session, user: models.User, payload: dict) -> dict:
+        tier = tier_from_service_plan(payload["service_key"], payload["target_plan"])
+        days = int(payload["membership_duration_days"])
+        from usage.service import activate_subscription  # lazy: avoids an import cycle
+        activate_subscription(db, user.id, tier, days, source="redemption", commit=False)
 
         membership = _current_service_membership(db, user.id, payload["service_key"])
         expires_at = datetime.fromisoformat(payload["projected_expires_at"])
@@ -160,26 +161,26 @@ def redeem_membership_code(user: models.User, code_input: str, db: Session) -> d
             membership.activated_at = membership.activated_at or now
             membership.expires_at = expires_at
             membership.updated_at = now
+        return {"tier": tier}
+    return hook
 
-        db.add(models.RedemptionCodeUsage(
-            code_id=entry.id,
-            user_id=user.id,
-            username=user.username,
-            redeemed_at=now,
-        ))
-        db.flush()
-        db.refresh(entry)
-        entry.status = "exhausted" if entry.used_count >= entry.max_uses else "active"
-        if entry.max_uses == 1:
-            entry.used_by_user_id = user.id
-            entry.used_by_username = user.username
-            entry.used_at = now
-        db.commit()
-        return {"success": True, "message": "兑换成功", "redemption": payload}
-    except Exception:
-        db.rollback()
-        logger.exception("Membership redemption failed")
-        return {"success": False, "message": "兑换失败，请稍后重试"}
+
+def redeem_membership_code(user: models.User, code_input: str, db: Session) -> dict:
+    """Atomically redeem one direction-bound code for the authenticated user.
+
+    COMPATIBILITY entry point. It resolves through ``redeem_unified_code`` so the legacy and
+    the canonical path share ONE consume-and-activate transaction and cannot disagree about
+    what a code grants.
+
+    Returns exactly ``{success, message, redemption}`` — the legacy response contract
+    (``RedemptionResultResponse`` is ``extra="forbid"``), so activation detail stays out of it.
+    """
+    outcome = redeem_unified_code(user, code_input, db,
+                                  activate_hook=_legacy_direction_hook(
+                                      datetime.now(timezone.utc)))
+    if not outcome["success"]:
+        return {"success": False, "message": outcome["message"]}
+    return {"success": True, "message": "兑换成功", "redemption": outcome["redemption"]}
 
 
 def redeem_code(username: str, code_input: str, db: Session) -> dict:
@@ -442,12 +443,8 @@ def get_default_quota_limit(service_key: str | None, plan_code: str | None, quot
     return int((definition.get("quota") or {}).get(quota_key) or 0)
 
 
-def _membership_plan(db: Session, user_id: int, service_key: str) -> str:
-    """Resolve the effective membership plan for one service direction.
-
-    Mirrors main.get_effective_service_plan but lives here so the resolver stays
-    self-contained and does not import the web layer.
-    """
+def _compatibility_plan(db: Session, user_id: int, service_key: str) -> str:
+    """The per-direction plan the legacy membership row still records (or ``free``)."""
     m = _current_service_membership(db, user_id, service_key)
     if m and m.is_enabled and (getattr(m, "status", None) or "active") == "active":
         expires_at = getattr(m, "expires_at", None)
@@ -458,6 +455,31 @@ def _membership_plan(db: Session, user_id: int, service_key: str) -> str:
                 return "free"
         return m.plan or "free"
     return "free"
+
+
+def effective_service_plan(db: Session, user_id: int, service_key: str) -> str:
+    """Effective legacy catalog plan for one direction: the HIGHER of
+
+      * the compatibility row's plan — what a per-direction purchase granted, and
+      * the plan the UNIFIED tier represents in this direction's catalog.
+
+    ACCEL_PRODUCT_S10: the unified subscription is the tier authority, so the four legacy
+    numeric quotas must move with it — otherwise a Standard subscriber keeps Free's AI
+    allowance. Taking the MAXIMUM keeps the change monotone: a unified upgrade can only
+    raise these limits, never lower one a learner already paid for, so no per-direction
+    purchase is lost by unifying.
+
+    This is the last reader of ``user_service_memberships``. It is a COMPATIBILITY read for
+    the legacy fixed-count quotas only; it never decides a product feature.
+    """
+    canonical = canonical_service_key(service_key)
+    if not canonical:
+        return "free"
+    legacy = _compatibility_plan(db, user_id, canonical)
+    tier_floor = plan_code_for_tier(canonical, effective_subscription(db, user_id))
+    if service_plan_rank(canonical, tier_floor) > service_plan_rank(canonical, legacy):
+        return tier_floor
+    return legacy
 
 
 def resolve_effective_quota(db: Session, user_id: int, service_key: str, quota_key: str) -> dict:
@@ -472,7 +494,7 @@ def resolve_effective_quota(db: Session, user_id: int, service_key: str, quota_k
     if quota_key not in QUOTA_DEFINITIONS:
         raise ValueError(f"Unsupported quota key: {quota_key}")
 
-    plan = _membership_plan(db, user_id, canonical)
+    plan = effective_service_plan(db, user_id, canonical)
     default_limit = get_default_quota_limit(canonical, plan, quota_key)
     override = db.query(models.UserQuotaOverride).filter(
         models.UserQuotaOverride.user_id == user_id,
@@ -539,50 +561,135 @@ def serialize_service_plan(service_key: str, plan_code: str, definition: dict) -
     }
 
 
-# Feature keys are deliberately finite.  Each entry points to an existing
-# direction-specific catalog quota; no separate entitlement table or copied
-# plan-rank list is maintained in the API or UI.
-SERVICE_FEATURE_QUOTAS = {
-    "exam_11408": {
-        "learning_plan": "learning_plan",
-        "learning_report": "learning_report",
-    },
-    "course_learning": {
-        "learning_plan": "learning_plan",
-        "learning_report": "learning_report",
-    },
+# Feature keys are deliberately finite, and the DIRECTION decides which of them exist:
+# ``exam_11408`` and ``course_learning`` gate a study plan and a learning report;
+# ``programming`` gates neither and legitimately answers with an empty mapping.
+#
+# The direction does NOT decide which TIER grants a feature — that lives in exactly one
+# place, ``usage.capabilities.FEATURE_CAPABILITY``, so a feature can no longer be opened by
+# a second, independently activated membership row (ACCEL_PRODUCT_S10).
+SERVICE_FEATURES = {
+    "exam_11408": ("learning_plan", "learning_report"),
+    "course_learning": ("learning_plan", "learning_report"),
 }
 
 
 def get_feature_entitlement(user: models.User, db: Session, service_key: str, feature_key: str) -> dict:
-    """Resolve one real product feature from the direction's membership catalog."""
+    """Resolve one real product feature from the UNIFIED subscription tier.
+
+    Authority is ``subscriptions`` via ``usage.service.effective_subscription`` — the single
+    tier source (SSOT §4). ``service_key`` is the learning CONTEXT the feature is asked
+    about, NOT a membership: it selects which features exist for that direction and nothing
+    else.
+
+    Before ACCEL_PRODUCT_S10 this read ``user_service_memberships``, which is why redeeming
+    the unified tier left ``learning_plan`` locked — the tier moved and the gate did not.
+    """
     canonical = canonical_service_key(service_key)
-    quota_key = SERVICE_FEATURE_QUOTAS.get(canonical, {}).get((feature_key or "").strip())
-    if not canonical or not quota_key:
+    feature = (feature_key or "").strip()
+    if not canonical or feature not in SERVICE_FEATURES.get(canonical, ()):
         raise ValueError("Unsupported membership feature")
-    catalog = get_service_plan_catalog(canonical)
-    required_plan = next(
-        (plan_code for plan_code, definition in catalog.items() if bool((definition.get("quota") or {}).get(quota_key))),
-        None,
-    )
-    if not required_plan:
-        raise ValueError("Feature is not available in this service catalog")
-    membership = _current_service_membership(db, user.id, canonical)
-    expires_at = _as_utc(getattr(membership, "expires_at", None)) if membership else None
-    current_plan = (
-        (membership.plan or "free")
-        if membership and membership.is_enabled and membership.status == "active"
-        and (not expires_at or expires_at > datetime.now(timezone.utc))
-        else "free"
-    )
-    current_definition = catalog.get(current_plan) or catalog["free"]
-    return {
-        "allowed": bool((current_definition.get("quota") or {}).get(quota_key)),
-        "feature": feature_key,
-        "service_key": canonical,
-        "current_plan": current_plan,
-        "required_plan": required_plan,
-    }
+    return {**feature_entitlement(effective_subscription(db, user.id), feature),
+            "service_key": canonical}
+
+
+# ── Unified tier ← legacy plan codes (compatibility aliases) ────────────────
+#
+# The per-direction plan codes below are NOT product tiers any more. They survive as
+# internal aliases in two places only: (a) a redemption code's stored target, and (b) the
+# ``user_service_memberships`` compatibility rows that still carry the four legacy numeric
+# quotas. Users never see them.
+
+# Codes with no catalog entry of their own.
+_EXPLICIT_PLAN_TIER = {"free": "free", "gift_pro": "advanced", "developer": "advanced"}
+
+# The legacy GLOBAL ``users.plan`` field, which predates per-direction catalogs.
+_LEGACY_USER_PLAN_TIER = {
+    "free": "free",
+    "python_basic": "standard",
+    "engineering_plus": "standard",
+    "cs_pro": "standard",
+    "gift_pro": "advanced",
+    "developer": "advanced",
+}
+
+
+def tier_from_service_plan(service_key: str | None, plan_code: str | None) -> str:
+    """Map a per-direction legacy plan code onto a unified tier.
+
+    Deterministic and total: an unknown code resolves to its catalog rank, and a code with
+    no rank at all resolves to ``free``. Used by redemption (both the legacy and the unified
+    entry point) so the two paths cannot disagree about what a code grants.
+    """
+    plan = (plan_code or "").strip().lower()
+    if plan in _EXPLICIT_PLAN_TIER:
+        return _EXPLICIT_PLAN_TIER[plan]
+    try:
+        definition = get_service_plan(service_key, plan)
+    except ValueError:
+        definition = None
+    rank = int((definition or {}).get("rank", 0))
+    if rank >= 3:
+        return "advanced"
+    if rank >= 1:
+        return "standard"
+    return "free"
+
+
+def tier_from_legacy_user_plan(plan_code: str | None) -> str:
+    """Map the legacy global ``users.plan`` value onto a unified tier."""
+    return _LEGACY_USER_PLAN_TIER.get((plan_code or "").strip().lower(), "free")
+
+
+def raise_unified_tier(db: Session, user_id: int, service_key: str | None,
+                       plan_code: str | None, duration_days: int | None = None,
+                       *, source: str = "grant") -> str | None:
+    """Raise the unified tier to at least what a legacy plan grant implies.
+
+    ACCEL_PRODUCT_S10: shared tail of every GRANT path — a verified payment, an admin
+    membership edit, an order. Without it those paths record a paid plan on the
+    compatibility row while the capability gate, which reads the unified tier, stays shut:
+    the learner holds a plan and the feature is locked.
+
+    MONOTONE, and that is deliberate. Raising is the only direction a grant may move the
+    tier; lowering is a refund's job and would, from here, be indistinguishable from
+    silently cancelling a subscription the learner bought by a different route
+    (``payments.service.recompute_membership_after_refund``). An admin edit that LOWERS a
+    per-direction plan therefore does not lower the unified tier — a known and reported
+    boundary, chosen over a destructive guess.
+
+    Returns the tier that was activated, or ``None`` when nothing changed.
+    """
+    granted = tier_from_service_plan(service_key, plan_code)
+    if TIER_RANK[granted] <= TIER_RANK[effective_subscription(db, user_id)]:
+        return None
+    from usage.service import activate_subscription  # lazy: avoids an import cycle
+    activate_subscription(db, user_id, granted, duration_days, source=source, commit=False)
+    return granted
+
+
+def plan_code_for_tier(service_key: str | None, tier: str) -> str:
+    """The catalog plan a unified tier REPRESENTS in one direction.
+
+    Defined as the INVERSE of ``tier_from_service_plan``: the LOWEST-ranked code that maps
+    back to this tier. That makes the round trip a fixed point — a rank-1 grant yields
+    ``standard``, and ``standard`` yields the rank-1 code again — which it must be, because
+    ``_membership_plan`` compares the two and a mapping that were not its own inverse would
+    silently walk a learner's plan code upward every time it was resolved.
+
+    Used only as a floor when resolving the four legacy numeric quotas, so a unified upgrade
+    raises them without a second membership being activated.
+    """
+    canonical = canonical_service_key(service_key)
+    catalog = SERVICE_PLAN_CATALOG.get(canonical) or SERVICE_PLAN_CATALOG["course_learning"]
+    best_code, best_rank = "free", -1
+    for code, definition in catalog.items():
+        if tier_from_service_plan(canonical, code) != tier:
+            continue
+        rank = int(definition.get("rank", 0))
+        if best_rank == -1 or rank < best_rank:
+            best_code, best_rank = code, rank
+    return best_code
 
 # ── Admin / Developer detection ──────────────────────────────
 

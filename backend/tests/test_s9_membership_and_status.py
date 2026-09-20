@@ -103,8 +103,10 @@ def test_the_entitlement_verdict_is_the_same_one_that_gates_the_feature(client, 
     feature = body["features"]["learning_plan"]
     assert body["service_key"] == "exam_11408"
     assert feature["allowed"] is False
-    # the requirement is reported as the legacy plan code the backend holds, unglossed
-    assert feature["required_plan"] == "monthly_sprint"
+    # ACCEL_PRODUCT_S10: the requirement is reported as the UNIFIED TIER that grants it,
+    # not as a legacy plan code — the same vocabulary the membership page renders.
+    assert feature["required_tier"] == "standard"
+    assert feature["required_capability"] == "planning.generate"
 
     # and it is a REAL gate: the study plan refuses this learner
     plan = client.get("/exam/11408/subjects/data_structure/study-plan")
@@ -119,6 +121,7 @@ def test_redemption_preview_then_activate_is_a_real_activation(client, db_sessio
     preview = client.post("/subscription/redeem/preview", json={"code": "S9-EXAM-30D"})
     assert preview.status_code == 200
     assert preview.json()["duration_days"] == 30
+    assert preview.json()["tier"] == "standard"
     # previewing does NOT activate
     assert client.get("/subscription").json()["tier"] == "free"
 
@@ -128,53 +131,53 @@ def test_redemption_preview_then_activate_is_a_real_activation(client, db_sessio
     assert client.get("/subscription").json()["tier"] == "standard"
 
 
-def test_redeeming_the_required_plan_flips_the_gate_the_locked_state_reports(
-        client, db_session):
-    """PART H/K end to end: locked → membership → activated → the feature really opens.
+def test_redeem_success_never_leaves_the_feature_locked(client, db_session):
+    """ACCEL_PRODUCT_S10 PART B5/D — the hard gate, end to end.
 
-    This is the whole point of the link. Before S9 the locked Study Plan had nowhere to go;
-    now the destination must actually be able to resolve the lock, not merely describe it.
+    locked → membership page → redeem → entitlement immediately reflects allowed.
+
+    This is the assertion S9 could not make: back then the unified redeem moved a number and
+    left ``learning_plan`` locked, which is why the surface had to offer the LEGACY path to
+    resolve the lock. S10 made the unified subscription the single authority, so a redeem
+    that reports success has already opened what it grants.
     """
     register_and_login(client, "s9_member_unlock")
 
     before = client.get("/membership/entitlements",
                         params={"service_key": "exam_11408"}).json()
-    assert before["current_plan"] == "free"
+    assert before["current_tier"] == "free"
     assert before["features"]["learning_plan"]["allowed"] is False
-    assert before["features"]["learning_plan"]["required_plan"] == "monthly_sprint"
 
-    # the code grants exactly the plan the locked state names
     _seed_code(db_session, "S9-UNLOCK-30D", target_plan="monthly_sprint")
-    assert client.post("/membership/redeem", json={"code": "S9-UNLOCK-30D"}).status_code == 200
+    assert client.post("/subscription/redeem",
+                       json={"code": "S9-UNLOCK-30D"}).status_code == 200
 
     after = client.get("/membership/entitlements",
                        params={"service_key": "exam_11408"}).json()
-    assert after["current_plan"] == "monthly_sprint"
+    # REDEEM_SUCCESS_WITH_LOCK_STILL_CLOSED = 0
+    assert after["current_tier"] == "standard"
     assert after["features"]["learning_plan"]["allowed"] is True
-
-    # THE TWO MEMBERSHIP SYSTEMS ARE INDEPENDENT TODAY, AND THIS IS THE MEASUREMENT.
-    # A per-direction plan is what gates a product feature; the unified tier is the frozen
-    # TARGET model and its activation does not write the per-direction row (SSOT §41: CURRENT
-    # is still the three-service membership). Asserted rather than assumed, because the
-    # membership surface must offer the activation that RESOLVES THE LOCK: offering the
-    # unified one would change a number and open nothing.
-    assert client.get("/subscription").json()["tier"] == "free"
+    # the tier the page shows and the tier the gate resolved from are the same number
+    assert client.get("/subscription").json()["tier"] == after["current_tier"]
 
 
-def test_the_unified_redeem_moves_the_tier_but_opens_no_feature(client, db_session):
-    """The other half of the same measurement: `/subscription/redeem` is real, and it is not
-    the path that unlocks a feature. Recorded so the choice above is auditable."""
-    register_and_login(client, "s9_member_unified_only")
-    _seed_code(db_session, "S9-UNIFIED-30D", target_plan="monthly_sprint")
+def test_the_legacy_redeem_path_also_opens_the_feature(client, db_session):
+    """The compatibility entry point must not be a second, weaker activation.
 
-    assert client.post("/subscription/redeem",
-                       json={"code": "S9-UNIFIED-30D"}).status_code == 200
+    `/membership/redeem` still exists for old clients. If it only wrote the per-direction row
+    it would report success while the capability gate — which reads the unified tier — stayed
+    closed. Both paths activate the same authority.
+    """
+    register_and_login(client, "s9_member_legacy_path")
+    _seed_code(db_session, "S9-LEGACY-30D", target_plan="monthly_sprint")
+
+    assert client.post("/membership/redeem",
+                       json={"code": "S9-LEGACY-30D"}).status_code == 200
     assert client.get("/subscription").json()["tier"] == "standard"
-    # ... and the product feature is still locked
     verdict = client.get("/membership/entitlements",
                          params={"service_key": "exam_11408"}).json()
-    assert verdict["current_plan"] == "free"
-    assert verdict["features"]["learning_plan"]["allowed"] is False
+    assert verdict["current_tier"] == "standard"
+    assert verdict["features"]["learning_plan"]["allowed"] is True
 
 
 def test_an_invalid_code_is_refused_with_the_real_reason(client):
@@ -314,7 +317,7 @@ def test_the_migration_chain_reaches_a_single_head_on_a_fresh_database(tmp_path)
     con = sqlite3.connect(f"file:{fresh.as_posix()}?mode=ro", uri=True)
     try:
         revision = con.execute("select version_num from alembic_version").fetchone()[0]
-        assert revision == "20260919_0010"
+        assert revision == "20260919_0012"
         columns = {row[1] for row in con.execute("PRAGMA table_info(practice_attempts)")}
         assert {"response_time_source", "attempt_index"} <= columns
         # the tables S9 relies on exist, and no hint column was invented for a model's sake
@@ -332,10 +335,16 @@ def test_there_is_exactly_one_alembic_head():
     assert result.returncode == 0, result.stderr[-1000:]
     heads = [line for line in result.stdout.splitlines() if line.strip()]
     assert len(heads) == 1, result.stdout
-    assert heads[0].startswith("20260919_0010")
+    assert heads[0].startswith("20260919_0012")
 
 
 def test_s9_added_no_migration_of_its_own():
-    """S9 changed no schema. A revision added without a schema change is churn on the chain."""
+    """S9 changed no schema. Its two revisions on the chain are S10's, not S9's.
+
+    S10 added ``0011`` (the unified-membership back-fill, a data migration) and ``0012``
+    (the ``data_origin`` provenance column). Both are ADDITIVE: neither rewrites a legacy
+    row's existing values, and ``0011`` only ever INSERTs.
+    """
     versions = sorted(p.name for p in (REPO_ROOT / "migrations" / "versions").glob("*.py"))
-    assert versions[-1] == "20260919_0010_attempt_telemetry_provenance.py"
+    assert versions[-2:] == ["20260919_0011_unified_membership_backfill.py",
+                             "20260919_0012_data_origin_provenance.py"]

@@ -41,6 +41,8 @@ import json
 
 from sqlalchemy.orm import Session as DbSession
 
+from data_plane import origin as origin_mod
+
 from . import kt_dataset
 
 # ============================================================ PART B — the contract
@@ -416,6 +418,17 @@ def audit(db: DbSession, **kwargs) -> dict:
     concept_coverage = {c: {"interactions": n} for c, n in sorted(per_concept.items())}
 
     return {
+        # ACCEL_PRODUCT_S10 PART G — stated on the audit itself, because the numbers below
+        # are REAL-learner numbers and a reader must be able to see that a demo rehearsal was
+        # removed rather than silently not counted.
+        "dataset_origin_policy": {
+            "admissible": sorted(origin_mod.TRAINING_ADMISSIBLE),
+            "excluded": sorted(origin_mod.EXCLUDED_FROM_TRAINING),
+            "unclassified": origin_mod.UNCLASSIFIED,
+            "note": ("only real learner-origin facts may satisfy DATA_READINESS_GATE; demo, "
+                     "acceptance, test and synthetic back-fill facts are excluded before any "
+                     "count below is taken"),
+        },
         "dataset_identity": dataset_identity(body),
         "dataset_hash": body.get("dataset_hash"),
         "users_with_eligible_interactions": len(per_learner),

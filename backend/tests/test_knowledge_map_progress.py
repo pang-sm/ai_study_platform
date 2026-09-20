@@ -2,7 +2,7 @@ from datetime import timedelta
 
 from fastapi.testclient import TestClient
 
-from conftest import register_and_login
+from conftest import grant_unified_tier, register_and_login
 import main
 import models
 
@@ -16,15 +16,9 @@ EXAM_SUBJECT_KEYS = (
 
 
 def _enable_exam_learning_plan(db_session, user_id: int):
-    membership = models.UserServiceMembership(
-        user_id=user_id,
-        service_key="exam_11408",
-        plan="monthly_sprint",
-        status="active",
-        is_enabled=True,
-    )
-    db_session.add(membership)
-    db_session.commit()
+    """ACCEL_PRODUCT_S10: the gate reads the unified tier, so this raises the tier."""
+    user = db_session.query(models.User).filter(models.User.id == user_id).one()
+    grant_unified_tier(db_session, user.username, "standard")
 
 
 def _first_leaf(nodes):

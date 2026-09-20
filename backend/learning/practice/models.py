@@ -130,6 +130,10 @@ class PracticeAttempt(Base):
     # past-paper path. NULL when the caller had no real count.
     attempt_index = Column(Integer, nullable=True)
 
+    # ACCEL_PRODUCT_S10 dataset provenance — see ``data_plane.origin``. Only ``LEARNER``
+    # attempts may train a model; a demo rehearsal writes rows of identical shape.
+    data_origin = Column(String(30), nullable=True, index=True)
+
     context_json = Column(Text, nullable=True)  # LearningContext snapshot
     fact_hash = Column(String(64), nullable=True)  # sha256 of the canonical fact payload
 

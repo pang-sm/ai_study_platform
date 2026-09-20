@@ -25,6 +25,7 @@ import json
 
 import pytest
 from conftest import register_and_login
+from data_plane import origin
 
 import main as app_main
 from data_plane.models import LearningEvent
@@ -542,7 +543,9 @@ def _event(db, user, event_id, *, module=DS, concept=None, correct=True, qid=Non
         attempt_index=None, occurred_at=1000.0, ingested_at=1000.0,
         source_payload_version=1, idempotency_key=f"s9:{event_id}",
         snapshot_capture_mode="LIVE_EMITTER", snapshot_completeness="FULL",
-        snapshot_missing_fields_json="[]")
+        snapshot_missing_fields_json="[]",
+        # ACCEL_PRODUCT_S10: a real learner fact declares itself one.
+        data_origin=origin.LEARNER)
     db.add(ev)
     return ev
 

@@ -6,6 +6,20 @@ from conftest import register_and_login
 from database import SessionLocal
 import main
 import models
+from usage.models import Subscription
+
+
+def expire_subscriptions(*, username: str) -> None:
+    """Lapse every active unified subscription for one learner."""
+    db = SessionLocal()
+    try:
+        user = db.query(models.User).filter(models.User.username == username).one()
+        db.query(Subscription).filter(
+            Subscription.user_id == user.id, Subscription.status == "active",
+        ).update({"status": "expired", "end_at": main.utc_now() - timedelta(minutes=1)})
+        db.commit()
+    finally:
+        db.close()
 
 
 def test_membership_order_uses_server_catalog_and_is_idempotent(client: TestClient):
@@ -150,6 +164,12 @@ def test_membership_expiry_falls_back_to_free_and_reminder_is_scoped(client: Tes
         db.commit()
     finally:
         db.close()
+
+    # ACCEL_PRODUCT_S10: the unified subscription is the tier authority, so expiry is decided
+    # by ITS end_at. A verified payment now raises the tier as well as the per-direction row
+    # (otherwise the learner would pay and keep the feature locked), so expiring only the row
+    # no longer means "lapsed" — both have to lapse.
+    expire_subscriptions(username="membership-expiry")
 
     catalog = client.get("/membership/catalog", params={"service_key": "exam_11408"})
     assert catalog.status_code == 200, catalog.text

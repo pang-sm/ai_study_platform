@@ -260,7 +260,7 @@ def main() -> int:
     if before.status_code == 200:
         feature = before.json()["features"]["learning_plan"]
         check("the study plan is LOCKED for a fresh account", feature["allowed"] is False,
-              f"required={feature['required_plan']}")
+              f"required_tier={feature['required_tier']}")
 
     tier = a.get("/subscription")
     check("current tier answers", tier.status_code == 200,
@@ -286,7 +286,7 @@ def main() -> int:
     if after.status_code == 200:
         feature = after.json()["features"]["learning_plan"]
         check("THE LOCK IS OPEN after redeeming the required plan",
-              feature["allowed"] is True, f"current_plan={after.json()['current_plan']}")
+              feature["allowed"] is True, f"current_tier={after.json()['current_tier']}")
     study_plan = a.get(f"/exam/11408/subjects/{MODULE}/study-plan")
     check("the study plan now serves", study_plan.status_code == 200,
           f"{study_plan.status_code}")
@@ -308,8 +308,8 @@ def main() -> int:
           f"{b_tier.json().get('tier') if b_tier.status_code == 200 else '-'}")
     b_ent = b.get("/membership/entitlements", params={"service_key": "exam_11408"})
     check("another learner's entitlements are their own",
-          b_ent.status_code == 200 and b_ent.json()["current_plan"] == "free",
-          f"{b_ent.json().get('current_plan') if b_ent.status_code == 200 else '-'}")
+          b_ent.status_code == 200 and b_ent.json()["current_tier"] == "free",
+          f"{b_ent.json().get('current_tier') if b_ent.status_code == 200 else '-'}")
     b_reuse = b.post("/membership/redeem", json={"code": code, "service_key": "exam_11408"})
     check("another learner cannot reuse a consumed code", b_reuse.status_code == 400,
           f"{b_reuse.status_code}")

@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCs408StudyPlans, useExamPlanEntitlement, type Cs408Plan } from '@/features/exam/api/cs408-study-plan';
+import { tierLabel } from '@/features/membership/view-models/membership';
 import { ExamPageShell } from './exam-page-shell';
 import './cs408-study-plan-workspace.css';
 
@@ -36,7 +37,7 @@ function PlanTaskRow({ task, number }: { task: PlanTask; number: number }) {
   </li>;
 }
 
-function LockedPlan({ requiredPlan }: { requiredPlan?: string }) {
+function LockedPlan({ requiredTier }: { requiredTier?: string }) {
   // The outer `.study-plan` region already claims `study-plan-title`. A second landmark
   // pointing at the same id makes the two indistinguishable (axe `landmark-unique`), so the
   // inner panel is a plain container inside that region rather than a second landmark.
@@ -47,14 +48,19 @@ function LockedPlan({ requiredPlan }: { requiredPlan?: string }) {
   // would have been worse. The link goes to `/membership`, which reads the SAME entitlement
   // endpoint this panel does (`GET /membership/entitlements?service_key=exam_11408`), so the
   // requirement stated here and the requirement explained there cannot disagree.
-  // `requiredPlan` is NOT a unified tier — it is the legacy service-plan code the
-  // entitlement endpoint returns (`monthly_sprint`), and mapping it onto `Standard` /
-  // `Advanced` would be a translation the backend does not make. So it is not shown as a
-  // tier; the requirement is stated in words and the real comparison lives on the
-  // membership page, which reads the same endpoint.
+  //
+  // ACCEL_PRODUCT_S10: `requiredTier` is now a real UNIFIED TIER (`standard`), the same
+  // vocabulary the membership page uses, so the lock names the exact thing the learner has
+  // to change. It used to be a legacy plan code that had to be described in words because
+  // showing it would have named no product tier.
   return <section className="study-plan__state">
-    <h1 id="study-plan-title">学习计划</h1><h2>当前会员暂未开放学习计划</h2>
-    {requiredPlan ? <p>学习计划需要开通对应的备考方案，当前账号尚未开通。</p> : <p>该功能将在符合当前会员权益时开放。</p>}
+    <h1 id="study-plan-title">学习计划</h1>
+    <h2>当前档位暂未开放学习计划</h2>
+    <p>
+      {requiredTier
+        ? <>学习计划需要 {tierLabel(requiredTier)} 及以上档位，当前账号尚未开通。</>
+        : <>该功能将在符合当前会员权益时开放。</>}
+    </p>
     <Link to="/membership">查看会员档位与权益</Link>
   </section>;
 }
@@ -72,7 +78,7 @@ export function Cs408StudyPlanWorkspace() {
   return <ExamPageShell activeItem="cs408"><section className="study-plan" aria-labelledby="study-plan-title">
     {entitlement.isPending ? <><header className="study-plan__header"><h1 id="study-plan-title">学习计划</h1><p>CS408 学习安排</p></header><div className="study-plan__loading"><Skeleton className="h-10 w-48" /><Skeleton className="h-40 w-full" /></div></> : null}
     {entitlement.isError ? <section className="study-plan__state"><h1 id="study-plan-title">学习计划</h1><h2>暂时无法确认学习计划权益</h2><p>请检查网络后重试。</p><button type="button" onClick={() => void entitlement.refetch()}>重试</button></section> : null}
-    {!entitlement.isPending && !entitlement.isError && !allowed ? <LockedPlan requiredPlan={planFeature?.required_plan} /> : null}
+    {!entitlement.isPending && !entitlement.isError && !allowed ? <LockedPlan requiredTier={planFeature?.required_tier} /> : null}
     {allowed ? <><header className="study-plan__header"><p>CS408 / 学习计划簿</p><h1 id="study-plan-title">学习计划</h1><span>按实际学习记录更新任务状态</span></header>
       {loadingPlans ? <div className="study-plan__loading"><Skeleton className="h-12 w-full" /><Skeleton className="h-28 w-full" /><Skeleton className="h-28 w-full" /></div> : null}
       {failedPlan ? <section className="study-plan__state"><h2>学习计划暂时无法加载</h2><p>请检查网络后重试。</p><button type="button" onClick={() => plans.forEach((result) => void result.refetch())}>重试</button></section> : null}

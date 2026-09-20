@@ -8,10 +8,8 @@ export type SubscriptionPlans = components['schemas']['PlanCatalogResponse'];
 export type PlanDefinition = components['schemas']['PlanDefinition'];
 export type SubscriptionState = components['schemas']['SubscriptionStateResponse'];
 export type ServiceEntitlements = components['schemas']['MembershipEntitlementsResponse'];
-// The per-direction redemption contract: `POST /membership/redeem[/preview]`. These are the
-// endpoints that write `user_service_memberships`, which is what the feature gates read.
-export type RedemptionPreview = components['schemas']['RedemptionPreviewResponse'];
-export type RedemptionResult = components['schemas']['RedemptionResultResponse'];
+export type RedeemPreview = components['schemas']['RedeemPreviewResponse'];
+export type RedeemResult = components['schemas']['RedeemResultResponse'];
 
 export const subscriptionKey = ['membership', 'subscription'] as const;
 export const subscriptionPlansKey = ['membership', 'plans'] as const;
@@ -51,6 +49,9 @@ export function useUsageSummary() {
 // The SAME entitlement endpoint the Study Plan locked state reads. Rendering the membership
 // page from it is what makes the page a real explanation of the gate: the learner sees the
 // exact feature verdict that blocks them, not a paraphrase of it.
+//
+// ACCEL_PRODUCT_S10: this endpoint resolves from the UNIFIED subscription tier. There is one
+// membership, so there is nothing here to reconcile against a second one.
 export function useExamEntitlements(serviceKey = 'exam_11408') {
   return useQuery({
     queryKey: membershipEntitlementKey(serviceKey),
@@ -61,44 +62,30 @@ export function useExamEntitlements(serviceKey = 'exam_11408') {
 
 // ---------------------------------------------------------------------------- activation
 //
-// TWO MEMBERSHIP SYSTEMS EXIST AT ONCE, AND THEY DO NOT MOVE TOGETHER (SSOT §41: CURRENT is
-// still the three-service membership; the unified tier is the frozen TARGET). Measured, not
-// assumed — `backend/tests/test_s9_membership_and_status.py` pins both halves:
+// ONE REDEEM FLOW. `POST /subscription/redeem` consumes a real code and activates the
+// unified subscription; every capability gate resolves from that tier, so a success here
+// leaves the features it grants open by the time the response is written. There is no
+// second membership to move, and therefore no "tier changed but feature still locked" state
+// for the UI to explain away.
 //
-//   POST /membership/redeem       writes `user_service_memberships`. The per-direction
-//                                 `learning_plan` / `learning_report` gates READ that row,
-//                                 so this is the path that OPENS a locked feature.
-//   POST /subscription/redeem     activates the unified `subscriptions` tier. It is a real,
-//                                 atomic path — and it opens no product feature today.
+// `POST /membership/redeem` still exists for old clients and performs the same activation,
+// but this surface does not use it — offering two activation buttons is what made the
+// membership page read as two parallel memberships.
 //
-// The surface therefore offers the path that RESOLVES THE LOCK. Offering the unified one
-// would change a number on the page and leave the feature locked behind it, which is a fake
-// success flow.
-//
-// `service_key` is sent so the code is validated against the direction it is being redeemed
-// for: the backend refuses a code that belongs to another direction rather than quietly
-// applying it here.
-//
-// Online payment is a third path and is NOT offered: `POST /subscription/orders` creates a
-// PENDING order whose only payment method is a mock that production refuses (403), so an
-// order created here could never be settled.
-
-const MEMBERSHIP_SERVICE_KEY = 'exam_11408';
+// Online payment is still NOT offered: `POST /subscription/orders` creates a PENDING order
+// whose only payment method is a mock that production refuses (403), so an order created
+// here could never be settled.
 
 export function usePreviewRedemption() {
   return useMutation({
-    mutationFn: (code: string) => request<RedemptionPreview>(
-      () => apiClient.POST('/membership/redeem/preview', {
-        body: { code, service_key: MEMBERSHIP_SERVICE_KEY },
-      })),
+    mutationFn: (code: string) => request<RedeemPreview>(
+      () => apiClient.POST('/subscription/redeem/preview', { body: { code } })),
   });
 }
 
 export function useRedeem() {
   return useMutation({
-    mutationFn: (code: string) => request<RedemptionResult>(
-      () => apiClient.POST('/membership/redeem', {
-        body: { code, service_key: MEMBERSHIP_SERVICE_KEY },
-      })),
+    mutationFn: (code: string) => request<RedeemResult>(
+      () => apiClient.POST('/subscription/redeem', { body: { code } })),
   });
 }

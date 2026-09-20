@@ -231,6 +231,75 @@ def category_status() -> dict:
     }
 
 
+def technical_proof_matrix() -> dict:
+    """ACCEL_PRODUCT_S10 PART L — one row per component, for admin / demo documentation.
+
+    NOT a learner surface, and not a new claim: every cell is read from the owning module's
+    own record, and the two existing blocks below (``capabilities`` = all 13 components and
+    ``models`` = the retained models' execution proof) are joined rather than restated.
+
+    ON `self_developed`
+    -------------------
+    True for every row, and the basis is stated rather than assumed: the REGISTRY is the
+    authoritative list of components THIS PRODUCT implements, and each is defined in this
+    repository's ``science/`` package. That is a fact about the registry, not a judgement
+    about any third-party artifact a component may embed — ``checkpoint_provenance`` and
+    ``artifact_digests`` carry that separately (``misconception_v2`` embeds a third-party
+    embedding model, and says so there).
+
+    What this column is FOR is the distinction a competition demo has to make out loud: the
+    scientific components are ours, while the product's LLM inference is NOT — it is reached
+    through the AI Gateway (SSOT §30/§31) and is reported by ``external_inference`` below.
+    """
+    summary = capabilities.summary()
+    proof_by_component = {record["component"]: record for record in model_execution_proof()}
+    rows = []
+    for cap in summary["components"]:
+        proof = proof_by_component.get(cap["component"]) or {}
+        rows.append({
+            "component": cap["component"],
+            "self_developed": True,
+            "self_developed_basis": "implemented in this repository's science/ package",
+            "learned_model": proof.get("learned_model"),
+            "model_family": proof.get("model_family"),
+            "runtime_endpoint": proof.get("runtime_endpoint"),
+            "product_mode": cap["mode"],
+            "real_model_test": proof.get("real_model_test"),
+            "checkpoint_provenance": proof.get("provenance"),
+            "artifact_digests": proof.get("artifact_digests"),
+            # The two questions a demo must not conflate: can the product show it, and does
+            # anything downstream act on it.
+            "user_visible": cap["user_visible"],
+            "controls_product_decision": cap["controls_product_decision"],
+            "writes_learner_fact": cap["writes_learner_fact"],
+            "category": cap["category"],
+            "blockers": cap["blockers"],
+        })
+    return {
+        "intended_audience": "ADMIN_AND_DEMO_DOCUMENTATION",
+        "not_a_learner_surface": True,
+        "generated_from": ("science.capabilities.summary() joined with "
+                           "science.status.model_execution_proof() — nothing is restated "
+                           "from memory"),
+        "rows": rows,
+        "external_inference": {
+            "self_developed": False,
+            "what": ("the product's LLM inference. Reached only through the AI Gateway by "
+                     "capability name (SSOT §30/§31); business code names no provider."),
+            "why_absent_from_rows": ("a provider model is not one of the 13 scientific "
+                                     "components and has no entry in the registry"),
+        },
+        "legend": {
+            "learned_model": ("True only for a component with fitted parameters. A "
+                              "deterministic program reports False rather than omitting "
+                              "the cell"),
+            "product_mode": ("how far the component got through the Productization Gate. "
+                             "Only USER_VISIBLE_PREVIEW may be shown to a learner"),
+            "user_visible": ("the ONLY column a learner-facing decision may read"),
+        },
+    }
+
+
 def diagnostics(*, runtime_reachable: bool | None = None, db=None) -> dict:
     """The full admin payload. Pure and read-only; no runtime call unless the caller asks.
 
@@ -255,6 +324,7 @@ def diagnostics(*, runtime_reachable: bool | None = None, db=None) -> dict:
         "capabilities": summary["components"],
         "product_native_capabilities": summary["product_native_capabilities"],
         "models": model_execution_proof(),
+        "technical_proof_matrix": technical_proof_matrix(),
         "data_collection": data_collection_status(db),
         "runtime": {
             "reachable": runtime_reachable,
@@ -332,10 +402,25 @@ def data_collection_status(db=None) -> dict:
         **block,
         "measured": True,
         "scope": "exam_prep",
+        # ACCEL_PRODUCT_S10 PART H — REAL and DEMO are two populations and this block keeps
+        # them apart. `users_with_events` and `eligible_interactions` are the REAL counts (a
+        # non-LEARNER fact is dropped before they are taken) and are spelled again with the
+        # `real_` prefix so a reader cannot mistake them for a total. The demo/test numbers
+        # sit in their own keys below and are never added to these.
         "users_with_events": coverage["users_with_events"],
         "users_with_eligible_interactions": coverage["users_with_eligible_interactions"],
         "eligible_interactions": coverage["eligible_interactions"],
         "concept_level_interactions": totals["concept_level_after"],
+        "real_users_with_events": coverage["real_users_with_events"],
+        "real_eligible_interactions": coverage["real_eligible_interactions"],
+        "real_concept_level_interactions": coverage["real_concept_level_interactions"],
+        "demo_users": coverage["demo_users"],
+        "demo_interactions": coverage["demo_interactions"],
+        "test_interactions": coverage["test_interactions"],
+        "synthetic_backfill_interactions": coverage["synthetic_backfill_interactions"],
+        "unclassified_interactions": coverage["unclassified_interactions"],
+        "rows_by_origin": coverage["rows_by_origin"],
+        "real_vs_demo_separated": coverage["real_vs_demo_separated"],
         "module_level_interactions": totals["module_level"],
         "non_canonical_concept_ids": totals["non_canonical_concept_ids"],
         "events_scanned": coverage["events_scanned"],

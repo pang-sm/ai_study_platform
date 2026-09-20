@@ -11,8 +11,8 @@ import {
   useSubscriptionPlans, useSubscriptionState, useUsageSummary,
 } from '../api/subscription';
 import {
-  capabilityGloss, entitlementRows, formatCap, planRows, tierInkClass, tierLabel,
-  usageMeters,
+  capabilityGloss, entitlementRows, formatCap, planRows, requirementLabel, tierInkClass,
+  tierLabel, usageMeters,
 } from '../view-models/membership';
 import './membership-page.css';
 
@@ -23,6 +23,11 @@ import './membership-page.css';
 // This is NOT a pricing page and NOT a SaaS plan grid. It is a LEDGER: the learner's own
 // standing, in real numbers the backend stores, with the tiers listed beneath it as rows of
 // factual limits.
+//
+// ONE MEMBERSHIP (ACCEL_PRODUCT_S10). The page states a single standing — the unified tier —
+// and a single requirement vocabulary (that same tier). It used to print "统一会员档位" and
+// "当前备考方案" side by side, which read as two memberships because they were two
+// memberships. They are one now, so the page says one.
 //
 // Focal element: the current tier, as the largest type on the page, with the policy version
 // and the entitlement verdict beside it. Composition is asymmetric — a wide editorial column
@@ -99,12 +104,14 @@ function Entitlements({ rows, loading, failed }: { rows: ReturnType<typeof entit
           <span className={`membership-entitlements__state ${row.allowed ? 'is-open' : 'is-locked'}`}>
             {row.allowed ? '已开通' : '未开通'}
           </span>
-          {/* `required_plan` is a LEGACY service-plan code (`monthly_sprint`), not a unified
-              tier — translating it into `Standard` / `Advanced` here would invent a mapping
-              the backend does not make. So the requirement is stated in words and the tier
-              table below carries the comparison. The feature key is still shown when the
-              feature IS open, so the learner can see which capability they hold. */}
-          <small>{row.allowed ? row.featureKey : '需要开通对应的备考方案'}</small>
+          {/* The requirement is a UNIFIED TIER (`Standard 及以上`), which is the same
+              vocabulary as the tier table below — so the learner can act on it directly
+              rather than translating a legacy plan code. The feature key and the deciding
+              capability are still shown, because those are what the product really gates on. */}
+          <small>
+            {row.allowed ? row.featureKey : `需要 ${requirementLabel(row)}`}
+            {row.requiredCapability ? <> · <code>{row.requiredCapability}</code></> : null}
+          </small>
         </li>
       ))}
     </ul>
@@ -136,7 +143,7 @@ function RedemptionRail({ onActivated }: { onActivated: () => void }) {
   return (
     <section className="membership-rail" aria-labelledby="membership-redeem-title">
       <h2 id="membership-redeem-title"><Ticket aria-hidden="true" className="size-4" />兑换码激活</h2>
-      <p>持有 CS408 备考方案兑换码，可在此直接开通对应方向的学习权益。</p>
+      <p>输入兑换码，开通对应的会员档位。</p>
       <label htmlFor="redeem-code">兑换码</label>
       <div className="membership-rail__row">
         <input
@@ -150,16 +157,22 @@ function RedemptionRail({ onActivated }: { onActivated: () => void }) {
       </div>
       {preview.data ? (
         <div className="membership-rail__preview" role="status">
-          {/* The plan's own NAME and duration come from the code, so the learner confirms
-              what the code actually grants rather than a paraphrase of it. */}
-          <p>可开通 <strong>{preview.data.preview.target_plan_name}</strong> · {preview.data.preview.membership_duration_days} 天</p>
+          {/* The TIER the code grants, named by the backend's own label, plus the projected
+              expiry the server computed — so the learner confirms what the code actually
+              grants rather than a paraphrase of it. No plan code is shown: the code's stored
+              target is an internal alias that names no tier the learner can act on. */}
+          <p>可开通 <strong>{preview.data.tier_label}</strong> · {preview.data.duration_days} 天</p>
           <p className="membership-note">
-            {preview.data.preview.service_key} · 到期 {preview.data.preview.projected_expires_at.slice(0, 10)}
+            当前 {tierLabel(preview.data.current_tier)} · 到期 {preview.data.projected_expires_at.slice(0, 10)}
           </p>
           <Button disabled={redeem.isPending} onClick={confirm}>{redeem.isPending ? '正在激活' : '确认激活'}</Button>
         </div>
       ) : null}
-      {redeem.data ? <p className="membership-rail__ok" role="status">{redeem.data.message}，权益已更新。</p> : null}
+      {redeem.data ? (
+        <p className="membership-rail__ok" role="status">
+          兑换成功，当前档位 {redeem.data.tier_label}，相关功能已开通。
+        </p>
+      ) : null}
       {error ? <p className="membership-rail__error" role="alert">{error}</p> : null}
 
       <h2 className="membership-rail__payment-title">在线支付</h2>
@@ -219,7 +232,13 @@ export function MembershipPage() {
   const entitlements = useExamEntitlements();
   const queryClient = useQueryClient();
 
-  const currentTier = subscription.data?.tier ?? entitlements.data?.current_plan;
+  // ONE standing, read from ONE authority. The entitlement endpoint is asked the same
+  // question because it is the gate the Study Plan actually reads — if it ever disagreed
+  // with the tier shown here, the page would be describing a lock that is not the real one.
+  const currentTier = subscription.data?.tier ?? entitlements.data?.current_tier;
+  const tierDisagrees = Boolean(
+    subscription.data && entitlements.data && subscription.data.tier !== entitlements.data.current_tier,
+  );
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: subscriptionKey });
     void queryClient.invalidateQueries({ queryKey: usageSummaryKey });
@@ -232,23 +251,18 @@ export function MembershipPage() {
         <header className="membership__header">
           <p>会员 / STUDY ACCOUNT</p>
           <Standing tier={currentTier} loading={subscription.isPending} failed={subscription.isError && entitlements.isError} />
-          <dl className="membership__facts">
-            <div>
-              <dt>统一会员档位</dt>
-              <dd>{subscription.isPending ? '读取中' : tierLabel(subscription.data?.tier)}</dd>
-            </div>
-            <div>
-              <dt>当前备考方案</dt>
-              <dd>{entitlements.isPending ? '读取中' : (entitlements.data?.current_plan ?? '—')}</dd>
-            </div>
-            {subscription.data?.policy_version ? <div><dt>政策版本</dt><dd>{subscription.data.policy_version}</dd></div> : null}
-          </dl>
-          {/* Two systems are in force at once (SSOT §41: CURRENT is still the per-direction
-              membership; the unified tier is the TARGET). The page states both rather than
-              picking one, because they genuinely differ and a learner holding a paid plan
-              must not be shown a "Free" tier with no explanation. */}
+          {entitlements.data?.policy_version ? (
+            <dl className="membership__facts">
+              <div><dt>政策版本</dt><dd>{entitlements.data.policy_version}</dd></div>
+            </dl>
+          ) : null}
+          {tierDisagrees ? (
+            <p className="membership-rail__error" role="alert">
+              会员档位与权益判定不一致，请刷新后重试。
+            </p>
+          ) : null}
           <p className="membership-note">
-            统一会员档位与各学习方向的备考方案当前分别生效；学习计划等功能的开通以「当前备考方案」为准。
+            一个账号一个档位。所有学习方向的功能开通都由当前档位决定。
           </p>
         </header>
 

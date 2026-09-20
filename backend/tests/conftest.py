@@ -1,6 +1,7 @@
 import os
 import sys
 import tempfile
+from datetime import timezone
 from unittest.mock import patch
 from pathlib import Path
 
@@ -20,6 +21,8 @@ if str(BACKEND_ROOT) not in sys.path:
 
 import database  # noqa: E402
 import main  # noqa: E402
+import models  # noqa: E402
+from usage.models import Subscription  # noqa: E402
 
 
 @pytest.fixture
@@ -35,6 +38,28 @@ def db_session():
         yield session
     finally:
         session.close()
+
+
+def grant_unified_tier(db, username: str, tier: str, days: int = 30) -> None:
+    """TEST ONLY: grant a unified subscription tier — the ONE thing that opens a feature.
+
+    ACCEL_PRODUCT_S10 made the unified tier the single membership authority, so a test that
+    wants a paid product feature must grant the TIER. Writing only a
+    ``user_service_memberships`` row records a plan and opens nothing, which is asserted
+    directly in ``test_feature_entitlements.py``.
+    """
+    from datetime import datetime, timedelta
+
+    user = db.query(models.User).filter(models.User.username == username).one()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    db.query(Subscription).filter(
+        Subscription.user_id == user.id, Subscription.status == "active",
+    ).update({"status": "cancelled", "updated_at": now})
+    db.add(Subscription(
+        user_id=user.id, tier=tier, status="active", start_at=now,
+        end_at=now + timedelta(days=days) if days else None,
+        source="test", created_at=now, updated_at=now))
+    db.commit()
 
 
 def register_and_login(test_client: TestClient, username: str, password: str = "secret123"):

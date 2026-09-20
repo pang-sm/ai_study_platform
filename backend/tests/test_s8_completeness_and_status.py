@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from fastapi.testclient import TestClient
 
-from conftest import register_and_login
+from conftest import grant_unified_tier, register_and_login
 from database import SessionLocal
 from learning.practice.telemetry import (TELEMETRY_COLLECTION_START_VERSION,
                                          TELEMETRY_SCHEMA_VERSION)
@@ -189,12 +189,8 @@ def test_study_plan_action_target_is_a_real_target_and_carries_no_invented_node(
     register_and_login(client, "s8_plan_target")
     db = SessionLocal()
     try:
-        user = db.query(User).filter_by(username="s8_plan_target").one()
-        db.add(UserServiceMembership(user_id=user.id, service_key="exam_11408",
-                                     is_enabled=True, plan="monthly_sprint",
-                                     status="active", activated_at=now(),
-                                     expires_at=now() + timedelta(days=30)))
-        db.commit()
+        # ACCEL_PRODUCT_S10: the plan gate reads the unified tier, so grant the tier.
+        grant_unified_tier(db, "s8_plan_target", "standard")
     finally:
         db.close()
 
@@ -223,8 +219,11 @@ def test_the_locked_plan_state_names_the_required_plan_factually(client):
     detail = response.json()["detail"]
     assert detail["code"] == "FEATURE_REQUIRES_UPGRADE"
     assert detail["feature"] == "learning_plan"
-    assert detail["current_plan"] == "free"
-    assert detail["required_plan"], "the locked state must name the plan it actually needs"
+    # ACCEL_PRODUCT_S10: named in UNIFIED TIER terms — the same vocabulary the membership
+    # page renders — instead of a legacy plan code no page could act on.
+    assert detail["current_tier"] == "free"
+    assert detail["required_tier"] == "standard"
+    assert detail["required_capability"] == "planning.generate"
 
 
 def test_state_and_records_are_scoped_the_same_way(client):

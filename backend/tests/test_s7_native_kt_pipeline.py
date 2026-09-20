@@ -62,6 +62,9 @@ def _event(db, user_id: int, *, event_id: str, correct, occurred_at: float,
         response_time_ms=response_time_ms,
         response_time_source=response_time_source,
         idempotency_key=f"idem-{event_id}",
+        # ACCEL_PRODUCT_S10: a real learner fact declares itself one; an unstamped row is
+        # excluded from every dataset by design.
+        data_origin="LEARNER",
     )
     db.add(row)
     db.commit()

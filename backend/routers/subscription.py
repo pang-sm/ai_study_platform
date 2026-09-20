@@ -30,36 +30,19 @@ from usage.capabilities import POLICY_VERSION
 
 router = APIRouter()
 
-# Legacy plan → unified tier mapping. Explicit entries cover the legacy redemption
-# defaults; otherwise the rank in SERVICE_PLAN_CATALOG decides (rank 1-2 → standard,
-# rank 3+ → advanced). Pure CONFIG, no table.
-_EXPLICIT_PLAN_TIER = {"free": "free", "gift_pro": "advanced", "developer": "advanced"}
-
 
 def _require_user(request: Request, db: Session = Depends(get_db)):
     from main import get_current_user  # lazy import to avoid circular import
     return get_current_user(request, db)
 
 
-def _unified_tier_from_plan(service_key: str, target_plan: str) -> str:
-    plan = (target_plan or "").strip().lower()
-    if plan in _EXPLICIT_PLAN_TIER:
-        return _EXPLICIT_PLAN_TIER[plan]
-    try:
-        definition = membership.get_service_plan(service_key, plan)
-    except ValueError:
-        definition = None
-    rank = int((definition or {}).get("rank", 0))
-    if rank >= 3:
-        return "advanced"
-    if rank >= 1:
-        return "standard"
-    return "free"
-
-
 def _activate_unified_from_payload(db: Session, user: models.User, payload: dict) -> dict:
-    """Redemption activation hook: map legacy plan → unified tier and activate."""
-    tier = _unified_tier_from_plan(payload["service_key"], payload["target_plan"])
+    """Redemption activation hook: map the code's stored legacy plan → unified tier.
+
+    The mapping lives in ``membership.tier_from_service_plan`` so that THIS path and the
+    legacy ``POST /membership/redeem`` path cannot disagree about what one code grants.
+    """
+    tier = membership.tier_from_service_plan(payload["service_key"], payload["target_plan"])
     sub = service.activate_subscription(db, user.id, tier,
                                         payload["membership_duration_days"],
                                         source="redemption", commit=False)
@@ -128,6 +111,32 @@ class UsageSummaryResponse(BaseModel):
     periods: dict[str, UsagePeriod]
 
 
+class RedeemPreviewResponse(BaseModel):
+    """What one redemption code would grant, in unified-tier terms only.
+
+    ``current_tier`` is stated so the learner can see the move before making it, and
+    ``projected_expires_at`` is the server's own projection — not a client guess."""
+
+    tier: str
+    tier_label: str
+    duration_days: int
+    current_tier: str
+    projected_expires_at: str
+    code_expires_at: str | None
+
+
+class RedeemResultResponse(BaseModel):
+    """The consumed code's effect. ``current_tier`` is re-read AFTER activation, so it is the
+    tier the caller actually holds now — the same value every capability gate will resolve."""
+
+    tier: str
+    tier_label: str
+    status: str | None
+    end_at: str | None
+    duration_days: int | None
+    current_tier: str
+
+
 @router.get("/subscription", response_model=SubscriptionStateResponse)
 def get_subscription(db: Session = Depends(get_db), current_user=Depends(_require_user)):
     tier = service.effective_subscription(db, current_user.id)
@@ -190,10 +199,14 @@ def pay_subscription_order(order_id: int, db: Session = Depends(get_db),
             "subscription": {"tier": service.effective_subscription(db, current_user.id)}}
 
 
-@router.post("/subscription/redeem/preview")
+@router.post("/subscription/redeem/preview", response_model=RedeemPreviewResponse)
 def preview_redeem(body: RedeemIn, db: Session = Depends(get_db),
                    current_user=Depends(_require_user)):
-    """Preview a REAL redemption code, mapped to a unified tier."""
+    """Preview a REAL redemption code: the UNIFIED tier it grants, and for how long.
+
+    No legacy plan code is returned. The code's stored target is an internal alias; showing
+    it would put a string on screen that names no product tier the learner can act on.
+    """
     code = (body.code or "").strip()
     if not code:
         raise HTTPException(status_code=400, detail="请输入兑换码")
@@ -201,16 +214,26 @@ def preview_redeem(body: RedeemIn, db: Session = Depends(get_db),
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["message"])
     preview = result["preview"]
-    tier = _unified_tier_from_plan(preview["service_key"], preview["target_plan"])
-    return {"tier": tier, "duration_days": preview["membership_duration_days"],
-            "target_plan": preview["target_plan"],
-            "service_key": preview["service_key"]}
+    tier = membership.tier_from_service_plan(preview["service_key"], preview["target_plan"])
+    return {
+        "tier": tier,
+        "tier_label": service.PLAN_DEFINITIONS[tier]["label"],
+        "duration_days": preview["membership_duration_days"],
+        "current_tier": service.effective_subscription(db, current_user.id),
+        "projected_expires_at": preview["projected_expires_at"],
+        "code_expires_at": preview.get("code_expires_at"),
+    }
 
 
-@router.post("/subscription/redeem")
+@router.post("/subscription/redeem", response_model=RedeemResultResponse)
 def redeem(body: RedeemIn, db: Session = Depends(get_db),
            current_user=Depends(_require_user)):
-    """Redeem a REAL redemption code (atomic consume) → activate unified subscription."""
+    """Redeem a REAL redemption code (atomic consume) → activate the unified subscription.
+
+    THIS IS THE ONE USER-FACING REDEEM FLOW. A success here changes the unified tier, and
+    because every capability gate resolves from that tier, the features the tier grants are
+    open by the time this response is written. There is no second membership to keep in sync.
+    """
     code = (body.code or "").strip()
     if not code:
         raise HTTPException(status_code=400, detail="请输入兑换码")
@@ -218,9 +241,11 @@ def redeem(body: RedeemIn, db: Session = Depends(get_db),
                                             activate_hook=_activate_unified_from_payload)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["message"])
-    return {"tier": result.get("tier"), "status": result.get("status"),
-            "end_at": result.get("end_at"), "source": result.get("source"),
-            "duration_days": result.get("duration_days")}
+    tier = service.normalize_tier(result.get("tier"))
+    return {"tier": tier, "tier_label": service.PLAN_DEFINITIONS[tier]["label"],
+            "status": result.get("status"), "end_at": result.get("end_at"),
+            "duration_days": result.get("duration_days"),
+            "current_tier": service.effective_subscription(db, current_user.id)}
 
 
 @router.get("/usage/summary", response_model=UsageSummaryResponse)

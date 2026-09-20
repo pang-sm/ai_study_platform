@@ -26,7 +26,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import register_and_login
+from conftest import grant_unified_tier, register_and_login
 import database
 import main
 from models import (
@@ -40,7 +40,6 @@ from models import (
 from data_plane.models import LearningEvent
 from learning.wrong_answers.models import WrongAnswerState
 from usage import capabilities
-from usage import service as usage_service
 from usage.models import AIRequest
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -58,23 +57,26 @@ KNOWLEDGE_ITEM = f"/exam/11408/subjects/{MODULE}/study-plan/knowledge-items"
 
 
 def grant_exam_plan(username: str, plan: str = "monthly_sprint") -> None:
+    """Grant the plan the way every real grant path does: by raising the UNIFIED tier.
+
+    ACCEL_PRODUCT_S10: writing only the per-direction row records a plan and opens nothing,
+    because the capability gate reads the tier. `plan` is kept as a parameter so callers read
+    as "a plan was bought", and is translated through the same mapping the product uses.
+    """
+    from membership import tier_from_service_plan
+
     db = database.SessionLocal()
     try:
-        user = db.query(User).filter(User.username == username).one()
-        db.add(UserServiceMembership(user_id=user.id, service_key="exam_11408",
-                                     is_enabled=True, plan=plan, status="active",
-                                     activated_at=datetime.now(timezone.utc),
-                                     expires_at=datetime.now(timezone.utc) + timedelta(days=30)))
-        db.commit()
+        grant_unified_tier(db, username, tier_from_service_plan("exam_11408", plan))
     finally:
         db.close()
 
 
-def grant_unified_tier(username: str, tier: str) -> None:
+def set_tier(username: str, tier: str) -> None:
+    """Set the unified tier for a test account, opening its own session."""
     db = database.SessionLocal()
     try:
-        user = db.query(User).filter(User.username == username).one()
-        usage_service.activate_subscription(db, user.id, tier, 30)
+        grant_unified_tier(db, username, tier)
     finally:
         db.close()
 
@@ -421,10 +423,12 @@ def test_base_plan_entitlement_policy_is_preserved(client):
     register_and_login(client, "bc8_free")
     r = client.get(PLAN)
     assert r.status_code == 403
+    # ACCEL_PRODUCT_S10: the refusal names the UNIFIED TIER that grants the feature and the
+    # capability that decides it — no legacy plan code reaches the client.
     assert r.json()["detail"] == {
         "code": "FEATURE_REQUIRES_UPGRADE", "feature": "learning_plan",
-        "service_key": "exam_11408", "current_plan": "free",
-        "required_plan": "monthly_sprint"}
+        "service_key": "exam_11408", "current_tier": "free",
+        "required_tier": "standard", "required_capability": "planning.generate"}
     assert client.post(PLAN + "/tasks",
                        json={"username": "bc8_free", "subject_key": MODULE,
                              "title": "t", "scope_type": "all"}).status_code == 403
@@ -439,9 +443,10 @@ def test_base_plan_entitlement_policy_is_preserved(client):
     # the catalog is untouched — the membership UI keeps advertising it, and that is now
     # exactly what the routes enforce
     ent = client.get("/membership/entitlements?service_key=exam_11408").json()
-    assert ent["current_plan"] == "free"
-    assert ent["features"]["learning_plan"] == {"allowed": False,
-                                                "required_plan": "monthly_sprint"}
+    assert ent["current_tier"] == "free"
+    assert ent["features"]["learning_plan"] == {
+        "allowed": False, "required_tier": "standard",
+        "required_capability": "planning.generate"}
 
     # a paid user gets the whole surface — the entitlement is a gate, not a removal
     grant_exam_plan("bc8_free")
@@ -478,7 +483,7 @@ def test_planning_generate_is_a_separate_authorized_capability(client):
 
     # a paid Exam plan does NOT imply the AI capability, and vice versa
     grant_exam_plan("bc8_cap_free")
-    grant_unified_tier("bc8_cap_free", "free")
+    set_tier("bc8_cap_free", "free")
     assert client.post("/learning/plans/generate-preview",
                        json={"username": "bc8_cap_free", "course_id": f"{MODULE}_11408",
                              "days": 3, "goal": "g", "daily_minutes": 60}).status_code == 403
@@ -492,7 +497,7 @@ def test_ai_generation_failure_isolates_the_existing_plan(client, db_session, pr
     replaced. Nothing here can reach a network.
     """
     username = entitled(client, "bc8_ai_fail")
-    grant_unified_tier(username, "standard")
+    set_tier(username, "standard")
     created = create_task(client, username, title="既有任务", due_date="2026-12-01")
     client.patch(f"{PLAN}/chapter-practice/1.1",
                  json={"username": username, "subject_key": MODULE, "section_code": "1.1",
@@ -518,7 +523,7 @@ def test_ai_generation_degradation_isolates_the_existing_plan(client, db_session
     """The other failure class: an unexpected error inside the preview falls back to a
     deterministic plan instead of failing the request — and still writes no learner fact."""
     username = entitled(client, "bc8_ai_degrade")
-    grant_unified_tier(username, "standard")
+    set_tier(username, "standard")
     created = create_task(client, username, title="既有任务")
     db_session.expire_all()
     before = learner_fact_snapshot(db_session)
@@ -545,7 +550,7 @@ def test_plan_generation_writes_no_learner_fact(client, db_session, provider_dou
     knowledge progress, no mastery, no wrong-answer state.
     """
     username = entitled(client, "bc8_ai_preview")
-    grant_unified_tier(username, "standard")
+    set_tier(username, "standard")
     db_session.expire_all()
     before = learner_fact_snapshot(db_session)
     ai_requests_before = db_session.query(AIRequest).count()

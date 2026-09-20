@@ -12,7 +12,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from core import timeutil
 
-from . import identity, snapshots
+from . import identity, origin, snapshots
 from .models import LearningEvent
 
 logger = logging.getLogger("data_plane")
@@ -71,6 +71,7 @@ def build_course_practice_events(attempt, item, answer, correct, user) -> list:
             "snapshot_completeness": "FULL",
             "snapshot_missing_fields_json": identity.canonical_json([]),
         })
+        origin.stamp(events[-1])
     return events
 
 

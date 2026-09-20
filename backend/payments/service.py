@@ -3,7 +3,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.exc import IntegrityError
 import models
-from membership import get_service_plan
+from membership import get_service_plan, tier_from_service_plan
 
 PENDING, PAID, CANCELLED, EXPIRED = "pending", "paid", "cancelled", "expired"
 REFUND_PENDING, PARTIALLY_REFUNDED, REFUNDED = "refund_pending", "partially_refunded", "refunded"
@@ -22,6 +22,16 @@ def _membership(db, user_id, service_key):
         models.UserServiceMembership.user_id == user_id,
         models.UserServiceMembership.service_key == service_key,
     ).first()
+
+
+def _raise_unified_tier(db, user_id, service_key, target_plan, duration_days):
+    """Order-payment grant: raise the unified tier, never lower it.
+
+    Delegates to the shared grant tail so redemption, payment and admin edits cannot drift
+    apart in what a plan code means (``membership.raise_unified_tier``).
+    """
+    from membership import raise_unified_tier  # lazy import
+    raise_unified_tier(db, user_id, service_key, target_plan, duration_days, source="order")
 
 
 def apply_verified_payment(db, event, sync_exam_membership=None):
@@ -86,6 +96,11 @@ def apply_verified_payment(db, event, sync_exam_membership=None):
         db.add(membership)
     membership.is_enabled, membership.plan, membership.status = True, order.target_plan, "active"
     membership.activated_at, membership.expires_at, membership.updated_at = now, new_expiry, now
+    # ACCEL_PRODUCT_S10: a verified payment that grants a paid plan must ALSO raise the
+    # unified tier, because that is the authority every capability gate reads. Without this
+    # the learner pays, the per-direction row records the grant, and the feature stays locked
+    # — the "paid but locked" state S10 exists to eliminate. Same transaction, same commit.
+    _raise_unified_tier(db, order.user_id, order.service_key, order.target_plan, duration)
     order.status, order.paid_at, order.paid_amount = PAID, now, event.amount
     order.provider_transaction_id, order.membership_started_at, order.membership_expires_at = event.provider_transaction_id, now, new_expiry
     db.add(models.MembershipGrant(user_id=order.user_id, service_key=order.service_key, order_id=order.id,
@@ -123,4 +138,56 @@ def recompute_membership_after_refund(db, user_id, service_key, sync_exam_member
     db.flush()
     if service_key == "exam_11408" and sync_exam_membership:
         sync_exam_membership(db, db.query(models.User).filter(models.User.id == user_id).one())
+    _recompute_unified_tier_after_refund(db, user_id, now)
     return membership
+
+
+def _recompute_unified_tier_after_refund(db, user_id, now):
+    """Rebuild the unified tier from order history — the mirror of ``_raise_unified_tier``.
+
+    Only ``source='order'`` subscriptions are touched. A subscription bought with a
+    redemption code or created by the S10 back-fill is NOT an order and must survive a refund
+    of some other order, so cancelling it here would delete an entitlement the learner holds
+    by a different route.
+    """
+    from usage.models import Subscription  # lazy import
+    from usage.capabilities import TIER_RANK
+
+    paid = db.query(models.MembershipOrder).filter(
+        models.MembershipOrder.user_id == user_id,
+        models.MembershipOrder.status == PAID,
+    ).all()
+
+    target_tier, target_expiry = "free", None
+    for order in paid:
+        if order.refund_status == REFUNDED:
+            continue
+        expiry = _as_utc(order.membership_expires_at)
+        if expiry is not None and expiry <= now:
+            continue
+        if order.service_key == "unified":
+            # A unified order carries its tier in its quota snapshot.
+            tier = (json.loads(order.quota_snapshot_json or "{}").get("unified_tier")
+                    or order.target_plan or "free")
+        else:
+            tier = tier_from_service_plan(order.service_key, order.target_plan)
+        if TIER_RANK.get(tier, 0) > TIER_RANK[target_tier]:
+            target_tier, target_expiry = tier, expiry
+        elif tier == target_tier and expiry is None:
+            target_expiry = None  # at least as strong as a dated expiry
+
+    naive_now = now.replace(tzinfo=None)
+    db.query(Subscription).filter(
+        Subscription.user_id == user_id,
+        Subscription.status == "active",
+        Subscription.source == "order",
+    ).update({"status": "cancelled", "updated_at": naive_now})
+    if target_tier != "free":
+        # Written directly rather than through activate_subscription: the surviving order
+        # already fixes an exact end_at, and re-deriving whole days from it would round a
+        # learner's remaining time either up (granting time they did not buy) or down.
+        db.add(Subscription(
+            user_id=user_id, tier=target_tier, status="active", start_at=naive_now,
+            end_at=target_expiry.replace(tzinfo=None) if target_expiry else None,
+            source="order", created_at=naive_now, updated_at=naive_now))
+    db.flush()

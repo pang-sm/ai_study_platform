@@ -52,9 +52,15 @@ def write_event(event: dict) -> dict:
     EVERY failure is absorbed, including failing to obtain a session at all: the
     business fact behind this event has already committed and must not be disturbed by
     a data-plane problem, however early it strikes.
+
+    The dataset origin is stamped HERE rather than by each producer: this is the single
+    insert every produced event passes through, so no producer can forget to declare why
+    its fact exists (``data_plane.origin``).
     """
     session = None
     try:
+        from data_plane import origin
+        event = origin.stamp(event)
         from database import SessionLocal
         session = SessionLocal()
         stmt = sqlite_insert(LearningEvent).values(**event).on_conflict_do_nothing(

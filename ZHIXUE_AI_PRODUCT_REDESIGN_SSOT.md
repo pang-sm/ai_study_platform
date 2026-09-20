@@ -1961,74 +1961,66 @@ C:\Users\26477\Desktop\ai_study_platform
 
 ## 37.1 Git / Worktree
 
-```text
-HEAD =
-95b7dccc83b5546ee660969447fb6a8a4fcbe060
+> **本节不再断言任何 `AHEAD` / `BEHIND` / `DIVERGED` 常量。**
+> Git 状态是易变事实，写进 SSOT 第二天就会变成假陈述——本节曾经如此（见下方沿革），
+> 因此改为**每次开工前现场测量**。
 
-HEAD message =
-feat: add learning event data plane foundation
-
-branch =
-main
-
-origin/main =
-e1a34a14d821bf989e3cf68e416465bc8fc8f83e
-
-MERGE_BASE =
-81277a155dbb87cfda90652be48c44816f984528
-
-AHEAD = 15
-BEHIND = 12
-RELATIONSHIP = DIVERGED
-```
-
-关键状态：
+开工前必须执行并据以判断：
 
 ```text
-WORKTREE_CLEAN = NO
-STAGED = 0
+git status --short --branch
+git rev-parse --abbrev-ref HEAD
+git log --oneline -5
+git rev-list --left-right --count origin/main...HEAD
 ```
 
-本地状态不是简单“main 已同步”。
+`git rev-list` 输出的两个数字是唯一权威：左 = origin/main 领先本地，右 = 本地领先 origin/main。
+二者都为 `0` 即同步；否则按实际情况处理，**不得**从本文件或任何文档抄一个旧结论。
 
-审计结论（STEP 5A 已逐字节核实）：
+长期红线（与分叉与否无关，永久有效）：
 
-> 本地是旧 HEAD + 大量未跟踪 Phase 2–7 代码 + 已清空用户数据的数据库。
+```text
+NO reset
+NO clean
+NO restore
+NO stash
+NO checkout --
+NO overwrite
+```
 
-两分支在 `81277a15`（pre-frontend-rebuild-20260910）处分叉，沿两条互补轴演进：
+未经用户明确批准，不得丢弃、覆盖或隐藏任何未提交工作；工作树中的未跟踪目录同样不得删除
+（其中包含历史 sprint 的 scratch 目录与 Phase 代码）。
+
+### 沿革：STEP 5A 的历史分叉（旧记录，非 CURRENT）
+
+以下为 **2026-09-15 只读审计时的历史测量**，仅作沿革保留，**不得当作当前状态**：
+
+```text
+HEAD        = 95b7dccc83b5546ee660969447fb6a8a4fcbe060
+origin/main = e1a34a14d821bf989e3cf68e416465bc8fc8f83e
+MERGE_BASE  = 81277a155dbb87cfda90652be48c44816f984528
+AHEAD = 15   BEHIND = 12   RELATIONSHIP = DIVERGED
+WORKTREE_CLEAN = NO   STAGED = 0
+```
+
+当时两分支在 `81277a15`（pre-frontend-rebuild-20260910）处分叉，沿两条互补轴演进：
 
 - **local HEAD / working tree**：新 TypeScript 前端 + 设计冻结 + auth-v2 改动 + `backend/routers/health.py`
 - **origin/main**：Phase 2–7 智能底座（backend/core、backend/ai、完整 data_plane、scientific_runtime_service、deploy/artifacts、phase scripts、workflows）
 
-大量 untracked Phase 文件已确认：
+当时大量 untracked Phase 文件已逐字节核实为：
 
 ```text
 WORKTREE COPY == origin/main blob（逐字节 hash 一致）
 ```
 
-包括 `backend/core/`、`backend/ai/`、`backend/data_plane/` 额外文件、`scientific_runtime_service/`、`deploy/artifacts/`、phase scripts、workflows。
+包括 `backend/core/`、`backend/ai/`、`backend/data_plane/` 额外文件、`scientific_runtime_service/`、
+`deploy/artifacts/`、phase scripts、workflows。当时另有一批真正 LOCAL_ONLY 文件
+（`backend/routers/health.py`、`backend/main.py` / `backend/schemas.py` 的 auth-v2 改动、
+`backend/tests/test_auth_v2.py`、`backend/scripts/auth_v2_acceptance.py`、
+`backend/scripts/clean_user_reset.py`、`backend/scripts/generate_online_workbench_random_sample.py`）。
 
-同时仍有真正 LOCAL_ONLY：
-
-```text
-backend/routers/health.py
-backend/main.py auth-v2 working-tree changes
-backend/schemas.py auth-v2 changes
-backend/tests/test_auth_v2.py
-backend/scripts/auth_v2_acceptance.py
-backend/scripts/clean_user_reset.py
-backend/scripts/generate_online_workbench_random_sample.py
-```
-
-因此继续保留红线：
-
-```text
-NO reset
-NO clean
-NO overwrite
-```
-
-直到后续正式 Git reconciliation。
+**该分叉此后已正式 reconcile**，上列常量已全部失效，保留仅为记录沿革。
 
 ---
 
@@ -3465,7 +3457,12 @@ Usage Ledger
 
 ## 68.1 Git / Worktree
 
-当前本地 HEAD 与 origin/main 不一致，且有大量 untracked Phase code。
+本地 HEAD 与 origin/main 的关系**不由任何文档断言**——每次开工前现场测量（见 §37.1）：
+
+```text
+git status --short --branch
+git rev-list --left-right --count origin/main...HEAD
+```
 
 任何代码改动前必须先做：
 
@@ -3473,7 +3470,7 @@ Usage Ledger
 git facts reconciliation
 ```
 
-不得 clean。
+不得 clean，不得 reset / restore / stash / checkout --，不得丢弃或隐藏任何未提交工作。
 
 ## 68.2 main.py
 

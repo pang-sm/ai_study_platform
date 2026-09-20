@@ -17,7 +17,7 @@ const task: Plan['tasks'][number] = {
 };
 
 const refetch = vi.fn();
-let entitlement = { isPending: false, isError: false, data: { service_key: 'exam_11408', current_plan: 'free', features: {} }, refetch };
+let entitlement = { isPending: false, isError: false, data: { service_key: 'exam_11408', current_tier: 'free', policy_version: 'v1', features: {} }, refetch };
 let plans: Array<{ isPending: boolean; isError: boolean; data?: Plan; refetch: typeof refetch }> = [];
 const hooks = vi.hoisted(() => ({ useCs408StudyPlans: vi.fn() }));
 
@@ -37,13 +37,24 @@ describe('Cs408StudyPlanWorkspace', () => {
     plans = [];
     render(<Cs408StudyPlanWorkspace />);
     expect(screen.getByRole('heading', { name: '学习计划' })).toBeInTheDocument();
-    expect(screen.getByText('当前会员暂未开放学习计划')).toBeInTheDocument();
+    expect(screen.getByText('当前档位暂未开放学习计划')).toBeInTheDocument();
     expect(screen.queryByText('理解虚拟内存')).not.toBeInTheDocument();
     expect(hooks.useCs408StudyPlans).toHaveBeenLastCalledWith(false);
   });
 
+  it('names the unified tier the lock requires, not a legacy plan code', () => {
+    // ACCEL_PRODUCT_S10 PART D: the locked state has to tell the learner what to change, in
+    // the vocabulary the membership page actually offers. `monthly_sprint` named no tier.
+    entitlement = { isPending: false, isError: false, data: { service_key: 'exam_11408', current_tier: 'free', policy_version: 'v1', features: { learning_plan: { allowed: false, required_tier: 'standard', required_capability: 'planning.generate' } } }, refetch };
+    plans = [];
+    render(<Cs408StudyPlanWorkspace />);
+    expect(screen.getByText(/需要 Standard 及以上档位/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '查看会员档位与权益' })).toHaveAttribute('href', '/membership');
+    expect(screen.queryByText(/monthly_sprint|备考方案/)).not.toBeInTheDocument();
+  });
+
   it('renders the canonical ledger and factual action without a completion control', () => {
-    entitlement = { isPending: false, isError: false, data: { service_key: 'exam_11408', current_plan: 'monthly_sprint', features: { learning_plan: { allowed: true, required_plan: 'monthly_sprint' } } }, refetch };
+    entitlement = { isPending: false, isError: false, data: { service_key: 'exam_11408', current_tier: 'standard', policy_version: 'v1', features: { learning_plan: { allowed: true, required_tier: 'standard', required_capability: 'planning.generate' } } }, refetch };
     plans = [{ isPending: false, isError: false, data: plan('operating_system', '操作系统', [task, { ...task, id: 8, computed_status: 'not_started', status: 'not_started' }, { ...task, id: 9, computed_status: 'completed', status: 'completed' }]), refetch }];
     render(<Cs408StudyPlanWorkspace />);
     expect(screen.getAllByText('理解虚拟内存')).toHaveLength(3);
