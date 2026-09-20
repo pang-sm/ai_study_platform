@@ -3,7 +3,7 @@ import path from 'node:path';
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
-const API = 'http://127.0.0.1:8972';
+const API = process.env.ACCEL_VQA_API ?? 'http://127.0.0.1:8972';
 const SCREENSHOTS = path.resolve('.f1c6tmp', 'screenshots');
 const USER = { username: 'f1c6_state_student', password: 'f1c6-state-secret-123' };
 
@@ -90,6 +90,7 @@ test('records are factual, cursor-paginated, filtered server-side and accessible
 
 test('student twin preview is a real read-only experiment with module scope', async ({ page, request }) => {
   await ensureUser(request);
+  await answerChapter(request);
   const preview = await request.get(`${API}/exam/prep/scientific/student-twin?exam_module_id=data_structure`);
   expect(preview.status()).toBe(200);
   const response = await preview.json() as { metadata: { mode: string; writes_learner_fact: boolean; controls_product_decision: boolean; blockers?: string[] }; input_summary: { event_count: number } };
@@ -107,12 +108,18 @@ test('student twin preview is a real read-only experiment with module scope', as
   await page.goto('/exam/cs408/state');
   await expect(page.getByRole('heading', { name: '学习状态实验视图' })).toBeVisible();
   await expect(page.getByText('自研确定性学习状态引擎')).toBeVisible();
+  await expect(page.getByText('基于真实作答与学习事件')).toBeVisible();
+  await expect(page.getByText('本次计算使用的 factual evidence')).toBeVisible();
+  await expect(page.getByText(/不控制判分，不修改知识状态、错题或学习计划/)).toBeVisible();
+  await expect(page.getByText(/learner_state|misconception_v2|tutor_policy|evidence_reliability|SCIENTIFIC_RUNTIME_UNAVAILABLE/i)).toHaveCount(0);
   await page.screenshot({ path: path.join(SCREENSHOTS, 'desktop-state.png'), fullPage: true });
   await page.getByRole('link', { name: '数据结构' }).click();
   await expect(page).toHaveURL(/\/exam\/cs408\/state\?module=data_structure/);
-  await expect(page.getByText('状态引擎输出')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText('当前学习状态摘要')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole('link', { name: '查看学习记录' })).toHaveAttribute('href', '/exam/cs408/records?module=data_structure');
   await page.screenshot({ path: path.join(SCREENSHOTS, 'desktop-state-module.png'), fullPage: true });
-  expect(traffic.filter((item) => item.url.includes('student-twin')).every((item) => item.method === 'GET')).toBe(true);
+  expect(traffic.filter((item) => /scientific\/(capabilities|student-twin)/.test(item.url)).every((item) => item.method === 'GET')).toBe(true);
+  expect(traffic.some((item) => item.url.includes('/exam/prep/scientific/capabilities') && item.method === 'GET')).toBe(true);
   expect(traffic.some((item) => item.method !== 'GET' && /knowledge|wrong|practice|past-paper|plan|student-twin/.test(item.url))).toBe(false);
   expect(await new AxeBuilder({ page }).include('.student-twin').analyze()).toMatchObject({ violations: [] });
   expect(errors).toEqual([]);
@@ -130,7 +137,7 @@ test('student twin unavailable is bounded while records remain usable', async ({
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/exam/cs408/state');
   await expect(page.getByText('学习状态服务暂时不可用')).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText('SCIENTIFIC_RUNTIME_UNAVAILABLE')).toBeVisible();
+  await expect(page.getByText(/SCIENTIFIC_RUNTIME_UNAVAILABLE/)).toHaveCount(0);
   await page.screenshot({ path: path.join(SCREENSHOTS, 'desktop-state-unavailable.png'), fullPage: true });
   await page.goto('/exam/cs408/records');
   await expect(page.getByRole('heading', { name: '学习记录档案' })).toBeVisible();
