@@ -37,9 +37,15 @@ function LockedPlan({ requiredPlan }: { requiredPlan?: string }) {
   // The outer `.study-plan` region already claims `study-plan-title`. A second landmark
   // pointing at the same id makes the two indistinguishable (axe `landmark-unique`), so the
   // inner panel is a plain container inside that region rather than a second landmark.
+  //
+  // NO UPGRADE LINK IS RENDERED, AND THAT IS DELIBERATE. `requiredPlan` is a real value the
+  // entitlement endpoint returns, but the product ships no membership or upgrade route, so
+  // there is no canonical destination to navigate to. The copy therefore states the
+  // requirement without promising an action the app cannot perform; a link is added here
+  // only when such a route exists.
   return <section className="study-plan__state">
     <h1 id="study-plan-title">学习计划</h1><h2>当前会员暂未开放学习计划</h2>
-    {requiredPlan ? <p>升级当前备考方案后即可使用学习计划。</p> : <p>该功能将在符合当前会员权益时开放。</p>}
+    {requiredPlan ? <p>学习计划需要开通对应的备考方案，当前账号尚未开通。</p> : <p>该功能将在符合当前会员权益时开放。</p>}
   </section>;
 }
 

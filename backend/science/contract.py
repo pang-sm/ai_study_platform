@@ -302,11 +302,45 @@ class ScientificCapabilityEntry(BaseModel):
     component: str
     mode: str = Field(description="PREVIEW | SHADOW | SHADOW_NOT_USER_VISIBLE | UNAVAILABLE")
     available: bool
+    # S5's three dimensions. They are declared here because a response model that omits a
+    # field DROPS it from the HTTP body, and these three were being dropped: the summary
+    # emitted them and no client ever saw them.
+    runtime_available: bool = Field(
+        description="this service exposes an endpoint for the component. REACHABILITY "
+                    "ONLY — it implies nothing about whether the product can feed or show "
+                    "it")
+    scientifically_compatible: bool = Field(
+        description="the component's scientific domain and ontology match this product's "
+                    "CS408 domain, so its output means here what it means in research")
+    product_input_ready: bool = Field(
+        description="the product can construct this component's REAL input from real "
+                    "facts it holds today. Same fact as `available`")
     user_visible: bool
     controls_product_decision: bool
     writes_learner_fact: bool
     blockers: list[str] = Field(description="stable reason codes; empty when none")
     semantics: str = Field(description="short label for what the component's output IS")
+    category: str = Field(
+        description="USER_VISIBLE | SHADOW_COLLECTING_DATA | RESEARCH_ONLY | "
+                    "RETIRED_FROM_PRODUCT_ROADMAP — what the ROADMAP is doing with it")
+    category_reason: str | None = Field(
+        default=None, description="stable code for why, when the blockers do not say it")
+
+
+class ScientificProductNativeCapability(BaseModel):
+    """A capability the product built for itself, deliberately NOT one of the thirteen."""
+
+    component: str
+    category: str
+    category_reason: str | None = None
+    status: str
+    artifact: str | None = Field(
+        default=None, description="null while no model exists behind this entry")
+    user_visible: bool
+    controls_product_decision: bool
+    writes_learner_fact: bool
+    blocker: str | None = None
+    semantics: str
 
 
 class ScientificCapabilityTotals(BaseModel):
@@ -315,6 +349,8 @@ class ScientificCapabilityTotals(BaseModel):
     user_visible: int
     controls_product_decision: int
     writes_learner_fact: int
+    by_category: dict[str, int] = Field(
+        description="the roadmap view over the thirteen, counted")
 
 
 class ScientificCapabilitiesResponse(BaseModel):
@@ -324,8 +360,15 @@ class ScientificCapabilitiesResponse(BaseModel):
     source_class: str
     terminology: dict[str, str] = Field(
         description="what each reported field means, so no reader has to infer it")
+    category_meaning: dict[str, str] = Field(
+        description="what each capability category means. A sibling of `terminology` "
+                    "rather than a member of it, so `terminology` stays flat str->str")
     totals: ScientificCapabilityTotals
     components: list[ScientificCapabilityEntry]
+    product_native_capabilities: list[ScientificProductNativeCapability] = Field(
+        description="the product's own capabilities, which are NOT members of the "
+                    "thirteen; reported separately so neither can be mistaken for the "
+                    "other")
 
 
 class TutorPolicyShadowResponse(BaseModel):

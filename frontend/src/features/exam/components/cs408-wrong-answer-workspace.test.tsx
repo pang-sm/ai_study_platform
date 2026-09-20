@@ -35,7 +35,20 @@ describe('Cs408WrongAnswerWorkspace', () => {
     expect(screen.getByText('正确答案：A')).toBeInTheDocument();
     expect(screen.getByText('题目解析')).toBeInTheDocument();
     expect(screen.getByRole('img')).toHaveAttribute('src', 'http://localhost:8000/exam/11408/past-paper-images/operating_system/2022/img_14.jpg');
-    expect(screen.getByRole('link', { name: '查看原真题' })).toHaveAttribute('href', '/exam/cs408/past-papers?module=operating_system&year=2022');
+    // S8: the source link carries the record's own public question identity, so it opens
+    // the paper AT the question the record is about rather than at question 1.
+    expect(screen.getByRole('link', { name: '查看原真题第 46 题' })).toHaveAttribute('href', '/exam/cs408/past-papers?module=operating_system&year=2022&question=46');
+  });
+
+  it('links a chapter-practice record to its module, never to a chapter guessed from a title', async () => {
+    const user = userEvent.setup();
+    render(<QueryClientProvider client={new QueryClient()}><Cs408WrongAnswerWorkspace /></QueryClientProvider>);
+    await user.click(screen.getByRole('button', { name: '展开第 2 条错题记录' }));
+    // The record carries `knowledge_point_path` ('第一章 / 排序') and `knowledge_point_id`
+    // ('1.1'), and NEITHER is a chapter identity the practice route accepts. The link
+    // therefore states only what is canonical — the module.
+    expect(screen.getByRole('link', { name: '进入本模块章节练习' })).toHaveAttribute('href', '/exam/cs408/practice?module=data_structure');
+    expect(screen.queryByRole('link', { name: /原真题/ })).not.toBeInTheDocument();
   });
 
   it('uses the filter-specific factual empty copy', () => {

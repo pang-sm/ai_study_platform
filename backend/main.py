@@ -21840,10 +21840,35 @@ def _split_chapter_question_kp_ids(item):
         return ids
     return []
 
+def _question_canonical_leaf_codes(item):
+    """Canonical leaf codes one question bank row legitimately carries (S8).
+
+    Some modules' banks were ingested from sources whose `knowledge_point_id` stores the
+    canonical identity in a different — still canonical — spelling, and `computer_network`
+    stores `"3.6 局域网"` where the knowledge map's leaf code is `3.6`. Comparing raw strings
+    made every one of its 920 questions unreachable from the knowledge workspace.
+
+    The rules that recover those spellings live in ONE place — the versioned resolver in
+    `science.concept_coverage` — so this matcher does not grow a second, drifting copy of
+    them. A row whose identity is not established resolves to `None` and contributes
+    nothing, which is why the near-matches the resolver REFUSES stay unreachable instead of
+    being matched by a looser test here.
+    """
+    module = (getattr(item, "subject_key", None) or "").strip()
+    stored = (getattr(item, "knowledge_point_id", None) or "").strip()
+    if not module or not stored:
+        return ()
+    from science import concept_coverage
+    code = concept_coverage.canonical_leaf_code(
+        module, knowledge_point_id=stored,
+        source_ref=getattr(item, "source_ref", None))
+    return (code,) if code and code != stored else ()
+
 def _chapter_question_matches_kp(item, kp_id, include_children=False):
     if not kp_id:
         return True
-    for item_kp_id in _split_chapter_question_kp_ids(item):
+    for item_kp_id in (*_split_chapter_question_kp_ids(item),
+                       *_question_canonical_leaf_codes(item)):
         if item_kp_id == kp_id:
             return True
         if include_children and item_kp_id.startswith(kp_id + "."):

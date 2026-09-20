@@ -544,8 +544,26 @@
 | GET | `/exam/prep/scientific/evidence-reliability` | 需登录 | evidence_reliability 能力门报告（SHADOW_NOT_USER_VISIBLE，不产出数值） |
 | GET | `/exam/prep/scientific/capabilities` | 需登录 | 13 个科学组件的产品面就绪度汇总 |
 | GET | `/exam/prep/scientific/kt-dataset-audit` | 需登录 | CS408-native KT 数据集契约健康度（不含任何数据行） |
+| GET | `/science/status` | **仅管理员** | 科学能力与模型执行证明（ACCEL_PRODUCT_S8 PART 10/11）。非学习者页面：普通用户 403、未登录 401；不含任何逐用户字段、不含文件系统路径/原始 prompt/密钥。`?probe_runtime=true` 才探测运行时，默认 `reachable=null`（= 未探测，与 `false` 不同） |
 | POST | `/practice/sessions`、`/practice/sessions/{id}/attempts` 等 | 需登录 | 统一 Practice Core（STEP 7D）；`attempts` 的 payload 自 S5 起接受 `telemetry` 对象 |
 | — | `/v1/inference/*` | — | Scientific Runtime Service，**不是** Product Backend 路由，前端不可达 |
+
+### S8：`/exam/prep/scientific/capabilities` 的响应形状变化（ADDITIVE）
+
+ACCEL_PRODUCT_S8 为该响应新增字段，**全部为新增，无字段被删除或改义**：
+
+- `components[]` 新增 `runtime_available` / `scientifically_compatible` /
+  `product_input_ready`（S5 就已在这三个维度上判断，但响应模型没有声明它们，
+  因而被 FastAPI **静默丢弃**——HTTP body 里一直看不到。S8 补上声明）与
+  `category` / `category_reason`（冻结的四分类：
+  `USER_VISIBLE` / `SHADOW_COLLECTING_DATA` / `RESEARCH_ONLY` /
+  `RETIRED_FROM_PRODUCT_ROADMAP`）。
+- 顶层新增 `category_meaning`（四分类语义；刻意**不**放进 `terminology`，以免
+  把那个 `str -> str` 的扁平映射撑成嵌套结构）。
+- 顶层新增 `product_native_capabilities[]`（产品自建能力，**不属于** SSOT §36 的
+  13 个科学组件，因此单独成块，避免被误读为第 14 个组件）。
+- `totals` 新增 `by_category`。
+- `components` 仍然是 **13 项**，未增未减。
 
 `POST /practice/sessions/{id}/attempts` 的 `telemetry` 为可选对象，字段
 `duration_ms` / `duration_source` / `hint_count` / `hint_source` / `attempt_index`。

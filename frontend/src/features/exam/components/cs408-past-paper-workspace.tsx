@@ -34,7 +34,7 @@ function ResultPanel({ result }: { result: Result }) {
 
 function facts(results: Result[]) { const answered = results.filter((result) => result.user_answer.trim()).length; const correct = results.filter((result) => result.correct === true).length; const incorrect = results.filter((result) => result.correct === false).length; const selfReview = results.filter((result) => result.judge === 'self_review').length; const aiGraded = results.filter((result) => result.judge === 'ai_graded').length; return { answered, correct, incorrect, selfReview, aiGraded, unanswered: results.length - answered }; }
 
-export function Cs408PastPaperWorkspace({ moduleKey, year, attemptId: initialAttemptId, onAttemptChange }: { moduleKey?: string; year?: number; attemptId?: number; onAttemptChange?: (attemptId: number) => void }) {
+export function Cs408PastPaperWorkspace({ moduleKey, year, attemptId: initialAttemptId, questionNumber, onAttemptChange }: { moduleKey?: string; year?: number; attemptId?: number; questionNumber?: number; onAttemptChange?: (attemptId: number) => void }) {
   const module = cs408Modules.find((entry) => entry.key === moduleKey);
   const index = usePastPaperIndex(module?.key ?? '');
   const paper = usePastPaperQuestions(module?.key ?? '', year);
@@ -42,8 +42,18 @@ export function Cs408PastPaperWorkspace({ moduleKey, year, attemptId: initialAtt
   const attemptId = initialAttemptId ?? localAttemptId;
   const attempt = usePastPaperAttempt(module?.key ?? '', attemptId);
   const create = useCreatePastPaperAttempt(); const save = useSavePastPaperAnswers(); const submit = useSubmitPastPaper();
-  const [answers, setAnswers] = useState<Record<string, string>>({}); const [localResults, setLocalResults] = useState<Result[]>([]); const [current, setCurrent] = useState(0); const [view, setView] = useState<ViewMode>();
+  const [answers, setAnswers] = useState<Record<string, string>>({}); const [localResults, setLocalResults] = useState<Result[]>([]); const [selected, setSelected] = useState<number>(); const [view, setView] = useState<ViewMode>();
   const questions = attemptId !== undefined ? attempt.data?.questions ?? noQuestions : paper.data?.questions ?? noQuestions;
+  // A `?question=` deep link opens the paper AT that question. It is matched on the
+  // question's own public identity, never on its position, so the link stays correct if the
+  // paper's question list ever changes order. A question number the paper does not contain
+  // is left alone rather than clamped: landing on question 1 silently would look like the
+  // link worked.
+  //
+  // Derived during render, not synced in an effect: an effect would cascade a second render
+  // and would fight the learner the moment they navigate away from the linked question.
+  const deepLinkIndex = questionNumber === undefined ? -1 : questions.findIndex((question) => question.question_number === questionNumber);
+  const current = selected ?? (deepLinkIndex >= 0 ? deepLinkIndex : 0);
   const submitted = attempt.data?.attempt.status === 'submitted' || localResults.length > 0;
   const results = submitted ? (attempt.data?.results ?? localResults) : noResults;
   const byQuestion = new Map(results.map((result) => [result.question_number, result]));
@@ -53,15 +63,19 @@ export function Cs408PastPaperWorkspace({ moduleKey, year, attemptId: initialAtt
   const start = () => { if (module && year) create.mutate({ moduleKey: module.key, year }, { onSuccess: (created) => { setLocalAttemptId(created.attempt_id); onAttemptChange?.(created.attempt_id); } }); };
   const saveDraft = () => { if (module && attemptId !== undefined) save.mutate({ moduleKey: module.key, attemptId, answers: displayed }); };
   const submitPaper = () => { if (module && attemptId !== undefined) submit.mutate({ moduleKey: module.key, attemptId, answers: displayed }, { onSuccess: (response) => { setLocalResults(response.results); setView('summary'); } }); };
-  return <ExamPageShell activeItem="cs408"><section className="past-paper" aria-labelledby="past-paper-title"><header className="past-paper__header"><p>CS408 / 历年试卷档案</p><h1 id="past-paper-title">{module?.name ?? '选择真题科目'}</h1><span>{year ? `${year} 年全国硕士研究生招生考试` : '选择模块与真实年份试卷'}</span></header>
+  return <ExamPageShell activeItem="cs408"><section className="past-paper" aria-labelledby="past-paper-title"><header className="past-paper__header"><p>CS408 / 历年试卷档案</p><h1 id="past-paper-title">{module?.name ?? '选择真题科目'}</h1><span>{year ? `${year} 年全国硕士研究生招生考试` : attemptId !== undefined ? '本次答卷记录' : '选择模块与真实年份试卷'}</span></header>
     {!module ? <ModuleIndex /> : null}
     {module && index.isPending ? <div className="past-paper__loading"><Skeleton className="h-12 w-full" /><Skeleton className="h-24 w-full" /></div> : null}
     {module && index.isError ? <section className="past-paper__state"><h2>真题档案暂时无法加载</h2><Button variant="secondary" onClick={() => void index.refetch()}>重试</Button></section> : null}
     {module && !year && index.data ? <YearIndex moduleKey={module.key} papers={index.data.papers} /> : null}
     {module && year && paper.isPending ? <div className="past-paper__loading"><Skeleton className="h-10 w-48" /><Skeleton className="h-80 w-full" /></div> : null}
     {module && year && (paper.isError || !paper.data) ? <section className="past-paper__state"><h2>该年份试卷暂时无法加载</h2><Button variant="secondary" onClick={() => void paper.refetch()}>重试</Button></section> : null}
+    {/* An attempt alone is a complete entry point: the attempt carries its own year, so the
+        desk renders from it without the paper index being addressed first. */}
+    {module && !year && attemptId !== undefined && attempt.isPending ? <div className="past-paper__loading"><Skeleton className="h-10 w-48" /><Skeleton className="h-80 w-full" /></div> : null}
+    {module && !year && attemptId !== undefined && attempt.isError ? <section className="past-paper__state"><h2>本次答卷暂时无法加载</h2><Button variant="secondary" onClick={() => void attempt.refetch()}>重试</Button></section> : null}
     {module && year && paper.data && questions.length === 0 ? <section className="past-paper__state"><h2>该年份暂无可用真题</h2><a href={`/exam/cs408/past-papers?module=${module.key}`}>返回真题索引</a></section> : null}
-    {module && year && currentQuestion ? <div className="past-paper__desk">{activeView === 'paper' ? <nav className="past-paper__navigator" aria-label="试卷题目导航">{questions.map((question, position) => <button key={question.question_number} type="button" aria-current={position === current ? 'step' : undefined} className={displayed[questionKey(question)] ? 'is-answered' : undefined} onClick={() => setCurrent(position)}>{String(question.question_number).padStart(2, '0')}</button>)}</nav> : null}<div className="past-paper__main">{activeView === 'summary' ? <section className="past-paper-summary"><h2>本次答卷</h2><p>已作答 {summary.answered} · 未作答 {summary.unanswered}</p><p>客观题答对 {summary.correct} · 客观题答错 {summary.incorrect} · 自行复盘 {summary.selfReview}{summary.aiGraded ? ` · 已评分 ${summary.aiGraded}` : ''}</p><Button variant="secondary" onClick={() => setView('paper')}>查看答题纸</Button></section> : <><PaperQuestion question={currentQuestion} answer={displayed[questionKey(currentQuestion)] ?? ''} submitted={submitted} onChange={(answer) => update(currentQuestion, answer)} result={byQuestion.get(currentQuestion.question_number)} /><div className="past-paper__actions"><div><Button variant="ghost" disabled={current === 0} onClick={() => setCurrent((value) => value - 1)}>上一题</Button><Button variant="ghost" disabled={current === questions.length - 1} onClick={() => setCurrent((value) => value + 1)}>下一题</Button></div><div>{submitted ? <Button variant="secondary" onClick={() => setView('summary')}>本次答卷</Button> : attemptId === undefined ? <Button disabled={create.isPending} onClick={start}>开始作答</Button> : <><Button variant="secondary" disabled={save.isPending} onClick={saveDraft}>保存答案</Button><Button disabled={submit.isPending} onClick={submitPaper}>提交答卷</Button></>}</div></div></>}</div></div> : null}
+    {module && currentQuestion ? <div className="past-paper__desk">{activeView === 'paper' ? <nav className="past-paper__navigator" aria-label="试卷题目导航">{questions.map((question, position) => <button key={question.question_number} type="button" aria-current={position === current ? 'step' : undefined} className={displayed[questionKey(question)] ? 'is-answered' : undefined} onClick={() => setSelected(position)}>{String(question.question_number).padStart(2, '0')}</button>)}</nav> : null}<div className="past-paper__main">{activeView === 'summary' ? <section className="past-paper-summary"><h2>本次答卷</h2><p>已作答 {summary.answered} · 未作答 {summary.unanswered}</p><p>客观题答对 {summary.correct} · 客观题答错 {summary.incorrect} · 自行复盘 {summary.selfReview}{summary.aiGraded ? ` · 已评分 ${summary.aiGraded}` : ''}</p><Button variant="secondary" onClick={() => setView('paper')}>查看答题纸</Button></section> : <><PaperQuestion question={currentQuestion} answer={displayed[questionKey(currentQuestion)] ?? ''} submitted={submitted} onChange={(answer) => update(currentQuestion, answer)} result={byQuestion.get(currentQuestion.question_number)} /><div className="past-paper__actions"><div><Button variant="ghost" disabled={current === 0} onClick={() => setSelected(current - 1)}>上一题</Button><Button variant="ghost" disabled={current === questions.length - 1} onClick={() => setSelected(current + 1)}>下一题</Button></div><div>{submitted ? <Button variant="secondary" onClick={() => setView('summary')}>本次答卷</Button> : attemptId === undefined ? <Button disabled={create.isPending} onClick={start}>开始作答</Button> : <><Button variant="secondary" disabled={save.isPending} onClick={saveDraft}>保存答案</Button><Button disabled={submit.isPending} onClick={submitPaper}>提交答卷</Button></>}</div></div></>}</div></div> : null}
     {create.isError || save.isError || submit.isError ? <p className="past-paper__error" role="alert">操作未完成，请稍后重试。</p> : null}
   </section></ExamPageShell>;
 }

@@ -160,6 +160,119 @@ def pedagogical_action_ledger_status() -> dict:
     }
 
 
+TUTOR_TURN_COLLECTION_SCHEMA_VERSION = "tutor-turn-collection-v1"
+TUTOR_TURN_COLLECTION_START_VERSION = "ACCEL_SPRINT_S8"
+
+COLLECTED = "COLLECTED"
+OWNED_NOT_READ = "OWNED_NOT_READ"
+NOT_OWNED = "NOT_OWNED"
+
+_TUTOR_TURN_FIELDS = (
+    {
+        "field": "dialogue_turn_ref",
+        "status": COLLECTED,
+        "unit": "opaque request id (not a sequence number)",
+        "null_semantics": "absent only when no AI call happened; a turn always has an id",
+        "source_of_truth": "ai_requests.id, carried onto the learning event by "
+                           "learning.records.producers.emit_ai_called",
+        "note": ("a turn is identified, not counted. There is no turn ORDINAL: the "
+                 "product records no ordering of a learner's tutoring turns, so a "
+                 "turn_index would be an invention"),
+    },
+    {
+        "field": "question_context",
+        "status": COLLECTED,
+        "unit": "canonical ids (exam_module_id, knowledge_point_id, question identity)",
+        "null_semantics": ("each level is ABSENT when the turn is not about a question or "
+                           "the surface does not know the level — never a placeholder id"),
+        "source_of_truth": "the LearningContext attached to the AI request, recorded on "
+                           "the event envelope",
+    },
+    {
+        "field": "student_submitted_answer",
+        "status": OWNED_NOT_READ,
+        "unit": "the learner's own answer text/choice",
+        "null_semantics": ("NULL means the learner submitted nothing. It is NOT an empty "
+                           "string and NOT a wrong answer (UNANSWERED != INCORRECT, the "
+                           "same rule the practice mirror applies)"),
+        "source_of_truth": ("canonical practice_attempts + the question_answered learning "
+                            "event. It is deliberately NOT copied onto the AI event: the "
+                            "AI payload carries references and a coarse class, never "
+                            "learner content"),
+    },
+    {
+        "field": "pedagogical_action",
+        "status": NOT_OWNED,
+        "unit": "n/a",
+        "null_semantics": ("n/a — the field is not written at all. It is not NULL-and-"
+                           "awaiting-a-value; there is no column and no placeholder"),
+        "source_of_truth": "none: see explicit_action_ontology_in_running_tutor",
+    },
+    {
+        "field": "confusion",
+        "status": NOT_OWNED,
+        "unit": "n/a",
+        "null_semantics": "n/a — never written",
+        "source_of_truth": "none: a research-dataset field with no product source",
+    },
+    {
+        "field": "previous_action",
+        "status": NOT_OWNED,
+        "unit": "n/a",
+        "null_semantics": "n/a — never written",
+        "source_of_truth": ("none: the product keeps no pedagogical-action ledger because "
+                            "it selects no pedagogical action"),
+    },
+)
+
+
+def tutor_turn_collection_contract() -> dict:
+    """S8 PART 8 — what factual tutoring state the product collects, and what it must not.
+
+    The rule is the same one that governs every other fact here: collect a field only where
+    the product ALREADY owns it, and never invent the rest. The distinction this contract
+    adds is between two ways a field can be absent:
+
+      NOT_OWNED       no product fact corresponds to it. It is not a backlog item and no
+                      placeholder is ever written.
+      OWNED_NOT_READ  the product records the fact elsewhere for another purpose, and it is
+                      available to a future turn state without a new column.
+
+    Every field carries its schema version, collection start, null semantics, unit and
+    source of truth, so a future training run can tell "never collected" from "collected
+    and zero" — the same requirement the attempt-telemetry contract states for the S5
+    columns.
+    """
+    return {
+        "schema_version": TUTOR_TURN_COLLECTION_SCHEMA_VERSION,
+        "collection_start_version": TUTOR_TURN_COLLECTION_START_VERSION,
+        "component": COMPONENT,
+        "product_mode_unchanged": PRODUCT_MODE,
+        "tutor_policy_promoted": False,
+        "action_ontology": list(ACTION_ONTOLOGY),
+        "fields": [dict(f) for f in _TUTOR_TURN_FIELDS],
+        # The load-bearing statement. It is reported, not worked around.
+        "explicit_action_ontology_in_running_tutor": "ABSENT",
+        "why_no_action_is_logged": (
+            "logging an action requires the current tutor system to have SELECTED one. It "
+            "selects a capability and a model; neither is a member of the frozen "
+            "focus/generic/probing/telling ontology. There is therefore nothing to log, and "
+            "a row here would be an invented label rather than an observed one — which is "
+            "exactly the fabricated prev_actions input the ledger audit refuses."),
+        "forbidden_inputs": [
+            "confusion (teacher-described, research-dataset field)",
+            "student profile (research-dataset field)",
+            "previous_action (no ledger exists; see pedagogical_action_ledger_status)",
+            "teacher label",
+            "any pedagogical action the running system did not actually choose",
+        ],
+        "ledger_audit": pedagogical_action_ledger_status(),
+    }
+
+
+# S8 PART 8. Versioned as a whole, like every other collection contract here.
+
+
 def build_turn_state(db: DbSession, user_id: int, *, turn_ref: str | None = None):
     """The full turn state needed by the model, from real product facts.
 

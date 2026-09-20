@@ -21,6 +21,13 @@
   --color-warning-soft: #fffbeb;
   --color-danger: #dc2626;
   --color-danger-soft: #fef2f2;
+  /* Text-safe danger, the sibling of `--color-success-ink` and added for the same reason.
+     `--color-danger` is a FILL/dot/border red: as small text on the lab-paper background
+     the exam shell renders on (#e8e5da) it is 3.83:1, below the 4.5:1 WCAG AA floor. This
+     variant is the same hue at a weight that reads as text (6.59:1 there). Use it wherever
+     the colour carries meaning in a glyph; keep the base token for fills, dots and inset
+     accents. The base token is unchanged, so no other frozen component moves. */
+  --color-danger-ink: #991b1b;
   --color-ai-accent: #7c3aed;
   --color-ai-soft: #f5f3ff;
   --color-page-background: #fbfaf7;

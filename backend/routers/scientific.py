@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from learning.wrong_answers import service as wrong_service
-from science import misconception, tutor_policy
+from science import misconception, status, tutor_policy
 from science.contract import MisconceptionAdvisoryResponse, TutorPolicyShadowResponse
 
 router = APIRouter(prefix="/science", tags=["science"])
@@ -30,6 +30,20 @@ router = APIRouter(prefix="/science", tags=["science"])
 def _require_user(request: Request, db: Session = Depends(get_db)):
     from main import get_current_user  # lazy import to avoid a circular import
     return get_current_user(request, db)
+
+
+def _require_admin(request: Request, db: Session = Depends(get_db)):
+    """Admin gate for the diagnostics surface (S8 PART 10).
+
+    Reuses the product's ONE admin predicate rather than growing a second one. An ordinary
+    authenticated learner gets the same 403 an anonymous caller would, so this route is not
+    an existence oracle for the internal status either.
+    """
+    from main import get_current_user, is_admin_user  # lazy import, same reason
+    user = get_current_user(request, db)
+    if not is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Admin permission required")
+    return user
 
 
 @router.post("/misconception-advisory", response_model=MisconceptionAdvisoryResponse)
@@ -72,3 +86,28 @@ def get_tutor_policy_shadow(current_user=Depends(_require_user),
         "action_probabilities": result.get("action_probabilities"),
         "available": result["available"],
     }
+
+
+@router.get("/status")
+def get_scientific_status(probe_runtime: bool = Query(default=False),
+                          current_user=Depends(_require_admin),
+                          db: Session = Depends(get_db)):
+    """ADMIN-ONLY scientific capability + model-execution status.
+
+    NOT a learner page. It exists for competition, demo and engineering proof: which
+    capability is user-visible, which is shadow and collecting data, which is research-only
+    and why, and what technical evidence exists that each retained self-developed model is
+    real (family, digests, runtime route, the test that executes it, product mode, blocker).
+
+    It carries no per-user field and takes no user parameter, so it cannot become a view of
+    anybody's learning. It exposes no raw prompt, no filesystem path and no secret — a
+    runtime is named by its logical route, never by host or install location.
+
+    ``probe_runtime`` defaults to FALSE: an unprobed runtime reports ``reachable: null``,
+    which is a different answer from ``false`` and is never conflated with it.
+    """
+    from science import client as sci_client
+    reachable = None
+    if probe_runtime:
+        reachable = bool(sci_client.get_client().health())
+    return status.diagnostics(runtime_reachable=reachable)

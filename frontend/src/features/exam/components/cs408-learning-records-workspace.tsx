@@ -43,14 +43,29 @@ function FilterNav({ moduleKey }: { moduleKey?: string }) {
   </nav>;
 }
 
+// A record points back at what produced it — but only along an identity the fact actually
+// carries. `source.id` is the source attempt's own id and `context.exam_module_id` is the
+// module it happened in, so both are asserted together: with either missing there is no
+// link, rather than a link assembled from whatever else happens to be nearby.
+function sourceHref(record: LearningRecord): { href: string; label: string } | undefined {
+  const moduleKey = record.context?.exam_module_id;
+  const sourceId = record.source?.id;
+  if (!moduleKey || !sourceId) return undefined;
+  if (record.source.type === 'exam_practice_attempt') return { href: `/exam/cs408/practice?module=${moduleKey}&attempt=${sourceId}`, label: '查看本次练习' };
+  if (record.source.type === 'past_paper_attempt') return { href: `/exam/cs408/past-papers?module=${moduleKey}&attempt=${sourceId}`, label: '查看本次答卷' };
+  return undefined;
+}
+
 function TimelineRow({ record }: { record: LearningRecord }) {
   const copy = eventCopy[record.event_type];
   if (!copy) return null;
   const timestamp = dateParts(record.occurred_at);
   const module = cs408Modules.find((item) => item.key === record.context?.exam_module_id)?.name;
+  const source = sourceHref(record);
   return <li className="learning-records__row"><time dateTime={record.occurred_at ?? undefined}>{timestamp.time}</time><div>
     {module ? <p className="learning-records__module">{module}</p> : null}
     <strong>{copy.category}</strong><p>{copy.detail(record)}</p>
+    {source ? <a className="learning-records__source" href={source.href}>{source.label}</a> : null}
   </div></li>;
 }
 

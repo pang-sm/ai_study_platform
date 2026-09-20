@@ -840,6 +840,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/science/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Scientific Status
+         * @description ADMIN-ONLY scientific capability + model-execution status.
+         *
+         *     NOT a learner page. It exists for competition, demo and engineering proof: which
+         *     capability is user-visible, which is shadow and collecting data, which is research-only
+         *     and why, and what technical evidence exists that each retained self-developed model is
+         *     real (family, digests, runtime route, the test that executes it, product mode, blocker).
+         *
+         *     It carries no per-user field and takes no user parameter, so it cannot become a view of
+         *     anybody's learning. It exposes no raw prompt, no filesystem path and no secret — a
+         *     runtime is named by its logical route, never by host or install location.
+         *
+         *     ``probe_runtime`` defaults to FALSE: an unprobed runtime reports ``reachable: null``,
+         *     which is a different answer from ``false`` and is never conflated with it.
+         */
+        get: operations["get_scientific_status_science_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/home/summary": {
         parameters: {
             query?: never;
@@ -10035,9 +10067,21 @@ export interface components {
             terminology: {
                 [key: string]: string;
             };
+            /**
+             * Category Meaning
+             * @description what each capability category means. A sibling of `terminology` rather than a member of it, so `terminology` stays flat str->str
+             */
+            category_meaning: {
+                [key: string]: string;
+            };
             totals: components["schemas"]["ScientificCapabilityTotals"];
             /** Components */
             components: components["schemas"]["ScientificCapabilityEntry"][];
+            /**
+             * Product Native Capabilities
+             * @description the product's own capabilities, which are NOT members of the thirteen; reported separately so neither can be mistaken for the other
+             */
+            product_native_capabilities: components["schemas"]["ScientificProductNativeCapability"][];
         };
         /**
          * ScientificCapabilityEntry
@@ -10056,6 +10100,21 @@ export interface components {
             mode: string;
             /** Available */
             available: boolean;
+            /**
+             * Runtime Available
+             * @description this service exposes an endpoint for the component. REACHABILITY ONLY — it implies nothing about whether the product can feed or show it
+             */
+            runtime_available: boolean;
+            /**
+             * Scientifically Compatible
+             * @description the component's scientific domain and ontology match this product's CS408 domain, so its output means here what it means in research
+             */
+            scientifically_compatible: boolean;
+            /**
+             * Product Input Ready
+             * @description the product can construct this component's REAL input from real facts it holds today. Same fact as `available`
+             */
+            product_input_ready: boolean;
             /** User Visible */
             user_visible: boolean;
             /** Controls Product Decision */
@@ -10072,6 +10131,16 @@ export interface components {
              * @description short label for what the component's output IS
              */
             semantics: string;
+            /**
+             * Category
+             * @description USER_VISIBLE | SHADOW_COLLECTING_DATA | RESEARCH_ONLY | RETIRED_FROM_PRODUCT_ROADMAP — what the ROADMAP is doing with it
+             */
+            category: string;
+            /**
+             * Category Reason
+             * @description stable code for why, when the blockers do not say it
+             */
+            category_reason?: string | null;
         };
         /** ScientificCapabilityTotals */
         ScientificCapabilityTotals: {
@@ -10085,6 +10154,42 @@ export interface components {
             controls_product_decision: number;
             /** Writes Learner Fact */
             writes_learner_fact: number;
+            /**
+             * By Category
+             * @description the roadmap view over the thirteen, counted
+             */
+            by_category: {
+                [key: string]: number;
+            };
+        };
+        /**
+         * ScientificProductNativeCapability
+         * @description A capability the product built for itself, deliberately NOT one of the thirteen.
+         */
+        ScientificProductNativeCapability: {
+            /** Component */
+            component: string;
+            /** Category */
+            category: string;
+            /** Category Reason */
+            category_reason?: string | null;
+            /** Status */
+            status: string;
+            /**
+             * Artifact
+             * @description null while no model exists behind this entry
+             */
+            artifact?: string | null;
+            /** User Visible */
+            user_visible: boolean;
+            /** Controls Product Decision */
+            controls_product_decision: boolean;
+            /** Writes Learner Fact */
+            writes_learner_fact: boolean;
+            /** Blocker */
+            blocker?: string | null;
+            /** Semantics */
+            semantics: string;
         };
         /** SendEmailCodeRequest */
         SendEmailCodeRequest: {
@@ -11876,6 +11981,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TutorPolicyShadowResponse"];
+                };
+            };
+        };
+    };
+    get_scientific_status_science_status_get: {
+        parameters: {
+            query?: {
+                probe_runtime?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

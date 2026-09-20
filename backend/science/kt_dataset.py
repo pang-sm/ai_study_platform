@@ -168,14 +168,30 @@ def telemetry_contract() -> dict:
     Carried INSIDE the hashed body on purpose: a dataset assembled from facts recorded
     under a different telemetry contract is a different dataset, and a hash that ignored
     the contract would call them the same.
+
+    S8 PART 7 — the PER-FIELD contract travels with the dataset, not just the schema
+    version. A consumer that receives only "schema_version + these fields are optional"
+    cannot tell a field that was never collected from one that was collected and happened
+    to be zero, and cannot know what unit it is reading. Each field therefore carries its
+    unit, its null semantics and its source of truth, straight from the module that owns
+    the recording — restated nowhere.
     """
     from learning.practice.telemetry import (TELEMETRY_COLLECTION_START_VERSION,
+                                             TELEMETRY_COLUMNS_SINCE_REVISION,
                                              TELEMETRY_CONTRACT, TELEMETRY_SCHEMA_VERSION)
+    columns = TELEMETRY_CONTRACT["columns"]
     return {
         "schema_version": TELEMETRY_SCHEMA_VERSION,
+        "columns_since_revision": TELEMETRY_COLUMNS_SINCE_REVISION,
         "collection_start_version": TELEMETRY_COLLECTION_START_VERSION,
-        "optional_fields": sorted(TELEMETRY_CONTRACT["columns"]),
+        "optional_fields": sorted(columns),
         "null_means": "NOT OBSERVED — never impute to zero",
+        "fields": {name: {"unit": spec["unit"],
+                          "null_semantics": spec["null_semantics"],
+                          "source_of_truth": spec["source_of_truth"]}
+                   for name, spec in sorted(columns.items())},
+        "historical_boundary": dict(TELEMETRY_CONTRACT["historical_boundary"]),
+        "prohibited_derivations": list(TELEMETRY_CONTRACT["prohibited_derivations"]),
     }
 
 
