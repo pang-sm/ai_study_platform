@@ -97,6 +97,70 @@ DURATION_FORBIDDEN_DERIVATIONS = (
 )
 
 
+# ---------------------------------------------------------------- timing boundary audit
+
+# ACCEL_PRODUCT_S9 PART E. The inventory of boundaries the CS408 practice surfaces actually
+# observe, so "can response time be recorded?" is answered from the code path rather than
+# from the column's existence. Recorded here because the answer is a PROPERTY OF THE
+# SURFACES, and a future surface that changes it must change this statement with it.
+PER_QUESTION_TIMING_BOUNDARY_AUDIT = {
+    "question": ("can a factual PER-QUESTION timing boundary be recorded on CS408 chapter "
+                 "practice today?"),
+    "answer": "NO",
+    "boundaries": {
+        "per_item_serve": {
+            "present": False,
+            "why": ("the chapter-practice desk serves the whole question set in ONE response "
+                    "(GET .../chapter-practice/questions) and creates the attempt with all "
+                    "of its question_ids at once; there is no request that hands over a "
+                    "single item, hence no per-item serve instant to record"),
+        },
+        "per_item_submit": {
+            "present": False,
+            "why": ("submit posts every answer in ONE request body, and the save endpoint "
+                    "accepts a partial dict whose entries are not distinguishable from a "
+                    "restatement of answers already given; neither is an answer event for "
+                    "one item"),
+        },
+        "attempt_serve": {
+            "present": True,
+            "observed_as": "exam_practice_attempts.started_at (column default, set at INSERT, "
+                           "i.e. when the set was handed to the learner)",
+        },
+        "attempt_submit": {
+            "present": True,
+            "observed_as": "exam_practice_attempts.submitted_at (set by the submit handler)",
+        },
+    },
+    "why_the_attempt_span_is_not_admitted": (
+        "started_at → submitted_at is a real measurement, but it is an ATTEMPT SPAN: it "
+        "covers every question in the set and is the same number for all of them. Stamping "
+        "it on each item as response_time_ms would assert N per-item durations that were "
+        "never measured, so the S5 rule (a duration needs the two boundaries of the thing it "
+        "describes) refuses it. The dataset reads response_time_ms, so an attempt span under "
+        "that name would be consumed as a per-item duration by every downstream reader."),
+    "edge_cases": {
+        "page_refresh": ("a reload re-reads the same attempt; no new boundary is observed and "
+                         "no number is produced"),
+        "tab_backgrounded": ("unobservable on the server, and it inflates any wall-clock span "
+                             "— which is why the SPAN is refused rather than caveated"),
+        "abandoned_question": ("an attempt left in_progress never sets submitted_at, so it "
+                               "yields NO duration at all — the honest encoding of a question "
+                               "that was served and never finished"),
+        "multiple_submissions": ("submit requires status == in_progress, so a second submit "
+                                 "is a 404 and cannot be counted twice"),
+    },
+    "consequence": (
+        "response_time_ms and response_time_source stay NULL on every chapter-practice fact "
+        "until a surface records a real per-item serve instant. Nothing is added to make the "
+        "record look complete, and no timestamp pair is substituted."),
+    "would_change_if": (
+        "a surface served items one at a time, or recorded a per-item serve instant for a "
+        "batch — then DURATION_SERVER_SERVE_TO_SUBMIT becomes recordable for that surface, "
+        "with its own measured boundaries"),
+}
+
+
 # ---------------------------------------------------------------- hints
 
 HINT_COUNTED = "COUNTED"

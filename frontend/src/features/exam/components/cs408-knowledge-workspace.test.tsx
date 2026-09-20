@@ -2,11 +2,17 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { components } from '@/types/api';
 import { Cs408KnowledgeWorkspace } from './cs408-knowledge-workspace';
 
 type StudyPlan = components['schemas']['ExamStudyPlanResponse'];
+
+// The section is the CANONICAL knowledge leaf: its `code` is what the module knowledge-map
+// seed publishes, and the same string a chapter-practice question carries as its concept.
+// The tests below move it between a real leaf code and the synthetic `_leaf:` code the API
+// mints for a seed node that has none, because only one of the two may offer practice.
+let sectionCode = '1.1';
 
 function plan(): StudyPlan {
   return {
@@ -24,7 +30,7 @@ function plan(): StudyPlan {
       progress: null, learned_at: null, review_due_at: null, review_interval_days: null,
       status_counts: { not_started: 0, learning: 1, mastered: 1, review_due: 0 }, chapter_completion_rate: 50, section_count: 1, sections_completed: 0, chapter_status: 'learning',
       children: [{
-        code: 'section-1', title: '顺序表', id: 'section-1', is_leaf: false,
+        code: sectionCode, title: '顺序表', id: 'section-1', is_leaf: false,
         status: 'learning', stored_status: null, user_confirmed_status: null, system_suggested_status: null, ai_recommended_status: null, ai_assessment: null,
         progress: null, learned_at: null, review_due_at: null, review_interval_days: null,
         status_counts: { not_started: 0, learning: 1, mastered: 1, review_due: 0 }, leaf_stats: { total: 2, mastered: 1, learning: 1, not_started: 0, review_due: 0 }, chapter_practice_completed: false, section_status: 'learning', completion_rate: 50,
@@ -62,6 +68,8 @@ function renderWorkspace() {
 }
 
 describe('Cs408KnowledgeWorkspace', () => {
+  beforeEach(() => { sectionCode = '1.1'; });
+
   it('renders the real recursive children hierarchy and keeps chapter semantics separate from knowledge semantics', async () => {
     const user = userEvent.setup();
     renderWorkspace();
@@ -83,5 +91,41 @@ describe('Cs408KnowledgeWorkspace', () => {
     expect(mutate).toHaveBeenCalledWith({ username: '', subject_key: 'data_structure', course_id: 'data_structure_11408', knowledge_point_code: 'leaf-1', knowledge_point_title: '插入操作', status: 'review_due' }, expect.objectContaining({ onSuccess: expect.any(Function) }));
     expect(screen.getByText('待复习')).toBeInTheDocument();
     expect(screen.queryByText(/data_structure_11408|knowledge_point_id/i)).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------- ACCEL_PRODUCT_S9
+//
+// The identity the practice link carries is the section's own canonical `code` — the string
+// the module seed publishes and the string a question carries as its concept. It is NEVER
+// the section's title, its position in the list, or anything read out of a question.
+
+describe('Cs408KnowledgeWorkspace concept-scoped practice', () => {
+  beforeEach(() => { sectionCode = '1.1'; });
+
+  it('offers practice scoped to the canonical leaf, carrying the code and the module chapter', () => {
+    renderWorkspace();
+    const link = screen.getByRole('link', { name: '知识点练习' });
+    expect(link).toHaveAttribute('href', '/exam/cs408/practice?module=data_structure&chapter=chapter-1&concept=1.1');
+    // the title is a display string and must not appear as an identity
+    expect(link.getAttribute('href')).not.toContain('顺序表');
+  });
+
+  it('offers NO practice link for a node the seed gives no canonical code', () => {
+    // `_leaf:<path>` is the synthetic code the API mints for such a node. There is nothing
+    // to propagate from it, so the action is not offered at all rather than offered and
+    // then refused by the server.
+    sectionCode = '_leaf:1.1';
+    renderWorkspace();
+    expect(screen.queryByRole('link', { name: '知识点练习' })).not.toBeInTheDocument();
+    // the chapter-wide practice link is unaffected — it addresses the chapter, not a concept
+    expect(screen.getByRole('link', { name: '章节练习' })).toBeInTheDocument();
+  });
+
+  it('keeps the chapter-wide link free of a concept, so direct entry declares none', () => {
+    renderWorkspace();
+    const chapterLink = screen.getByRole('link', { name: '章节练习' });
+    expect(chapterLink).toHaveAttribute('href', expect.stringContaining('/exam/cs408/practice?module=data_structure&chapter=chapter-1'));
+    expect(chapterLink.getAttribute('href')).not.toContain('concept=');
   });
 });

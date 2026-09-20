@@ -7,8 +7,23 @@ export type ChapterPracticeOutline = components['schemas']['ExamChapterPracticeO
 export type ChapterPracticeQuestions = components['schemas']['ExamChapterPracticeQuestionsResponse'];
 export type ChapterPracticeSubmit = components['schemas']['ExamPracticeSubmitResponse'];
 
+// The API mints a SYNTHETIC code (`_leaf:<path>`) for a knowledge node the module seed gives
+// no code. Such a node has no canonical identity, so there is nothing to propagate from it and
+// no practice link should be offered. Everything else the tree publishes is a real seed code.
+//
+// This is not an identity check the frontend performs on its own: the SERVER still validates
+// every concept it receives and refuses anything that is not a canonical leaf of the module.
+// The helper only decides whether to offer the action at all, so a learner never gets an
+// error page for an entry point that could never have worked.
+const SYNTHETIC_NODE_CODE_PREFIXES = ['_leaf:', 'leaf:', '_node:', 'node:', '_kp:', 'kp:'] as const;
+
+export function isCanonicalConceptCode(code?: string | null): boolean {
+  const value = (code ?? '').trim();
+  return value !== '' && !SYNTHETIC_NODE_CODE_PREFIXES.some((prefix) => value.startsWith(prefix));
+}
+
 export const chapterPracticeOutlineKey = (moduleKey: string) => ['exam', 'cs408', 'chapter-practice', 'outline', moduleKey] as const;
-export const chapterPracticeQuestionsKey = (moduleKey: string, chapterCode: string) => ['exam', 'cs408', 'chapter-practice', 'questions', moduleKey, chapterCode] as const;
+export const chapterPracticeQuestionsKey = (moduleKey: string, chapterCode: string, conceptCode?: string) => ['exam', 'cs408', 'chapter-practice', 'questions', moduleKey, chapterCode, conceptCode ?? null] as const;
 export const chapterPracticeAttemptKey = (moduleKey: string, attemptId: number) => ['exam', 'cs408', 'chapter-practice', 'attempt', moduleKey, attemptId] as const;
 
 async function requestOutline(moduleKey: string): Promise<ChapterPracticeOutline> {
@@ -17,8 +32,17 @@ async function requestOutline(moduleKey: string): Promise<ChapterPracticeOutline
   return data;
 }
 
-async function requestQuestions(moduleKey: string, chapterCode: string): Promise<ChapterPracticeQuestions> {
-  const { data, error, response } = await apiClient.GET('/exam/11408/{subject_key}/chapter-practice/questions', { params: { path: { subject_key: moduleKey }, query: { chapter_code: chapterCode } } });
+// `conceptCode` is the canonical knowledge leaf the learner came FROM. It is only ever set
+// by a surface that already holds it as a canonical id — the knowledge tree's own `code` —
+// and it is never derived from a title, a path, a list position or the question text. The
+// server refuses any value that is not a canonical leaf of the module (422), so a wrong id
+// fails loudly instead of quietly labelling the attempt with a concept it does not have.
+//
+// The read uses `concept_code` (canonical filter, distinct from the legacy practice
+// sub-group filter) while the write uses `knowledge_point_id` (the concept slot the attempt
+// and its learning event actually store). One mapping, stated here, so no call site repeats it.
+async function requestQuestions(moduleKey: string, chapterCode: string, conceptCode?: string): Promise<ChapterPracticeQuestions> {
+  const { data, error, response } = await apiClient.GET('/exam/11408/{subject_key}/chapter-practice/questions', { params: { path: { subject_key: moduleKey }, query: { chapter_code: chapterCode, concept_code: conceptCode } } });
   if (!response.ok || data === undefined) throw new ApiRequestError(response.status, error);
   return data;
 }
@@ -37,8 +61,8 @@ async function requestAttempt(moduleKey: string, attemptId: number) {
 // identified by `question_type` and carried by `judge: 'self_review'`.
 export type ChapterPracticeAttempt = Awaited<ReturnType<typeof requestAttempt>>;
 
-async function createAttempt(input: { moduleKey: string; questionIds: number[] }) {
-  const { data, error, response } = await apiClient.POST('/exam/11408/{subject_key}/chapter-practice/attempts', { params: { path: { subject_key: input.moduleKey } }, body: { question_ids: input.questionIds } });
+async function createAttempt(input: { moduleKey: string; questionIds: number[]; knowledgePointId?: string }) {
+  const { data, error, response } = await apiClient.POST('/exam/11408/{subject_key}/chapter-practice/attempts', { params: { path: { subject_key: input.moduleKey } }, body: { question_ids: input.questionIds, knowledge_point_id: input.knowledgePointId } });
   if (!response.ok || data === undefined) throw new ApiRequestError(response.status, error);
   return data;
 }
@@ -59,8 +83,8 @@ export function useChapterPracticeOutline(moduleKey: string) {
   return useQuery({ queryKey: chapterPracticeOutlineKey(moduleKey), queryFn: () => requestOutline(moduleKey), enabled: Boolean(moduleKey), retry: false });
 }
 
-export function useChapterPracticeQuestions(moduleKey: string, chapterCode: string) {
-  return useQuery({ queryKey: chapterPracticeQuestionsKey(moduleKey, chapterCode), queryFn: () => requestQuestions(moduleKey, chapterCode), enabled: Boolean(moduleKey && chapterCode), retry: false });
+export function useChapterPracticeQuestions(moduleKey: string, chapterCode: string, conceptCode?: string) {
+  return useQuery({ queryKey: chapterPracticeQuestionsKey(moduleKey, chapterCode, conceptCode), queryFn: () => requestQuestions(moduleKey, chapterCode, conceptCode), enabled: Boolean(moduleKey && chapterCode), retry: false });
 }
 
 export function useChapterPracticeAttempt(moduleKey: string, attemptId?: number) {

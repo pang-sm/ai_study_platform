@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ExamRouteImport } from './routes/exam'
+import { Route as MembershipRouteImport } from './routes/membership'
 import { Route as ExamIndexRouteImport } from './routes/exam/index'
 import { Route as ExamCs408RouteImport } from './routes/exam/cs408'
 import { Route as ExamSetupRouteImport } from './routes/exam/setup'
@@ -33,6 +34,11 @@ const IndexRoute = IndexRouteImport.update({
 const ExamRoute = ExamRouteImport.update({
   id: '/exam',
   path: '/exam',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MembershipRoute = MembershipRouteImport.update({
+  id: '/membership',
+  path: '/membership',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ExamIndexRoute = ExamIndexRouteImport.update({
@@ -104,6 +110,7 @@ const ExamSubjectsSubjectIdRoute = ExamSubjectsSubjectIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/exam': typeof ExamRouteWithChildren
+  '/membership': typeof MembershipRoute
   '/exam/cs408': typeof ExamCs408RouteWithChildren
   '/exam/setup': typeof ExamSetupRoute
   '/exam/': typeof ExamIndexRoute
@@ -120,6 +127,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/membership': typeof MembershipRoute
   '/exam/setup': typeof ExamSetupRoute
   '/exam': typeof ExamIndexRoute
   '/exam/cs408/knowledge': typeof ExamCs408KnowledgeRoute
@@ -137,6 +145,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/exam': typeof ExamRouteWithChildren
+  '/membership': typeof MembershipRoute
   '/exam/cs408': typeof ExamCs408RouteWithChildren
   '/exam/setup': typeof ExamSetupRoute
   '/exam/': typeof ExamIndexRoute
@@ -156,6 +165,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/exam'
+    | '/membership'
     | '/exam/cs408'
     | '/exam/setup'
     | '/exam/'
@@ -172,6 +182,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/membership'
     | '/exam/setup'
     | '/exam'
     | '/exam/cs408/knowledge'
@@ -188,6 +199,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/exam'
+    | '/membership'
     | '/exam/cs408'
     | '/exam/setup'
     | '/exam/'
@@ -206,6 +218,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ExamRoute: typeof ExamRouteWithChildren
+  MembershipRoute: typeof MembershipRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -222,6 +235,13 @@ declare module '@tanstack/react-router' {
       path: '/exam'
       fullPath: '/exam'
       preLoaderRoute: typeof ExamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/membership': {
+      id: '/membership'
+      path: '/membership'
+      fullPath: '/membership'
+      preLoaderRoute: typeof MembershipRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/exam/': {
@@ -365,6 +385,7 @@ const ExamRouteWithChildren = ExamRoute._addFileChildren(ExamRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ExamRoute: ExamRouteWithChildren,
+  MembershipRoute: MembershipRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

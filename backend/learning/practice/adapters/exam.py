@@ -20,7 +20,7 @@ from datetime import datetime
 
 from core.learning_context import ServiceNamespace
 
-from ...spaces.exam_prep.context import cs408_context
+from ...spaces.exam_prep.context import canonical_module_concept, cs408_context
 
 from .. import service
 from ..refs import QuestionRef, QuestionSourceType
@@ -116,9 +116,18 @@ def mirror_exam_practice_attempt(db, user, attempt,
         ns = ServiceNamespace.EXAM_PREP
         # CS408 adapter: the legacy subject_key IS the module; track and subject are implied
         # by the only exam with real data. Nothing here invents a second context type.
+        #
+        # ACCEL_PRODUCT_S9: the legacy column is UNVALIDATED content — an older release
+        # stored a practice sub-group label in it, and `computer_network` chapter 4 stored
+        # ids that collide numerically with different canonical leaves. Only a value the
+        # resolver confirms as a canonical leaf of this module becomes the CONCEPT
+        # reference on the fact; anything else is absent, because a concept key the content
+        # does not assert is worse than no concept key at all. The raw value is NOT lost:
+        # it stays, untouched, in the QuestionRef provenance below.
         context = cs408_context(
             user, module_key=attempt.subject_key,
-            knowledge_point_id=attempt.knowledge_point_id)
+            knowledge_point_id=canonical_module_concept(
+                attempt.subject_key, attempt.knowledge_point_id))
         session, session_created = service.ensure_legacy_session(
             db, user, ns, source_type=CHAPTER_SOURCE_TYPE,
             source_session_key=attempt.id, mode=attempt.practice_type,

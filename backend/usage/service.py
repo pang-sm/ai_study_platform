@@ -460,13 +460,21 @@ def create_pending_order(session, user_id: int, tier: str,
 
 
 def usage_summary(session, user_id: int) -> dict:
-    """Current remaining / reserved / settled credits for daily + weekly periods."""
+    """Current remaining / reserved / settled credits for daily + weekly periods.
+
+    ACCEL_PRODUCT_S9: every period reports the SAME four keys. A tier with no cap used to
+    omit ``reserved`` / ``settled``, so one endpoint returned two differently-shaped objects
+    depending on a value — a consumer had to branch on the shape before it could read a
+    number. The uncapped case now reports ``null`` for all four, which is the same statement
+    (there is no period budget) in one shape.
+    """
     tier = effective_subscription(session, user_id)
     summary = {"tier": tier, "periods": {}}
     for period_type in ("daily", "weekly"):
         amount = budget_amount_for(tier, period_type)
         if amount is None:
-            summary["periods"][period_type] = {"budget": None, "remaining": None}
+            summary["periods"][period_type] = {
+                "budget": None, "reserved": None, "settled": None, "remaining": None}
             continue
         budget = get_or_create_budget(session, user_id, period_type)
         remaining = max(0, budget.budget_amount - budget.reserved_amount - budget.settled_amount)

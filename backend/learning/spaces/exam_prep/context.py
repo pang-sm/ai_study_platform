@@ -79,6 +79,32 @@ def cs408_context(user, *, module_key=None, **overrides) -> LearningContext:
         exam_module_id=module_key, **overrides)
 
 
+def canonical_module_concept(module_key, stored_concept_id) -> str | None:
+    """A STORED concept id → the canonical leaf code it provably is, or ``None``.
+
+    ACCEL_PRODUCT_S9. This exists for the LEGACY MIRROR boundary, where the value being
+    read is an unvalidated string written by an older release — possibly a practice
+    sub-group label, possibly the ``computer_network`` chapter-4 numeric collision. Such a
+    value is legitimate CONTENT provenance, but it is not a canonical concept and must
+    never be promoted into the concept slot that reaches a learning event and, through it,
+    a training dataset: the dataset would then carry a concept key no product fact asserts.
+
+    ``None`` is the honest answer for every such value, and it is a DIFFERENT answer from
+    "the caller declared no concept" — both end up absent, and both are correct. A value
+    that IS canonical comes back unchanged; nothing is normalised, truncated or guessed.
+
+    The resolver is imported lazily and used rather than restated: concept identity has
+    exactly one owner (``science.concept_coverage``) and a second copy of the rules here
+    would be the drift this function exists to prevent.
+    """
+    module = str(module_key or "").strip()
+    stored = str(stored_concept_id or "").strip()
+    if not module or not stored:
+        return None
+    from science import concept_coverage
+    return concept_coverage.canonical_leaf_code(module, knowledge_point_id=stored)
+
+
 def cs408_context_from_values(user, *values, **overrides) -> LearningContext:
     """CS408 adapter for callers holding mixed legacy scope strings.
 

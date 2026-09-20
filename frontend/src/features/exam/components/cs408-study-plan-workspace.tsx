@@ -11,7 +11,10 @@ const taskTypeLabels: Record<string, string> = { knowledge: '知识学习', chap
 
 function actionFor(task: PlanTask) {
   if (task.action_target === 'knowledge_map') return { label: task.computed_status === 'in_progress' ? '继续学习' : '开始学习', to: '/exam/cs408/knowledge' as const, search: { module: task.subject_key } };
-  if (task.action_target === 'practice_center') return { label: '去练习', to: '/exam/cs408/practice' as const, search: { module: task.subject_key, chapter: undefined, attempt: undefined } };
+  // No `concept`: `ExamStudyPlanTaskItem` carries `knowledge_point_name` (a DISPLAY string)
+  // and no code, so the plan knows no canonical concept and must not invent one. The attempt
+  // is module-scoped practice, and the concept slot stays NULL.
+  if (task.action_target === 'practice_center') return { label: '去练习', to: '/exam/cs408/practice' as const, search: { module: task.subject_key, chapter: undefined, concept: undefined, attempt: undefined } };
   return undefined;
 }
 
@@ -38,14 +41,21 @@ function LockedPlan({ requiredPlan }: { requiredPlan?: string }) {
   // pointing at the same id makes the two indistinguishable (axe `landmark-unique`), so the
   // inner panel is a plain container inside that region rather than a second landmark.
   //
-  // NO UPGRADE LINK IS RENDERED, AND THAT IS DELIBERATE. `requiredPlan` is a real value the
-  // entitlement endpoint returns, but the product ships no membership or upgrade route, so
-  // there is no canonical destination to navigate to. The copy therefore states the
-  // requirement without promising an action the app cannot perform; a link is added here
-  // only when such a route exists.
+  // ACCEL_PRODUCT_S9: the membership route EXISTS, so the locked state now points at it.
+  // Before this, the page deliberately rendered no link because there was no canonical
+  // destination — a lock with nowhere to go is a dead end, and inventing a route for it
+  // would have been worse. The link goes to `/membership`, which reads the SAME entitlement
+  // endpoint this panel does (`GET /membership/entitlements?service_key=exam_11408`), so the
+  // requirement stated here and the requirement explained there cannot disagree.
+  // `requiredPlan` is NOT a unified tier — it is the legacy service-plan code the
+  // entitlement endpoint returns (`monthly_sprint`), and mapping it onto `Standard` /
+  // `Advanced` would be a translation the backend does not make. So it is not shown as a
+  // tier; the requirement is stated in words and the real comparison lives on the
+  // membership page, which reads the same endpoint.
   return <section className="study-plan__state">
     <h1 id="study-plan-title">学习计划</h1><h2>当前会员暂未开放学习计划</h2>
     {requiredPlan ? <p>学习计划需要开通对应的备考方案，当前账号尚未开通。</p> : <p>该功能将在符合当前会员权益时开放。</p>}
+    <Link to="/membership">查看会员档位与权益</Link>
   </section>;
 }
 

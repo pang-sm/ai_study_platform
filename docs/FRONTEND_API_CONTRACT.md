@@ -573,6 +573,68 @@ ACCEL_PRODUCT_S8 为该响应新增字段，**全部为新增，无字段被删�
 
 ---
 
+### S9：章节练习的**规范概念身份**（ADDITIVE + 一个语义收紧）
+
+ACCEL_PRODUCT_S9 让「从规范知识叶子进入章节练习」这条路径把**已知的**规范
+`knowledge_point_id` 带进 attempt / learning event / 数据集导出。概念**从不推断**：
+不从标题、不从路径文本、不从数组下标、不从题干。
+
+**读取路径（ADDITIVE）** — `GET /exam/11408/{subject_key}/chapter-practice/questions`
+新增查询参数 `concept_code`：
+
+- 它只接受该模块的**规范叶子 code**（知识地图 seed 发布的那一个字符串）。
+  不是规范叶子的 id → **422**（不是「返回空列表」：空列表是「本知识点没有题」，
+  与「这不是一个知识点」是两回事）。
+- 它与既有的 `knowledge_point_id`（legacy 练习子分组过滤）**是两个不同的参数**，
+  后者语义未变。
+- 是规范叶子但没有题 → 200 且 `total = 0`（诚实，例如 `computer_network` 第 4 章
+  撞位叶子）。
+
+**写入路径（语义收紧，**不是**新增字段）** —
+`POST /exam/11408/{subject_key}/chapter-practice/attempts` 的 `knowledge_point_id`
+从「任意字符串照单全收」改为**校验后接受**。非空时必须同时满足：
+
+1. 该模块发布了知识地图 seed；
+2. 该值是该模块的规范叶子 code；
+3. 所选题目全部属于该模块；
+4. 所选题目全部携带该概念（与读取路径**同一个**判定函数）。
+
+任一条不成立 → **422**，`detail` 为
+`{code, message, concept_code, subject_key, ...}`；`code ∈
+{CONCEPT_NOT_CANONICAL_LEAF_OF_MODULE, CONCEPT_QUESTION_MODULE_MISMATCH,
+CONCEPT_QUESTION_SET_MISMATCH}`。**该值从不被改写、不被就近匹配**。
+
+留空/NULL 仍然合法，且是直接入口、真题、legacy attempt 的诚实编码 —— 这三种情况
+本来就没有已知的规范概念。
+
+**兼容性说明（会破坏旧调用方的地方）**：此前客户端可以对**任意**题目集合声明
+**任意** `knowledge_point_id`，服务端原样落库并带进 learning event。该行为现在会
+422。真实前端此前从不发送该字段，所以这条收紧影响的是「本来就会往事件里写一个
+伪造概念」的调用。`BC5A` 契约测试中那一条（整章题目 + 概念 1.1）已按新契约更新，
+原意图（响应形状具体）不变。
+
+**运行时响应形状变化（一处）** — `GET /usage/summary` 的 `periods.<daily|weekly>`
+现在**恒定**返回四个键 `budget` / `reserved` / `settled` / `remaining`：
+无额度上限的档位此前只返回 `budget` 与 `remaining`，导致同一个端点按值返回两种
+不同形状的对象。变化是**纯新增**（原先缺失的两个键现在为 `null`），
+不删除、不改义任何已有键。
+
+**新增响应模型（绑定既有运行时形状，未改任何响应体）** —
+`GET /subscription`、`GET /subscription/plans`、`GET /usage/summary`、
+`POST /membership/redeem`、`POST /membership/redeem/preview`
+此前返回裸 `dict`，OpenAPI 里是 `{}`，前端拿不到任何类型。S9 为它们声明了
+响应模型，字段逐一取自真实运行时 payload，**响应体不变**，只是现在被契约固定。
+
+**`GET /science/status` 新增 `data_collection`（ADDITIVE）** — 采集就绪度的事实量：
+`users_with_events` / `users_with_eligible_interactions` / `eligible_interactions` /
+`concept_level_interactions` / `module_level_interactions` /
+`non_canonical_concept_ids` / `events_scanned` / `collection_start_version`，
+以及 `uncollected_fields`（`response_time_ms = NOT_COLLECTED`、
+`hint_count = NOT_AVAILABLE`，`coverage` 为 `null`）。无任何逐用户标识。
+未传入 db 会话时 `measured = false` 且**不出现**计数键 —— 没数过与数到 0 不同。
+
+---
+
 ## 附注：清理期后端耦合点说明
 
 - 后端 `main.py` 不托管任何前端 SPA：无 `app.mount("/", StaticFiles)`、无返回 `index.html` 的 `FileResponse`。所有 `FileResponse` 均为业务资源（头像 / 资料下载 / 资料预览 / 真题图片 / 管理备份下载）。

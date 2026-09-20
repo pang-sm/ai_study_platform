@@ -110,4 +110,7 @@ def get_scientific_status(probe_runtime: bool = Query(default=False),
     reachable = None
     if probe_runtime:
         reachable = bool(sci_client.get_client().health())
-    return status.diagnostics(runtime_reachable=reachable)
+    # The session is passed in for the data-collection block only; that block counts EVENTS
+    # and carries no learner identifier, so the payload stays a volume measurement rather
+    # than a view of anybody's learning.
+    return status.diagnostics(runtime_reachable=reachable, db=db)

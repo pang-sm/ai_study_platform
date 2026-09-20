@@ -4575,6 +4575,13 @@ export interface paths {
         /**
          * Redeem Membership Code
          * @description Redeem a membership code.
+         *
+         *     ACCEL_PRODUCT_S9: this is the path that actually OPENS a locked product feature. The
+         *     per-direction ``learning_plan`` / ``learning_report`` gates read
+         *     ``user_service_memberships`` (``membership.get_feature_entitlement``), which this
+         *     endpoint writes, and ``POST /subscription/redeem`` does not. The two systems are
+         *     deliberately independent until the unified migration lands (SSOT §41), so the membership
+         *     surface offers the one that resolves the lock rather than the one that only moves a tier.
          */
         post: operations["redeem_membership_code_membership_redeem_post"];
         delete?: never;
@@ -7463,7 +7470,25 @@ export interface components {
             /** Success */
             success: boolean;
         };
-        /** ExamPracticeAttemptCreateRequest */
+        /**
+         * ExamPracticeAttemptCreateRequest
+         * @description Body of `POST .../chapter-practice/attempts`.
+         *
+         *     `knowledge_point_id` is the CANONICAL concept slot (ACCEL_PRODUCT_S9). When it is
+         *     non-empty the server validates it and answers 422 unless ALL of the following hold:
+         *
+         *       * the module publishes a knowledge-map seed;
+         *       * the value IS a canonical leaf code of that module;
+         *       * every selected question belongs to that module;
+         *       * every selected question carries exactly that concept under the shared resolver.
+         *
+         *     The value is never rewritten and never inferred — from a title, a path, an index or the
+         *     question text. Leaving it NULL is valid and is the honest encoding for direct entry,
+         *     past papers and legacy attempts, where no canonical concept is known.
+         *
+         *     `knowledge_point_name` / `knowledge_point_path` are DISPLAY strings and carry no
+         *     identity; they are stored as given and are never used to resolve a concept.
+         */
         ExamPracticeAttemptCreateRequest: {
             /** Question Ids */
             question_ids?: number[];
@@ -9458,6 +9483,30 @@ export interface components {
             /** Username */
             username?: string | null;
         };
+        /** PlanCatalogResponse */
+        PlanCatalogResponse: {
+            /** Policy Version */
+            policy_version: string;
+            /** Plans */
+            plans: {
+                [key: string]: components["schemas"]["PlanDefinition"];
+            };
+        };
+        /**
+         * PlanDefinition
+         * @description One tier's factual limits. ``daily_budget`` is ``None`` when the tier has no daily
+         *     cap (Advanced); that is a real absence, not a zero.
+         */
+        PlanDefinition: {
+            /** Label */
+            label: string;
+            /** Daily Budget */
+            daily_budget: number | null;
+            /** Weekly Budget */
+            weekly_budget: number | null;
+            /** Capabilities */
+            capabilities: string[];
+        };
         /** PlanGeneratePreviewRequest */
         PlanGeneratePreviewRequest: {
             /** Username */
@@ -9921,6 +9970,57 @@ export interface components {
             /** Service Key */
             service_key?: string | null;
         };
+        /**
+         * RedemptionPreviewPayload
+         * @description What a REAL redemption code would grant, before it is consumed.
+         *
+         *     ``current_plan`` / ``current_expires_at`` describe the caller's position in THIS
+         *     direction. ``projected_expires_at`` is where the plan would end after redeeming —
+         *     computed from the later of now and the current expiry, so a renewal extends rather than
+         *     truncates. ``remaining_redemptions`` is a real count of the code's remaining uses.
+         */
+        RedemptionPreviewPayload: {
+            /** Service Key */
+            service_key: string;
+            /** Target Plan */
+            target_plan: string;
+            /** Target Plan Name */
+            target_plan_name: string;
+            /** Membership Duration Days */
+            membership_duration_days: number;
+            /** Code Expires At */
+            code_expires_at: string | null;
+            /** Current Plan */
+            current_plan: string;
+            /** Current Expires At */
+            current_expires_at: string | null;
+            /** Projected Expires At */
+            projected_expires_at: string;
+            /** Remaining Redemptions */
+            remaining_redemptions: number;
+        };
+        /**
+         * RedemptionPreviewResponse
+         * @description ``success`` is always true on a 200: a refused code is a 400 with its own message, so
+         *     a caller never has to read a boolean to know whether a plan is described.
+         */
+        RedemptionPreviewResponse: {
+            /** Success */
+            success: boolean;
+            preview: components["schemas"]["RedemptionPreviewPayload"];
+        };
+        /**
+         * RedemptionResultResponse
+         * @description The consumed code's effect. ``redemption`` is the same payload the preview showed, so
+         *     what the learner agreed to and what they received cannot differ.
+         */
+        RedemptionResultResponse: {
+            /** Success */
+            success: boolean;
+            /** Message */
+            message: string;
+            redemption: components["schemas"]["RedemptionPreviewPayload"];
+        };
         /** RegisterEmailSendCodeRequest */
         RegisterEmailSendCodeRequest: {
             /** Email */
@@ -10267,6 +10367,16 @@ export interface components {
             /** Duration Days */
             duration_days?: number | null;
         };
+        /**
+         * SubscriptionStateResponse
+         * @description The caller's CURRENT unified tier and the policy it was resolved under.
+         */
+        SubscriptionStateResponse: {
+            /** Tier */
+            tier: string;
+            /** Policy Version */
+            policy_version: string;
+        };
         /** SupportMessageCreate */
         SupportMessageCreate: {
             /** Content */
@@ -10363,6 +10473,31 @@ export interface components {
             tags?: string[] | null;
             /** Review Status */
             review_status?: string | null;
+        };
+        /**
+         * UsagePeriod
+         * @description One period's credit position. Every key is always present: an uncapped period reports
+         *     ``None`` for all four rather than omitting keys, so a reader never has to branch on the
+         *     shape before reading a number.
+         */
+        UsagePeriod: {
+            /** Budget */
+            budget: number | null;
+            /** Reserved */
+            reserved: number | null;
+            /** Settled */
+            settled: number | null;
+            /** Remaining */
+            remaining: number | null;
+        };
+        /** UsageSummaryResponse */
+        UsageSummaryResponse: {
+            /** Tier */
+            tier: string;
+            /** Periods */
+            periods: {
+                [key: string]: components["schemas"]["UsagePeriod"];
+            };
         };
         /** UserCreate */
         UserCreate: {
@@ -10854,7 +10989,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["SubscriptionStateResponse"];
                 };
             };
         };
@@ -10874,7 +11009,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["PlanCatalogResponse"];
                 };
             };
         };
@@ -11024,7 +11159,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["UsageSummaryResponse"];
                 };
             };
         };
@@ -17945,6 +18080,7 @@ export interface operations {
             query?: {
                 knowledge_point_id?: string;
                 chapter_code?: string;
+                concept_code?: string;
                 knowledge_point_path?: string;
                 include_children?: boolean;
                 username?: string;
@@ -20194,7 +20330,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["RedemptionResultResponse"];
                 };
             };
             /** @description Validation Error */
@@ -20227,7 +20363,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["RedemptionPreviewResponse"];
                 };
             };
             /** @description Validation Error */

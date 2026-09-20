@@ -339,6 +339,111 @@ def canonical_leaf_code(module_key: str, *, knowledge_point_id=None, source_ref=
     return resolved["canonical_code"]
 
 
+def chapter_of_stored_id(module_key: str, knowledge_point_id=None, source_ref=None,
+                         concepts: dict | None = None) -> str | None:
+    """The canonical chapter a stored id places a row in, or ``None``.
+
+    The chapter is read from the row's own leading code segment, or — when that says
+    nothing — from a provenance triple. Both are READS of what the row already stores: this
+    can place a question in a chapter, and it can never place it in a concept, which is why
+    a row whose concept is unresolved is still reported at its true chapter level rather
+    than at ``None``.
+
+    ``main._question_chapter_code`` answers the same question for the served question list
+    and additionally consults the row's JSON ``source_ref.chapter_id``; the two must agree
+    on any row that carries no such metadata, and a test pins that agreement over the
+    shipped bank so neither can drift.
+    """
+    concepts = concepts if concepts is not None else load_module_concepts(module_key)
+    if not concepts["seed_present"]:
+        return None
+    stored = (knowledge_point_id or "").strip()
+    head = stored.split(".", 1)[0].strip() if stored else ""
+    if head and head in concepts["chapters"]:
+        return head
+    return _chapter_from_source_ref(source_ref, concepts)
+
+
+def unresolved_identity_report(db: DbSession, module_key: str, *,
+                               active_only: bool = True) -> dict:
+    """Every question-bank row of a module whose canonical concept is NOT established.
+
+    Read-only, and it writes nothing — re-keying a preservation-critical content table is a
+    CONTENT decision, and this function exists so the size of that decision is a measured
+    number instead of an estimate.
+
+    A row carries a ``candidate`` only when the versioned resolver establishes one. The
+    resolver recognises exact equality against a string the seed itself publishes (a leaf
+    code, a leaf's own title, a strict-descent provenance triple) and nothing else, so a row
+    that comes back without a candidate is a row for which **no mapping is provable from the
+    content itself**. A near-match is reported as a near-match: it is the shape a laxer rule
+    would have accepted, and seeing it is what makes the refusal auditable.
+    """
+    where = ["subject_key = :module"]
+    if active_only:
+        where.append("is_active = 1")
+    rows = db.execute(
+        text(f"SELECT id, knowledge_point_id, source_ref FROM exam_question_bank "
+             f"WHERE {' AND '.join(where)} ORDER BY id ASC"),
+        {"module": module_key}).all()
+
+    concepts = load_module_concepts(module_key)
+    records = []
+    already_resolved = 0
+    for question_id, stored_code, source_ref in rows:
+        resolved = resolve_identity(module_key, knowledge_point_id=stored_code,
+                                    source_ref=source_ref, concepts=concepts)
+        provable = resolved["canonical_code"]
+        if provable:
+            # Already carries a canonical concept: nothing to re-key, and the row is not
+            # part of the candidate report.
+            already_resolved += 1
+            continue
+        records.append({
+            "question_id": int(question_id),
+            "stored_source_identity": stored_code,
+            "source_ref": source_ref,
+            "current_chapter": chapter_of_stored_id(
+                module_key, stored_code, source_ref, concepts),
+            "current_level": resolved["level"],
+            # Always None for a row in this report — by construction, since a row the
+            # resolver CAN place never reaches here. The key is emitted anyway so a future
+            # rule that resolves some of these rows shows up as a candidate rather than
+            # having to change the record shape.
+            "candidate": None,
+            "provable": False,
+            "reason": resolved["reason"],
+            "near_match_leaf_code": _near_match_code(stored_code, source_ref, concepts),
+        })
+
+    return {
+        "module_key": module_key,
+        "active_only": active_only,
+        "questions_examined": len(rows),
+        "already_resolved": already_resolved,
+        "unresolved": len(records),
+        "provable_rekeys": sum(1 for r in records if r["provable"]),
+        "by_current_chapter": _count_by(records, lambda r: r["current_chapter"] or "(none)"),
+        "by_current_level": _count_by(records, lambda r: r["current_level"]),
+        "by_reason": _count_by(records, lambda r: r["reason"] or "resolved"),
+        "rule_version": NORMALIZATION_RULE_VERSION,
+        "writes": ("NONE — this report never modifies exam_question_bank; a row is re-keyed "
+                   "only under a separate, explicitly approved content decision"),
+        "candidate_semantics": ("a candidate is PROVABLE only by exact equality against a "
+                                "string the module's own seed publishes; no model, no fuzzy "
+                                "match, no title similarity, no positional inference"),
+        "records": records,
+    }
+
+
+def _count_by(records: list, key) -> dict:
+    counts: dict[str, int] = {}
+    for record in records:
+        value = str(key(record))
+        counts[value] = counts.get(value, 0) + 1
+    return dict(sorted(counts.items()))
+
+
 def question_bank_coverage(db: DbSession, *, modules: tuple[str, ...] | None = None,
                            active_only: bool = True) -> dict:
     """Coverage of the CS408 question bank, per module and in total, under both rule sets.

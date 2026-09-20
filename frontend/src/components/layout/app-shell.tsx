@@ -17,6 +17,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           <nav className="ml-8 hidden items-center gap-7 text-body !text-lab-paper-muted md:flex lg:ml-10" aria-label="主导航">
             <Link to="/exam" className="!text-lab-paper-muted transition-colors hover:!text-lab-paper" activeProps={{ 'aria-current': 'page' }}>考研学习</Link>
             <Link to="/" className="font-medium !text-lab-paper" activeProps={{ 'aria-current': 'page' }}>首页</Link>
+            {/* The canonical membership route. It exists because paid features are gated:
+                a locked surface needs a real destination, not a dead end. */}
+            <Link to="/membership" className="!text-lab-paper-muted transition-colors hover:!text-lab-paper" activeProps={{ 'aria-current': 'page' }}>会员</Link>
           </nav>
           <div className="ml-auto flex items-center gap-2">
             <button type="button" aria-label="搜索学习内容" className="inline-flex size-11 items-center justify-center rounded-full text-lab-paper transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lab-accent">

@@ -231,12 +231,16 @@ def category_status() -> dict:
     }
 
 
-def diagnostics(*, runtime_reachable: bool | None = None) -> dict:
+def diagnostics(*, runtime_reachable: bool | None = None, db=None) -> dict:
     """The full admin payload. Pure and read-only; no runtime call unless the caller asks.
 
     ``runtime_reachable`` is passed IN rather than probed here so this function stays a
     pure composition: a diagnostic that reaches out to a service while being called is a
     diagnostic that can hang while being read.
+
+    ``db`` is optional and only used for the DATA COLLECTION readiness block. When it is
+    absent the block reports ``measured: false`` rather than a zero — a count that was never
+    taken is not a count of zero.
     """
     summary = capabilities.summary()
     return {
@@ -251,6 +255,7 @@ def diagnostics(*, runtime_reachable: bool | None = None) -> dict:
         "capabilities": summary["components"],
         "product_native_capabilities": summary["product_native_capabilities"],
         "models": model_execution_proof(),
+        "data_collection": data_collection_status(db),
         "runtime": {
             "reachable": runtime_reachable,
             "note": ("None means NOT PROBED, which is a different answer from False. The "
@@ -265,5 +270,76 @@ def diagnostics(*, runtime_reachable: bool | None = None) -> dict:
                               "omitted"),
             "ordinary_users_see": ("the only components an ordinary learner may be shown. "
                                    "Everything else in this payload is internal status"),
+            "data_collection": ("COLLECTED / NOT_COLLECTED describe whether the product "
+                                "RECORDS a field; they say nothing about whether a model "
+                                "may use it. A field that was never recorded reports "
+                                "NOT_COLLECTED and a null coverage, never a zero"),
         },
+    }
+
+
+# ACCEL_PRODUCT_S9 PART I. The fields a model needs but the product does NOT record are
+# listed explicitly, because "absent from the payload" and "recorded as zero" look identical
+# to a reader and mean opposite things.
+def _uncollected_fields() -> dict:
+    from learning.practice import telemetry
+    return {
+        "response_time_ms": {
+            "state": "NOT_COLLECTED",
+            "coverage": None,
+            "why": telemetry.PER_QUESTION_TIMING_BOUNDARY_AUDIT["consequence"],
+        },
+        "hint_count": {
+            "state": "NOT_AVAILABLE",
+            "coverage": None,
+            "why": telemetry.HINT_SEMANTICS,
+        },
+    }
+
+
+def data_collection_status(db=None) -> dict:
+    """FACTUAL collection readiness for a product-native model. No PII, no content.
+
+    Three separate things are reported, because they are three different ceilings and a
+    reader who sees only one of them will over-read it:
+
+      * ``users_with_events`` / ``users_with_eligible_interactions`` — how many learners the
+        stream actually reaches;
+      * ``eligible_interactions`` — facts carrying an authoritative verdict;
+      * ``concept_level_interactions`` — the subset a CONCEPT-level model could train on,
+        counted only where the stored concept is a canonical leaf of the fact's own module.
+
+    Every count is a count of EVENTS, never of people's behaviour, and no learner identifier
+    appears here: this block is a volume measurement, and a diagnostic that carried a
+    learner reference would be a view of somebody's learning.
+    """
+    from learning.practice import telemetry
+    from science import kt_dataset
+
+    block = {
+        "collection_start_version": telemetry.TELEMETRY_COLLECTION_START_VERSION,
+        "telemetry_schema_version": telemetry.TELEMETRY_SCHEMA_VERSION,
+        "uncollected_fields": _uncollected_fields(),
+    }
+    if db is None:
+        return {**block, "measured": False,
+                "note": ("no database session was supplied, so nothing was counted. The "
+                         "counters are ABSENT rather than zero")}
+
+    coverage = kt_dataset.interaction_coverage(db, service_namespace="exam_prep")
+    totals = coverage["totals"]
+    return {
+        **block,
+        "measured": True,
+        "scope": "exam_prep",
+        "users_with_events": coverage["users_with_events"],
+        "users_with_eligible_interactions": coverage["users_with_eligible_interactions"],
+        "eligible_interactions": coverage["eligible_interactions"],
+        "concept_level_interactions": totals["concept_level_after"],
+        "module_level_interactions": totals["module_level"],
+        "non_canonical_concept_ids": totals["non_canonical_concept_ids"],
+        "events_scanned": coverage["events_scanned"],
+        "excluded": coverage["excluded"],
+        "per_module": coverage["per_module"],
+        "note": coverage["note"],
     }

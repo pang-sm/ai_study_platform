@@ -14,12 +14,16 @@ type SubmitResult = NonNullable<ChapterPracticeAttempt['results']>[number];
 type PracticeViewMode = 'questions' | 'summary';
 const emptyQuestions: Question[] = [];
 
-function chapterLabel(chapter?: { chapter_no: number; chapter_title: string }, hasAttempt = false) {
-  if (chapter) return `第 ${chapter.chapter_no} 章 · ${chapter.chapter_title}`;
+function chapterLabel(chapter: { chapter_no: number; chapter_title: string } | undefined, hasAttempt = false, conceptCode?: string) {
+  // A concept-scoped practice states the concept it is scoped to. The code IS the identity
+  // the attempt and its learning event carry, so showing it is showing the real scope —
+  // not a mastery claim and not a model output.
+  if (chapter) return `第 ${chapter.chapter_no} 章 · ${chapter.chapter_title}${conceptCode ? ` · 知识点 ${conceptCode}` : ''}`;
   // An attempt is a complete entry point on its own: a `?attempt=` deep link opens an
   // existing session without its chapter ever being addressed, and telling that learner to
   // "choose a chapter first" would be describing a state they are not in.
-  return hasAttempt ? '本次练习记录' : '选择章节后开始练习';
+  if (hasAttempt) return '本次练习记录';
+  return conceptCode ? `知识点 ${conceptCode}` : '选择章节后开始练习';
 }
 
 function QuestionBody({ question, answer, questionIndex, questionTotal, onChange, submitted }: { question: Question; answer: string; questionIndex: number; questionTotal: number; onChange: (answer: string) => void; submitted: boolean }) {
@@ -70,6 +74,15 @@ function ExplainBlock({ onExplain, state }: { onExplain: () => void; state: { lo
   </section>;
 }
 
+function createErrorMessage(error: unknown) {
+  // A 422 here means the server refused the canonical concept the learner entered from —
+  // the question set no longer carries it, or the id is not a canonical leaf of this
+  // module. Saying so is honest; the generic "try again" would invite a retry loop that
+  // cannot succeed.
+  if (error instanceof ApiRequestError && error.status === 422) return '本知识点的练习内容已变化，请返回知识脉络重新进入。';
+  return '操作未完成，请稍后重试。';
+}
+
 function explainErrorMessage(error: unknown) {
   if (error instanceof ApiRequestError) {
     if (error.status === 401) return '需要重新登录';
@@ -80,10 +93,10 @@ function explainErrorMessage(error: unknown) {
   return 'AI 讲解暂时不可用';
 }
 
-export function Cs408PracticeWorkspace({ moduleKey, chapterCode, attemptId: initialAttemptId, onAttemptChange }: { moduleKey?: string; chapterCode?: string; attemptId?: number; onAttemptChange?: (attemptId: number) => void }) {
+export function Cs408PracticeWorkspace({ moduleKey, chapterCode, conceptCode, attemptId: initialAttemptId, onAttemptChange }: { moduleKey?: string; chapterCode?: string; conceptCode?: string; attemptId?: number; onAttemptChange?: (attemptId: number) => void }) {
   const module = cs408Modules.find((entry) => entry.key === moduleKey);
   const outline = useChapterPracticeOutline(module?.key ?? '');
-  const questionsQuery = useChapterPracticeQuestions(module?.key ?? '', chapterCode ?? '');
+  const questionsQuery = useChapterPracticeQuestions(module?.key ?? '', chapterCode ?? '', conceptCode);
   const create = useCreateChapterPracticeAttempt();
   const save = useSaveChapterPracticeAnswers();
   const submit = useSubmitChapterPractice();
@@ -138,12 +151,15 @@ export function Cs408PracticeWorkspace({ moduleKey, chapterCode, attemptId: init
     continuePracticeRef.current?.focus();
   }, [confirmSubmit]);
   const updateAnswer = (questionId: number, answer: string) => setAnswers((current) => ({ ...current, [String(questionId)]: answer }));
-  const start = () => create.mutate({ moduleKey: module!.key, questionIds: chapterQuestionIds }, { onSuccess: (response) => { setCreatedAttemptQuestionIds(chapterQuestionIds); setViewMode('questions'); setLocalAttemptId(response.attempt_id); onAttemptChange?.(response.attempt_id); } });
+  const start = () => create.mutate({ moduleKey: module!.key, questionIds: chapterQuestionIds, knowledgePointId: conceptCode }, { onSuccess: (response) => { setCreatedAttemptQuestionIds(chapterQuestionIds); setViewMode('questions'); setLocalAttemptId(response.attempt_id); onAttemptChange?.(response.attempt_id); } });
   const saveCurrent = () => { if (attemptId !== undefined) save.mutate({ moduleKey: module!.key, attemptId, answers: reconciledAnswers }); };
   const submitAll = () => { if (attemptId !== undefined) submit.mutate({ moduleKey: module!.key, attemptId, answers: reconciledAnswers }, { onSuccess: (response) => { setResultByQuestionId(Object.fromEntries(response.results.map((result) => [result.question_id, result]))); setViewMode('summary'); } }); };
   const requestSubmit = () => { const unanswered = questions.filter((question) => !(reconciledAnswers[String(question.id)] ?? '').trim()).length; if (unanswered) setConfirmSubmit(true); else submitAll(); };
   const dismissConfirmation = () => { submitControlRef.current?.focus(); setConfirmSubmit(false); };
-  const retry = (ids: number[]) => create.mutate({ moduleKey: module!.key, questionIds: ids }, { onSuccess: (response) => { setResultByQuestionId({}); setAnswers({}); setCreatedAttemptQuestionIds(ids); setCurrentIndex(0); setViewMode('questions'); setLocalAttemptId(response.attempt_id); onAttemptChange?.(response.attempt_id); } });
+  // A retry stays inside the concept the learner entered from: every id it can pass is drawn
+  // from the concept-filtered question list, so the re-attempt carries the same canonical
+  // concept and the write boundary validates it against that same set.
+  const retry = (ids: number[]) => create.mutate({ moduleKey: module!.key, questionIds: ids, knowledgePointId: conceptCode }, { onSuccess: (response) => { setResultByQuestionId({}); setAnswers({}); setCreatedAttemptQuestionIds(ids); setCurrentIndex(0); setViewMode('questions'); setLocalAttemptId(response.attempt_id); onAttemptChange?.(response.attempt_id); } });
   const explainKey = currentQuestion && attemptId !== undefined ? `${attemptId}:${currentQuestion.id}` : undefined;
   const explainCurrent = () => {
     if (!currentQuestion || !module || attemptId === undefined) return;
@@ -159,12 +175,12 @@ export function Cs408PracticeWorkspace({ moduleKey, chapterCode, attemptId: init
     });
   };
 
-  return <ExamPageShell activeItem="cs408"><section className="cs408-practice" aria-labelledby="practice-title"><header className="cs408-practice__header"><p>CS408 / 章节练习</p><h1 id="practice-title">{module ? module.name : '选择学习模块'}</h1><span>{chapterLabel(selectedChapter, attemptId !== undefined)}</span></header>
+  return <ExamPageShell activeItem="cs408"><section className="cs408-practice" aria-labelledby="practice-title"><header className="cs408-practice__header"><p>CS408 / 章节练习</p><h1 id="practice-title">{module ? module.name : '选择学习模块'}</h1><span>{chapterLabel(selectedChapter, attemptId !== undefined, conceptCode)}</span></header>
     {(!module || !chapterCode) && attemptId === undefined ? <PracticeSelector moduleKey={module?.key} outline={outline.data} loading={outline.isPending} /> : null}
     {module && chapterCode && attemptId === undefined && questionsQuery.isPending ? <div className="cs408-practice__loading"><Skeleton className="h-9 w-40" /><Skeleton className="h-80 w-full" /></div> : null}
     {module && chapterCode && attemptId === undefined && (questionsQuery.isError || !questionsQuery.data) ? <section className="cs408-practice__state"><h2>章节练习暂时无法加载</h2><Button variant="secondary" onClick={() => void questionsQuery.refetch()}>重试</Button></section> : null}
-    {module && chapterCode && attemptId === undefined && questionsQuery.data && questions.length === 0 ? <section className="cs408-practice__state"><h2>本章节暂无可用练习题</h2><a href={`/exam/cs408/practice?module=${module.key}`}>返回章节选择</a></section> : null}
-    {currentQuestion ? <div className="cs408-practice__desk">{activeViewMode === 'questions' ? <nav className="practice-navigator" aria-label="题目导航"><p>本次 {questions.length} 题</p><div>{questions.map((question, index) => <button key={question.id} type="button" aria-current={index === currentIndex ? 'step' : undefined} aria-label={`第 ${index + 1} 题`} className={displayedAnswers[String(question.id)] ? 'is-answered' : undefined} onClick={() => { setViewMode('questions'); setCurrentIndex(index); }}>{String(index + 1).padStart(2, '0')}</button>)}</div></nav> : null}<div className="practice-main">{activeViewMode === 'summary' ? <section className="practice-summary"><h2>本次练习完成</h2><div className="practice-summary__facts"><p>共 {authoritativeResults.length} 题</p><p>已作答 {facts.answered} · 答对 {facts.correct} · 答错 {facts.incorrect} · 自行复盘 {facts.selfReview} · 未作答 {facts.unanswered}</p><p>{facts.denominator ? `自动判分题正确率 ${Math.round(facts.correct / facts.denominator * 100)}%` : '本次没有自动判分题'}</p></div><div className="practice-summary__actions"><Button variant="secondary" onClick={() => setViewMode('questions')}>查看本次题目</Button>{facts.retryIds.length ? <Button onClick={() => retry(facts.retryIds)}>重练本次错题</Button> : null}<Button variant="secondary" onClick={() => retry(chapterQuestionIds)}>再做一遍本章</Button>{facts.incorrect > 0 ? <a href={`/exam/cs408/wrong?module=${module?.key}&status=active`}>去错题本订正</a> : null}<a href={`/exam/cs408/practice?module=${module?.key}`}>返回章节</a></div></section> : <><QuestionBody question={currentQuestion} questionIndex={currentIndex + 1} questionTotal={questions.length} answer={displayedAnswers[String(currentQuestion.id)] ?? ''} submitted={submitted} onChange={(answer) => updateAnswer(currentQuestion.id, answer)} /><ResultMark result={authoritativeResultByQuestionId[currentQuestion.id]} onExplain={explainCurrent} explainState={{ loading: explainingKey === explainKey, ...explanations[explainKey ?? ''] }} /></>}{activeViewMode === 'questions' ? <div className="practice-main__actions"><div>{currentIndex > 0 ? <Button variant="ghost" onClick={() => setCurrentIndex((index) => index - 1)}>上一题</Button> : null}{currentIndex < questions.length - 1 ? <Button variant="ghost" onClick={() => setCurrentIndex((index) => index + 1)}>下一题</Button> : null}</div><div>{submitted ? <Button variant="secondary" onClick={() => setViewMode('summary')}>本次练习总结</Button> : null}{attemptId === undefined ? <Button disabled={create.isPending} onClick={start}>开始本章练习</Button> : submitted ? null : <><Button variant="secondary" disabled={save.isPending} onClick={saveCurrent}>保存答案</Button><Button ref={submitControlRef} disabled={submit.isPending} onClick={requestSubmit}>提交本章答案</Button></>}</div></div> : null}{confirmSubmit ? <section ref={confirmationRef} className="practice-confirm" role="alertdialog" aria-label="未完成提交确认"><h2>还有 {questions.filter((question) => !(reconciledAnswers[String(question.id)] ?? '').trim()).length} 题未作答</h2><p>仍然提交本次练习吗？</p><div><Button ref={continuePracticeRef} variant="secondary" onClick={dismissConfirmation}>继续作答</Button><Button onClick={() => { setConfirmSubmit(false); submitAll(); }}>仍然提交</Button></div></section> : null}{create.isError || save.isError || submit.isError ? <p className="practice-error" role="alert">操作未完成，请稍后重试。</p> : null}</div></div> : null}
+    {module && chapterCode && attemptId === undefined && questionsQuery.data && questions.length === 0 ? <section className="cs408-practice__state"><h2>{conceptCode ? '本知识点暂无可用练习题' : '本章节暂无可用练习题'}</h2><a href={`/exam/cs408/practice?module=${module.key}${conceptCode ? `&chapter=${chapterCode}` : ''}`}>{conceptCode ? '返回本章练习' : '返回章节选择'}</a></section> : null}
+    {currentQuestion ? <div className="cs408-practice__desk">{activeViewMode === 'questions' ? <nav className="practice-navigator" aria-label="题目导航"><p>本次 {questions.length} 题</p><div>{questions.map((question, index) => <button key={question.id} type="button" aria-current={index === currentIndex ? 'step' : undefined} aria-label={`第 ${index + 1} 题`} className={displayedAnswers[String(question.id)] ? 'is-answered' : undefined} onClick={() => { setViewMode('questions'); setCurrentIndex(index); }}>{String(index + 1).padStart(2, '0')}</button>)}</div></nav> : null}<div className="practice-main">{activeViewMode === 'summary' ? <section className="practice-summary"><h2>本次练习完成</h2><div className="practice-summary__facts"><p>共 {authoritativeResults.length} 题</p><p>已作答 {facts.answered} · 答对 {facts.correct} · 答错 {facts.incorrect} · 自行复盘 {facts.selfReview} · 未作答 {facts.unanswered}</p><p>{facts.denominator ? `自动判分题正确率 ${Math.round(facts.correct / facts.denominator * 100)}%` : '本次没有自动判分题'}</p></div><div className="practice-summary__actions"><Button variant="secondary" onClick={() => setViewMode('questions')}>查看本次题目</Button>{facts.retryIds.length ? <Button onClick={() => retry(facts.retryIds)}>重练本次错题</Button> : null}<Button variant="secondary" onClick={() => retry(chapterQuestionIds)}>{conceptCode ? '再做一遍本知识点' : '再做一遍本章'}</Button>{facts.incorrect > 0 ? <a href={`/exam/cs408/wrong?module=${module?.key}&status=active`}>去错题本订正</a> : null}<a href={conceptCode && chapterCode ? `/exam/cs408/practice?module=${module?.key}&chapter=${chapterCode}` : `/exam/cs408/practice?module=${module?.key}`}>返回章节</a></div></section> : <><QuestionBody question={currentQuestion} questionIndex={currentIndex + 1} questionTotal={questions.length} answer={displayedAnswers[String(currentQuestion.id)] ?? ''} submitted={submitted} onChange={(answer) => updateAnswer(currentQuestion.id, answer)} /><ResultMark result={authoritativeResultByQuestionId[currentQuestion.id]} onExplain={explainCurrent} explainState={{ loading: explainingKey === explainKey, ...explanations[explainKey ?? ''] }} /></>}{activeViewMode === 'questions' ? <div className="practice-main__actions"><div>{currentIndex > 0 ? <Button variant="ghost" onClick={() => setCurrentIndex((index) => index - 1)}>上一题</Button> : null}{currentIndex < questions.length - 1 ? <Button variant="ghost" onClick={() => setCurrentIndex((index) => index + 1)}>下一题</Button> : null}</div><div>{submitted ? <Button variant="secondary" onClick={() => setViewMode('summary')}>本次练习总结</Button> : null}{attemptId === undefined ? <Button disabled={create.isPending} onClick={start}>开始本章练习</Button> : submitted ? null : <><Button variant="secondary" disabled={save.isPending} onClick={saveCurrent}>保存答案</Button><Button ref={submitControlRef} disabled={submit.isPending} onClick={requestSubmit}>提交本章答案</Button></>}</div></div> : null}{confirmSubmit ? <section ref={confirmationRef} className="practice-confirm" role="alertdialog" aria-label="未完成提交确认"><h2>还有 {questions.filter((question) => !(reconciledAnswers[String(question.id)] ?? '').trim()).length} 题未作答</h2><p>仍然提交本次练习吗？</p><div><Button ref={continuePracticeRef} variant="secondary" onClick={dismissConfirmation}>继续作答</Button><Button onClick={() => { setConfirmSubmit(false); submitAll(); }}>仍然提交</Button></div></section> : null}{create.isError ? <p className="practice-error" role="alert">{createErrorMessage(create.error)}</p> : null}{save.isError || submit.isError ? <p className="practice-error" role="alert">操作未完成，请稍后重试。</p> : null}</div></div> : null}
   </section></ExamPageShell>;
 }
 

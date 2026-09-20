@@ -64,9 +64,37 @@ model-generated learner state、掌握率、能力预测等。
 除非任务明确提供真实数据 contract，否则一律使用确定性 / 结构性文案与状态
 （如「待复习」「下一知识点」「你的练习结果」）。
 
-**当前科学能力状态**：13 个 scientific component 全部为 `RUNTIME_ONLY`；
-`SHADOW = 0 / ADVISORY = 0 / ACTIVE = 0`。`student_twin` 的 MVP 目标是
-`SHADOW_ONLY`，**没有用户可见功能**，前端不得暴露任何 scientific component。
+### 当前科学能力状态（CURRENT，2026-09-20 起）
+
+前端**只允许**暴露满足 `user_visible === true` 的 scientific component。
+判据不是组件名，也不是本文件，而是能力契约
+`GET /exam/prep/scientific/capabilities` 返回的 `user_visible` 字段——
+**渲染前必须读该字段，不得硬编码组件名，不得凭本文件的列表放行**。
+
+当前（`ACCEL_PRODUCT_S9` 冻结）：
+
+| component | mode | 前端可否暴露 |
+|---|---|---|
+| `student_twin` | `USER_VISIBLE_PREVIEW` | **可以**（唯一一个），入口 `/exam/cs408/state` |
+| `evidence_reliability` | `SHADOW_COLLECTING_DATA` | 不可以 |
+| `tutor_policy` | `SHADOW_COLLECTING_DATA` | 不可以 |
+| `cs408_native_kt` | `DATA_COLLECTION` | 不可以 |
+| `learner_state` / `misconception_v2` / `memory` / `irt` / `concept_verifier` | `RESEARCH_ONLY` | 不可以 |
+
+- **不得**暴露 SHADOW / RESEARCH_ONLY / DATA_COLLECTION 组件：它们处于收集或研究状态，
+  展示给普通用户就是把未验证输出当成结论。
+- 即使组件 `user_visible === true`，也**不得**改写成 `mastery score` / 掌握率 /
+  能力预测 / 神经网络 / 掌握概率；`student_twin` 的唯一允许说法是
+  **确定性学习状态引擎（实验）**，且 `controls_product_decision = false`、
+  `writes_learner_fact = false` 是永久的。
+- 状态变化只能由正式验收改变；本表与 SSOT `# 73. SSOT 状态` 冲突时以 SSOT 为准。
+
+### 历史冻结记录（不得当作 CURRENT，仅作沿革）
+
+`ACCEL_SPRINT_S2` 之前（2026-09-19 前）曾规定：13 个 scientific component 全部为
+`RUNTIME_ONLY`，`SHADOW = 0 / ADVISORY = 0 / ACTIVE = 0`，`student_twin` 的 MVP 目标是
+`SHADOW_ONLY` 且没有用户可见功能，前端不得暴露任何 scientific component。
+该状态已被 `ACCEL_SPRINT_S2` 的产品决策与 `ACCEL_PRODUCT_S9` 的冻结取代，保留在此仅为记录沿革。
 
 权威边界见 `ZHIXUE_AI_PRODUCT_REDESIGN_SSOT.md` §35 / §36 / §49 / §72；
 细化参考见 `docs/architecture/ZHIXUE_MODEL_CAPABILITY_BOUNDARY_V1.md`（从属于 SSOT）。

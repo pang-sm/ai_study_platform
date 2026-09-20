@@ -166,11 +166,19 @@ vi.mock('@/features/exam/api/cs408-study-plan', () => ({
 import { Cs408StudyPlanWorkspace } from './cs408-study-plan-workspace';
 
 describe('Cs408StudyPlanWorkspace locked state', () => {
-  it('states the requirement without promising an upgrade flow that does not exist', () => {
+  // ACCEL_PRODUCT_S9 PART H RETIRED THE OLD ASSERTION. S8 pinned "no link is rendered"
+  // because no membership route existed; a canonical one now does, so the locked state
+  // points at it and the dead-end behaviour is gone. The requirement is still stated in
+  // terms of the value the entitlement endpoint returns — never invented.
+  it('states the requirement and points at the canonical membership route', () => {
     renderWithClient(<Cs408StudyPlanWorkspace />);
     expect(screen.getByText('学习计划需要开通对应的备考方案，当前账号尚未开通。')).toBeInTheDocument();
-    // No membership route exists in the app, so there is no canonical navigation target.
-    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    const link = screen.getByRole('link', { name: '查看会员档位与权益' });
+    expect(link).toHaveAttribute('href', '/membership');
+    // `required_plan` is the LEGACY plan code ('monthly_sprint' in this fixture), not a
+    // unified tier — it is not relabelled into one on this page.
+    expect(screen.queryByText('monthly_sprint')).not.toBeInTheDocument();
+    // still no fake action: the only control is navigation, not a purchase that cannot finish
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 });

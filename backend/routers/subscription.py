@@ -90,13 +90,51 @@ class RedeemIn(BaseModel):
     code: str
 
 
-@router.get("/subscription")
+class SubscriptionStateResponse(BaseModel):
+    """The caller's CURRENT unified tier and the policy it was resolved under."""
+
+    tier: str
+    policy_version: str
+
+
+class PlanDefinition(BaseModel):
+    """One tier's factual limits. ``daily_budget`` is ``None`` when the tier has no daily
+    cap (Advanced); that is a real absence, not a zero."""
+
+    label: str
+    daily_budget: int | None
+    weekly_budget: int | None
+    capabilities: list[str]
+
+
+class PlanCatalogResponse(BaseModel):
+    policy_version: str
+    plans: dict[str, PlanDefinition]
+
+
+class UsagePeriod(BaseModel):
+    """One period's credit position. Every key is always present: an uncapped period reports
+    ``None`` for all four rather than omitting keys, so a reader never has to branch on the
+    shape before reading a number."""
+
+    budget: int | None
+    reserved: int | None
+    settled: int | None
+    remaining: int | None
+
+
+class UsageSummaryResponse(BaseModel):
+    tier: str
+    periods: dict[str, UsagePeriod]
+
+
+@router.get("/subscription", response_model=SubscriptionStateResponse)
 def get_subscription(db: Session = Depends(get_db), current_user=Depends(_require_user)):
     tier = service.effective_subscription(db, current_user.id)
     return {"tier": tier, "policy_version": POLICY_VERSION}
 
 
-@router.get("/subscription/plans")
+@router.get("/subscription/plans", response_model=PlanCatalogResponse)
 def get_subscription_plans():
     return {"policy_version": POLICY_VERSION, "plans": service.PLAN_DEFINITIONS}
 
@@ -185,6 +223,6 @@ def redeem(body: RedeemIn, db: Session = Depends(get_db),
             "duration_days": result.get("duration_days")}
 
 
-@router.get("/usage/summary")
+@router.get("/usage/summary", response_model=UsageSummaryResponse)
 def get_usage_summary(db: Session = Depends(get_db), current_user=Depends(_require_user)):
     return service.usage_summary(db, current_user.id)

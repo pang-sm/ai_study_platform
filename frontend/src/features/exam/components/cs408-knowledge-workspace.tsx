@@ -4,6 +4,7 @@ import type { components } from '@/types/api';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cs408Modules } from '@/features/exam/api/dashboard-summary';
+import { isCanonicalConceptCode } from '@/features/exam/api/chapter-practice';
 import { useExamStudyPlan, useUpdateExamKnowledgeItem } from '@/features/exam/api/study-plan';
 import { knowledgeStatusLabel, progressStatusLabel } from '@/features/exam/view-models/status-labels';
 import { ExamPageShell } from './exam-page-shell';
@@ -62,15 +63,25 @@ function KnowledgeBranch({ node, depth, selectedCode, onSelect }: { node: Knowle
   </li>;
 }
 
-function Section({ section, selectedCode, onSelect }: { section: StudyPlanSection; selectedCode?: string; onSelect: (node: KnowledgeNode) => void }) {
+function Section({ section, moduleKey, chapterCode, selectedCode, onSelect }: { section: StudyPlanSection; moduleKey: string; chapterCode: string; selectedCode?: string; onSelect: (node: KnowledgeNode) => void }) {
   const [open, setOpen] = useState(false);
-  return <li className="knowledge-section"><div className="knowledge-row knowledge-row--section"><Disclosure open={open} title={section.title} onClick={() => setOpen((value) => !value)}><span>{section.title}</span></Disclosure><span className="knowledge-progress-status">{progressStatusLabel(section.section_status)}</span></div>{open ? <ul className="knowledge-children">{section.children.map((node) => <KnowledgeBranch key={node.code} node={node} depth={0} selectedCode={selectedCode} onSelect={onSelect} />)}</ul> : null}</li>;
+  // `section.code` IS the canonical knowledge leaf: the node the module knowledge-map seed
+  // publishes as a leaf code, and the same string a chapter-practice question carries as its
+  // concept. It is the identity this link propagates — never the section's TITLE, never a
+  // position in the list, and never anything read out of a question. The chapter it belongs
+  // to is `chapter.code`, which the API also publishes, so neither half is derived here.
+  //
+  // A section whose code is synthesized (`_leaf:<path>`, which the API mints for a node the
+  // seed gives no code) has NO canonical identity, so no practice link is offered from it:
+  // there is nothing to propagate, and inventing one is what this sprint exists to prevent.
+  const canonicalConcept = isCanonicalConceptCode(section.code) ? section.code : undefined;
+  return <li className="knowledge-section"><div className="knowledge-row knowledge-row--section"><Disclosure open={open} title={section.title} onClick={() => setOpen((value) => !value)}><span>{section.title}</span></Disclosure>{canonicalConcept ? <a className="knowledge-chapter__practice" href={`/exam/cs408/practice?module=${moduleKey}&chapter=${chapterCode}&concept=${canonicalConcept}`}>知识点练习</a> : null}<span className="knowledge-progress-status">{progressStatusLabel(section.section_status)}</span></div>{open ? <ul className="knowledge-children">{section.children.map((node) => <KnowledgeBranch key={node.code} node={node} depth={0} selectedCode={selectedCode} onSelect={onSelect} />)}</ul> : null}</li>;
 }
 
 function Chapter({ chapter, selectedCode, onSelect, initiallyOpen }: { chapter: StudyPlanChapter; selectedCode?: string; onSelect: (node: KnowledgeNode) => void; initiallyOpen: boolean }) {
   const [open, setOpen] = useState(initiallyOpen);
   const currentModule = new URLSearchParams(window.location.search).get('module') ?? 'data_structure';
-  return <li className="knowledge-chapter" id={`chapter-${chapter.code}`}><div className="knowledge-chapter__heading"><span>{String(chapter.chapter_no).padStart(2, '0')}</span><Disclosure open={open} title={chapter.title} onClick={() => setOpen((value) => !value)}><strong>{chapter.title}</strong></Disclosure><a className="knowledge-chapter__practice" href={`/exam/cs408/practice?module=${currentModule}&chapter=${chapter.code}`}>章节练习</a><span className="knowledge-progress-status">{progressStatusLabel(chapter.chapter_status)}</span></div>{open ? <ul className="knowledge-sections">{chapter.children.map((section) => <Section key={section.code} section={section} selectedCode={selectedCode} onSelect={onSelect} />)}</ul> : null}</li>;
+  return <li className="knowledge-chapter" id={`chapter-${chapter.code}`}><div className="knowledge-chapter__heading"><span>{String(chapter.chapter_no).padStart(2, '0')}</span><Disclosure open={open} title={chapter.title} onClick={() => setOpen((value) => !value)}><strong>{chapter.title}</strong></Disclosure><a className="knowledge-chapter__practice" href={`/exam/cs408/practice?module=${currentModule}&chapter=${chapter.code}`}>章节练习</a><span className="knowledge-progress-status">{progressStatusLabel(chapter.chapter_status)}</span></div>{open ? <ul className="knowledge-sections">{chapter.children.map((section) => <Section key={section.code} section={section} moduleKey={currentModule} chapterCode={chapter.code} selectedCode={selectedCode} onSelect={onSelect} />)}</ul> : null}</li>;
 }
 
 export function Cs408KnowledgeWorkspace({ moduleKey }: { moduleKey: string }) {

@@ -37,7 +37,9 @@
   （Exam 运行时 schema 纳入 Alembic：fresh 部署可仅靠 `alembic upgrade head`）。
 - **`NEXT_SUBSTEP = FRONTEND`**：后端停止继续扩展，进入全新前端产品实现。
   前端契约见 `STEP7H_FRONTEND_API_HANDOFF.md`（新前端只需读该文件）。
-  **`MIGRATION_HEAD = 20260917_0008`**；真实 `backend/app.db` **尚未**迁移到 0008，线上可用需走既有部署流程。
+  **`MIGRATION_HEAD = 20260919_0010`**（`migrations/versions/` 中的 Alembic head；以 `ls migrations/versions/` 为准，不要凭本文件断言）。
+  注意：本地 `backend/app.db` 是 legacy 开发库，**没有** `alembic_version` / `practice_*` / `learning_events` 表；
+  它**不是** Alembic 管理的库，也不代表生产 schema。schema 事实一律以 `alembic heads` + 生产部署流程为准。
   非 408 真实内容导入**仍未发生**，必须等用户明确批准。
 - `STEP1`–`STEP6` 已冻结；不得把「当前处于 STEP 6」「下一步做 Scientific Component 产品化设计」「STEP7A 是 NEXT」当作当前状态。
 - 全新前端 = **NOT_STARTED**。`frontend/` 目前只有 Clean-Slate 骨架与首页（`routes/`、`features/home/`）。不得恢复旧前端 UI，不得从旧 frontend 复制页面。
@@ -186,13 +188,23 @@
 
 ## Git 工作流程（长期）
 
-> **⚠️ 当前 Git 状态 = DIVERGED（SSOT §37.1 / §68.1）。**
-> 本地 `main` 与 `origin/main` 已分叉（AHEAD = 15 / BEHIND = 12，merge base = `81277a15`），
-> 且工作树含大量未跟踪 Phase 2–7 代码（逐字节等于 origin/main blob）。
-> **在完成正式 Git reconciliation 之前：`NO reset` / `NO clean` / `NO overwrite` / `NO rebase` / `NO merge` / `NO force push`。**
-> 不要「顺手」修这个分叉；它需要单独的、经用户批准的 reconciliation 步骤。
+> **Git 状态不再由本文件断言，必须每次开工前现场检查。**
+> 历史记录：SSOT §37.1 / §68.1 曾记录 `DIVERGED`（AHEAD = 15 / BEHIND = 12，merge base = `81277a15`）。
+> 该分叉**已经 reconcile**，本地 `main` 与 `origin/main` 已同步；上句只作为历史保留，不得当作 CURRENT。
+> 开工前一律执行并据此判断（**不要相信本文件里的分支状态**）：
+>
+> ```
+> git status --short --branch
+> git rev-parse --abbrev-ref HEAD
+> git log --oneline -5
+> git rev-list --left-right --count origin/main...HEAD
+> ```
+>
+> **长期红线（无论分叉与否都成立）**：未经用户明确批准，`NO reset` / `NO clean` /
+> `NO restore` / `NO stash` / `NO checkout --`（即不得丢弃、覆盖或隐藏任何未提交工作）。
+> 工作树中的未跟踪目录（历史 sprint 的 scratch 目录）同样不得删除。
 
-正式流程（待 Git reconciliation 完成后才恢复适用）：
+正式流程：
 
 `git status` → `git add <指定文件>` → 中文 commit message（deploy 以 commit message 作为 Actions 标题，须写清楚，如「优化登录注册页面样式」）→ `git pull origin main --rebase` → `git push origin main` → 确认触发 GitHub Actions 自动部署。
 

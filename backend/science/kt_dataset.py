@@ -76,6 +76,10 @@ FORBIDDEN_FIELDS = (
 EXCLUDED_NOT_BINARY = "CORRECTNESS_NOT_AUTHORITATIVE_BOOLEAN"
 EXCLUDED_NO_CONCEPT = "NO_NATIVE_CONCEPT_REFERENCE"
 
+# ACCEL_PRODUCT_S9 — measured, not enforced here. See `interaction_coverage`.
+CONCEPT_CANONICAL = "canonical_leaf_of_module"
+CONCEPT_NON_CANONICAL = "stored_id_is_not_a_canonical_leaf"
+
 
 def learner_ref(user_id: int) -> str:
     """A stable, opaque reference for one learner.
@@ -404,6 +408,153 @@ def audit(db: DbSession, **kwargs) -> dict:
         "scope": body["scope"],
         "semantics": body["semantics"],
         "readiness": _readiness(body),
+    }
+
+
+def interaction_coverage(db: DbSession, *, service_namespace: str | None = None,
+                         user_id: int | None = None,
+                         event_types: tuple[str, ...] | None = None,
+                         limit: int = 20000) -> dict:
+    """RECORDED interactions by the deepest level each fact HONESTLY carries. Pure read.
+
+    ``question_bank_coverage`` answers "what could the CONTENT produce?"; this answers "what
+    has the product actually RECORDED?". The two are different ceilings and a model needs
+    both: a perfectly mapped question with no attempt behind it trains nothing.
+
+    THREE LEVELS, TWO OF THEM ON THE FACT
+    -------------------------------------
+    A fact's native reference carries ``exam_module_id`` and, when the product honestly knows
+    it, ``knowledge_point_id``. There is no chapter level ON A FACT — a chapter is a content
+    grouping (the leading segment of a knowledge-point code), and this module does not invent
+    one to make a report look fuller. So the reported levels are:
+
+        module     the fact is scoped to a module and nothing below it
+        concept    the fact carries a knowledge-point identity
+
+    WHICH CONCEPT IDS COUNT, AND THE ONE THAT DOES NOT
+    --------------------------------------------------
+    ``product-non-canonical`` is counted separately and is the reason this function exists.
+    Before ACCEL_PRODUCT_S9 the chapter-practice write boundary accepted ANY string in the
+    concept slot, and ``native_concept.reference_from_context`` copies it verbatim, so a
+    stored practice sub-group label — or one of ``computer_network`` chapter 4's numerically
+    colliding ids — would have entered a dataset AS a concept key. That is a fabricated
+    concept: the content does not assert the link. S9 closed the write boundary, so no NEW
+    fact can carry one.
+
+    This function does NOT change the dataset contract for facts already written. Rewriting
+    or re-interpreting a recorded fact is the same class of error as backfilling one, and the
+    honest treatment of history is to MEASURE it and report it. ``concept_level_before``
+    therefore counts every stored concept id (the pre-S9 reading) and
+    ``concept_level_after`` counts only the canonical ones, so the gap between them is the
+    size of the fabrication surface that the write boundary now closes.
+    """
+    from data_plane.models import LearningEvent
+
+    from . import concept_coverage
+
+    q = db.query(LearningEvent).filter(LearningEvent.user_id.isnot(None))
+    if service_namespace:
+        q = q.filter(LearningEvent.service_key == service_namespace)
+    if user_id is not None:
+        q = q.filter(LearningEvent.user_id == user_id)
+    if event_types:
+        q = q.filter(LearningEvent.event_type.in_(event_types))
+
+    rows = (q.order_by(LearningEvent.occurred_at.asc(), LearningEvent.event_id.asc())
+            .limit(max(1, int(limit))).all())
+
+    excluded: dict[str, int] = {}
+    learners_with_events: set[int] = set()
+    learners_with_eligible: set[int] = set()
+    per_module: dict[str, dict] = {}
+    non_canonical_ids: dict[tuple[str, str], int] = {}
+
+    for event in rows:
+        if event.user_id is not None:
+            learners_with_events.add(int(event.user_id))
+        eligible, reason = is_kt_eligible(event)
+        if not eligible:
+            excluded[reason] = excluded.get(reason, 0) + 1
+            continue
+
+        reference = native_concept.reference_for_learning_event(event)
+        module = reference.get("exam_module_id")
+        stored_concept = reference.get("knowledge_point_id")
+        bucket_key = str(module) if module else "(no_module)"
+        bucket = per_module.setdefault(bucket_key, {
+            "module_level": 0, "concept_level_before": 0, "concept_level_after": 0,
+            "non_canonical_concept_ids": 0, "no_concept_reference": 0,
+        })
+
+        if stored_concept in (None, ""):
+            if module in (None, ""):
+                excluded[EXCLUDED_NO_CONCEPT] = excluded.get(EXCLUDED_NO_CONCEPT, 0) + 1
+                bucket["no_concept_reference"] += 1
+            else:
+                bucket["module_level"] += 1
+                learners_with_eligible.add(int(event.user_id))
+            continue
+
+        bucket["concept_level_before"] += 1
+        # A module whose seed is absent cannot confirm ANY id, so nothing from it counts as
+        # canonical — an unvalidatable identity is not a validated one.
+        canonical = (concept_coverage.canonical_leaf_code(str(module or ""),
+                                                          knowledge_point_id=stored_concept)
+                     if module else None)
+        if canonical == stored_concept:
+            bucket["concept_level_after"] += 1
+        else:
+            bucket["non_canonical_concept_ids"] += 1
+            key = (str(module or ""), str(stored_concept))
+            non_canonical_ids[key] = non_canonical_ids.get(key, 0) + 1
+        learners_with_eligible.add(int(event.user_id))
+
+    totals = {"module_level": 0, "concept_level_before": 0, "concept_level_after": 0,
+              "non_canonical_concept_ids": 0, "no_concept_reference": 0}
+    for bucket in per_module.values():
+        for key in totals:
+            totals[key] += bucket[key]
+
+    from learning.practice.telemetry import (TELEMETRY_COLLECTION_START_VERSION,
+                                            TELEMETRY_SCHEMA_VERSION)
+    return {
+        "events_scanned": len(rows),
+        "users_with_events": len(learners_with_events),
+        "users_with_eligible_interactions": len(learners_with_eligible),
+        # The two ceilings, named so neither is read as the other.
+        "content_ceiling": ("what the QUESTION BANK could produce — see "
+                            "science.concept_coverage.question_bank_coverage"),
+        "recorded_interactions": ("what the product has actually RECORDED — this report"),
+        "totals": totals,
+        "eligible_interactions": (totals["module_level"] + totals["concept_level_after"]),
+        "excluded": dict(sorted(excluded.items())),
+        "exclusion_semantics": {
+            EXCLUDED_NOT_BINARY: ("the fact carries no authoritative boolean verdict; an "
+                                  "unanswered or ungraded item is NOT a negative label"),
+            EXCLUDED_NO_CONCEPT: ("the fact carries neither a module nor a concept; it is "
+                                  "excluded rather than grouped at a level it does not "
+                                  "assert"),
+        },
+        "concept_identity": {
+            CONCEPT_CANONICAL: ("the stored knowledge-point id IS a canonical leaf of the "
+                                "fact's own module"),
+            CONCEPT_NON_CANONICAL: ("the stored id is NOT a canonical leaf — a practice "
+                                    "sub-group label, a numeric collision, or a module with "
+                                    "no knowledge-map seed. A concept key built from it "
+                                    "would be fabricated"),
+        },
+        "non_canonical_concept_ids": [
+            {"exam_module_id": module, "stored_knowledge_point_id": stored, "interactions": n}
+            for (module, stored), n in sorted(non_canonical_ids.items())],
+        "per_module": dict(sorted(per_module.items())),
+        "telemetry": {"schema_version": TELEMETRY_SCHEMA_VERSION,
+                      "collection_start_version": TELEMETRY_COLLECTION_START_VERSION},
+        "collection_start_version": TELEMETRY_COLLECTION_START_VERSION,
+        "note": ("Levels are the levels a FACT carries, not the levels the content could "
+                 "support. `concept_level_after` is the number a concept-level model could "
+                 "actually train on; `module_level` facts are usable only at module "
+                 "granularity; `non_canonical_concept_ids` are reported rather than "
+                 "reinterpreted, because history is measured, never rewritten."),
     }
 
 

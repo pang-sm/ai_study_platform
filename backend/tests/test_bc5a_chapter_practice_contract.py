@@ -315,7 +315,12 @@ def test_question_payload_never_exposes_filesystem_paths(client, bank):
 
 def test_attempt_create_response_is_concrete(client, bank):
     register_and_login(client, "bc5a_create")
-    ids = [q.id for q in bank["chapter"]]
+    ids = [q.id for q in bank["chapter"] if q.knowledge_point_id == "1.1"]
+    # ACCEL_PRODUCT_S9: `knowledge_point_id` is now a VALIDATED canonical concept slot, so it
+    # is only accepted together with questions that genuinely carry it. BC5A sent the whole
+    # chapter here; that payload declared concept 1.1 over questions of 1.2 and 2.1 and is
+    # now a 422 (see tests/test_s9_concept_identity.py). This test's own subject — that the
+    # create response is concrete — is unchanged.
     response = client.post("/exam/11408/data_structure/chapter-practice/attempts",
                            json={"question_ids": ids, "knowledge_point_id": "1.1"})
     assert response.status_code == 200
@@ -324,6 +329,17 @@ def test_attempt_create_response_is_concrete(client, bank):
     assert set(body) == {"attempt_id", "status", "total_questions"}
     assert body["status"] == "in_progress"
     assert body["total_questions"] == len(ids)
+
+
+def test_attempt_create_without_a_concept_still_declares_none(client, bank):
+    """The BC5A shape with NO concept: the whole chapter, and the concept slot stays NULL."""
+    register_and_login(client, "bc5a_create_no_concept")
+    ids = [q.id for q in bank["chapter"]]
+    response = client.post("/exam/11408/data_structure/chapter-practice/attempts",
+                           json={"question_ids": ids})
+    assert response.status_code == 200
+    main.ExamPracticeAttemptCreateResponse.model_validate(response.json())
+    assert response.json()["total_questions"] == len(ids)
 
 
 def test_attempt_create_without_question_ids_keeps_its_400(client, bank):

@@ -21660,6 +21660,24 @@ class ExamChapterPracticeQuestionsResponse(BaseModel):
 
 
 class ExamPracticeAttemptCreateRequest(BaseModel):
+    """Body of `POST .../chapter-practice/attempts`.
+
+    `knowledge_point_id` is the CANONICAL concept slot (ACCEL_PRODUCT_S9). When it is
+    non-empty the server validates it and answers 422 unless ALL of the following hold:
+
+      * the module publishes a knowledge-map seed;
+      * the value IS a canonical leaf code of that module;
+      * every selected question belongs to that module;
+      * every selected question carries exactly that concept under the shared resolver.
+
+    The value is never rewritten and never inferred — from a title, a path, an index or the
+    question text. Leaving it NULL is valid and is the honest encoding for direct entry,
+    past papers and legacy attempts, where no canonical concept is known.
+
+    `knowledge_point_name` / `knowledge_point_path` are DISPLAY strings and carry no
+    identity; they are stored as given and are never used to resolve a concept.
+    """
+
     # Defaulted rather than required so an omitted `question_ids` keeps the handler's own
     # 400 "question_ids required" answer instead of turning into a 422 from validation.
     question_ids: list[int] = Field(default_factory=list)
@@ -21877,6 +21895,67 @@ def _chapter_question_matches_kp(item, kp_id, include_children=False):
             return True
     return False
 
+
+# ── ACCEL_PRODUCT_S9 — canonical concept identity on chapter practice ──
+#
+# The knowledge workspace already knows WHICH canonical leaf a learner is standing on
+# (`chapter.code` / leaf `code` in the module knowledge-map seed). S9 propagates that
+# known identity into the attempt and its learning event instead of leaving the concept
+# slot to whatever string a client happened to send.
+#
+# WHAT IS NOT DONE HERE, AND WHY
+# ------------------------------
+# A concept is never INFERRED. No title match, no path-text match, no array index, no
+# question-text scan, and no model. The rule is a single exact-equality test against the
+# one resolver that already owns concept identity (`science.concept_coverage`), so the
+# chapter-practice matcher and the write boundary cannot drift apart.
+#
+# A question belongs to concept C exactly when the versioned resolver names C as that
+# row's canonical leaf. Sub-group ids stored on a row (`"4.2 路由与转发"`) are NOT concepts
+# and never qualify a row: that is precisely the `computer_network` chapter-4 numeric
+# collision the S8 resolver refuses, and a laxer test here would re-open it.
+
+CONCEPT_NOT_CANONICAL = "CONCEPT_NOT_CANONICAL_LEAF_OF_MODULE"
+CONCEPT_QUESTION_NOT_IN_SET = "CONCEPT_QUESTION_SET_MISMATCH"
+CONCEPT_QUESTION_MODULE_MISMATCH = "CONCEPT_QUESTION_MODULE_MISMATCH"
+
+
+def _module_canonical_concepts(subject_key):
+    """The module's canonical leaf codes, or ``None`` when the module has no seed.
+
+    ``None`` is not an empty set: "this module publishes no concept space" is a different
+    answer from "this module publishes concepts and the id is not one of them", and only
+    the caller can decide what an unvalidatable identity means. It means 422.
+    """
+    from science import concept_coverage
+    concepts = concept_coverage.load_module_concepts(subject_key)
+    return set(concepts["concepts"]) if concepts["seed_present"] else None
+
+
+def _question_carries_concept(item, concept_code):
+    """Exact canonical membership — the ONE predicate the read and write paths share.
+
+    Deliberately reads the resolver's ``canonical_code`` directly rather than going through
+    ``_question_canonical_leaf_codes``: that helper is the LIST matcher's companion and
+    returns only the RECOVERED spellings (it suppresses a code equal to the stored id,
+    because ``_chapter_question_matches_kp`` already tests the stored id separately). Using
+    it here would drop the plain case where the stored id IS the concept — which is the
+    common one.
+    """
+    from science import concept_coverage
+    module = (getattr(item, "subject_key", None) or "").strip()
+    stored = (getattr(item, "knowledge_point_id", None) or "").strip()
+    if not module or not stored:
+        return False
+    return concept_coverage.canonical_leaf_code(
+        module, knowledge_point_id=stored,
+        source_ref=getattr(item, "source_ref", None)) == concept_code
+
+
+def _reject_concept(code: str, message: str, **extra):
+    """422 with a stable machine-readable code. The identity is never rewritten."""
+    raise HTTPException(status_code=422, detail={"code": code, "message": message, **extra})
+
 def db_query_chapter_questions(subject_key):
     from database import SessionLocal
     db = SessionLocal()
@@ -21907,7 +21986,7 @@ def _serialize_practice_question(item, practiced=None):
          response_model=ExamChapterPracticeQuestionsResponse,
          response_model_exclude_unset=True)
 def get_chapter_practice_questions(subject_key: str, knowledge_point_id: str = "",
-                                      chapter_code: str = "",
+                                      chapter_code: str = "", concept_code: str = "",
                                       knowledge_point_path: str = "", include_children: bool = False,
                                       username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if subject_key not in EXAM_SUBJECT_DIRS:
@@ -21918,6 +21997,23 @@ def get_chapter_practice_questions(subject_key: str, knowledge_point_id: str = "
     canonical_chapter = (chapter_code or "").strip()
     if canonical_chapter:
         items = [i for i in items if _question_chapter_code(i) == canonical_chapter]
+
+    # ACCEL_PRODUCT_S9: the CANONICAL concept filter, distinct from the legacy sub-group
+    # `knowledge_point_id` above. It accepts only a canonical leaf code of this module and
+    # keeps only rows that carry exactly that concept under the shared resolver — the same
+    # predicate the attempt-create boundary validates with, so a list served here can always
+    # be submitted. An id that is not a canonical leaf of this module is REFUSED (422)
+    # rather than answered with an empty list, because "no questions" and "not a concept"
+    # are different answers and only one of them is true.
+    canonical_concept = (concept_code or "").strip()
+    if canonical_concept:
+        canonical = _module_canonical_concepts(subject_key)
+        if canonical is None or canonical_concept not in canonical:
+            _reject_concept(
+                CONCEPT_NOT_CANONICAL,
+                f"{canonical_concept!r} is not a canonical knowledge leaf of {subject_key}",
+                concept_code=canonical_concept, subject_key=subject_key)
+        items = [i for i in items if _question_carries_concept(i, canonical_concept)]
 
     # Load done records to tag practiced questions
     done_q_ids: set[int] = set()
@@ -21935,7 +22031,8 @@ def get_chapter_practice_questions(subject_key: str, knowledge_point_id: str = "
     kp_id = _re.sub(r'^(_leaf:|leaf:|_node:|node:|_kp:|kp:)', '', raw_kp_id).strip()
     kp_path = (knowledge_point_path or "").strip()
     debug = {"raw_knowledge_point_id": raw_kp_id, "normalized_knowledge_point_id": kp_id,
-             "knowledge_point_path": kp_path, "include_children": include_children, "query_mode": "none"}
+             "knowledge_point_path": kp_path, "include_children": include_children,
+             "concept_code": canonical_concept, "query_mode": "none"}
     matched = []
     if kp_id:
         # Try exact ID match
@@ -22036,11 +22133,44 @@ def create_chapter_practice_attempt(subject_key: str, req: ExamPracticeAttemptCr
     items = db.query(models.ExamQuestionBank).filter(
         models.ExamQuestionBank.id.in_(qids), models.ExamQuestionBank.is_active == True).all()
     if not items: raise HTTPException(status_code=400, detail="no valid questions found")
+
+    # ACCEL_PRODUCT_S9 — the concept slot is VALIDATED, never trusted and never rewritten.
+    # Absent stays absent: direct entry, past papers and legacy attempts legitimately carry
+    # no canonical concept, and NULL is the honest value for all three.
+    concept = (req.knowledge_point_id or "").strip()
+    if concept:
+        canonical = _module_canonical_concepts(subject_key)
+        if canonical is None:
+            _reject_concept(
+                CONCEPT_NOT_CANONICAL,
+                f"{subject_key} publishes no canonical concept space, so {concept!r} "
+                f"cannot be validated as one of its concepts",
+                concept_code=concept, subject_key=subject_key)
+        if concept not in canonical:
+            _reject_concept(
+                CONCEPT_NOT_CANONICAL,
+                f"{concept!r} is not a canonical knowledge leaf of {subject_key}",
+                concept_code=concept, subject_key=subject_key)
+        wrong_module = sorted({i.subject_key for i in items if i.subject_key != subject_key})
+        if wrong_module:
+            _reject_concept(
+                CONCEPT_QUESTION_MODULE_MISMATCH,
+                "the selected questions do not all belong to the requested module",
+                concept_code=concept, subject_key=subject_key,
+                other_modules=wrong_module)
+        mismatched = sorted(i.id for i in items if not _question_carries_concept(i, concept))
+        if mismatched:
+            _reject_concept(
+                CONCEPT_QUESTION_NOT_IN_SET,
+                f"the selected questions are not all questions of {concept!r}",
+                concept_code=concept, subject_key=subject_key,
+                mismatched_question_ids=mismatched)
+
     now = utc_now()
     a = models.ExamPracticeAttempt(
         username=username, subject_key=subject_key, practice_type="chapter",
         source_type="chapter", status="in_progress",
-        knowledge_point_id=(req.knowledge_point_id or "").strip() or None,
+        knowledge_point_id=concept or None,
         knowledge_point_name=(req.knowledge_point_name or "").strip() or None,
         knowledge_point_path=(req.knowledge_point_path or "").strip() or None,
         question_ids_json=json.dumps([i.id for i in items]), total_questions=len(items),
@@ -28762,6 +28892,49 @@ class RedeemRequest(BaseModel):
     service_key: str | None = None
 
 
+class RedemptionPreviewPayload(BaseModel):
+    """What a REAL redemption code would grant, before it is consumed.
+
+    ``current_plan`` / ``current_expires_at`` describe the caller's position in THIS
+    direction. ``projected_expires_at`` is where the plan would end after redeeming —
+    computed from the later of now and the current expiry, so a renewal extends rather than
+    truncates. ``remaining_redemptions`` is a real count of the code's remaining uses.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    service_key: str
+    target_plan: str
+    target_plan_name: str
+    membership_duration_days: int
+    code_expires_at: str | None
+    current_plan: str
+    current_expires_at: str | None
+    projected_expires_at: str
+    remaining_redemptions: int
+
+
+class RedemptionPreviewResponse(BaseModel):
+    """``success`` is always true on a 200: a refused code is a 400 with its own message, so
+    a caller never has to read a boolean to know whether a plan is described."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    success: bool
+    preview: RedemptionPreviewPayload
+
+
+class RedemptionResultResponse(BaseModel):
+    """The consumed code's effect. ``redemption`` is the same payload the preview showed, so
+    what the learner agreed to and what they received cannot differ."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    success: bool
+    message: str
+    redemption: RedemptionPreviewPayload
+
+
 class MembershipFeatureEntitlement(BaseModel):
     """One feature's entitlement in one learning direction.
 
@@ -29241,14 +29414,22 @@ def manual_recommendation(
     }
 
 
-@app.post("/membership/redeem")
+@app.post("/membership/redeem", response_model=RedemptionResultResponse)
 def redeem_membership_code(
     req: RedeemRequest,
     username: str = "",
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    """Redeem a membership code."""
+    """Redeem a membership code.
+
+    ACCEL_PRODUCT_S9: this is the path that actually OPENS a locked product feature. The
+    per-direction ``learning_plan`` / ``learning_report`` gates read
+    ``user_service_memberships`` (``membership.get_feature_entitlement``), which this
+    endpoint writes, and ``POST /subscription/redeem`` does not. The two systems are
+    deliberately independent until the unified migration lands (SSOT §41), so the membership
+    surface offers the one that resolves the lock rather than the one that only moves a tier.
+    """
     if not req.code or not req.code.strip():
         raise HTTPException(status_code=400, detail="请输入兑换码")
 
@@ -29267,7 +29448,7 @@ def redeem_membership_code(
     return result
 
 
-@app.post("/membership/redeem/preview")
+@app.post("/membership/redeem/preview", response_model=RedemptionPreviewResponse)
 def preview_membership_code(
     req: schemas.RedemptionCodeRequest,
     db: Session = Depends(get_db),
