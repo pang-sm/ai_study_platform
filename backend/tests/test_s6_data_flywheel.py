@@ -477,15 +477,23 @@ def test_the_export_hash_covers_every_field_it_should(exportable_db):
 
 # ============================================================ PARTS L/M/N/O — modes
 
-def test_evidence_reliability_stays_shadow_and_the_scaler_gate_stays_open():
-    """PARTS L/M: the gate decides the mode, so the two can never drift apart."""
+def test_evidence_reliability_stays_shadow_whatever_the_scaler_gate_says():
+    """PARTS L/M: the gate decides the mode, so the two can never drift apart.
+
+    Restated by ACCEL_SPRINT_S7. S6 asserted the scaler gate was OPEN as the reason the
+    surface was closed. S7 closed that gate by measurement, so the invariant that survives
+    is the one that actually protects the user: the surface is closed whenever ANY gate is
+    open, and which gate that is is reported rather than assumed.
+    """
     from science import evidence_reliability as er
 
     assert er.production_mode() == "SHADOW_NOT_USER_VISIBLE"
     gate = er.scaler_gate()
     assert gate, "the scaler gate carries no evidence"
-    # no standardizer may be applied: the gate is what makes the surface closed
-    assert er.SCALER_RECOVERY_METHOD not in er.SCALER_GATE_ACCEPTED_METHODS
+    # the surface is closed for a NAMED reason, whichever gate is the binding one: either
+    # the scaler is unrecovered, or the input vector cannot be built. Never neither.
+    assert (er.SCALER_RECOVERY_METHOD not in er.SCALER_GATE_ACCEPTED_METHODS
+            or er.PRODUCT_FEATURE_COMPATIBILITY != "COMPATIBLE")
     assert er.blockers(), "a blocked component must say why"
 
 
@@ -549,7 +557,12 @@ def test_collecting_a_quantity_is_not_the_same_as_satisfying_the_feature():
     assert "NOT a paper-sitting number" in telemetry.ATTEMPT_INDEX_SEMANTICS
     row = next(f for f in er.FEATURE_AVAILABILITY if f["name"] == "attempt_gt1")
     assert row["product_status"] == er.CAN_BE_COLLECTED_FACTUALLY
-    assert er.SCALER_RECOVERY_METHOD not in er.SCALER_GATE_ACCEPTED_METHODS
+    # S6 stated the feature classification and the scaler gate were unchanged. S7 changes
+    # the GATE (by measurement) and not the classification, so the invariant that survives
+    # is the one S6 was actually protecting: the feature set the product can supply is
+    # still not the feature set the checkpoints require.
+    assert row["product_status"] == er.CAN_BE_COLLECTED_FACTUALLY
+    assert er.PRODUCT_FEATURE_COMPATIBILITY == "INCOMPATIBLE"
 
 
 def test_student_twin_input_eligibility_is_unchanged():

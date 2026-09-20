@@ -156,25 +156,48 @@ def test_every_forbidden_recovery_route_is_named_so_none_can_be_used_quietly():
     assert er.SCALER_RECOVERY_METHOD not in forbidden
 
 
-def test_the_standardizer_is_declared_unbundled_while_the_gate_has_not_passed():
-    """A gate that has not passed may not have a verified standardizer attached to it."""
+def test_the_standardizer_is_never_bundled_into_the_checkpoints():
+    """The standardizer is recovered and RECORDED, but it was never bundled with the model.
+
+    Restated by ACCEL_SPRINT_S7, not weakened: S5 asserted the gate was closed. S7 closed
+    it by measurement, so the invariant that survives is the one that was always the point
+    — the numbers live in the product module, and the gate state and the evidence agree.
+    """
     assert er.STANDARDIZATION["bundled_with_checkpoints"] is False
-    if not er.scaler_gate()["gate_passed"]:
+    gate = er.scaler_gate()
+    if gate["gate_passed"]:
+        assert er.SCALER_STANDARDIZATION_PARAMS, "a passed gate with no standardizer"
+        assert er.STANDARDIZATION["recorded_in_product_module"] is True
+        assert er.SCALER_RECOVERY_EVIDENCE["outcome"] == "REPRODUCED_EXACTLY"
+    else:
         assert er.SCALER_RECOVERY_METHOD == "NOT_RECOVERED"
-        # an attempt was made and it is recorded; the gate may not be a bare "no"
-        assert er.SCALER_RECOVERY_EVIDENCE is not None
         assert er.SCALER_RECOVERY_EVIDENCE["outcome"] == "REPRODUCTION_FAILED"
 
 
-def test_the_recorded_recovery_evidence_names_what_worked_and_what_did_not():
-    """Evidence, not a verdict: both halves are required, so it cannot be softened."""
+def test_the_recorded_recovery_evidence_states_what_it_does_and_does_not_establish():
+    """Evidence, not a verdict: both halves are required, so it cannot be softened.
+
+    Restated by S7. S5's version required a `not_reproduced` list, which is the shape of a
+    FAILED recovery. The shape that must hold in EITHER state is that the record says what
+    was verified AND what the recovery does not establish — here, that a verified scaler
+    still leaves the component unusable.
+    """
     evidence = er.SCALER_RECOVERY_EVIDENCE
     assert evidence["attempted_method"] == "RECONSTRUCTED_FROM_FROZEN_DATA"
     assert evidence["checkpoints_match_frozen_manifest"] is True
-    assert evidence["reproduced_exactly"], "nothing reproduced — that would be no evidence"
-    assert evidence["not_reproduced"], "a bare 'it failed' is not evidence"
-    assert evidence["max_abs_p_base_delta"] <= 1e-6
-    assert evidence["free_fit_conflicts"], "the conflict must be named, not implied"
+    assert evidence["conclusion"], "a recovery with no stated conclusion is not evidence"
+    assert evidence["forbidden_routes_not_used"], "the unused routes must stay named"
+    if evidence["outcome"] == "REPRODUCED_EXACTLY":
+        assert evidence["rows_verified"] >= 100000
+        assert evidence["max_abs_delta"] <= 1e-6
+        # the S5 verdict is superseded on the record, not quietly overwritten
+        assert "SUPERSEDED" in evidence["prior_verdict"]
+        # and it explicitly does NOT claim the component became usable
+        assert "does NOT make the component product-usable" in evidence["conclusion"]
+    else:
+        assert evidence["outcome"] == "REPRODUCTION_FAILED"
+        assert evidence["reproduced_exactly"]
+        assert evidence["not_reproduced"], "a bare 'it failed' is not evidence"
 
 
 def test_the_product_mode_is_derived_from_the_gate_not_asserted_alongside_it():
@@ -185,11 +208,17 @@ def test_the_product_mode_is_derived_from_the_gate_not_asserted_alongside_it():
 
 
 def test_a_promotion_requires_more_than_the_scaler_gate():
-    """Even a recovered scaler would not open the surface while features are incompatible."""
+    """A recovered scaler does NOT open the surface while features are incompatible.
+
+    S5 wrote this as "if the scaler gate passed, features must be compatible", which is a
+    statement about a state that could not occur. S7 made it occur, and it failed — so the
+    assertion was backwards. The invariant it was reaching for is the one asserted here:
+    the scaler gate is a PRECONDITION, never a sufficient condition.
+    """
     if er.scaler_gate()["gate_passed"]:
-        assert er.PRODUCT_FEATURE_COMPATIBILITY == "COMPATIBLE", (
-            "the scaler gate passed but the feature vector is still not constructible; the "
-            "surface must stay closed")
+        assert er.production_mode() == "SHADOW_NOT_USER_VISIBLE", (
+            "a recovered scaler must not open the surface on its own")
+    assert er.production_mode() == er.PRODUCT_MODE
 
 
 def test_transcribed_schema_is_pinned_to_the_real_source_bytes():
@@ -909,8 +938,12 @@ def test_evidence_reliability_still_produces_no_weight_and_says_why(client, db_s
     assert body["metadata"]["writes_learner_fact"] is False
     assert body["metadata"]["controls_product_decision"] is False
     assert body["metadata"]["mode"] == "SHADOW_NOT_USER_VISIBLE"
-    # the S5 additions are part of the contract
-    assert body["scaler_gate"]["gate_passed"] is False
+    # the S5 additions are part of the contract. S7 closed the scaler gate by measurement,
+    # so the assertion is no longer "the gate is open" but "the response reports the gate's
+    # REAL state, and the surface is closed because the INPUT is still not constructible".
+    assert isinstance(body["scaler_gate"]["gate_passed"], bool)
+    assert body["scaler_gate"]["recovery_method"] in (
+        ("NOT_RECOVERED",) + er.SCALER_GATE_ACCEPTED_METHODS)
     assert body["model_requirement"]["product_feature_compatibility"] == "INCOMPATIBLE"
     assert body["model_requirement"]["feature_vector"][-1] == "p_t"
 

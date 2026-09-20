@@ -169,7 +169,11 @@ def test_evidence_reliability_produces_no_weight_and_names_every_blocker(client,
     assert body["reliability_weight"] is None
     assert body["model_requirement"]["scientific_threshold"] is None
 
+    # Every reason S4 named is still ACCOUNTED FOR. S7 closed two of them by measurement,
+    # so a code that left the OPEN list must appear in the RESOLVED list — a reason may
+    # move, but it may not disappear, or a waiver and a fix look identical.
     codes = {b.split(":")[0] for b in body["metadata"]["blockers"]}
+    resolved = {b["code"] for b in evidence_reliability.resolved_blockers()}
     for expected in (evidence_reliability.BLOCKER_HINTS,
                      evidence_reliability.BLOCKER_RESPONSE_TIME,
                      evidence_reliability.BLOCKER_ATTEMPT_COUNT,
@@ -178,7 +182,8 @@ def test_evidence_reliability_produces_no_weight_and_names_every_blocker(client,
                      evidence_reliability.BLOCKER_STANDARDIZATION,
                      evidence_reliability.BLOCKER_UPSTREAM_P_T,
                      evidence_reliability.BLOCKER_CALIBRATION):
-        assert expected in codes, expected
+        assert expected in (codes | resolved), expected
+    assert not (codes & resolved), "a reason cannot be open and resolved at once"
 
     # the evidence window reports the REAL facts that do exist
     window = body["evidence_window"]
@@ -199,7 +204,12 @@ def test_evidence_reliability_input_audit_matches_the_real_component():
         assert field in missing, field
     assert any(m.startswith("b_s") for m in missing)
     assert any(m.startswith("p_t") for m in missing)
-    assert any("standardization" in m for m in missing)
+    # S7 recovered the standardization stats, so they are no longer MISSING — but they must
+    # still be accounted for, or "recovered" and "forgotten" would look the same.
+    resolved = set(req["resolved_input"])
+    assert any("standardization" in m for m in missing | resolved)
+    assert not any("standardization" in m for m in missing), (
+        "the recovered standardizer must not still be listed as missing")
 
 
 def test_evidence_reliability_semantics_never_read_as_correctness():

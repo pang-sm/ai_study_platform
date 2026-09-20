@@ -42,16 +42,18 @@ that vector, and none of them may be worked around by supplying a default:
   * ``log_opp`` and ``b_s`` are indexed by ``skill_id`` in the SCIENTIFIC ontology. That is
     the same ontology gap that blocks ``learner_state``: the product has Chinese CS408
     knowledge points and no mapping to the scientific skill space.
-  * ``b_s`` additionally needs the IRT ``b_map``, which is NOT bundled — the frozen
-    acceptance record lists it as a blocker in its own right.
+  * ``b_s`` additionally needs the IRT ``b_map`` — recoverable from the research archive,
+    but keyed by the scientific skill space, so it is not a product input.
   * ``p_t`` is the running prediction of the SAME per-(user, skill) theta recurrence, so it
     inherits every blocker above.
-  * The four continuous features are z-scored with the TRAINING set's mean/std, and those
-    standardization statistics are NOT bundled either. Without them a caller cannot even
-    scale a raw value into the space the checkpoints were trained on.
+  * The four continuous features are z-scored with the TRAINING set's mean/std. These WERE
+    a blocker (S4/S5) and no longer are: S7 re-derived and VERIFIED them against every
+    frozen per-row output and recorded them in ``SCALER_STANDARDIZATION_PARAMS``. Scaling
+    was never the binding constraint — the columns being scaled still have no source.
 
-So ``EVIDENCE_RELIABILITY_PRODUCT_MODE = SHADOW_NOT_USER_VISIBLE``. This module reports the
-requirement, the gate and the real evidence the product holds; it produces no weight.
+So ``EVIDENCE_RELIABILITY_PRODUCT_MODE = SHADOW_NOT_USER_VISIBLE``, and the reason is now
+narrower than it was: the SCALER gate is closed and the INPUT-COMPATIBILITY gate is not.
+``production_mode()`` reads both, so the closed gate cannot silently open the surface.
 
 It writes nothing: no knowledge status, no mastery, no wrong-answer state, no plan, no
 grade, no learner fact of any kind. ``controls_product_decision`` is permanently False.
@@ -158,8 +160,9 @@ FEATURE_SCHEMA = (
     {"index": 6, "name": "b_s", "block": "CONT", "dtype": "float",
      "semantics": "IRT 1PL skill difficulty of the interaction's skill",
      "raw_unit": "logit-scale IRT b, keyed by the SCIENTIFIC skill_id space",
-     "transform": "z = (b_s - mean[b_s]) / std[b_s], after map(skill_id -> b_map) with "
-                  "fillna(0.0)",
+     "transform": "VARIANT-DEPENDENT — see B_S_PER_VARIANT. Variant 42 z-scores it "
+                  "(z = (b_s - mean[b_s]) / std[b_s]); the other four feed the mapped "
+                  "value RAW. Both were measured, not read off one source revision.",
      "source_expression": "c['skill_id'].map(b_map).fillna(0.0), b_map = "
                           "irt_skill_params.json['b_1pl']"},
     {"index": 7, "name": "p_t", "block": "DYN", "dtype": "float",
@@ -191,6 +194,39 @@ STANDARDIZATION = {
     "std_source": "same rows; sample std (ddof=1), with a `or 1.0` guard when std == 0",
     "computed_by": "build_sequences(...) on first call, then reused unchanged for val/test",
     "bundled_with_checkpoints": False,
+    "recorded_in_product_module": True,
+    "recorded_as": "SCALER_STANDARDIZATION_PARAMS (per seed, with per-variant b_s mode)",
+    "verification": ("reproduces every frozen per-row output of all five checkpoints to "
+                     "1.788e-07 (float32) across 188,262 rows — ACCEL_SPRINT_S7"),
+    "b_s_caveat": ("b_s is z-scored for variant 42 and RAW for the other four; see "
+                   "B_S_PER_VARIANT. One table, two modes — a caller must pick per variant"),
+}
+
+# ---------------------------------------------------------------- B_S_PER_VARIANT
+#
+# THE ONE BRANCH THAT DIFFERS BETWEEN THE ARCHIVED SOURCE AND THE FROZEN RUNS.
+#
+# The archived ``build_sequences`` sends ``b_s`` down the ``if c == "b_s"`` branch, which
+# emits the mapped value RAW; only the ``else`` branch z-scores. Measured against the five
+# frozen per-row experiment outputs (188,262 prediction rows), four of the five checkpoints
+# reproduce EXACTLY under the archived branch, and exactly one — the base ``42`` run — does
+# not: it reproduces only when ``b_s`` is z-scored instead. So the base run predates that
+# branch and the branch was added before the other four were trained. Both facts are
+# measurements on frozen bytes, not readings of a single source revision.
+#
+# The base run's fitted (mean, std) is NOT a free fit that happened to land: it equals the
+# independently re-derived train-row statistics of ``b_s`` to seven significant digits
+# (fitted -0.536745874 / 0.653580144 against re-derived -0.536745877 / 0.653580218). A
+# curve fit that reproduces a number nobody constrained would not agree with the pipeline's
+# own rule, and this one does.
+B_S_MODE_ZSCORED = "ZSCORED"
+B_S_MODE_RAW = "RAW"
+B_S_PER_VARIANT = {
+    "42": B_S_MODE_ZSCORED,
+    "42_nort": B_S_MODE_RAW,
+    "42_surprise": B_S_MODE_RAW,
+    "43": B_S_MODE_RAW,
+    "44": B_S_MODE_RAW,
 }
 
 # What the source does BEFORE features are built, transcribed so the split and the
@@ -321,73 +357,123 @@ SCALER_RECOVERY_REQUIREMENTS = (
 
 # The gate itself. SHADOW_NOT_USER_VISIBLE is the only value this constant may take until
 # an artifact satisfying ACCEPTED_METHODS is present AND its digest is recorded here.
-SCALER_RECOVERY_METHOD = "NOT_RECOVERED"
+#
+# ACCEL_SPRINT_S7 closed this gate. See SCALER_RECOVERY_EVIDENCE for the measurement and
+# SCALER_STANDARDIZATION_PARAMS for the recovered numbers.
+SCALER_RECOVERY_METHOD = "RECONSTRUCTED_FROM_FROZEN_DATA"
 
-# WHAT WAS ACTUALLY MEASURED (2026-09-19), so the next attempt starts from facts rather
-# than from this note.
+# The recovered standardizer, per training seed. These are the four (mean, std) pairs the
+# checkpoints consume, re-derived from the frozen cohort + split by the pipeline's own rule
+# and then PROVEN against the frozen per-row outputs.
 #
-# The full frozen artifact set WAS recovered — dataset, split, IRT parameters, alpha, the
-# five checkpoints and the per-row experiment output — and re-deriving the standardizer by
-# the frozen pipeline's own rule was attempted. It does not reproduce the experiment.
+# They live here as the RECOVERED ARTIFACT rather than as prose because a caller that holds
+# them can construct a valid input vector; a caller that does not, cannot. Recovering them
+# closes the scaler gate — it does NOT close the input gate, because three of the four
+# columns they scale are still indexed by the scientific skill ontology. See
+# PRODUCT_FEATURE_COMPATIBILITY.
+SCALER_STANDARDIZATION_PARAMS = {
+    "42": {"mean": {"log_rt": 9.996226348912442, "hint_count": 0.4309670328474501,
+                    "log_opp": 2.0489708966992666, "b_s": -0.5367458774637446},
+           "std": {"log_rt": 1.2743737786514842, "hint_count": 1.161659884396357,
+                   "log_opp": 0.9819057002510351, "b_s": 0.6535802182457324}},
+    "43": {"mean": {"log_rt": 9.977563363223293, "hint_count": 0.436419793295119,
+                    "log_opp": 2.0525352185998123, "b_s": -0.5289049056700561},
+           "std": {"log_rt": 1.2736077917340578, "hint_count": 1.1711556374829706,
+                   "log_opp": 0.9817996256178723, "b_s": 0.6558011755760538}},
+    "44": {"mean": {"log_rt": 9.983235640757911, "hint_count": 0.44867742836640906,
+                    "log_opp": 2.0468744520757203, "b_s": -0.5299756433775145},
+           "std": {"log_rt": 1.2769397209811848, "hint_count": 1.1858596266620325,
+                   "log_opp": 0.9640768130379006, "b_s": 0.6558903577230928}},
+}
+# The seed-42 variants (42_nort, 42_surprise) share the 42 split, so they share its
+# statistics; the seed is what selects a row of the table, not the variant name.
+SCALER_STANDARDIZATION_PARAMS_BY_VARIANT = {
+    "42": "42", "42_nort": "42", "42_surprise": "42", "43": "43", "44": "44",
+}
+
+# WHAT WAS ACTUALLY MEASURED, so the next attempt starts from facts rather than from prose.
 #
-#   * The frozen driver's rule is train-frame mean/std for log_rt, hint_count, log_opp, b_s.
-#     Applied to the frozen cohort and split it yields statistics that reproduce the
-#     experiment's BASE predictions exactly (max |delta p_base| = 1.2e-07, i.e. float32
-#     noise) and its weighted weights exactly for every sequence whose first response was
-#     CORRECT — which proves the split, the sequence construction, alpha and the `y`
-#     feature are all right.
-#   * For sequences whose first response was INCORRECT the weights do not match
-#     (mean |delta w| = 0.047, max 0.35). That is not noise: 31% of first steps disagree.
-#   * A free numerical fit over all four (mean, std) pairs DOES reproduce the frozen
-#     weights essentially exactly (rmse 9.3e-05), confirming the frozen numbers really are
-#     g(x) for some standardizer. Three of its four pairs land within 0.1% of the
-#     re-derived train-frame statistics. The fourth — ``b_s`` — does not: the frozen run
-#     needs a skill-difficulty column whose statistics the archived
-#     ``irt_skill_params.json`` does not produce, under any of the mappings the source
-#     contains.
+# S5 attempted the same reconstruction and reported REPRODUCTION_FAILED. That verdict was
+# WRONG, and S7 established why: S5's forward pass followed the archived source's
+# ``if c == "b_s"`` branch, which emits b_s RAW, for a checkpoint (the base 42 run) that
+# was trained with it Z-SCORED. The standardizer S5 derived was already correct; only the
+# verification of it was mis-modelled.
 #
-# So a required input is missing: the exact ``b_s`` column the checkpoints were trained
-# against is not recoverable from the archive, and no candidate rule reproduces the frozen
-# experiment. Following the pipeline gives a standardizer that is DETERMINISTIC but
-# UNVERIFIED, and an unverified standardizer is exactly the thing this gate exists to
-# refuse. Both halves of PART A1 fail: no fitted artifact was found, and the reconstruction
-# from frozen data does not verify.
+# S7 re-derived the transform from the frozen bytes without assuming the branch, by
+# inverting the frozen outputs: for a sequence whose first emitted row is t=1,
+# p_rel(t=1) = sigmoid(alpha * w_0 * (y_0 - 0.5)) with theta_0 = 0, so w_0 — the network's
+# own output at that step — is exactly recoverable, one network evaluation per sequence,
+# with no recurrence error accumulated. Solving for the standardization parameters against
+# those w_0 recovers the pipeline's rule and nothing else.
 #
 # Kept as data rather than prose so the evidence cannot be quietly softened.
 SCALER_RECOVERY_EVIDENCE = {
     "attempted_method": "RECONSTRUCTED_FROM_FROZEN_DATA",
-    "outcome": "REPRODUCTION_FAILED",
+    "outcome": "REPRODUCED_EXACTLY",
+    "prior_verdict": ("ACCEL_SPRINT_S5 reported REPRODUCTION_FAILED; that verdict is "
+                      "SUPERSEDED. The cause was a mis-modelled forward pass (b_s raw for "
+                      "a checkpoint trained with b_s z-scored), not an absent input"),
     # Named by ROLE, never by filename: the product module does not carry model asset
     # paths, and the S4 invariant that enforces that is a real one.
     "artifacts_recovered": (
         "the frozen cohort, the three split files, the IRT parameter file, the three "
         "alpha records, the five per-row experiment outputs and the five checkpoints"),
     "checkpoints_match_frozen_manifest": True,
-    "reproduced_exactly": ["p_base", "y ordering and values",
-                           "weights on sequences whose first response was correct"],
-    "not_reproduced": ["weights on sequences whose first response was incorrect"],
-    "max_abs_p_base_delta": 1.2e-07,
-    "mean_abs_weight_delta_on_diverging_steps": 0.047,
-    "max_abs_weight_delta": 0.35,
-    "free_fit_rmse": 9.3e-05,
-    "free_fit_confirms": ("log_rt / hint_count / log_opp statistics agree with the "
-                          "train-frame re-derivation to within 0.1%"),
-    "free_fit_conflicts": ("b_s does not; the archived IRT parameters cannot produce the "
-                           "skill-difficulty column the checkpoints were trained against"),
-    "conclusion": ("the frozen archive is not sufficient to reconstruct the standardizer "
-                   "VERIFIABLY, because a required input is absent from it"),
+    "source_tree_completeness": ("S7 recovered the COMPLETE original src/ tree from the "
+                                 "archived tarball. The S5 extract was incomplete: it "
+                                 "omitted utils/ (which carries load_split), "
+                                 "baselines/bkt.py, data/audit_data.py, "
+                                 "evaluation/{analysis,corruption}.py and the raw cohort "
+                                 "CSV. The four files S5 DID read are byte-identical to "
+                                 "the archive copy, so nothing it transcribed was wrong — "
+                                 "the tree was just short of the module that defines the "
+                                 "split. Recovered: load_split(project, seed) is exactly "
+                                 "pd.read_parquet(split_{seed}.parquet), the semantics "
+                                 "both S5 and S7 assumed, so no assumption about the "
+                                 "train-frame selection is left unverified"),
+    "verification": ("every frozen per-row value — y, p_base, p_rel, w_rel — for val AND "
+                     "test, for all five checkpoints"),
+    "rows_verified": 188262,
+    "max_abs_delta": 1.788e-07,
+    "delta_is": "float32 network arithmetic; the reproduction is exact to the precision "
+                "the frozen run itself used",
+    "identifiability": ("the base-42 parameters were recovered by optimisation and then "
+                        "compared against the pipeline's own independent re-derivation: "
+                        "fitted -0.536745874 / 0.653580144 against re-derived "
+                        "-0.536745877 / 0.653580218 (7 significant digits). For the other "
+                        "four the optimum is exactly the identity, i.e. the raw column"),
+    "per_variant_b_s_mode": dict(B_S_PER_VARIANT),
+    "free_fit_was_not_used": ("the S5 free 8-parameter fit (rmse 9.3e-05) is NOT the "
+                              "basis of this verdict and is not promoted; the recovery is "
+                              "a closed-form inversion corroborated by the pipeline's own "
+                              "rule"),
+    "forbidden_routes_not_used": list(SCALER_GATE_FORBIDDEN_METHODS),
+    "conclusion": ("the exact training transform is PROVEN for all five checkpoints; the "
+                   "scaler gate is closed. This does NOT make the component product-usable: "
+                   "b_s, log_opp and p_t are still indexed by the scientific skill "
+                   "ontology, and that is a separate, independent gate"),
 }
 
 
 def production_mode() -> str:
-    """The mode this module reports, DERIVED from the gate rather than asserted.
+    """The mode this module reports, DERIVED from the open gates rather than asserted.
 
-    A scaler that has not been recovered means no caller can scale a raw value into the
-    space the checkpoints were trained on, so the product surface stays closed no matter
-    how many of the other inputs become available. Tying the two together here makes it
-    impossible to promote the component while the gate is open.
+    TWO gates now, and passing one does not pass the other:
+
+      * the SCALER gate — can a raw value be scaled into the space the checkpoints were
+        trained on?  Closed in S7.
+      * the INPUT-COMPATIBILITY gate — can the product construct the vector at all?  Still
+        INCOMPATIBLE: b_s / log_opp / p_t are keyed by the scientific skill ontology, and
+        no hint signal exists on any surface.
+
+    Deriving the mode from BOTH is what makes a silent promotion impossible: closing the
+    scaler gate alone must not, and does not, open the surface. S5's version of this
+    function returned PREVIEW on the scaler gate alone, which would have promoted the
+    component the moment S7 closed it.
     """
     if SCALER_RECOVERY_METHOD not in SCALER_GATE_ACCEPTED_METHODS:
+        return metadata.MODE_SHADOW_NOT_USER_VISIBLE
+    if PRODUCT_FEATURE_COMPATIBILITY != "COMPATIBLE":
         return metadata.MODE_SHADOW_NOT_USER_VISIBLE
     return metadata.MODE_PREVIEW
 
@@ -439,7 +525,11 @@ def model_requirement() -> dict:
             "hint_count", "has_bottom_hint", "log_rt", "attempt_gt1",
             "b_s (IRT skill difficulty)", "log_opp (per-skill opportunity)",
             "p_t (running learner-state prediction)",
-            "standardization stats (training mean/std for the z-scored features)",
+        ],
+        # S7 closed this entry; kept visible as a RESOLVED requirement rather than deleted.
+        "resolved_input": [
+            "standardization stats (training mean/std for the z-scored features) — "
+            "recovered and verified in ACCEL_SPRINT_S7; see SCALER_STANDARDIZATION_PARAMS",
         ],
         "score_semantics": SCORE_SEMANTICS,
         "scientific_threshold": SCIENTIFIC_THRESHOLD,
@@ -484,7 +574,14 @@ def scaler_gate() -> dict:
 
 
 def blockers() -> list[str]:
-    """The exact, independent reasons no product weight is produced."""
+    """The exact, independent reasons no product weight is produced TODAY.
+
+    Two of the eight reasons S4 named have since been closed by measurement
+    (``BLOCKER_STANDARDIZATION`` in S5/S7, and ``BLOCKER_B_MAP`` as a *bundling* claim),
+    and they are NOT silently dropped: they moved to :func:`resolved_blockers` so the set
+    of reasons is still complete and a reader can see which changed and why. Closing them
+    did not open the surface, because the input gate is independent.
+    """
     return [
         f"{BLOCKER_HINTS}: the product persists no hint signal — the canonical pipeline "
         f"writes hints = None unconditionally, so hint_count and has_bottom_hint have no "
@@ -496,16 +593,38 @@ def blockers() -> list[str]:
         f"nullable and not guaranteed, and an attempt count must not be invented",
         f"{BLOCKER_ONTOLOGY}: log_opp and b_s are indexed by skill_id in the SCIENTIFIC "
         f"ontology, and the product has CS408 knowledge points with no mapping to it",
-        f"{BLOCKER_B_MAP}: b_s additionally needs the IRT b_map, which is not bundled "
-        f"with the checkpoints — the frozen acceptance record lists this as a blocker",
-        f"{BLOCKER_STANDARDIZATION}: the training set's mean/std for the z-scored "
-        f"continuous features are not bundled, so a raw value cannot be scaled into the "
-        f"space the checkpoints were trained on",
         f"{BLOCKER_UPSTREAM_P_T}: the dynamic feature p_t is the running prediction of the "
         f"component's own per-(user, skill) theta recurrence and inherits every blocker "
         f"above",
         f"{BLOCKER_CALIBRATION}: the frozen component record carries scientific_threshold "
         f"= null — no calibration/validity threshold was established for this component",
+    ]
+
+
+def resolved_blockers() -> list[dict]:
+    """The reasons S4 named that measurement has since CLOSED, each with what closed it.
+
+    Reported rather than deleted: a blocker that disappears without a reason is
+    indistinguishable from one that was quietly waived.
+    """
+    return [
+        {"code": BLOCKER_STANDARDIZATION,
+         "resolved_by": "ACCEL_SPRINT_S5 derived it; ACCEL_SPRINT_S7 verified it",
+         "what_changed": ("the four (mean, std) pairs are re-derived from the frozen cohort "
+                          "and split and PROVEN against every frozen per-row output "
+                          "(188,262 rows, max |delta| 1.788e-07). They are recorded in "
+                          "SCALER_STANDARDIZATION_PARAMS, so a raw value can now be scaled "
+                          "into the space the checkpoints were trained on"),
+         "what_did_not_change": ("scaling was never the binding constraint — the columns "
+                                 "being scaled still have no product source")},
+        {"code": BLOCKER_B_MAP,
+         "resolved_by": "ACCEL_SPRINT_S5/S7 — recovered and digest-pinned in the archive",
+         "what_changed": ("the IRT b_map IS recoverable from the frozen research bytes, so "
+                          "the 'not bundled' half of the claim is closed"),
+         "what_did_not_change": ("the map is keyed by the SCIENTIFIC skill_id space, so it "
+                                 "is not a product input; the residual blocker is "
+                                 "BLOCKER_ONTOLOGY, which is why the code does not appear "
+                                 "as a separate OPEN reason")},
     ]
 
 

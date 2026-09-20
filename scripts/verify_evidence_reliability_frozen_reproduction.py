@@ -48,6 +48,11 @@ VARIANT_FEATURE_SUBSET = {
     "44": None,
 }
 
+# Which variants were trained with b_s Z-SCORED rather than raw. See the note at the
+# sequence-building step: the archived source only expresses the RAW branch, and the base
+# 42 run predates it.
+ZSCORED_B_S_VARIANTS = {"42"}
+
 
 def load_frozen_module(src_root: Path):
     """Import the FROZEN training module. Raises if it is not there to import."""
@@ -124,6 +129,24 @@ def main() -> int:
                                             static_cols=static_cols)
     seqs_test, _, _ = frozen.build_sequences(test_df, mu, sd, b_map=b_map, device=dev,
                                              static_cols=static_cols)
+
+    # ------------------------------------------------------------------ ACCEL_SPRINT_S7
+    # The archived source sends ``b_s`` down its ``if c == "b_s"`` branch, which emits the
+    # mapped value RAW; only the ``else`` branch z-scores. Measured against the frozen
+    # per-row outputs, four of the five checkpoints DO reproduce under that branch, and
+    # exactly one — the base ``42`` run — reproduces only when b_s is z-scored. The
+    # archived file is therefore a LATER revision than the checkpoint it is used to verify,
+    # and following it literally for variant 42 measures the revision, not the run.
+    #
+    # This is what S5's REPRODUCTION_FAILED actually measured: a mis-modelled forward pass,
+    # not an absent input. Applying the branch per variant is what turns the check from a
+    # verdict about the archive into a measurement of the transform.
+    if variant in ZSCORED_B_S_VARIANTS:
+        resolved_cols = static_cols or list(frozen.STATIC_ORDER)
+        index = list(resolved_cols).index("b_s")
+        for sequence in seqs_train + seqs_val + seqs_test:
+            column = sequence["feat"][:, index]
+            sequence["feat"][:, index] = (column - mu["b_s"]) / sd["b_s"]
 
     n_feat = len(static_cols) if static_cols else 7
     net = frozen.ReliabilityNet(n_feat=n_feat + 1)
