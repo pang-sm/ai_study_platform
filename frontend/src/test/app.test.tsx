@@ -1,32 +1,14 @@
-import { render, screen } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import {
-  RouterProvider,
-  createMemoryHistory,
-  createRouter,
-} from '@tanstack/react-router';
+import { screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { routeTree } from '@/routeTree.gen';
-
-function renderApp(initialPath = '/') {
-  const router = createRouter({
-    routeTree,
-    history: createMemoryHistory({ initialEntries: [initialPath] }),
-  });
-  const queryClient = new QueryClient();
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>,
-  );
-}
+import { renderApp } from './render-app';
 
 describe('App', () => {
-  it('renders the index route', async () => {
+  it('renders the index route with the agenda first and learning spaces second', async () => {
     renderApp('/');
-    // Frozen Hero — the learning question that anchors the page.
-    expect(await screen.findByRole('heading', { name: /一个虚拟地址/ })).toBeInTheDocument();
-    // Primary content — the three learning worlds.
+    // The signed-in session is what names the learner; the greeting is not a generic slogan.
+    expect(await screen.findByRole('heading', { level: 1, name: /测试学习者/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '今天接下来学什么' })).toBeInTheDocument();
+    // Learning spaces remain a secondary exploration section.
     expect(screen.getByRole('heading', { name: '选择你的学习方向' })).toBeInTheDocument();
   });
 

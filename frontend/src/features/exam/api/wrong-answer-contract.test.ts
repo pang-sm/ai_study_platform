@@ -31,6 +31,7 @@ const SOURCE_LABELS: Record<SourceKind, string> = {
   chapter_practice: '章节练习',
   past_paper: '历年真题',
   ai_generated: 'AI 出题',
+  course_material: '课程资料题',
   other: '其他',
 };
 

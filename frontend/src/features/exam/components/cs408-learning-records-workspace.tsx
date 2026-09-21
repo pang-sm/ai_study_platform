@@ -73,9 +73,9 @@ export function Cs408LearningRecordsWorkspace({ moduleKey }: { moduleKey?: strin
   const records = useCs408LearningRecords(moduleKey);
   const flatRecords = records.data?.pages.flatMap((page) => page.records) ?? [];
   const groups = groupByBrowserDate(flatRecords);
-  return <ExamPageShell activeItem="cs408"><section className="learning-records" aria-labelledby="learning-records-title">
+  return <ExamPageShell activeItem="cs408" cs408Tab="records" moduleKey={moduleKey}><section className="learning-records" aria-labelledby="learning-records-title">
     <header className="learning-records__header"><p>CS408 / Learning Activity Ledger</p><h1 id="learning-records-title">学习记录档案</h1><span>按真实学习事件编排</span></header>
-    <FilterNav moduleKey={moduleKey} />
+    <FilterNav moduleKey={moduleKey} /><a className="learning-records__source" href={`/reports?space=exam_11408${moduleKey ? `&module=${encodeURIComponent(moduleKey)}` : ''}`}>查看当前范围学习报告</a>
     {records.isPending ? <p className="learning-records__state">正在读取学习记录…</p> : null}
     {records.isError ? <section className="learning-records__state"><h2>学习记录暂时无法加载</h2><button type="button" onClick={() => void records.refetch()}>重试</button></section> : null}
     {!records.isPending && !records.isError && flatRecords.length === 0 ? <p className="learning-records__state">暂无学习记录</p> : null}

@@ -30,6 +30,9 @@ vi.mock('@tanstack/react-router', () => ({ Link: ({ children, to, search }: { ch
   return <a href={`${to}${parameters.size ? `?${parameters}` : ''}`}>{children}</a>;
 } }));
 vi.mock('./exam-page-shell', () => ({ ExamPageShell: ({ children }: { children: React.ReactNode }) => children }));
+// This suite isolates the legacy ledger. Dynamic Planning has its own query-client integration
+// tests; mounting it here would make a static ledger test depend on mutation infrastructure.
+vi.mock('@/features/learning-intelligence/learning-intelligence-surfaces', () => ({ DynamicPlanSurface: () => null }));
 
 describe('Cs408StudyPlanWorkspace', () => {
   hooks.useCs408StudyPlans.mockImplementation(() => plans);

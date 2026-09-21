@@ -6,6 +6,9 @@ import type { components } from '@/types/api';
 import { ApiRequestError } from '@/features/exam/api/content-status';
 import { Cs408PracticeWorkspace } from './cs408-practice-workspace';
 
+const feedbackProps = vi.fn();
+vi.mock('@/components/learning/ai-feedback', () => ({ AiFeedback: (props: unknown) => { feedbackProps(props); return null; } }));
+
 type Question = components['schemas']['ExamPracticeQuestion'];
 type ExplainOptions = { onSuccess?: (value: { analysis: string; generated_at: null; model: string | null; request_id: string }) => void; onError?: (error: Error) => void; onSettled?: () => void };
 
@@ -55,7 +58,7 @@ function renderWorkspace() {
 }
 
 describe('Cs408PracticeWorkspace', () => {
-  beforeEach(() => { attemptDetail = undefined; explain.mockClear(); });
+  beforeEach(() => { attemptDetail = undefined; explain.mockClear(); feedbackProps.mockClear(); });
   it('keeps explain unavailable before submission and renders only server-authoritative feedback afterwards', async () => {
     const user = userEvent.setup();
     renderWorkspace();
@@ -95,6 +98,7 @@ describe('Cs408PracticeWorkspace', () => {
     expect(screen.queryByText('hidden-model')).not.toBeInTheDocument();
     expect(screen.queryByText('hidden-request')).not.toBeInTheDocument();
     expect(screen.queryByText(/AI判分|自动评分/)).not.toBeInTheDocument();
+    expect(feedbackProps).toHaveBeenCalledWith({ requestId: 'hidden-request', workflowId: 'exam_practice_ai_explain' });
   });
 
   it('replays submitted feedback by question id after reload without comparing answers', () => {

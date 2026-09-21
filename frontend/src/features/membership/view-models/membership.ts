@@ -1,14 +1,15 @@
 import type { PlanDefinition, ServiceEntitlements, SubscriptionSummary } from '../api/subscription';
 
 // Tier labels. These are the tier IDENTIFIERS the backend stores (`free` / `standard` /
-// `advanced`), rendered — not marketing names invented for a page. An unknown tier falls
-// through to its own id so nothing is silently relabelled.
+// `advanced`), rendered — not marketing names invented for a page. A tier this build does not
+// know reads as `—`: the stored value is an enum key, and printing an unmapped key would put the
+// backend's vocabulary in front of a learner as if it were a plan name.
 const TIER_LABELS: Record<string, string> = { free: 'Free', standard: 'Standard', advanced: 'Advanced' };
 
 export function tierLabel(tier?: string | null): string {
   const value = (tier ?? '').trim();
   if (!value) return '—';
-  return TIER_LABELS[value] ?? value;
+  return TIER_LABELS[value] ?? '—';
 }
 
 export function tierInkClass(tier?: string | null): string {

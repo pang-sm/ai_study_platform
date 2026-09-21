@@ -34,6 +34,9 @@
   --color-surface: #ffffff;
   --color-text-primary: #172033;
   --color-text-secondary: #4b5563;
+  /* The quietest text that still clears 4.5:1 — but only on the canvas (#fbfaf7, 4.83:1) and on
+     white (4.77:1). On a tinted soft surface (ai-soft, success-soft, …) it drops to ~4.4:1 and
+     axe fails it; use `--color-text-secondary` inside those panels. */
   --color-text-muted: #6b7280;
   --color-border-default: #e4e5e8;
   --color-ink-soft: #eef2f8;
@@ -87,4 +90,44 @@
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   --duration-fast: 150ms;
   --duration-base: 200ms;
+
+  /* ============================================================
+     Editorial / Dossier layer
+     The tokens below exist so that the shared surfaces (shell, auth, home, profile,
+     workbench) can be built without page-level magic values. They add a surface
+     hierarchy (§4 CANVAS / EDITORIAL / FOCUS / OBJECT) and finish the semantic
+     families that previously had a soft background but no text-safe ink.
+     ============================================================ */
+
+  /* --- Brand intensity ladder (Visual Direction §6) ---
+     One blue is not a hierarchy. `subtle` backgrounds a focus surface, `strong` is the
+     pressed/dark edge of the default blue, `emphasis` is reserved for the single
+     strongest focal moment on a page. Domain accents stay separate and only identify. */
+  --color-brand-subtle: #f6f8fd;
+  --color-brand-strong: #1d4ed8;
+  --color-brand-emphasis: #1e3a8a;
+
+  /* --- FOCUS surface (Visual Direction §4) ---
+     The page's single most important learning action sits here. Distinct from both the
+     canvas and an OBJECT card, so "what to do next" cannot be mistaken for one more card. */
+  --color-focus-surface: #f6f8fd;
+  --color-focus-border: #c9d8f6;
+
+  /* --- Text-safe inks for the remaining families ---
+     Same rule as `--color-success-ink` / `--color-danger-ink`: the base token is a
+     fill/dot/border colour, these carry meaning in a glyph at ≥4.5:1 on the paper
+     background. `--color-neutral-soft` is the missing neutral chip background. */
+  --color-primary-ink: #1e40af;
+  --color-warning-ink: #92400e;
+  --color-ai-ink: #5b21b6;
+  --color-neutral-soft: #f3f4f6;
+
+  /* --- Type scale: the level between card title and section title --- */
+  --text-heading: 1.25rem; /* 20px */
+  --text-heading--line-height: 1.35;
+  /* Small caps-like eyebrow label used above a section title. */
+  --tracking-eyebrow: 0.08em;
+
+  /* --- Radius: chips, badges and counters --- */
+  --radius-pill: 999px;
 }

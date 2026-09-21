@@ -4,6 +4,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 import { router } from './router';
 import { queryClient } from '@/lib/query/query-client';
+import { AuthProvider } from '@/features/auth/auth-context';
 import '@/styles/index.css';
 
 const rootElement = document.getElementById('root');
@@ -16,7 +17,9 @@ if (!rootElement.innerHTML) {
   createRoot(rootElement).render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
+        <AuthProvider>
+          <RouterProvider router={router} />
+        </AuthProvider>
       </QueryClientProvider>
     </StrictMode>,
   );

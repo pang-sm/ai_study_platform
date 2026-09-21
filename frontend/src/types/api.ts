@@ -453,6 +453,30 @@ export interface paths {
         patch: operations["update_wrong_answer_wrong_answers__state_id__patch"];
         trace?: never;
     };
+    "/wrong-answers/{state_id}/analysis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Analyze Wrong Answer
+         * @description Deep wrong-cause analysis for ONE of the caller's own wrong-answer states.
+         *
+         *     The state is resolved through the SAME ownership check every read here uses, and its
+         *     question is resolved through the space's hardened resolver — so a state whose content
+         *     cannot be proven is not analysed (409), rather than analysed from an empty stem.
+         */
+        post: operations["analyze_wrong_answer_wrong_answers__state_id__analysis_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/learning-records/summary": {
         parameters: {
             query?: never;
@@ -523,6 +547,453 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/course-learning/courses/{course_id}/records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Course Records
+         * @description Newest-first page of THIS course's study history.
+         *
+         *     The namespace AND the course are both applied in SQL, before pagination: an exam or
+         *     programming event, or another course's event, cannot appear on this page.
+         *
+         *     Audit-only facts (AI accounting) are never part of a study timeline.
+         */
+        get: operations["list_course_records_course_learning_courses__course_id__records_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/course-learning/courses/{course_id}/records/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Course Records Summary
+         * @description Deterministic study-history counts for THIS course.
+         *
+         *     Course-scoped for the same reason the page is: a summary that counted every namespace
+         *     would report a learner's exam and programming history under their course.
+         */
+        get: operations["get_course_records_summary_course_learning_courses__course_id__records_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/course-learning/courses/{course_id}/wrong-answers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Course Wrong Answers
+         * @description The course's wrong-answer book, read from the canonical state rows.
+         *
+         *     Scoped by course through the state's own scope discriminator, so the same question id
+         *     answered in two courses yields two independent records and neither can surface here.
+         */
+        get: operations["list_course_wrong_answers_course_learning_courses__course_id__wrong_answers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/course-learning/courses/{course_id}/wrong-answers/{wrong_record_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Course Wrong Answer
+         * @description ONE course wrong-answer record plus the factual attempts behind it.
+         */
+        get: operations["get_course_wrong_answer_course_learning_courses__course_id__wrong_answers__wrong_record_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/course-learning/courses/{course_id}/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Course State
+         * @description The deterministic state of ONE course. READ-ONLY; writes nothing.
+         *
+         *     Every figure is a stored fact or a count over stored facts: knowledge status, real
+         *     practice attempts, wrong-answer states, recorded study tasks, and the recent canonical
+         *     events. There is deliberately NO mastery probability, NO readiness score, NO predicted
+         *     grade and NO model output — the course space has no scientific capability, and Student
+         *     Twin is not wired here.
+         */
+        get: operations["get_course_state_course_learning_courses__course_id__state_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/course-learning/courses/{course_id}/materials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Course Materials
+         * @description This course's material library. READ-ONLY.
+         *
+         *     Scoped by the course's own identity forms, so an exam scope or a programming course
+         *     that shares a spelling cannot be listed as this course's material.
+         */
+        get: operations["list_course_materials_course_learning_courses__course_id__materials_get"];
+        put?: never;
+        /**
+         * Upload Course Material
+         * @description Upload ONE file into THIS course's library.
+         *
+         *     WHO and WHICH COURSE are both decided here, from the session and the path — the client
+         *     supplies neither. The scope handed to the ingestion pipeline is the course's own
+         *     canonical identity, so no ``subject_key`` is invented for the course and no display
+         *     label is read back out of the request.
+         *
+         *     The ingestion itself is the EXISTING ``/materials/upload`` pipeline, called with that
+         *     resolved scope: the same quota resolution, the same duplicate detection, the same
+         *     storage, the same parse dispatch and the same background task. There is no second
+         *     material system, and a fix to the pipeline fixes both entry points at once.
+         *
+         *     Every form field is passed explicitly rather than left to the handler's defaults:
+         *     those defaults are FastAPI ``Form`` markers, which only become values when the request
+         *     is injected, so relying on them from a direct call would hand the pipeline a marker
+         *     object instead of a value.
+         *
+         *     Both gates are therefore kept, deliberately: this course must belong to the caller
+         *     (asserted here, from the stored course), and it must still be one the learner has
+         *     selected in course onboarding (asserted by the pipeline). A course that was deselected
+         *     accepts no new files, even if a preference row for it is still on the account.
+         */
+        post: operations["upload_course_material_course_learning_courses__course_id__materials_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/course-learning/courses/{course_id}/practice/workbook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Course Workbook
+         * @description The course's AI question book, with each question's own attempt history.
+         *
+         *     Workbook questions carry no reference answer: the verdict belongs to a submit.
+         */
+        get: operations["get_course_workbook_course_learning_courses__course_id__practice_workbook_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/course-learning/courses/{course_id}/practice/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Course Practice History
+         * @description This course's practice attempts, newest first.
+         */
+        get: operations["get_course_practice_history_course_learning_courses__course_id__practice_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/course-learning/courses/{course_id}/practice/questions/{question_id}/attempts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Course Question Attempt
+         * @description Open a NEW attempt on one of THIS course's questions ("下一题"/重做).
+         *
+         *     A question from another course is not reachable through this path: it is resolved
+         *     through the course-scoped workbook query first, so it is a 404 rather than an attempt
+         *     filed under a course whose page the learner was not on. (The delegate it then calls
+         *     is the existing route, which resolves the question by id alone — hence the check
+         *     belongs here, where the course is known.)
+         */
+        post: operations["start_course_question_attempt_course_learning_courses__course_id__practice_questions__question_id__attempts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/course-learning/courses/{course_id}/practice/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Course Question
+         * @description Generate ONE new question for this course and open an attempt on it.
+         *
+         *     Delegates to the existing course generation route with the path's course. That route
+         *     keeps its own capability/budget decision: an entitlement denial is an answer and is
+         *     re-raised as such, while a model outage degrades to the deterministic local question
+         *     and says so in ``generation_mode``.
+         */
+        post: operations["generate_course_question_course_learning_courses__course_id__practice_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/course-learning/courses/{course_id}/practice/{attempt_id}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Course Practice
+         * @description Submit ONE answer to THIS course's attempt.
+         *
+         *     The attempt is resolved and its course ownership is checked BEFORE grading, so a
+         *     course-A attempt cannot be submitted through a course-B path. Grading, the knowledge
+         *     transition, the canonical learning record, the data-plane event and the practice
+         *     mirror are the existing implementation's — this handler adds the identity check and
+         *     nothing else.
+         */
+        post: operations["submit_course_practice_course_learning_courses__course_id__practice__attempt_id__submit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/course-learning/courses/{course_id}/today-plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Course Today Plan
+         * @description Today's tasks for THIS course. READ-ONLY.
+         *
+         *     Every item is attributable to the course: plan tasks through the shared
+         *     ``course_learning:<course>`` key, generic tasks only when their stored ``course_id``
+         *     is one of this course's exact identity forms. A task that cannot be attributed is left
+         *     out rather than guessed into the course.
+         */
+        get: operations["get_course_today_plan_course_learning_courses__course_id__today_plan_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/programming/records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Programming Records
+         * @description Newest-first page of the caller's programming study history.
+         *
+         *     The namespace filter is applied in SQL before pagination: this page can only ever
+         *     contain ``service_key = 'programming'`` facts, and a course or exam event cannot reach
+         *     it by any query parameter.
+         *
+         *     Audit-only facts (AI accounting) are never part of a study timeline.
+         */
+        get: operations["list_programming_records_programming_records_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/programming/records/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Programming Records Summary
+         * @description Deterministic programming study-history counts, namespace-scoped in SQL.
+         */
+        get: operations["get_programming_records_summary_programming_records_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/programming/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Programming State
+         * @description The deterministic programming state for ONE learner. READ-ONLY; writes nothing.
+         *
+         *     Every figure is a stored fact or a count over stored facts: per-exercise product status,
+         *     real graded attempts, language, recorded study tasks, and the recent canonical events.
+         *     There is deliberately NO mastery probability, NO readiness score, NO weakness ranking
+         *     and NO scientific model output.
+         */
+        get: operations["get_programming_state_programming_state_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/programming/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Programming Plan
+         * @description The caller's programming study plan. GATED by the unified ``learning_plan`` feature.
+         *
+         *     Free is denied with the standard upgrade contract; Standard and Advanced are allowed.
+         *     The gate is the SAME ``FEATURE_CAPABILITY['learning_plan'] → planning.generate`` the
+         *     course and exam directions use — this introduces no programming membership.
+         */
+        get: operations["get_programming_plan_programming_plan_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/programming/plan/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Programming Plan Task
+         * @description Add one task to the caller's programming plan. GATED by ``learning_plan``.
+         */
+        post: operations["create_programming_plan_task_programming_plan_tasks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/programming/plan/tasks/{task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Programming Plan Task
+         * @description Delete one programming plan task. GATED by ``learning_plan``.
+         */
+        delete: operations["delete_programming_plan_task_programming_plan_tasks__task_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Programming Plan Task
+         * @description Update one programming plan task. GATED by ``learning_plan``.
+         */
+        patch: operations["update_programming_plan_task_programming_plan_tasks__task_id__patch"];
         trace?: never;
     };
     "/exam/prep/profile": {
@@ -872,6 +1343,456 @@ export interface paths {
          */
         get: operations["get_scientific_status_science_status_get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/deep-study": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Deep Study
+         * @description One grounded strong-reasoning answer, in the caller's own learning context.
+         *
+         *     A tier that does not permit ``tutor.strong_reasoning`` gets 403 and a budget refusal gets
+         *     429 — raised by the unified AI boundary, not decided here. A material the caller may not
+         *     ground an answer in is listed in ``materials.excluded``; it is never silently read.
+         */
+        post: operations["run_deep_study_ai_deep_study_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/programming/agent/debug": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Programming Agent
+         * @description Run ONE bounded debug workflow over the caller's own exercise code.
+         *
+         *     A capability the tier does not permit is a 403 and an exhausted budget is a 429 BEFORE
+         *     any work starts. A workflow that fails after real steps have run returns 200 with
+         *     ``status="failed"`` plus its trace: the facts that happened are not hidden behind an
+         *     error, and the steps that did run were settled individually.
+         */
+        post: operations["run_programming_agent_programming_agent_debug_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Review Items
+         * @description The caller's outstanding review work, newest facts first within each bucket.
+         *
+         *     ``status=due`` is the ONLY bucket backed by a stored date. ``needs_attention`` items have
+         *     no stored date, so they are never presented as scheduled — and a domain with no real
+         *     schedule contributes nothing to it rather than a fabricated interval.
+         */
+        get: operations["list_review_items_review_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/review/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Review Summary
+         * @description Deterministic counts over the SAME projection the list serves.
+         *
+         *     There is no second aggregation path: a summary that counted differently from the page
+         *     would be a bug the learner would see immediately.
+         */
+        get: operations["review_summary_review_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/review/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Schedule Reviews
+         * @description Compute and RECORD the next review date for the caller's items.
+         *
+         *     The date comes from the deterministic policy over stored facts — never from a memory
+         *     model, because there is no real interval/rating/lapse history to feed one. Everything the
+         *     policy used is returned with the date, so it can be re-derived and checked.
+         */
+        post: operations["schedule_reviews_review_schedule_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/review/{item_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete Review
+         * @description Record the learner's OWN review result and reschedule from it.
+         *
+         *     The result is mandatory: an unreported review cannot move a schedule. The completion and
+         *     its next due date are emitted together as canonical facts.
+         */
+        post: operations["complete_review_review__item_id__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/learning-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Learning Report
+         * @description ONE structured report for the caller.
+         *
+         *     ``include_narrative=false`` returns the deterministic report alone — every metric computed
+         *     by SQL from the caller's own rows. ``include_narrative=true`` adds an AI composition over
+         *     exactly those metrics, gated by the unified ``report.generate`` capability: a tier without
+         *     it gets 403, and a budget refusal gets 429. A technical failure of the narrative returns
+         *     the deterministic report with ``narrative_error`` set rather than discarding the metrics.
+         */
+        post: operations["generate_learning_report_ai_learning_report_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/plan-adjustment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Propose Plan Adjustment
+         * @description Propose a bounded adjustment to ONE of the caller's plans. WRITES NOTHING.
+         */
+        post: operations["propose_plan_adjustment_ai_plan_adjustment_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/plan-adjustment/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply Plan Adjustment
+         * @description Apply an ACCEPTED proposal — the only action that changes a plan.
+         *
+         *     409 ``stale_proposal`` when the plan is no longer the one the proposal was built from:
+         *     the learner's newer edits always win over an old suggestion.
+         */
+        post: operations["apply_plan_adjustment_ai_plan_adjustment_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/adaptive/practice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Adaptive Practice
+         * @description What to practise next in ONE learning space, ranked by stored facts.
+         *
+         *     Every candidate carries a reason code (``due_review`` / ``recent_wrong`` / ``needs_work`` /
+         *     ``coverage_gap`` / ``unseen_topic``) and the facts behind it. No scientific component is
+         *     consulted and no weakness or mastery claim is made — see the response's ``semantics``.
+         */
+        get: operations["adaptive_practice_adaptive_practice_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/feedback/analytics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Feedback Analytics
+         * @description Aggregated ratings, for Champion/Challenger work later — read-only, no tuning.
+         *
+         *     ``scope=mine`` (default) is the caller's own ratings. ``scope=platform`` is the
+         *     admin-only, AGGREGATED view: it returns counts and rates, never a user id, a request id or
+         *     a per-learner row. Neither scope changes the router.
+         */
+        get: operations["feedback_analytics_ai_feedback_analytics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/feedback/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Model Availability
+         * @description Router V1 availability, WITH its scope stated — admin-facing ops view.
+         *
+         *     The state is process-local, which is correct for a single-process deployment (the current
+         *     topology) and would need a shared store to be exact across workers. Exposing it makes that
+         *     requirement visible instead of implicit.
+         */
+        get: operations["model_availability_ai_feedback_availability_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Ai Feedback
+         * @description Rate ONE of the caller's OWN AI responses.
+         *
+         *     The rating is stored against the request's full context (capability, model, router reason,
+         *     latency, cost) as an audit fact. It does NOT adjust the router: ``trains_router_online``
+         *     is false and stays false — a single dislike must never re-route anyone's next request.
+         */
+        post: operations["submit_ai_feedback_ai_feedback_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/learning/agenda": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Learning Agenda
+         * @description The caller's next actions across every learning space, in policy order.
+         *
+         *     READ-ONLY and state-free: each item names an object that already exists and links to the
+         *     surface that owns it. Complete the real action there and the next read simply recomputes —
+         *     there is no second "completed" state for anything to drift out of sync with.
+         */
+        get: operations["get_learning_agenda_learning_agenda_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/learning/agenda/explain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Explain Learning Agenda
+         * @description Why this item, why now, and what will change the next read.
+         *
+         *     Competition/explainability surface: the policy ladder, the rule behind every reason code,
+         *     what makes each item disappear, and the same agenda with its facts.
+         */
+        get: operations["explain_learning_agenda_learning_agenda_explain_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/ai-operations/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ai Operations Summary
+         * @description Platform-wide AI operations, AGGREGATED ONLY — requests, outcomes, latency, credits,
+         *     capability/model/provider breakdown, router fallbacks, degraded availability and the
+         *     learners' own ratings. No prompt, no response, no learner identity.
+         */
+        get: operations["ai_operations_summary_admin_ai_operations_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/workflow-operations/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Workflow Operations Summary
+         * @description Per-workflow aggregates for the advanced workflows: calls, success/failure, latency,
+         *     credits and the NORMALIZED failure category. The debug agent also reports iterations and
+         *     executions actually used, counted from its stored code-free step traces.
+         */
+        get: operations["workflow_operations_summary_admin_workflow_operations_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/workflow-operations/agent-runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Agent Run Detail
+         * @description ONE debug-agent run, read back from the durable stores that already exist.
+         *
+         *     Both halves are committed independently of the process that produced them: the run's
+         *     canonical events carry the code-free per-step trace, and each model step has its own
+         *     ``ai_requests`` row under a deterministic id. This is the read that makes restart
+         *     recovery, detail read and debugging answerable WITHOUT a per-step table.
+         */
+        get: operations["agent_run_detail_admin_workflow_operations_agent_runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/feature-flags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Feature Flags
+         * @description The advanced-workflow kill switches, with the mode each one is actually in.
+         */
+        get: operations["list_feature_flags_admin_feature_flags_get"];
+        /**
+         * Update Feature Flags
+         * @description Set one or more modes. Takes effect on the NEXT request — no deploy, no restart.
+         *
+         *     The change is audit-logged with its old and new values, exactly like an admin setting.
+         */
+        put: operations["update_feature_flags_admin_feature_flags_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2281,7 +3202,22 @@ export interface paths {
         put?: never;
         /**
          * Diagnose Code
-         * @description Perform syntax/compile diagnostics without executing code.
+         * @description 代码诊断（静态语法检查）— deterministic syntax/compile diagnostics; NOT an AI capability.
+         *
+         *     C is checked with ``gcc -fsyntax-only`` in the sandbox image, Python with
+         *     ``sys.executable -m py_compile``; neither executes the learner's program. No model is
+         *     involved at any point, so this endpoint:
+         *
+         *     * creates no ``ai_requests`` row and returns NO ``request_id`` — there is nothing to
+         *       identify, because the answer came from a compiler and not from a request;
+         *     * consumes no AI credits and is not subject to capability / budget decisions;
+         *     * produces no AI answer, therefore nothing ``POST /ai/feedback`` can rate.
+         *
+         *     The line/column it reports are the COMPILER's real positions. It is not converged onto
+         *     the AI stack on purpose: that would replace a compiler verdict with a model's
+         *     description of one, and would make a syntax check fail when a model is unavailable.
+         *     AI code analysis lives at ``POST /code/analyze``; the multi-step repair workflow at
+         *     ``POST /programming/agent/debug``.
          */
         post: operations["diagnose_code_code_diagnose_post"];
         delete?: never;
@@ -6042,6 +6978,231 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AIFeedbackRequest
+         * @description One rating. The request id is the identity; ``reason`` follows the frozen taxonomy.
+         */
+        AIFeedbackRequest: {
+            /** Request Id */
+            request_id: string;
+            /**
+             * Rating
+             * @enum {string}
+             */
+            rating: "up" | "down";
+            /** Reason */
+            reason?: ("incorrect" | "too_shallow" | "too_complex" | "too_verbose" | "too_brief" | "bad_code" | "slow" | "poor_image" | "other") | null;
+            /**
+             * Regenerated
+             * @default false
+             */
+            regenerated: boolean;
+            /**
+             * Switched Model
+             * @default false
+             */
+            switched_model: boolean;
+            /**
+             * Workflow Id
+             * @default
+             */
+            workflow_id: string;
+        };
+        /** AIFeedbackResponse */
+        AIFeedbackResponse: {
+            /** Request Id */
+            request_id: string;
+            /** Rating */
+            rating: string;
+            /** Reason */
+            reason?: string | null;
+            /**
+             * Regenerated
+             * @default false
+             */
+            regenerated: boolean;
+            /**
+             * Switched Model
+             * @default false
+             */
+            switched_model: boolean;
+            /** Workflow Id */
+            workflow_id?: string | null;
+            /** Capability */
+            capability: string;
+            /** Service Namespace */
+            service_namespace?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Provider */
+            provider?: string | null;
+            /** Tier */
+            tier?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Latency Ms */
+            latency_ms?: number | null;
+            /** Estimated Credits */
+            estimated_credits?: number | null;
+            /** Actual Credits */
+            actual_credits?: number | null;
+            /** Router Reason */
+            router_reason?: string | null;
+            /** Context */
+            context?: {
+                [key: string]: unknown;
+            } | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Submitted At */
+            submitted_at: string;
+            /**
+             * Trains Router Online
+             * @default false
+             */
+            trains_router_online: boolean;
+            /** Reason Taxonomy */
+            reason_taxonomy?: string[];
+        } & {
+            [key: string]: unknown;
+        };
+        /** AIOperationsSummary */
+        AIOperationsSummary: {
+            /** Scope */
+            scope: string;
+            /** Window Days */
+            window_days: number;
+            /** Window Start */
+            window_start: string;
+            /** Generated At */
+            generated_at: string;
+            /** Requests */
+            requests: {
+                [key: string]: unknown;
+            };
+            /** Latency */
+            latency: {
+                [key: string]: unknown;
+            };
+            /** Credits */
+            credits: {
+                [key: string]: unknown;
+            };
+            /** By Capability */
+            by_capability: {
+                [key: string]: unknown;
+            };
+            /** By Model */
+            by_model: {
+                [key: string]: unknown;
+            };
+            /** By Provider */
+            by_provider: {
+                [key: string]: unknown;
+            };
+            /** By Tier */
+            by_tier: {
+                [key: string]: unknown;
+            };
+            /** By Service Namespace */
+            by_service_namespace: {
+                [key: string]: unknown;
+            };
+            /** Router */
+            router: {
+                [key: string]: unknown;
+            };
+            /** Feedback */
+            feedback: {
+                [key: string]: unknown;
+            };
+            /** Availability */
+            availability: {
+                [key: string]: unknown;
+            };
+            /** Bounded */
+            bounded: {
+                [key: string]: unknown;
+            };
+            /** Privacy */
+            privacy: {
+                [key: string]: unknown;
+            };
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * AdaptiveCandidateView
+         * @description ONE candidate, with the FACTUAL rule that selected it.
+         */
+        AdaptiveCandidateView: {
+            /** Candidate Id */
+            candidate_id: string;
+            /** Source Type */
+            source_type: string;
+            /** Question Source Id */
+            question_source_id: string;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /** Question Type */
+            question_type?: string | null;
+            /** Difficulty */
+            difficulty?: string | null;
+            /** Knowledge Point Id */
+            knowledge_point_id?: string | null;
+            /** Knowledge Point Name */
+            knowledge_point_name?: string | null;
+            /** Reason */
+            reason: string;
+            /** Facts */
+            facts?: {
+                [key: string]: unknown;
+            };
+        } & {
+            [key: string]: unknown;
+        };
+        /** AdaptivePracticeResponse */
+        AdaptivePracticeResponse: {
+            /** Selection Id */
+            selection_id: string;
+            /** Service Namespace */
+            service_namespace: string;
+            /** Context */
+            context: {
+                [key: string]: unknown;
+            };
+            /** Policy Version */
+            policy_version: string;
+            /** Candidates */
+            candidates?: components["schemas"]["AdaptiveCandidateView"][];
+            /**
+             * Total Candidates
+             * @default 0
+             */
+            total_candidates: number;
+            /**
+             * Excluded Count
+             * @default 0
+             */
+            excluded_count: number;
+            /** Counts By Reason */
+            counts_by_reason?: {
+                [key: string]: number;
+            };
+            /** Reasons */
+            reasons?: {
+                [key: string]: string;
+            };
+            /** Semantics */
+            semantics: string;
+            /** Generated At */
+            generated_at: string;
+        } & {
+            [key: string]: unknown;
+        };
         /** AddMaterialFromMessageRequest */
         AddMaterialFromMessageRequest: {
             /** Username */
@@ -6141,6 +7302,302 @@ export interface components {
         AdminUpdateStatusRequest: {
             /** Is Active */
             is_active: boolean;
+        };
+        /**
+         * AgendaItemView
+         * @description ONE next action. Its domain is the domain of ITS OWN row — never the caller's filter.
+         */
+        AgendaItemView: {
+            /** Action Type */
+            action_type: string;
+            /** Service Namespace */
+            service_namespace: string;
+            /** Domain Context */
+            domain_context: {
+                [key: string]: unknown;
+            };
+            /** Source Type */
+            source_type: string;
+            /** Source Id */
+            source_id: string;
+            /** Title */
+            title: string;
+            /** Summary */
+            summary: string;
+            /** Priority Reason */
+            priority_reason: string;
+            /** Deep Link */
+            deep_link: string;
+            /** Due At */
+            due_at?: string | null;
+            /** Facts */
+            facts?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Status
+             * @default open
+             */
+            status: string;
+            /** Resolved By */
+            resolved_by?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** AgendaResponse */
+        AgendaResponse: {
+            /** Policy Version */
+            policy_version: string;
+            /** Generated At */
+            generated_at: string;
+            /** Items */
+            items?: components["schemas"]["AgendaItemView"][];
+            /**
+             * Total Items
+             * @default 0
+             */
+            total_items: number;
+            source_summary: components["schemas"]["AgendaSourceSummary"];
+            /** By Namespace */
+            by_namespace?: {
+                [key: string]: number;
+            };
+            /** By Reason */
+            by_reason?: {
+                [key: string]: number;
+            };
+            /** Priority Order */
+            priority_order?: string[];
+            /** Filters */
+            filters?: {
+                [key: string]: unknown;
+            };
+            /** Semantics */
+            semantics: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /** AgendaSourceSummary */
+        AgendaSourceSummary: {
+            /**
+             * Plan Tasks
+             * @default 0
+             */
+            plan_tasks: number;
+            /**
+             * Review Items
+             * @default 0
+             */
+            review_items: number;
+            /**
+             * Adaptive Candidates
+             * @default 0
+             */
+            adaptive_candidates: number;
+            /**
+             * Unattributable Plan Tasks
+             * @default 0
+             */
+            unattributable_plan_tasks: number;
+            /**
+             * Deduplicated
+             * @default 0
+             */
+            deduplicated: number;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * AgentDebugFile
+         * @description One file of the caller's own working copy. A name only — never a path.
+         */
+        AgentDebugFile: {
+            /** Filename */
+            filename: string;
+            /**
+             * Content
+             * @default
+             */
+            content: string;
+        };
+        /** AgentDebugRequest */
+        AgentDebugRequest: {
+            /** Exercise Id */
+            exercise_id: number;
+            /** Project Id */
+            project_id?: number | null;
+            /** Files */
+            files?: components["schemas"]["AgentDebugFile"][];
+            /**
+             * Goal
+             * @default
+             */
+            goal: string;
+        };
+        /**
+         * AgentDebugResponse
+         * @description The bounded run: its status, its trace, its artifacts and what it cost.
+         */
+        AgentDebugResponse: {
+            /** Agent Run Id */
+            agent_run_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "completed" | "failed" | "no_repair_needed";
+            /** Reason */
+            reason?: string | null;
+            /** Stop Reason */
+            stop_reason?: string | null;
+            /** Exercise Id */
+            exercise_id?: number | null;
+            /**
+             * Language
+             * @default
+             */
+            language: string;
+            /** Steps */
+            steps?: components["schemas"]["AgentStepView"][];
+            /**
+             * Iterations Used
+             * @default 0
+             */
+            iterations_used: number;
+            /**
+             * Executions Used
+             * @default 0
+             */
+            executions_used: number;
+            /** Tests Before */
+            tests_before?: {
+                [key: string]: unknown;
+            } | null;
+            /** Tests After */
+            tests_after?: {
+                [key: string]: unknown;
+            } | null;
+            /** Proposed Patch */
+            proposed_patch?: string | null;
+            /** Patch File */
+            patch_file?: string | null;
+            /** Final Code */
+            final_code?: string | null;
+            /**
+             * Diagnosis
+             * @default
+             */
+            diagnosis: string;
+            /**
+             * Patch Summary
+             * @default
+             */
+            patch_summary: string;
+            /**
+             * Explanation
+             * @default
+             */
+            explanation: string;
+            usage?: components["schemas"]["AgentUsageView"];
+            /** Error Category */
+            error_category?: string | null;
+            /** Message */
+            message?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** AgentRunDetail */
+        AgentRunDetail: {
+            /** Agent Run Id */
+            agent_run_id: string;
+            /** Found */
+            found: boolean;
+            /** Exercise Id */
+            exercise_id?: number | null;
+            /** Language */
+            language?: string | null;
+            /** Run Status */
+            run_status?: string | null;
+            /** Stopped Reason */
+            stopped_reason?: string | null;
+            /** Trace */
+            trace?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Model Steps
+             * @default 0
+             */
+            model_steps: number;
+            /** Steps */
+            steps?: {
+                [key: string]: unknown;
+            }[];
+            /** Durable Sources */
+            durable_sources?: string[];
+            /** Privacy */
+            privacy: {
+                [key: string]: unknown;
+            };
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * AgentStepView
+         * @description ONE step of the trace. ``action`` is a closed vocabulary; every figure is observed.
+         */
+        AgentStepView: {
+            /** Step Index */
+            step_index: number;
+            /** Action */
+            action: string;
+            /** Status */
+            status: string;
+            /** Ai Request Id */
+            ai_request_id?: string | null;
+            /** Capability */
+            capability?: string | null;
+            /** Latency Ms */
+            latency_ms?: number | null;
+            /** Credits */
+            credits?: number | null;
+            /** Estimated Credits */
+            estimated_credits?: number | null;
+            /** Tests */
+            tests?: {
+                [key: string]: unknown;
+            } | null;
+            /** File */
+            file?: string | null;
+            /** Patch */
+            patch?: string | null;
+            /** Reason */
+            reason?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** AgentUsageView */
+        AgentUsageView: {
+            /**
+             * Model Steps
+             * @default 0
+             */
+            model_steps: number;
+            /**
+             * Execution Steps
+             * @default 0
+             */
+            execution_steps: number;
+            /**
+             * Actual Credits
+             * @default 0
+             */
+            actual_credits: number;
+            /**
+             * Estimated Credits
+             * @default 0
+             */
+            estimated_credits: number;
         };
         /** AiQuestionBatchCreate */
         AiQuestionBatchCreate: {
@@ -6352,6 +7809,11 @@ export interface components {
              * @default false
              */
             save_to_materials: boolean;
+        };
+        /** Body_upload_course_material_course_learning_courses__course_id__materials_post */
+        Body_upload_course_material_course_learning_courses__course_id__materials_post: {
+            /** File */
+            file: string;
         };
         /** Body_upload_material_materials_upload_post */
         Body_upload_material_materials_upload_post: {
@@ -6871,6 +8333,84 @@ export interface components {
             code?: string | null;
         };
         /**
+         * CourseAnswerSubmitRequest
+         * @description The learner's answer to ONE question. One choice, A/B/C/D.
+         */
+        CourseAnswerSubmitRequest: {
+            /** Answer */
+            answer: string;
+        };
+        /**
+         * CourseAttemptStartedResponse
+         * @description A freshly opened attempt on one of this course's questions.
+         */
+        CourseAttemptStartedResponse: {
+            /** Course Id */
+            course_id: string;
+            /**
+             * Success
+             * @default true
+             */
+            success: boolean;
+            /** Attempt Id */
+            attempt_id: number;
+            question: components["schemas"]["CourseQuestionView"];
+        };
+        /**
+         * CourseAttemptView
+         * @description One factual attempt on a question — status and verdict, never a prediction.
+         */
+        CourseAttemptView: {
+            /** Id */
+            id: number;
+            /** Status */
+            status?: string | null;
+            /** Correct */
+            correct?: boolean | null;
+            /** Accuracy */
+            accuracy?: number | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Submitted At */
+            submitted_at?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * CourseIdentity
+         * @description Which course this state is about.
+         *
+         *     ``declared_level`` is the learner's OWN onboarding answer (the stored
+         *     ``course_learning_preferences.mastery_level``), deliberately renamed on the wire so no
+         *     reader can mistake a self-report for a measured ability.
+         */
+        CourseIdentity: {
+            /** Course Id */
+            course_id: string;
+            /** Display Name */
+            display_name: string;
+            /** Is Started */
+            is_started: boolean;
+            /** Declared Level */
+            declared_level?: string | null;
+            /** Learning Goal */
+            learning_goal?: string | null;
+        };
+        /**
+         * CourseKnowledgeProgressBlock
+         * @description Deterministic knowledge-status counts, from the stored progress rows.
+         */
+        CourseKnowledgeProgressBlock: {
+            /** Total Points */
+            total_points: number;
+            /** By Status */
+            by_status: {
+                [key: string]: number;
+            };
+            /** Status Semantics */
+            status_semantics: string;
+        };
+        /**
          * CourseLearningExamScopeRequest
          * @description Patch one source of the persisted course Exam Scope.
          */
@@ -6996,6 +8536,192 @@ export interface components {
              */
             ordered_ids: string[];
         };
+        /** CourseMaterialListResponse */
+        CourseMaterialListResponse: {
+            /** Course Id */
+            course_id: string;
+            /** Items */
+            items: components["schemas"]["CourseMaterialView"][];
+            /** Total */
+            total: number;
+        };
+        /**
+         * CourseMaterialUploadResponse
+         * @description The upload result, in the material pipeline's own shape plus the course identity.
+         *
+         *     ``course_id`` is echoed because the client did NOT supply it as an authority — the
+         *     path did — so the response is where a page learns which course the file landed in.
+         */
+        CourseMaterialUploadResponse: {
+            /** Course Id */
+            course_id: string;
+            /**
+             * Success
+             * @default true
+             */
+            success: boolean;
+            /** Material Id */
+            material_id?: number | null;
+            /** Filename */
+            filename?: string | null;
+            /** Parse Status */
+            parse_status?: string | null;
+            /**
+             * Parse Progress
+             * @default 0
+             */
+            parse_progress: number;
+            /**
+             * Message
+             * @default
+             */
+            message: string;
+            /** Material */
+            material?: {
+                [key: string]: unknown;
+            } | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * CourseMaterialView
+         * @description ONE material in the course library.
+         */
+        CourseMaterialView: {
+            /** Id */
+            id: number;
+            /**
+             * Course Id
+             * @default
+             */
+            course_id: string;
+            /**
+             * Subject Key
+             * @default
+             */
+            subject_key: string;
+            /** Subject */
+            subject?: string | null;
+            /** File Type */
+            file_type?: string | null;
+            /** Original Filename */
+            original_filename?: string | null;
+            /**
+             * File Size
+             * @default 0
+             */
+            file_size: number;
+            /** Parse Status */
+            parse_status?: string | null;
+            /**
+             * Parse Progress
+             * @default 0
+             */
+            parse_progress: number;
+            /**
+             * Chunk Count
+             * @default 0
+             */
+            chunk_count: number;
+            /** Created At */
+            created_at?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * CoursePlanBlock
+         * @description The course's study tasks, from the shared per-direction task table.
+         */
+        CoursePlanBlock: {
+            /** Subject Key */
+            subject_key: string;
+            /** Total */
+            total: number;
+            /** By Status */
+            by_status: {
+                [key: string]: number;
+            };
+            /** Open */
+            open: number;
+        };
+        /**
+         * CoursePracticeBlock
+         * @description Factual attempt counts. ``ungraded`` is a real third state, never a zero score.
+         */
+        CoursePracticeBlock: {
+            /** Attempts */
+            attempts: number;
+            /** Graded Attempts */
+            graded_attempts: number;
+            /** Factual Correct */
+            factual_correct: number;
+            /** Factual Incorrect */
+            factual_incorrect: number;
+            /** Ungraded Attempts */
+            ungraded_attempts: number;
+        };
+        /** CoursePracticeHistoryItem */
+        CoursePracticeHistoryItem: {
+            /** Id */
+            id: number;
+            /** Question Id */
+            question_id?: number | null;
+            /** Course Id */
+            course_id?: string | null;
+            /**
+             * Chapter
+             * @default
+             */
+            chapter: string;
+            /**
+             * Knowledge Point Name
+             * @default
+             */
+            knowledge_point_name: string;
+            /** Status */
+            status?: string | null;
+            /** Correct Count */
+            correct_count?: number | null;
+            /** Accuracy */
+            accuracy?: number | null;
+            /** Correct */
+            correct?: boolean | null;
+            /**
+             * Stem
+             * @default
+             */
+            stem: string;
+            /** Generation Mode */
+            generation_mode?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Submitted At */
+            submitted_at?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** CoursePracticeHistoryResponse */
+        CoursePracticeHistoryResponse: {
+            /** Course Id */
+            course_id: string;
+            /** Items */
+            items: components["schemas"]["CoursePracticeHistoryItem"][];
+            /** Total */
+            total: number;
+        };
+        /** CoursePracticeSubmitResponse */
+        CoursePracticeSubmitResponse: {
+            /** Course Id */
+            course_id: string;
+            /**
+             * Success
+             * @default true
+             */
+            success: boolean;
+            /** Attempt Id */
+            attempt_id: number;
+            result: components["schemas"]["CourseSubmitResult"];
+        };
         /** CourseProgressUpdateRequest */
         CourseProgressUpdateRequest: {
             /** Username */
@@ -7006,6 +8732,486 @@ export interface components {
             knowledge_point: string;
             /** Status */
             status: string;
+        };
+        /**
+         * CourseQuestionGenerateRequest
+         * @description What to generate. The question identity is the knowledge point, not a course.
+         */
+        CourseQuestionGenerateRequest: {
+            /**
+             * Knowledge Point Code
+             * @default
+             */
+            knowledge_point_code: string;
+            /**
+             * Knowledge Point Id
+             * @default
+             */
+            knowledge_point_id: string;
+            /**
+             * Knowledge Point Title
+             * @default
+             */
+            knowledge_point_title: string;
+            /**
+             * Chapter
+             * @default
+             */
+            chapter: string;
+            /**
+             * Difficulty
+             * @default 基础
+             */
+            difficulty: string;
+            /** Material Ids */
+            material_ids?: number[];
+        };
+        /**
+         * CourseQuestionGeneratedResponse
+         * @description A generated course question plus the attempt that was opened for it.
+         *
+         *     ``generation_mode`` is part of the contract, not telemetry: ``fallback`` means the
+         *     model was unavailable and the question came from the deterministic local bank, and a
+         *     client must be able to say so rather than present it as generated content.
+         */
+        CourseQuestionGeneratedResponse: {
+            /** Course Id */
+            course_id: string;
+            /**
+             * Success
+             * @default true
+             */
+            success: boolean;
+            /** Generation Mode */
+            generation_mode: string;
+            /**
+             * Fallback Reason
+             * @default
+             */
+            fallback_reason: string;
+            /** Attempt Id */
+            attempt_id: number;
+            /**
+             * Chapter
+             * @default
+             */
+            chapter: string;
+            /** Knowledge Point */
+            knowledge_point?: {
+                [key: string]: string;
+            };
+            question: components["schemas"]["CourseQuestionView"];
+        };
+        /**
+         * CourseQuestionView
+         * @description ONE course workbook question, as the learner sees it.
+         *
+         *     No ``standard_answer`` and no ``analysis``: those are the grading side of the question
+         *     and are returned only in a submit's result. A workbook read cannot leak the answer.
+         */
+        CourseQuestionView: {
+            /** Id */
+            id: number;
+            /** Subject Key */
+            subject_key?: string | null;
+            /** Subject Name */
+            subject_name?: string | null;
+            /** Knowledge Point Id */
+            knowledge_point_id?: string | null;
+            /** Knowledge Point Name */
+            knowledge_point_name?: string | null;
+            /** Knowledge Point Path */
+            knowledge_point_path?: string | null;
+            /** Question Type */
+            question_type?: string | null;
+            /** Stem */
+            stem?: string | null;
+            /** Options */
+            options?: {
+                [key: string]: string;
+            };
+            /** Difficulty */
+            difficulty?: string | null;
+            /** Generation Mode */
+            generation_mode?: string | null;
+            /** Created At */
+            created_at?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * CourseReviewBlock
+         * @description What the STORED review dates say — no schedule is computed here.
+         */
+        CourseReviewBlock: {
+            /** Scheduled */
+            scheduled: number;
+            /** Due */
+            due: number;
+            /** Due Points */
+            due_points: components["schemas"]["CourseReviewPoint"][];
+            /** Review Semantics */
+            review_semantics: string;
+        };
+        /** CourseReviewPoint */
+        CourseReviewPoint: {
+            /** Knowledge Point Id */
+            knowledge_point_id?: number | null;
+            /** Knowledge Point Code */
+            knowledge_point_code?: string | null;
+            /** Title */
+            title?: string | null;
+            /** Review Due At */
+            review_due_at?: string | null;
+        };
+        /**
+         * CourseStateResponse
+         * @description The deterministic state of ONE course.
+         *
+         *     There is no field for mastery probability, readiness, predicted grade or any model
+         *     output, and none may be added: the course space has no scientific capability.
+         */
+        CourseStateResponse: {
+            /** Service Namespace */
+            service_namespace: string;
+            course: components["schemas"]["CourseIdentity"];
+            knowledge_progress: components["schemas"]["CourseKnowledgeProgressBlock"];
+            practice: components["schemas"]["CoursePracticeBlock"];
+            wrong_answers: components["schemas"]["CourseWrongAnswerCounts"];
+            review: components["schemas"]["CourseReviewBlock"];
+            plan: components["schemas"]["CoursePlanBlock"];
+            /** Recent Activity */
+            recent_activity: components["schemas"]["RecordView"][];
+            /** Recent Activity Has More */
+            recent_activity_has_more: boolean;
+            /** State Semantics */
+            state_semantics: string;
+        };
+        /**
+         * CourseSubmitResult
+         * @description The verdict for one submitted answer. The reference answer and analysis belong
+         *     here — the learner has answered, so withholding them would help nobody.
+         */
+        CourseSubmitResult: {
+            /** Question Id */
+            question_id: number;
+            /** User Answer */
+            user_answer: string;
+            /** Standard Answer */
+            standard_answer: string;
+            /** Correct */
+            correct: boolean;
+            /**
+             * Analysis
+             * @default
+             */
+            analysis: string;
+            /** Generation Mode */
+            generation_mode?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * CourseTodayPlanItem
+         * @description ONE thing to do today, for THIS course.
+         *
+         *     Same field names and the same item ids as the global today-plan: ``user_order`` is
+         *     stored by item id, so a reordering made on either surface has to mean the same thing
+         *     on the other.
+         */
+        CourseTodayPlanItem: {
+            /** Id */
+            id: string;
+            /** Raw Id */
+            raw_id: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "course_study_plan" | "learning_tasks";
+            /** Course Id */
+            course_id: string;
+            /** Course Name */
+            course_name: string;
+            /** Title */
+            title: string;
+            /** Mode */
+            mode: string;
+            /** Mode Label */
+            mode_label: string;
+            /**
+             * Due Date
+             * @default
+             */
+            due_date: string;
+            /** Urgency Rank */
+            urgency_rank: number;
+            /** Urgency Label */
+            urgency_label: string;
+            /**
+             * User Order
+             * @default 9999
+             */
+            user_order: number;
+            /** Status */
+            status: string;
+            /** Task Type */
+            task_type: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * CourseTodayPlanResponse
+         * @description Today's work for ONE course. Every item is attributable to this course.
+         */
+        CourseTodayPlanResponse: {
+            /** Service Namespace */
+            service_namespace: string;
+            /** Course Id */
+            course_id: string;
+            /** Items */
+            items: components["schemas"]["CourseTodayPlanItem"][];
+            /** Total */
+            total: number;
+            /** Empty */
+            empty: boolean;
+        };
+        /**
+         * CourseWorkbookQuestionView
+         * @description A workbook question plus its own attempt history and derived workbook status.
+         */
+        CourseWorkbookQuestionView: {
+            /** Id */
+            id: number;
+            /** Subject Key */
+            subject_key?: string | null;
+            /** Subject Name */
+            subject_name?: string | null;
+            /** Knowledge Point Id */
+            knowledge_point_id?: string | null;
+            /** Knowledge Point Name */
+            knowledge_point_name?: string | null;
+            /** Knowledge Point Path */
+            knowledge_point_path?: string | null;
+            /** Question Type */
+            question_type?: string | null;
+            /** Stem */
+            stem?: string | null;
+            /** Options */
+            options?: {
+                [key: string]: string;
+            };
+            /** Difficulty */
+            difficulty?: string | null;
+            /** Generation Mode */
+            generation_mode?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /**
+             * Attempt Count
+             * @default 0
+             */
+            attempt_count: number;
+            latest_attempt?: components["schemas"]["CourseAttemptView"] | null;
+            /** Attempts */
+            attempts?: components["schemas"]["CourseAttemptView"][];
+            /** Workbook Status */
+            workbook_status?: ("unanswered" | "correct" | "wrong") | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * CourseWorkbookResponse
+         * @description The course's AI question book, course-scoped in SQL before the limit.
+         */
+        CourseWorkbookResponse: {
+            /** Course Id */
+            course_id: string;
+            /** Items */
+            items: components["schemas"]["CourseWorkbookQuestionView"][];
+            /** Total */
+            total: number;
+        };
+        /**
+         * CourseWrongAnswerAttemptView
+         * @description One factual attempt behind a state. Read from ``practice_attempts`` only.
+         */
+        CourseWrongAnswerAttemptView: {
+            /** Attempt Id */
+            attempt_id: number;
+            /** Submitted At */
+            submitted_at?: string | null;
+            /** Answer */
+            answer?: string | null;
+            /** Correct */
+            correct?: boolean | null;
+            /** Score */
+            score?: number | null;
+            /** Max Score */
+            max_score?: number | null;
+            /** Source Attempt Type */
+            source_attempt_type?: string | null;
+        };
+        /** CourseWrongAnswerCounts */
+        CourseWrongAnswerCounts: {
+            /** Active */
+            active: number;
+            /** Resolved */
+            resolved: number;
+        };
+        /**
+         * CourseWrongAnswerDetailResponse
+         * @description The record plus the factual history the record was derived from.
+         */
+        CourseWrongAnswerDetailResponse: {
+            /** Wrong Record Id */
+            wrong_record_id: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "resolved";
+            /** Service Namespace */
+            service_namespace: string;
+            /** Course Id */
+            course_id: string;
+            /**
+             * Source Kind
+             * @enum {string}
+             */
+            source_kind: "ai_generated" | "course_material" | "other";
+            /** Source Label */
+            source_label: string;
+            /** Question Type */
+            question_type?: string | null;
+            /**
+             * Stem
+             * @default
+             */
+            stem: string;
+            /** Options */
+            options?: {
+                [key: string]: string;
+            };
+            /**
+             * User Answer
+             * @default
+             */
+            user_answer: string;
+            /**
+             * Reference Answer
+             * @default
+             */
+            reference_answer: string;
+            /** Analysis */
+            analysis?: string | null;
+            /** Question Id */
+            question_id?: number | null;
+            /** Knowledge Point Id */
+            knowledge_point_id?: string | null;
+            /** Knowledge Point Name */
+            knowledge_point_name?: string | null;
+            /** Knowledge Point Path */
+            knowledge_point_path?: string | null;
+            /** First Wrong At */
+            first_wrong_at?: string | null;
+            /** Last Wrong At */
+            last_wrong_at?: string | null;
+            /** Resolved At */
+            resolved_at?: string | null;
+            /**
+             * Repeat Wrong Count
+             * @default 0
+             */
+            repeat_wrong_count: number;
+            /** Attempt History */
+            attempt_history?: components["schemas"]["CourseWrongAnswerAttemptView"][];
+            /** Error Analysis */
+            error_analysis?: string | null;
+        };
+        /** CourseWrongAnswerListResponse */
+        CourseWrongAnswerListResponse: {
+            /** Items */
+            items: components["schemas"]["CourseWrongAnswerRecord"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+        };
+        /**
+         * CourseWrongAnswerRecord
+         * @description ONE canonical COURSE wrong-answer record.
+         *
+         *     The course counterpart of the exam record: the same factual status, the learner's own
+         *     answer, the reference answer and the question content — but scoped by ``course_id``,
+         *     with the exam module/year fields absent because a course question has neither.
+         *
+         *     ``question_id`` is the id the course redo contract takes (an AI 题册 question). It is
+         *     ``None`` for a source that has no such identity; it is never a renumbered stand-in.
+         */
+        CourseWrongAnswerRecord: {
+            /** Wrong Record Id */
+            wrong_record_id: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "resolved";
+            /** Service Namespace */
+            service_namespace: string;
+            /** Course Id */
+            course_id: string;
+            /**
+             * Source Kind
+             * @enum {string}
+             */
+            source_kind: "ai_generated" | "course_material" | "other";
+            /** Source Label */
+            source_label: string;
+            /** Question Type */
+            question_type?: string | null;
+            /**
+             * Stem
+             * @default
+             */
+            stem: string;
+            /** Options */
+            options?: {
+                [key: string]: string;
+            };
+            /**
+             * User Answer
+             * @default
+             */
+            user_answer: string;
+            /**
+             * Reference Answer
+             * @default
+             */
+            reference_answer: string;
+            /** Analysis */
+            analysis?: string | null;
+            /** Question Id */
+            question_id?: number | null;
+            /** Knowledge Point Id */
+            knowledge_point_id?: string | null;
+            /** Knowledge Point Name */
+            knowledge_point_name?: string | null;
+            /** Knowledge Point Path */
+            knowledge_point_path?: string | null;
+            /** First Wrong At */
+            first_wrong_at?: string | null;
+            /** Last Wrong At */
+            last_wrong_at?: string | null;
+            /** Resolved At */
+            resolved_at?: string | null;
+            /**
+             * Repeat Wrong Count
+             * @default 0
+             */
+            repeat_wrong_count: number;
         };
         /** CreateLearningRecordRequest */
         CreateLearningRecordRequest: {
@@ -7031,6 +9237,242 @@ export interface components {
             note?: string | null;
             /** Tags */
             tags?: string[] | null;
+        };
+        /** DeepStudyCitation */
+        DeepStudyCitation: {
+            /** Material Id */
+            material_id: number;
+            /**
+             * Filename
+             * @default
+             */
+            filename: string;
+            /**
+             * Subject
+             * @default
+             */
+            subject: string;
+            /**
+             * File Type
+             * @default
+             */
+            file_type: string;
+            /**
+             * Snippet
+             * @default
+             */
+            snippet: string;
+            /** Score */
+            score?: number | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** DeepStudyContext */
+        DeepStudyContext: {
+            /** Service Namespace */
+            service_namespace: string;
+            /** Course Id */
+            course_id?: string | null;
+            /** Chapter Id */
+            chapter_id?: string | null;
+            /** Knowledge Point Id */
+            knowledge_point_id?: string | null;
+            /** Exam Subject Id */
+            exam_subject_id?: string | null;
+            /** Exam Module Id */
+            exam_module_id?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** DeepStudyEvidence */
+        DeepStudyEvidence: {
+            /**
+             * Chunk Count
+             * @default 0
+             */
+            chunk_count: number;
+            /**
+             * Material Count
+             * @default 0
+             */
+            material_count: number;
+            /**
+             * Retrieval
+             * @default fts_bm25
+             */
+            retrieval: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /** DeepStudyMaterialRef */
+        DeepStudyMaterialRef: {
+            /** Material Id */
+            material_id: number;
+            /**
+             * Filename
+             * @default
+             */
+            filename: string;
+        };
+        /**
+         * DeepStudyMaterials
+         * @description ``excluded`` is part of the contract: a refused material is stated, not hidden.
+         */
+        DeepStudyMaterials: {
+            /** Requested */
+            requested?: number[];
+            /** Used */
+            used?: number[];
+            /** Excluded */
+            excluded?: number[];
+        };
+        /**
+         * DeepStudyModelInfo
+         * @description User-safe model information: a strength label + the qualified options this tier has.
+         */
+        DeepStudyModelInfo: {
+            /** Display Name */
+            display_name: string;
+            /**
+             * Selection
+             * @default auto
+             */
+            selection: string;
+            /** Tier */
+            tier: string;
+            /** Quality Class */
+            quality_class?: string | null;
+            /** Options */
+            options?: components["schemas"]["DeepStudyModelOption"][];
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * DeepStudyModelOption
+         * @description ONE qualified model option, exactly as ``GET /ai/models`` already serves it.
+         *
+         *     Declared so the frontend gets real fields instead of an untyped object. It is the
+         *     QUALIFIED subset for the caller's tier + capability — never the provider registry.
+         */
+        DeepStudyModelOption: {
+            /** Provider */
+            provider: string;
+            /** Model */
+            model: string;
+            /** Eligible Tiers */
+            eligible_tiers?: string[];
+            /** Capabilities */
+            capabilities?: string[];
+            /** Cost Profile */
+            cost_profile?: string | null;
+            /** Quality Class */
+            quality_class?: string | null;
+            /** Latency Class */
+            latency_class?: string | null;
+            /**
+             * Available
+             * @default true
+             */
+            available: boolean;
+            /**
+             * High Cost
+             * @default false
+             */
+            high_cost: boolean;
+            /**
+             * Thinking
+             * @default false
+             */
+            thinking: boolean;
+            /**
+             * Deployment Eligibility
+             * @default PRODUCTION
+             */
+            deployment_eligibility: string;
+            /**
+             * Pricing Verified
+             * @default false
+             */
+            pricing_verified: boolean;
+        };
+        /**
+         * DeepStudyRequest
+         * @description What to study and where. The CALLER is the session, never a body field.
+         */
+        DeepStudyRequest: {
+            /** Question */
+            question: string;
+            /**
+             * Service Key
+             * @default course_learning
+             * @enum {string}
+             */
+            service_key: "course_learning" | "exam_11408";
+            /**
+             * Course Id
+             * @default
+             */
+            course_id: string;
+            /**
+             * Subject Key
+             * @default
+             */
+            subject_key: string;
+            /**
+             * Chapter Id
+             * @default
+             */
+            chapter_id: string;
+            /**
+             * Knowledge Point Id
+             * @default
+             */
+            knowledge_point_id: string;
+            /** Material Ids */
+            material_ids?: number[];
+            /** Max Tokens */
+            max_tokens?: number | null;
+        };
+        /** DeepStudyResponse */
+        DeepStudyResponse: {
+            /** Capability */
+            capability: string;
+            /** Request Id */
+            request_id: string;
+            /** Status */
+            status: string;
+            /** Answer */
+            answer: string;
+            /** Citations */
+            citations?: components["schemas"]["DeepStudyCitation"][];
+            /** Material Refs */
+            material_refs?: components["schemas"]["DeepStudyMaterialRef"][];
+            materials: components["schemas"]["DeepStudyMaterials"];
+            context: components["schemas"]["DeepStudyContext"];
+            model: components["schemas"]["DeepStudyModelInfo"];
+            usage: components["schemas"]["DeepStudyUsage"];
+            evidence: components["schemas"]["DeepStudyEvidence"];
+        } & {
+            [key: string]: unknown;
+        };
+        /** DeepStudyUsage */
+        DeepStudyUsage: {
+            /** Status */
+            status?: string | null;
+            /** Estimated Credits */
+            estimated_credits?: number | null;
+            /** Actual Credits */
+            actual_credits?: number | null;
+            /** Input Tokens */
+            input_tokens?: number | null;
+            /** Output Tokens */
+            output_tokens?: number | null;
+            /** Reasoning Tokens */
+            reasoning_tokens?: number | null;
+            /** Usage Source */
+            usage_source?: string | null;
+        } & {
+            [key: string]: unknown;
         };
         /** EmailLoginRequest */
         EmailLoginRequest: {
@@ -8338,6 +10780,144 @@ export interface components {
             /** Suggested Subjects */
             suggested_subjects: string[];
         };
+        /**
+         * FeatureEntitlement
+         * @description The unified-tier verdict for one product feature.
+         *
+         *     Declared rather than left as a bare ``dict`` so the generated client can read
+         *     ``allowed`` without a cast. ``current_tier`` is the tier the learner holds;
+         *     ``required_tier`` is the lowest tier that opens the feature.
+         */
+        FeatureEntitlement: {
+            /** Allowed */
+            allowed: boolean;
+            /** Feature */
+            feature: string;
+            /** Current Tier */
+            current_tier: string;
+            /** Required Tier */
+            required_tier: string;
+            /** Required Capability */
+            required_capability?: string | null;
+            /** Service Key */
+            service_key: string;
+        };
+        /** FeatureFlagItem */
+        FeatureFlagItem: {
+            /** Feature */
+            feature: string;
+            /** Label */
+            label: string;
+            /** Capability */
+            capability?: string | null;
+            /** Scope */
+            scope: string;
+            /** Mode */
+            mode: string;
+            /** Stored */
+            stored: boolean;
+            /** Default Mode */
+            default_mode: string;
+            /** Updated By */
+            updated_by?: string | null;
+            /** Updated At */
+            updated_at?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** FeatureFlagList */
+        FeatureFlagList: {
+            /** Items */
+            items: components["schemas"]["FeatureFlagItem"][];
+            /** Modes */
+            modes: string[];
+            /** Default Mode */
+            default_mode: string;
+            /** Semantics */
+            semantics: {
+                [key: string]: unknown;
+            };
+            /** Never Changes */
+            never_changes: string[];
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * FeatureFlagUpdate
+         * @description A mode per feature. The vocabulary is closed; an unknown key or mode is rejected.
+         */
+        FeatureFlagUpdate: {
+            /** Flags */
+            flags: {
+                [key: string]: string;
+            };
+        };
+        /** FeatureFlagUpdateResult */
+        FeatureFlagUpdateResult: {
+            /** Updated */
+            updated: {
+                [key: string]: unknown;
+            };
+            /** Previous */
+            previous: {
+                [key: string]: unknown;
+            };
+            /** Modes */
+            modes: {
+                [key: string]: unknown;
+            };
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * FeedbackAnalyticsResponse
+         * @description Read-only aggregates. Platform scope is admin-only and aggregated only.
+         */
+        FeedbackAnalyticsResponse: {
+            /** Scope */
+            scope: string;
+            /** Window Days */
+            window_days: number;
+            /** Generated At */
+            generated_at: string;
+            /** Totals */
+            totals: {
+                [key: string]: unknown;
+            };
+            /** By Reason */
+            by_reason?: {
+                [key: string]: number;
+            };
+            /** By Workflow */
+            by_workflow?: {
+                [key: string]: unknown;
+            };
+            /** By Capability */
+            by_capability?: {
+                [key: string]: unknown;
+            };
+            /** By Model */
+            by_model?: {
+                [key: string]: unknown;
+            };
+            /** By Provider */
+            by_provider?: {
+                [key: string]: unknown;
+            };
+            /** Per Capability Model */
+            per_capability_model?: {
+                [key: string]: unknown;
+            };
+            /** Semantics */
+            semantics: string;
+            /**
+             * Router Mutation
+             * @default false
+             */
+            router_mutation: boolean;
+        } & {
+            [key: string]: unknown;
+        };
         /** FirstTimeGuideCompleteRequest */
         FirstTimeGuideCompleteRequest: {
             /**
@@ -8836,6 +11416,76 @@ export interface components {
              * @default false
              */
             save_after_generate: boolean;
+        };
+        /** LearningReportRequest */
+        LearningReportRequest: {
+            /**
+             * Service Key
+             * @default course_learning
+             * @enum {string}
+             */
+            service_key: "course_learning" | "exam_11408" | "programming";
+            /**
+             * Period Days
+             * @default 7
+             */
+            period_days: number;
+            /**
+             * Course Id
+             * @default
+             */
+            course_id: string;
+            /**
+             * Exam Module Id
+             * @default
+             */
+            exam_module_id: string;
+            /**
+             * Language
+             * @default
+             */
+            language: string;
+            /**
+             * Include Narrative
+             * @default false
+             */
+            include_narrative: boolean;
+        };
+        /** LearningReportResponse */
+        LearningReportResponse: {
+            /** Report Id */
+            report_id: string;
+            /** Report Period */
+            report_period: {
+                [key: string]: unknown;
+            };
+            /** Context */
+            context: {
+                [key: string]: unknown;
+            };
+            /** Structured Metrics */
+            structured_metrics: {
+                [key: string]: unknown;
+            };
+            /** Highlights */
+            highlights?: {
+                [key: string]: unknown;
+            }[];
+            /** Attention Items */
+            attention_items?: {
+                [key: string]: unknown;
+            }[];
+            /** Data Coverage */
+            data_coverage: {
+                [key: string]: unknown;
+            };
+            narrative?: components["schemas"]["ReportNarrativeView"] | null;
+            /** Narrative Error */
+            narrative_error?: string | null;
+            /** Generated At */
+            generated_at: string;
+        } & {
+            [key: string]: unknown;
         };
         /** LearningReportSaveRequest */
         LearningReportSaveRequest: {
@@ -9503,6 +12153,103 @@ export interface components {
             /** Username */
             username?: string | null;
         };
+        /** PlanAdjustmentProposal */
+        PlanAdjustmentProposal: {
+            /** Proposal Id */
+            proposal_id: string;
+            /** Capability */
+            capability: string;
+            /** Request Id */
+            request_id: string;
+            /** Service Namespace */
+            service_namespace: string;
+            /** Subject Key */
+            subject_key: string;
+            /** Plan Identity */
+            plan_identity: string;
+            /** Reason */
+            reason: string;
+            /** Proposed Changes */
+            proposed_changes?: components["schemas"]["ProposedChange"][];
+            /** Affected Tasks */
+            affected_tasks?: number[];
+            /** Dropped Changes */
+            dropped_changes?: {
+                [key: string]: unknown;
+            }[];
+            /** Plan Snapshot */
+            plan_snapshot: {
+                [key: string]: unknown;
+            };
+            /** Usage */
+            usage?: {
+                [key: string]: unknown;
+            };
+            /** Applies To */
+            applies_to: string;
+            /** Generated At */
+            generated_at: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * PlanApplyRequest
+         * @description What the client accepted. ``plan_identity`` is MANDATORY: without it, a stale proposal
+         *     could overwrite a plan that changed in between, and that is exactly what it prevents.
+         */
+        PlanApplyRequest: {
+            /**
+             * Service Key
+             * @default course_learning
+             * @enum {string}
+             */
+            service_key: "course_learning" | "exam_11408" | "programming";
+            /**
+             * Course Id
+             * @default
+             */
+            course_id: string;
+            /**
+             * Exam Module Id
+             * @default
+             */
+            exam_module_id: string;
+            /**
+             * Language
+             * @default
+             */
+            language: string;
+            /** Plan Identity */
+            plan_identity: string;
+            /** Proposed Changes */
+            proposed_changes: components["schemas"]["ProposedChange"][];
+            /**
+             * Proposal Id
+             * @default
+             */
+            proposal_id: string;
+        };
+        /** PlanApplyResponse */
+        PlanApplyResponse: {
+            /** Service Namespace */
+            service_namespace: string;
+            /** Subject Key */
+            subject_key: string;
+            /** Applied Count */
+            applied_count: number;
+            /** Dropped Changes */
+            dropped_changes?: {
+                [key: string]: unknown;
+            }[];
+            /** Plan Identity */
+            plan_identity: string;
+            /** Plan Identity Before */
+            plan_identity_before: string;
+            /** Applied At */
+            applied_at: string;
+        } & {
+            [key: string]: unknown;
+        };
         /** PlanCatalogResponse */
         PlanCatalogResponse: {
             /** Policy Version */
@@ -9584,6 +12331,38 @@ export interface components {
             /** Items */
             items: unknown[];
         };
+        /**
+         * PlanScope
+         * @description The plan to work on. WHO is the session; the rest names the space's plan.
+         */
+        PlanScope: {
+            /**
+             * Service Key
+             * @default course_learning
+             * @enum {string}
+             */
+            service_key: "course_learning" | "exam_11408" | "programming";
+            /**
+             * Course Id
+             * @default
+             */
+            course_id: string;
+            /**
+             * Exam Module Id
+             * @default
+             */
+            exam_module_id: string;
+            /**
+             * Language
+             * @default
+             */
+            language: string;
+            /**
+             * Goal
+             * @default
+             */
+            goal: string;
+        };
         /** ProfileUpdateRequest */
         ProfileUpdateRequest: {
             /** Nickname */
@@ -9621,6 +12400,26 @@ export interface components {
             /** Focus Courses */
             focus_courses?: string | null;
         };
+        /**
+         * ProgrammingExerciseProgressBlock
+         * @description Per-exercise progress aggregated from the durable progress rows.
+         */
+        ProgrammingExerciseProgressBlock: {
+            /** Tracked Exercises */
+            tracked_exercises: number;
+            /** Passed */
+            passed: number;
+            /** In Progress */
+            in_progress: number;
+            /** By Status */
+            by_status: {
+                [key: string]: number;
+            };
+            /** Status Semantics */
+            status_semantics: string;
+            /** Recent Exercises */
+            recent_exercises: components["schemas"]["ProgrammingExerciseState"][];
+        };
         /** ProgrammingExerciseRunRequest */
         ProgrammingExerciseRunRequest: {
             /** Username */
@@ -9655,6 +12454,30 @@ export interface components {
             /** Username */
             username: string;
         };
+        /**
+         * ProgrammingExerciseState
+         * @description One exercise's recorded product status. NOT an error classification.
+         */
+        ProgrammingExerciseState: {
+            /** Exercise Id */
+            exercise_id: number;
+            /** Personal Status */
+            personal_status: string;
+            /** Last Action */
+            last_action?: string | null;
+            /** Last Submit Passed */
+            last_submit_passed: boolean;
+            /** Last Public Passed Count */
+            last_public_passed_count: number;
+            /** Last Public Total Count */
+            last_public_total_count: number;
+            /** Last Run At */
+            last_run_at?: string | null;
+            /** Last Test At */
+            last_test_at?: string | null;
+            /** Last Submit At */
+            last_submit_at?: string | null;
+        };
         /** ProgrammingOnboardingRequest */
         ProgrammingOnboardingRequest: {
             /**
@@ -9684,6 +12507,163 @@ export interface components {
              * @default false
              */
             onboarding_completed: boolean;
+        };
+        /** ProgrammingPlanBlock */
+        ProgrammingPlanBlock: {
+            /** Total */
+            total: number;
+            /** By Status */
+            by_status: {
+                [key: string]: number;
+            };
+            /** Open */
+            open: number;
+        };
+        /** ProgrammingPlanResponse */
+        ProgrammingPlanResponse: {
+            /** Service Namespace */
+            service_namespace: string;
+            /** Subject Key */
+            subject_key: string;
+            /** Language */
+            language?: string | null;
+            entitlement: components["schemas"]["FeatureEntitlement"];
+            /** Total */
+            total: number;
+            /** Open */
+            open: number;
+            /** By Status */
+            by_status: {
+                [key: string]: number;
+            };
+            /** Tasks */
+            tasks: components["schemas"]["ProgrammingPlanTask"][];
+        };
+        /**
+         * ProgrammingPlanTask
+         * @description One programming study task. ``subject_key`` states which plan it belongs to.
+         */
+        ProgrammingPlanTask: {
+            /** Id */
+            id: number;
+            /** Subject Key */
+            subject_key: string;
+            /** Language */
+            language?: string | null;
+            /** Title */
+            title: string;
+            /** Task Type */
+            task_type: string;
+            /** Status */
+            status: string;
+            /** Knowledge Point Name */
+            knowledge_point_name?: string | null;
+            /** Due Date */
+            due_date?: string | null;
+            /** Note */
+            note?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Updated At */
+            updated_at?: string | null;
+        };
+        /** ProgrammingPlanTaskCreate */
+        ProgrammingPlanTaskCreate: {
+            /** Title */
+            title: string;
+            /**
+             * Task Type
+             * @default exercise
+             */
+            task_type: string;
+            /** Language */
+            language?: string | null;
+            /** Knowledge Point Name */
+            knowledge_point_name?: string | null;
+            /** Due Date */
+            due_date?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** ProgrammingPlanTaskUpdate */
+        ProgrammingPlanTaskUpdate: {
+            /** Title */
+            title?: string | null;
+            /** Task Type */
+            task_type?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Knowledge Point Name */
+            knowledge_point_name?: string | null;
+            /** Due Date */
+            due_date?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /**
+         * ProgrammingPracticeBlock
+         * @description Factual judged-attempt counts. ``ungraded`` is a real third state.
+         */
+        ProgrammingPracticeBlock: {
+            /** Attempts */
+            attempts: number;
+            /** Graded Attempts */
+            graded_attempts: number;
+            /** Factual Correct */
+            factual_correct: number;
+            /** Factual Incorrect */
+            factual_incorrect: number;
+            /** Ungraded Attempts */
+            ungraded_attempts: number;
+        };
+        /**
+         * ProgrammingStateResponse
+         * @description The deterministic state of ONE learner in the programming space.
+         *
+         *     There is no field for mastery probability, readiness, weakness ranking or any
+         *     scientific model output, and none may be added: the product has no such capability for
+         *     this space.
+         */
+        ProgrammingStateResponse: {
+            /** Service Namespace */
+            service_namespace: string;
+            /** Languages */
+            languages: string[];
+            /** Current Language */
+            current_language?: string | null;
+            /** Onboarding Completed */
+            onboarding_completed: boolean;
+            exercise_progress: components["schemas"]["ProgrammingExerciseProgressBlock"];
+            practice: components["schemas"]["ProgrammingPracticeBlock"];
+            plan: components["schemas"]["ProgrammingPlanBlock"];
+            /** Recent Activity */
+            recent_activity: components["schemas"]["RecordView"][];
+            /** Recent Activity Has More */
+            recent_activity_has_more: boolean;
+            /** State Semantics */
+            state_semantics: string;
+        };
+        /** ProposedChange */
+        ProposedChange: {
+            /** Op */
+            op: string;
+            /** Task Id */
+            task_id?: number | null;
+            /** Title */
+            title?: string | null;
+            /** Task Type */
+            task_type?: string | null;
+            /** Due Date */
+            due_date?: string | null;
+            /** Status */
+            status?: string | null;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+        } & {
+            [key: string]: unknown;
         };
         /** QuestionAiExplainRequest */
         QuestionAiExplainRequest: {
@@ -9792,6 +12772,12 @@ export interface components {
             course_id?: string | null;
             /** Subject Key */
             subject_key?: string | null;
+            /** Programming Language */
+            programming_language?: string | null;
+            /** Exercise Id */
+            exercise_id?: number | null;
+            /** Project Id */
+            project_id?: number | null;
         };
         /**
          * RecordDetail
@@ -9869,6 +12855,14 @@ export interface components {
             old_status?: string | null;
             /** Material Id */
             material_id?: string | null;
+            /** Passed Count */
+            passed_count?: number | null;
+            /** Total Count */
+            total_count?: number | null;
+            /** Exit Code */
+            exit_code?: number | null;
+            /** Timed Out */
+            timed_out?: boolean | null;
             /** Capability */
             capability?: string | null;
             /** Status */
@@ -9920,6 +12914,8 @@ export interface components {
             service_namespace?: string | null;
             /** Exam Module Id */
             exam_module_id?: string | null;
+            /** Course Id */
+            course_id?: string | null;
             /** Total Events */
             total_events: number;
             /** Practice Attempts */
@@ -10113,6 +13109,221 @@ export interface components {
         RenameConversationRequest: {
             /** Title */
             title: string;
+        };
+        /**
+         * ReportNarrativeView
+         * @description The AI half of a report. Labelled `origin: ai` so it is never read as a metric.
+         */
+        ReportNarrativeView: {
+            /** Text */
+            text: string;
+            /**
+             * Origin
+             * @default ai
+             */
+            origin: string;
+            /** Capability */
+            capability: string;
+            /** Request Id */
+            request_id: string;
+            /** Usage */
+            usage?: {
+                [key: string]: unknown;
+            };
+        } & {
+            [key: string]: unknown;
+        };
+        /** ReviewCompleteRequest */
+        ReviewCompleteRequest: {
+            /**
+             * Result
+             * @enum {string}
+             */
+            result: "correct" | "incorrect";
+        };
+        /**
+         * ReviewCompleteResponse
+         * @description A completed review and the schedule it produced — never one without the other.
+         */
+        ReviewCompleteResponse: {
+            /** Item Id */
+            item_id: string;
+            /** Result */
+            result: string;
+            /** Previous Review Result */
+            previous_review_result?: string | null;
+            /** Policy Version */
+            policy_version: string;
+            /** Scheduled At */
+            scheduled_at: string;
+            /** Due At */
+            due_at: string;
+            /** Interval Days */
+            interval_days: number;
+            /** Reason */
+            reason: string;
+            /** Source Facts */
+            source_facts?: {
+                [key: string]: unknown;
+            };
+            /** Semantics */
+            semantics: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /** ReviewItemView */
+        ReviewItemView: {
+            /** Id */
+            id: string;
+            /** Service Namespace */
+            service_namespace: string;
+            /** Domain Context */
+            domain_context: {
+                [key: string]: unknown;
+            };
+            /** Source Type */
+            source_type: string;
+            /** Source Id */
+            source_id: string;
+            question_identity?: components["schemas"]["ReviewQuestionIdentity"] | null;
+            /** Title */
+            title: string;
+            /** Summary */
+            summary: string;
+            /** Review Status */
+            review_status: string;
+            /** Due At */
+            due_at?: string | null;
+            /** Due Source */
+            due_source?: string | null;
+            /** Last Attempt At */
+            last_attempt_at?: string | null;
+            /** Reason */
+            reason: string;
+            /** Metrics */
+            metrics?: {
+                [key: string]: unknown;
+            };
+            /** Deep Link */
+            deep_link: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /** ReviewListResponse */
+        ReviewListResponse: {
+            /** Items */
+            items: components["schemas"]["ReviewItemView"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Buckets */
+            buckets: {
+                [key: string]: number;
+            };
+            /** Semantics */
+            semantics: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * ReviewQuestionIdentity
+         * @description WHICH question this item is about. Content is rendered by the domain page.
+         */
+        ReviewQuestionIdentity: {
+            /** Question Source Type */
+            question_source_type: string;
+            /** Question Source Id */
+            question_source_id: string;
+            /**
+             * Question Scope Key
+             * @default
+             */
+            question_scope_key: string;
+        };
+        /**
+         * ReviewScheduleItem
+         * @description ONE computed due date, WITH the policy and the facts that produced it.
+         */
+        ReviewScheduleItem: {
+            /** Item Id */
+            item_id: string;
+            /** Policy Version */
+            policy_version: string;
+            /** Reason */
+            reason: string;
+            /** Interval Days */
+            interval_days: number;
+            /** Scheduled At */
+            scheduled_at: string;
+            /** Due At */
+            due_at: string;
+            /** Facts */
+            facts?: {
+                [key: string]: unknown;
+            };
+            /** Last Reviewed At */
+            last_reviewed_at?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * ReviewScheduleRequest
+         * @description Which items to (re)schedule. An empty list schedules the ones not yet scheduled.
+         */
+        ReviewScheduleRequest: {
+            /** Item Ids */
+            item_ids?: string[];
+            /**
+             * Include All
+             * @default false
+             */
+            include_all: boolean;
+        };
+        /** ReviewScheduleResponse */
+        ReviewScheduleResponse: {
+            /** Policy Version */
+            policy_version: string;
+            /** Scheduled */
+            scheduled?: components["schemas"]["ReviewScheduleItem"][];
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+            /** Semantics */
+            semantics: string;
+            /** Generated At */
+            generated_at?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** ReviewSummaryResponse */
+        ReviewSummaryResponse: {
+            /** Service Namespace */
+            service_namespace?: string | null;
+            /** Total */
+            total: number;
+            /** By Namespace */
+            by_namespace: {
+                [key: string]: number;
+            };
+            /** By Status */
+            by_status: {
+                [key: string]: number;
+            };
+            /** By Source */
+            by_source: {
+                [key: string]: number;
+            };
+            /** Has Stored Due Dates */
+            has_stored_due_dates: boolean;
+            /** Semantics */
+            semantics: string;
+        } & {
+            [key: string]: unknown;
         };
         /** ReviewTaskCreateRequest */
         ReviewTaskCreateRequest: {
@@ -10595,6 +13806,131 @@ export interface components {
             /** Code */
             code: string;
         };
+        /** WorkflowOperationsSummary */
+        WorkflowOperationsSummary: {
+            /** Scope */
+            scope: string;
+            /** Window Days */
+            window_days: number;
+            /** Window Start */
+            window_start: string;
+            /** Generated At */
+            generated_at: string;
+            /** Workflows */
+            workflows: {
+                [key: string]: unknown;
+            };
+            /** Privacy */
+            privacy: {
+                [key: string]: unknown;
+            };
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * WrongAnalysisFacts
+         * @description The FACT half: what was asked, what the learner answered, what the records show.
+         */
+        WrongAnalysisFacts: {
+            /** Question */
+            question: {
+                [key: string]: unknown;
+            };
+            /**
+             * User Answer
+             * @default
+             */
+            user_answer: string;
+            /**
+             * Wrong Count
+             * @default 0
+             */
+            wrong_count: number;
+            /** State Status */
+            state_status?: string | null;
+            /** First Wrong At */
+            first_wrong_at?: string | null;
+            /** Last Wrong At */
+            last_wrong_at?: string | null;
+            /** Attempt History */
+            attempt_history?: {
+                [key: string]: unknown;
+            }[];
+            /** Context */
+            context?: {
+                [key: string]: unknown;
+            };
+            /** Source */
+            source?: {
+                [key: string]: unknown;
+            };
+        } & {
+            [key: string]: unknown;
+        };
+        /** WrongAnalysisResponse */
+        WrongAnalysisResponse: {
+            /** State Id */
+            state_id: number;
+            /** Service Namespace */
+            service_namespace: string;
+            /** Capability */
+            capability: string;
+            /** Request Id */
+            request_id: string;
+            facts: components["schemas"]["WrongAnalysisFacts"];
+            /** Fact Origin */
+            fact_origin: string;
+            analysis: components["schemas"]["WrongAnalysisResult"];
+            /** Analysis Origin */
+            analysis_origin: string;
+            /** Analysis Semantics */
+            analysis_semantics: string;
+            /** Usage */
+            usage?: {
+                [key: string]: unknown;
+            };
+            /** Persistence */
+            persistence?: {
+                [key: string]: unknown;
+            };
+            /** Generated At */
+            generated_at: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * WrongAnalysisResult
+         * @description The AI half: a hypothesis about the mistake. Never a measured learner property.
+         */
+        WrongAnalysisResult: {
+            /**
+             * Error Category
+             * @default
+             */
+            error_category: string;
+            /**
+             * Reasoning Gap
+             * @default
+             */
+            reasoning_gap: string;
+            /**
+             * Correct Reasoning
+             * @default
+             */
+            correct_reasoning: string;
+            /**
+             * Next Action
+             * @default
+             */
+            next_action: string;
+            /**
+             * Review Recommendation
+             * @default
+             */
+            review_recommendation: string;
+        } & {
+            [key: string]: unknown;
+        };
         /**
          * WrongAnswerAttemptView
          * @description One factual attempt behind a state. Read from ``practice_attempts`` only.
@@ -10633,11 +13969,13 @@ export interface components {
             module_key: string;
             /** Module Name */
             module_name: string;
+            /** Course Id */
+            course_id?: string | null;
             /**
              * Source Kind
              * @enum {string}
              */
-            source_kind: "chapter_practice" | "past_paper" | "ai_generated" | "other";
+            source_kind: "chapter_practice" | "past_paper" | "ai_generated" | "course_material" | "other";
             /** Source Label */
             source_label: string;
             /** Question Type */
@@ -10669,6 +14007,8 @@ export interface components {
             question_number?: number | null;
             /** Question Bank Id */
             question_bank_id?: number | null;
+            /** Question Id */
+            question_id?: number | null;
             /** Knowledge Point Id */
             knowledge_point_id?: string | null;
             /** Knowledge Point Name */
@@ -10727,11 +14067,13 @@ export interface components {
             module_key: string;
             /** Module Name */
             module_name: string;
+            /** Course Id */
+            course_id?: string | null;
             /**
              * Source Kind
              * @enum {string}
              */
-            source_kind: "chapter_practice" | "past_paper" | "ai_generated" | "other";
+            source_kind: "chapter_practice" | "past_paper" | "ai_generated" | "course_material" | "other";
             /** Source Label */
             source_label: string;
             /** Question Type */
@@ -10763,6 +14105,8 @@ export interface components {
             question_number?: number | null;
             /** Question Bank Id */
             question_bank_id?: number | null;
+            /** Question Id */
+            question_id?: number | null;
             /** Knowledge Point Id */
             knowledge_point_id?: string | null;
             /** Knowledge Point Name */
@@ -11652,6 +14996,37 @@ export interface operations {
             };
         };
     };
+    analyze_wrong_answer_wrong_answers__state_id__analysis_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                state_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WrongAnalysisResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     records_summary_learning_records_summary_get: {
         parameters: {
             query?: {
@@ -11799,6 +15174,671 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecordDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_course_records_course_learning_courses__course_id__records_get: {
+        parameters: {
+            query?: {
+                event_type?: string;
+                start_at?: string;
+                end_at?: string;
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                course_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_course_records_summary_course_learning_courses__course_id__records_summary_get: {
+        parameters: {
+            query?: {
+                start_at?: string;
+                end_at?: string;
+            };
+            header?: never;
+            path: {
+                course_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordsSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_course_wrong_answers_course_learning_courses__course_id__wrong_answers_get: {
+        parameters: {
+            query?: {
+                /** @description active | resolved | empty for all */
+                status?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                course_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseWrongAnswerListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_course_wrong_answer_course_learning_courses__course_id__wrong_answers__wrong_record_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                course_id: string;
+                wrong_record_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseWrongAnswerDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_course_state_course_learning_courses__course_id__state_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                course_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseStateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_course_materials_course_learning_courses__course_id__materials_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                course_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseMaterialListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_course_material_course_learning_courses__course_id__materials_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                course_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_course_material_course_learning_courses__course_id__materials_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseMaterialUploadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_course_workbook_course_learning_courses__course_id__practice_workbook_get: {
+        parameters: {
+            query?: {
+                chapter?: string;
+                knowledge_point_code?: string;
+                /** @description all | unanswered | correct | wrong */
+                status?: string;
+            };
+            header?: never;
+            path: {
+                course_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseWorkbookResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_course_practice_history_course_learning_courses__course_id__practice_history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                course_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoursePracticeHistoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_course_question_attempt_course_learning_courses__course_id__practice_questions__question_id__attempts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                question_id: number;
+                course_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseAttemptStartedResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_course_question_course_learning_courses__course_id__practice_generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                course_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CourseQuestionGenerateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseQuestionGeneratedResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_course_practice_course_learning_courses__course_id__practice__attempt_id__submit_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                attempt_id: number;
+                course_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CourseAnswerSubmitRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoursePracticeSubmitResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_course_today_plan_course_learning_courses__course_id__today_plan_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                course_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseTodayPlanResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_programming_records_programming_records_get: {
+        parameters: {
+            query?: {
+                event_type?: string;
+                start_at?: string;
+                end_at?: string;
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_programming_records_summary_programming_records_summary_get: {
+        parameters: {
+            query?: {
+                start_at?: string;
+                end_at?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordsSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_programming_state_programming_state_get: {
+        parameters: {
+            query?: {
+                recent_limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgrammingStateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_programming_plan_programming_plan_get: {
+        parameters: {
+            query?: {
+                language?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgrammingPlanResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_programming_plan_task_programming_plan_tasks_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgrammingPlanTaskCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgrammingPlanTask"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_programming_plan_task_programming_plan_tasks__task_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_programming_plan_task_programming_plan_tasks__task_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgrammingPlanTaskUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgrammingPlanTask"];
                 };
             };
             /** @description Validation Error */
@@ -12198,6 +16238,650 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_deep_study_ai_deep_study_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeepStudyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeepStudyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_programming_agent_programming_agent_debug_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentDebugRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentDebugResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_review_items_review_get: {
+        parameters: {
+            query?: {
+                /** @description course_learning | exam_11408 | programming */
+                service_namespace?: string;
+                /** @description due | needs_attention | scheduled */
+                status?: string;
+                course_id?: string;
+                exam_module_id?: string;
+                language?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_summary_review_summary_get: {
+        parameters: {
+            query?: {
+                service_namespace?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    schedule_reviews_review_schedule_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewScheduleRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewScheduleResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    complete_review_review__item_id__complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewCompleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewCompleteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_learning_report_ai_learning_report_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LearningReportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LearningReportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    propose_plan_adjustment_ai_plan_adjustment_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanScope"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanAdjustmentProposal"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_plan_adjustment_ai_plan_adjustment_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanApplyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanApplyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    adaptive_practice_adaptive_practice_get: {
+        parameters: {
+            query?: {
+                service_key?: string;
+                course_id?: string;
+                exam_module_id?: string;
+                language?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdaptivePracticeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    feedback_analytics_ai_feedback_analytics_get: {
+        parameters: {
+            query?: {
+                scope?: "mine" | "platform";
+                window_days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackAnalyticsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    model_availability_ai_feedback_availability_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    submit_ai_feedback_ai_feedback_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AIFeedbackRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIFeedbackResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_learning_agenda_learning_agenda_get: {
+        parameters: {
+            query?: {
+                /** @description course_learning | exam_11408 | programming */
+                service_key?: string;
+                course_id?: string;
+                exam_module_id?: string;
+                language?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgendaResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    explain_learning_agenda_learning_agenda_explain_get: {
+        parameters: {
+            query?: {
+                service_key?: string;
+                course_id?: string;
+                exam_module_id?: string;
+                language?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_operations_summary_admin_ai_operations_summary_get: {
+        parameters: {
+            query?: {
+                window_days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIOperationsSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    workflow_operations_summary_admin_workflow_operations_summary_get: {
+        parameters: {
+            query?: {
+                window_days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowOperationsSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_run_detail_admin_workflow_operations_agent_runs__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentRunDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_feature_flags_admin_feature_flags_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeatureFlagList"];
+                };
+            };
+        };
+    };
+    update_feature_flags_admin_feature_flags_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeatureFlagUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeatureFlagUpdateResult"];
                 };
             };
             /** @description Validation Error */

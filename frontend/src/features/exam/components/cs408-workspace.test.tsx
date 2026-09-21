@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { RouterProvider, createMemoryHistory, createRootRoute, createRouter } from '@tanstack/react-router';
 import { describe, expect, it, vi } from 'vitest';
 import type { components } from '@/types/api';
@@ -47,10 +47,38 @@ describe('Cs408Workspace', () => {
     expect(screen.getByText('此模块暂时无法加载。')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '重试操作系统模块' })).toBeInTheDocument();
     expect(screen.getAllByText('知识点已学习比例 25%')).toHaveLength(3);
-    expect(screen.getByRole('navigation', { name: 'CS408 工作区工具' })).not.toHaveAttribute('tabindex');
-    expect(screen.getByRole('link', { name: '知识脉络' })).toHaveAttribute('href', '/exam/cs408/knowledge?module=data_structure');
-    expect(screen.getByRole('link', { name: '学习记录' })).toHaveAttribute('href', '/exam/cs408/records');
-    expect(screen.getByRole('link', { name: '学习状态' })).toHaveAttribute('href', '/exam/cs408/state');
     expect(screen.queryByText(/额度|ai_chat|资料总数/i)).not.toBeInTheDocument();
+  });
+
+  it('gives every module the same tools, as real destinations that keep the module', async () => {
+    const router = createRouter({ routeTree: createRootRoute({ component: Cs408Workspace }), history: createMemoryHistory() });
+    render(<RouterProvider router={router} />);
+    await screen.findByRole('heading', { name: '数据结构' });
+
+    // One tab strip for the whole space, with the current tool marked.
+    const tabs = screen.getByRole('navigation', { name: 'CS408 工具导航' });
+    expect(within(tabs).getByRole('link', { name: '概览' })).toHaveAttribute('aria-current', 'page');
+    expect(within(tabs).getByRole('link', { name: '学习记录' })).toHaveAttribute('href', '/exam/cs408/records');
+    expect(within(tabs).getByRole('link', { name: '学习状态' })).toHaveAttribute('href', '/exam/cs408/state');
+
+    // Each module row offers the three tools for that module — links, not inert labels.
+    const row = screen.getByRole('heading', { name: '数据结构' }).closest('li') as HTMLElement;
+    expect(within(row).getByRole('link', { name: '知识脉络' })).toHaveAttribute(
+      'href',
+      '/exam/cs408/knowledge?module=data_structure',
+    );
+    expect(within(row).getByRole('link', { name: '章节练习' })).toHaveAttribute(
+      'href',
+      '/exam/cs408/practice?module=data_structure',
+    );
+    expect(within(row).getByRole('link', { name: '真题' })).toHaveAttribute(
+      'href',
+      '/exam/cs408/past-papers?module=data_structure',
+    );
+    // No module row offers a control that goes nowhere.
+    for (const moduleRow of screen.getAllByRole('heading', { level: 2 })) {
+      const container = moduleRow.closest('li');
+      expect(container?.textContent ?? '').not.toContain('模块入口暂未开放');
+    }
   });
 });

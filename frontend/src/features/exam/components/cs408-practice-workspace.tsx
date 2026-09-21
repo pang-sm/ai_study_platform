@@ -7,6 +7,8 @@ import { useChapterPracticeAttempt, useChapterPracticeOutline, useChapterPractic
 import { useQuestionExplain } from '@/features/exam/api/question-explain';
 import { ApiRequestError } from '@/features/exam/api/content-status';
 import { ExamPageShell } from './exam-page-shell';
+import { StrongReasoningSurface } from '@/components/learning/advanced-learning-surfaces';
+import { AiFeedback } from '@/components/learning/ai-feedback';
 import './cs408-practice-workspace.css';
 
 type Question = ChapterPracticeAttempt['questions'][number];
@@ -39,7 +41,7 @@ function QuestionIdentity({ index, total, chapter }: { index: number; total: num
   return <div className="practice-question__identity"><strong>{String(index).padStart(2, '0')}</strong><span>第 {index} / {total} 题</span><small>{chapter}</small></div>;
 }
 
-function ResultMark({ result, onExplain, explainState }: { result?: SubmitResult; onExplain: () => void; explainState: { loading: boolean; analysis?: string; error?: string } }) {
+function ResultMark({ result, onExplain, explainState }: { result?: SubmitResult; onExplain: () => void; explainState: { loading: boolean; analysis?: string; error?: string; requestId?: string } }) {
   if (!result) return null;
   const staticAnalysis = result.analysis.trim();
   if (result.question_type === 'big') {
@@ -65,12 +67,13 @@ function StaticAnalysis({ analysis }: { analysis: string }) {
   return <section className="practice-result__analysis" aria-labelledby="static-analysis-title"><h2 id="static-analysis-title">题目解析</h2><p>{analysis}</p></section>;
 }
 
-function ExplainBlock({ onExplain, state }: { onExplain: () => void; state: { loading: boolean; analysis?: string; error?: string } }) {
+function ExplainBlock({ onExplain, state }: { onExplain: () => void; state: { loading: boolean; analysis?: string; error?: string; requestId?: string } }) {
   return <section className="practice-result__ai" aria-labelledby="ai-explain-title"><h2 id="ai-explain-title">AI 讲解</h2>
     {state.analysis ? <p>{state.analysis}</p> : null}
     {state.error ? <p role="alert">{state.error}</p> : null}
     {!state.analysis ? <Button variant="secondary" disabled={state.loading} onClick={onExplain}>{state.loading ? '正在生成讲解' : state.error ? '重新生成讲解' : 'AI 讲解'}</Button> : null}
     {state.loading ? <p className="practice-result__ai-status" role="status" aria-live="polite">正在生成讲解</p> : null}
+    {state.requestId ? <AiFeedback requestId={state.requestId} workflowId="exam_practice_ai_explain" /> : null}
   </section>;
 }
 
@@ -107,7 +110,7 @@ export function Cs408PracticeWorkspace({ moduleKey, chapterCode, conceptCode, at
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [currentIndex, setCurrentIndex] = useState(0);
   const [resultByQuestionId, setResultByQuestionId] = useState<Record<number, SubmitResult>>({});
-  const [explanations, setExplanations] = useState<Record<string, { analysis?: string; error?: string }>>({});
+  const [explanations, setExplanations] = useState<Record<string, { analysis?: string; error?: string; requestId?: string }>>({});
   const [explainingKey, setExplainingKey] = useState<string>();
   const [viewMode, setViewMode] = useState<PracticeViewMode>(); const [confirmSubmit, setConfirmSubmit] = useState(false);
   const confirmationRef = useRef<HTMLElement>(null);
@@ -169,13 +172,14 @@ export function Cs408PracticeWorkspace({ moduleKey, chapterCode, conceptCode, at
     setExplainingKey(key);
     setExplanations((current) => ({ ...current, [key]: {} }));
     explain.mutate({ moduleKey: module.key, input: { stem: result.stem, options: result.options, standard_answer: result.standard_answer, user_answer: result.user_answer, question_type: result.question_type } }, {
-      onSuccess: (response) => setExplanations((current) => ({ ...current, [key]: { analysis: response.analysis } })),
+      onSuccess: (response) => setExplanations((current) => ({ ...current, [key]: { analysis: response.analysis, requestId: response.request_id } })),
       onError: (error) => setExplanations((current) => ({ ...current, [key]: { error: explainErrorMessage(error) } })),
       onSettled: () => setExplainingKey((current) => current === key ? undefined : current),
     });
   };
 
-  return <ExamPageShell activeItem="cs408"><section className="cs408-practice" aria-labelledby="practice-title"><header className="cs408-practice__header"><p>CS408 / 章节练习</p><h1 id="practice-title">{module ? module.name : '选择学习模块'}</h1><span>{chapterLabel(selectedChapter, attemptId !== undefined, conceptCode)}</span></header>
+  return <ExamPageShell activeItem="cs408" cs408Tab="practice" moduleKey={module?.key}><section className="cs408-practice" aria-labelledby="practice-title"><header className="cs408-practice__header"><p>CS408 / 章节练习</p><h1 id="practice-title">{module ? module.name : '选择学习模块'}</h1><span>{chapterLabel(selectedChapter, attemptId !== undefined, conceptCode)}</span></header>
+    {module ? <StrongReasoningSurface context="CS408 章节练习" subjectKey={module.key} chapterId={chapterCode} knowledgePointId={conceptCode} /> : null}
     {(!module || !chapterCode) && attemptId === undefined ? <PracticeSelector moduleKey={module?.key} outline={outline.data} loading={outline.isPending} /> : null}
     {module && chapterCode && attemptId === undefined && questionsQuery.isPending ? <div className="cs408-practice__loading"><Skeleton className="h-9 w-40" /><Skeleton className="h-80 w-full" /></div> : null}
     {module && chapterCode && attemptId === undefined && (questionsQuery.isError || !questionsQuery.data) ? <section className="cs408-practice__state"><h2>章节练习暂时无法加载</h2><Button variant="secondary" onClick={() => void questionsQuery.refetch()}>重试</Button></section> : null}

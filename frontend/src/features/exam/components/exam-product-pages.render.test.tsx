@@ -1,8 +1,6 @@
-import { render, screen } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router';
+import { screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { routeTree } from '@/routeTree.gen';
+import { renderApp } from '@/test/render-app';
 
 const { get } = vi.hoisted(() => ({ get: vi.fn() }));
 
@@ -37,19 +35,6 @@ const catalog = {
   framework_only_subject_ids: [],
 };
 
-function renderApp(initialPath = '/exam') {
-  const router = createRouter({
-    routeTree,
-    history: createMemoryHistory({ initialEntries: [initialPath] }),
-  });
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>,
-  );
-}
-
 describe('My Exam page', () => {
   beforeEach(() => {
     get.mockReset();
@@ -61,7 +46,7 @@ describe('My Exam page', () => {
   });
 
   it('shows the real selected track beside configured exam identity', async () => {
-    renderApp();
+    renderApp('/exam');
 
     expect(await screen.findByRole('heading', { name: '全国统考研究生考试' })).toBeInTheDocument();
     expect(screen.getByText(/备考档案/)).toBeInTheDocument();

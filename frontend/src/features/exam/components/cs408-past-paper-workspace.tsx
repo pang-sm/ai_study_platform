@@ -63,7 +63,7 @@ export function Cs408PastPaperWorkspace({ moduleKey, year, attemptId: initialAtt
   const start = () => { if (module && year) create.mutate({ moduleKey: module.key, year }, { onSuccess: (created) => { setLocalAttemptId(created.attempt_id); onAttemptChange?.(created.attempt_id); } }); };
   const saveDraft = () => { if (module && attemptId !== undefined) save.mutate({ moduleKey: module.key, attemptId, answers: displayed }); };
   const submitPaper = () => { if (module && attemptId !== undefined) submit.mutate({ moduleKey: module.key, attemptId, answers: displayed }, { onSuccess: (response) => { setLocalResults(response.results); setView('summary'); } }); };
-  return <ExamPageShell activeItem="cs408"><section className="past-paper" aria-labelledby="past-paper-title"><header className="past-paper__header"><p>CS408 / 历年试卷档案</p><h1 id="past-paper-title">{module?.name ?? '选择真题科目'}</h1><span>{year ? `${year} 年全国硕士研究生招生考试` : attemptId !== undefined ? '本次答卷记录' : '选择模块与真实年份试卷'}</span></header>
+  return <ExamPageShell activeItem="cs408" cs408Tab="past-papers" moduleKey={module?.key}><section className="past-paper" aria-labelledby="past-paper-title"><header className="past-paper__header"><p>CS408 / 历年试卷档案</p><h1 id="past-paper-title">{module?.name ?? '选择真题科目'}</h1><span>{year ? `${year} 年全国硕士研究生招生考试` : attemptId !== undefined ? '本次答卷记录' : '选择模块与真实年份试卷'}</span></header>
     {!module ? <ModuleIndex /> : null}
     {module && index.isPending ? <div className="past-paper__loading"><Skeleton className="h-12 w-full" /><Skeleton className="h-24 w-full" /></div> : null}
     {module && index.isError ? <section className="past-paper__state"><h2>真题档案暂时无法加载</h2><Button variant="secondary" onClick={() => void index.refetch()}>重试</Button></section> : null}

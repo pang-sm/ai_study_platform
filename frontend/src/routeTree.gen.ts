@@ -10,11 +10,34 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CourseRouteImport } from './routes/course'
 import { Route as ExamRouteImport } from './routes/exam'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as MembershipRouteImport } from './routes/membership'
+import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as ProgrammingRouteImport } from './routes/programming'
+import { Route as RegisterRouteImport } from './routes/register'
+import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as ReviewRouteImport } from './routes/review'
+import { Route as CourseIndexRouteImport } from './routes/course/index'
+import { Route as CourseCourseIdRouteImport } from './routes/course/$courseId'
+import { Route as CourseSetupRouteImport } from './routes/course/setup'
 import { Route as ExamIndexRouteImport } from './routes/exam/index'
 import { Route as ExamCs408RouteImport } from './routes/exam/cs408'
 import { Route as ExamSetupRouteImport } from './routes/exam/setup'
+import { Route as ProgrammingIndexRouteImport } from './routes/programming/index'
+import { Route as ProgrammingLanguageRouteImport } from './routes/programming/$language'
+import { Route as ProgrammingSetupRouteImport } from './routes/programming/setup'
+import { Route as CourseCourseIdIndexRouteImport } from './routes/course/$courseId/index'
+import { Route as CourseCourseIdAskRouteImport } from './routes/course/$courseId/ask'
+import { Route as CourseCourseIdKnowledgeRouteImport } from './routes/course/$courseId/knowledge'
+import { Route as CourseCourseIdMaterialsRouteImport } from './routes/course/$courseId/materials'
+import { Route as CourseCourseIdPlanRouteImport } from './routes/course/$courseId/plan'
+import { Route as CourseCourseIdPracticeRouteImport } from './routes/course/$courseId/practice'
+import { Route as CourseCourseIdRecordsRouteImport } from './routes/course/$courseId/records'
+import { Route as CourseCourseIdStateRouteImport } from './routes/course/$courseId/state'
+import { Route as CourseCourseIdStudyRouteImport } from './routes/course/$courseId/study'
+import { Route as CourseCourseIdWrongRouteImport } from './routes/course/$courseId/wrong'
 import { Route as ExamCs408IndexRouteImport } from './routes/exam/cs408/index'
 import { Route as ExamCs408KnowledgeRouteImport } from './routes/exam/cs408/knowledge'
 import { Route as ExamCs408PastPapersRouteImport } from './routes/exam/cs408/past-papers'
@@ -25,10 +48,24 @@ import { Route as ExamCs408StateRouteImport } from './routes/exam/cs408/state'
 import { Route as ExamCs408WrongRouteImport } from './routes/exam/cs408/wrong'
 import { Route as ExamSubjectsIndexRouteImport } from './routes/exam/subjects/index'
 import { Route as ExamSubjectsSubjectIdRouteImport } from './routes/exam/subjects/$subjectId'
+import { Route as ProgrammingLanguageIndexRouteImport } from './routes/programming/$language/index'
+import { Route as ProgrammingLanguageErrorsRouteImport } from './routes/programming/$language/errors'
+import { Route as ProgrammingLanguageExercisesRouteImport } from './routes/programming/$language/exercises'
+import { Route as ProgrammingLanguagePlanRouteImport } from './routes/programming/$language/plan'
+import { Route as ProgrammingLanguageRecordsRouteImport } from './routes/programming/$language/records'
+import { Route as ProgrammingLanguageStateRouteImport } from './routes/programming/$language/state'
+import { Route as ProgrammingLanguageExercisesIndexRouteImport } from './routes/programming/$language/exercises/index'
+import { Route as ProgrammingLanguageExercisesExerciseIdRouteImport } from './routes/programming/$language/exercises/$exerciseId'
+import { Route as ProgrammingLanguageProjectsProjectIdRouteImport } from './routes/programming/$language/projects/$projectId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CourseRoute = CourseRouteImport.update({
+  id: '/course',
+  path: '/course',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ExamRoute = ExamRouteImport.update({
@@ -36,10 +73,55 @@ const ExamRoute = ExamRouteImport.update({
   path: '/exam',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MembershipRoute = MembershipRouteImport.update({
   id: '/membership',
   path: '/membership',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProgrammingRoute = ProgrammingRouteImport.update({
+  id: '/programming',
+  path: '/programming',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReportsRoute = ReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReviewRoute = ReviewRouteImport.update({
+  id: '/review',
+  path: '/review',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CourseIndexRoute = CourseIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => CourseRoute,
+} as any)
+const CourseCourseIdRoute = CourseCourseIdRouteImport.update({
+  id: '/$courseId',
+  path: '/$courseId',
+  getParentRoute: () => CourseRoute,
+} as any)
+const CourseSetupRoute = CourseSetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => CourseRoute,
 } as any)
 const ExamIndexRoute = ExamIndexRouteImport.update({
   id: '/',
@@ -55,6 +137,71 @@ const ExamSetupRoute = ExamSetupRouteImport.update({
   id: '/setup',
   path: '/setup',
   getParentRoute: () => ExamRoute,
+} as any)
+const ProgrammingIndexRoute = ProgrammingIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ProgrammingRoute,
+} as any)
+const ProgrammingLanguageRoute = ProgrammingLanguageRouteImport.update({
+  id: '/$language',
+  path: '/$language',
+  getParentRoute: () => ProgrammingRoute,
+} as any)
+const ProgrammingSetupRoute = ProgrammingSetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => ProgrammingRoute,
+} as any)
+const CourseCourseIdIndexRoute = CourseCourseIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => CourseCourseIdRoute,
+} as any)
+const CourseCourseIdAskRoute = CourseCourseIdAskRouteImport.update({
+  id: '/ask',
+  path: '/ask',
+  getParentRoute: () => CourseCourseIdRoute,
+} as any)
+const CourseCourseIdKnowledgeRoute = CourseCourseIdKnowledgeRouteImport.update({
+  id: '/knowledge',
+  path: '/knowledge',
+  getParentRoute: () => CourseCourseIdRoute,
+} as any)
+const CourseCourseIdMaterialsRoute = CourseCourseIdMaterialsRouteImport.update({
+  id: '/materials',
+  path: '/materials',
+  getParentRoute: () => CourseCourseIdRoute,
+} as any)
+const CourseCourseIdPlanRoute = CourseCourseIdPlanRouteImport.update({
+  id: '/plan',
+  path: '/plan',
+  getParentRoute: () => CourseCourseIdRoute,
+} as any)
+const CourseCourseIdPracticeRoute = CourseCourseIdPracticeRouteImport.update({
+  id: '/practice',
+  path: '/practice',
+  getParentRoute: () => CourseCourseIdRoute,
+} as any)
+const CourseCourseIdRecordsRoute = CourseCourseIdRecordsRouteImport.update({
+  id: '/records',
+  path: '/records',
+  getParentRoute: () => CourseCourseIdRoute,
+} as any)
+const CourseCourseIdStateRoute = CourseCourseIdStateRouteImport.update({
+  id: '/state',
+  path: '/state',
+  getParentRoute: () => CourseCourseIdRoute,
+} as any)
+const CourseCourseIdStudyRoute = CourseCourseIdStudyRouteImport.update({
+  id: '/study',
+  path: '/study',
+  getParentRoute: () => CourseCourseIdRoute,
+} as any)
+const CourseCourseIdWrongRoute = CourseCourseIdWrongRouteImport.update({
+  id: '/wrong',
+  path: '/wrong',
+  getParentRoute: () => CourseCourseIdRoute,
 } as any)
 const ExamCs408IndexRoute = ExamCs408IndexRouteImport.update({
   id: '/',
@@ -106,14 +253,89 @@ const ExamSubjectsSubjectIdRoute = ExamSubjectsSubjectIdRouteImport.update({
   path: '/subjects/$subjectId',
   getParentRoute: () => ExamRoute,
 } as any)
+const ProgrammingLanguageIndexRoute =
+  ProgrammingLanguageIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => ProgrammingLanguageRoute,
+  } as any)
+const ProgrammingLanguageErrorsRoute =
+  ProgrammingLanguageErrorsRouteImport.update({
+    id: '/errors',
+    path: '/errors',
+    getParentRoute: () => ProgrammingLanguageRoute,
+  } as any)
+const ProgrammingLanguageExercisesRoute =
+  ProgrammingLanguageExercisesRouteImport.update({
+    id: '/exercises',
+    path: '/exercises',
+    getParentRoute: () => ProgrammingLanguageRoute,
+  } as any)
+const ProgrammingLanguagePlanRoute = ProgrammingLanguagePlanRouteImport.update({
+  id: '/plan',
+  path: '/plan',
+  getParentRoute: () => ProgrammingLanguageRoute,
+} as any)
+const ProgrammingLanguageRecordsRoute =
+  ProgrammingLanguageRecordsRouteImport.update({
+    id: '/records',
+    path: '/records',
+    getParentRoute: () => ProgrammingLanguageRoute,
+  } as any)
+const ProgrammingLanguageStateRoute =
+  ProgrammingLanguageStateRouteImport.update({
+    id: '/state',
+    path: '/state',
+    getParentRoute: () => ProgrammingLanguageRoute,
+  } as any)
+const ProgrammingLanguageExercisesIndexRoute =
+  ProgrammingLanguageExercisesIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => ProgrammingLanguageExercisesRoute,
+  } as any)
+const ProgrammingLanguageExercisesExerciseIdRoute =
+  ProgrammingLanguageExercisesExerciseIdRouteImport.update({
+    id: '/$exerciseId',
+    path: '/$exerciseId',
+    getParentRoute: () => ProgrammingLanguageExercisesRoute,
+  } as any)
+const ProgrammingLanguageProjectsProjectIdRoute =
+  ProgrammingLanguageProjectsProjectIdRouteImport.update({
+    id: '/projects/$projectId',
+    path: '/projects/$projectId',
+    getParentRoute: () => ProgrammingLanguageRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/course': typeof CourseRouteWithChildren
   '/exam': typeof ExamRouteWithChildren
+  '/login': typeof LoginRoute
   '/membership': typeof MembershipRoute
+  '/profile': typeof ProfileRoute
+  '/programming': typeof ProgrammingRouteWithChildren
+  '/register': typeof RegisterRoute
+  '/reports': typeof ReportsRoute
+  '/review': typeof ReviewRoute
+  '/course/$courseId': typeof CourseCourseIdRouteWithChildren
+  '/course/setup': typeof CourseSetupRoute
   '/exam/cs408': typeof ExamCs408RouteWithChildren
   '/exam/setup': typeof ExamSetupRoute
+  '/programming/$language': typeof ProgrammingLanguageRouteWithChildren
+  '/programming/setup': typeof ProgrammingSetupRoute
+  '/course/': typeof CourseIndexRoute
   '/exam/': typeof ExamIndexRoute
+  '/programming/': typeof ProgrammingIndexRoute
+  '/course/$courseId/ask': typeof CourseCourseIdAskRoute
+  '/course/$courseId/knowledge': typeof CourseCourseIdKnowledgeRoute
+  '/course/$courseId/materials': typeof CourseCourseIdMaterialsRoute
+  '/course/$courseId/plan': typeof CourseCourseIdPlanRoute
+  '/course/$courseId/practice': typeof CourseCourseIdPracticeRoute
+  '/course/$courseId/records': typeof CourseCourseIdRecordsRoute
+  '/course/$courseId/state': typeof CourseCourseIdStateRoute
+  '/course/$courseId/study': typeof CourseCourseIdStudyRoute
+  '/course/$courseId/wrong': typeof CourseCourseIdWrongRoute
   '/exam/cs408/knowledge': typeof ExamCs408KnowledgeRoute
   '/exam/cs408/past-papers': typeof ExamCs408PastPapersRoute
   '/exam/cs408/plan': typeof ExamCs408PlanRoute
@@ -122,14 +344,42 @@ export interface FileRoutesByFullPath {
   '/exam/cs408/state': typeof ExamCs408StateRoute
   '/exam/cs408/wrong': typeof ExamCs408WrongRoute
   '/exam/subjects/$subjectId': typeof ExamSubjectsSubjectIdRoute
+  '/programming/$language/errors': typeof ProgrammingLanguageErrorsRoute
+  '/programming/$language/exercises': typeof ProgrammingLanguageExercisesRouteWithChildren
+  '/programming/$language/plan': typeof ProgrammingLanguagePlanRoute
+  '/programming/$language/records': typeof ProgrammingLanguageRecordsRoute
+  '/programming/$language/state': typeof ProgrammingLanguageStateRoute
+  '/course/$courseId/': typeof CourseCourseIdIndexRoute
   '/exam/cs408/': typeof ExamCs408IndexRoute
   '/exam/subjects/': typeof ExamSubjectsIndexRoute
+  '/programming/$language/': typeof ProgrammingLanguageIndexRoute
+  '/programming/$language/exercises/$exerciseId': typeof ProgrammingLanguageExercisesExerciseIdRoute
+  '/programming/$language/projects/$projectId': typeof ProgrammingLanguageProjectsProjectIdRoute
+  '/programming/$language/exercises/': typeof ProgrammingLanguageExercisesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
   '/membership': typeof MembershipRoute
+  '/profile': typeof ProfileRoute
+  '/register': typeof RegisterRoute
+  '/reports': typeof ReportsRoute
+  '/review': typeof ReviewRoute
+  '/course/setup': typeof CourseSetupRoute
   '/exam/setup': typeof ExamSetupRoute
+  '/programming/setup': typeof ProgrammingSetupRoute
+  '/course': typeof CourseIndexRoute
   '/exam': typeof ExamIndexRoute
+  '/programming': typeof ProgrammingIndexRoute
+  '/course/$courseId/ask': typeof CourseCourseIdAskRoute
+  '/course/$courseId/knowledge': typeof CourseCourseIdKnowledgeRoute
+  '/course/$courseId/materials': typeof CourseCourseIdMaterialsRoute
+  '/course/$courseId/plan': typeof CourseCourseIdPlanRoute
+  '/course/$courseId/practice': typeof CourseCourseIdPracticeRoute
+  '/course/$courseId/records': typeof CourseCourseIdRecordsRoute
+  '/course/$courseId/state': typeof CourseCourseIdStateRoute
+  '/course/$courseId/study': typeof CourseCourseIdStudyRoute
+  '/course/$courseId/wrong': typeof CourseCourseIdWrongRoute
   '/exam/cs408/knowledge': typeof ExamCs408KnowledgeRoute
   '/exam/cs408/past-papers': typeof ExamCs408PastPapersRoute
   '/exam/cs408/plan': typeof ExamCs408PlanRoute
@@ -138,17 +388,48 @@ export interface FileRoutesByTo {
   '/exam/cs408/state': typeof ExamCs408StateRoute
   '/exam/cs408/wrong': typeof ExamCs408WrongRoute
   '/exam/subjects/$subjectId': typeof ExamSubjectsSubjectIdRoute
+  '/programming/$language/errors': typeof ProgrammingLanguageErrorsRoute
+  '/programming/$language/plan': typeof ProgrammingLanguagePlanRoute
+  '/programming/$language/records': typeof ProgrammingLanguageRecordsRoute
+  '/programming/$language/state': typeof ProgrammingLanguageStateRoute
+  '/course/$courseId': typeof CourseCourseIdIndexRoute
   '/exam/cs408': typeof ExamCs408IndexRoute
   '/exam/subjects': typeof ExamSubjectsIndexRoute
+  '/programming/$language': typeof ProgrammingLanguageIndexRoute
+  '/programming/$language/exercises/$exerciseId': typeof ProgrammingLanguageExercisesExerciseIdRoute
+  '/programming/$language/projects/$projectId': typeof ProgrammingLanguageProjectsProjectIdRoute
+  '/programming/$language/exercises': typeof ProgrammingLanguageExercisesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/course': typeof CourseRouteWithChildren
   '/exam': typeof ExamRouteWithChildren
+  '/login': typeof LoginRoute
   '/membership': typeof MembershipRoute
+  '/profile': typeof ProfileRoute
+  '/programming': typeof ProgrammingRouteWithChildren
+  '/register': typeof RegisterRoute
+  '/reports': typeof ReportsRoute
+  '/review': typeof ReviewRoute
+  '/course/$courseId': typeof CourseCourseIdRouteWithChildren
+  '/course/setup': typeof CourseSetupRoute
   '/exam/cs408': typeof ExamCs408RouteWithChildren
   '/exam/setup': typeof ExamSetupRoute
+  '/programming/$language': typeof ProgrammingLanguageRouteWithChildren
+  '/programming/setup': typeof ProgrammingSetupRoute
+  '/course/': typeof CourseIndexRoute
   '/exam/': typeof ExamIndexRoute
+  '/programming/': typeof ProgrammingIndexRoute
+  '/course/$courseId/ask': typeof CourseCourseIdAskRoute
+  '/course/$courseId/knowledge': typeof CourseCourseIdKnowledgeRoute
+  '/course/$courseId/materials': typeof CourseCourseIdMaterialsRoute
+  '/course/$courseId/plan': typeof CourseCourseIdPlanRoute
+  '/course/$courseId/practice': typeof CourseCourseIdPracticeRoute
+  '/course/$courseId/records': typeof CourseCourseIdRecordsRoute
+  '/course/$courseId/state': typeof CourseCourseIdStateRoute
+  '/course/$courseId/study': typeof CourseCourseIdStudyRoute
+  '/course/$courseId/wrong': typeof CourseCourseIdWrongRoute
   '/exam/cs408/knowledge': typeof ExamCs408KnowledgeRoute
   '/exam/cs408/past-papers': typeof ExamCs408PastPapersRoute
   '/exam/cs408/plan': typeof ExamCs408PlanRoute
@@ -157,18 +438,50 @@ export interface FileRoutesById {
   '/exam/cs408/state': typeof ExamCs408StateRoute
   '/exam/cs408/wrong': typeof ExamCs408WrongRoute
   '/exam/subjects/$subjectId': typeof ExamSubjectsSubjectIdRoute
+  '/programming/$language/errors': typeof ProgrammingLanguageErrorsRoute
+  '/programming/$language/exercises': typeof ProgrammingLanguageExercisesRouteWithChildren
+  '/programming/$language/plan': typeof ProgrammingLanguagePlanRoute
+  '/programming/$language/records': typeof ProgrammingLanguageRecordsRoute
+  '/programming/$language/state': typeof ProgrammingLanguageStateRoute
+  '/course/$courseId/': typeof CourseCourseIdIndexRoute
   '/exam/cs408/': typeof ExamCs408IndexRoute
   '/exam/subjects/': typeof ExamSubjectsIndexRoute
+  '/programming/$language/': typeof ProgrammingLanguageIndexRoute
+  '/programming/$language/exercises/$exerciseId': typeof ProgrammingLanguageExercisesExerciseIdRoute
+  '/programming/$language/projects/$projectId': typeof ProgrammingLanguageProjectsProjectIdRoute
+  '/programming/$language/exercises/': typeof ProgrammingLanguageExercisesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/course'
     | '/exam'
+    | '/login'
     | '/membership'
+    | '/profile'
+    | '/programming'
+    | '/register'
+    | '/reports'
+    | '/review'
+    | '/course/$courseId'
+    | '/course/setup'
     | '/exam/cs408'
     | '/exam/setup'
+    | '/programming/$language'
+    | '/programming/setup'
+    | '/course/'
     | '/exam/'
+    | '/programming/'
+    | '/course/$courseId/ask'
+    | '/course/$courseId/knowledge'
+    | '/course/$courseId/materials'
+    | '/course/$courseId/plan'
+    | '/course/$courseId/practice'
+    | '/course/$courseId/records'
+    | '/course/$courseId/state'
+    | '/course/$courseId/study'
+    | '/course/$courseId/wrong'
     | '/exam/cs408/knowledge'
     | '/exam/cs408/past-papers'
     | '/exam/cs408/plan'
@@ -177,14 +490,42 @@ export interface FileRouteTypes {
     | '/exam/cs408/state'
     | '/exam/cs408/wrong'
     | '/exam/subjects/$subjectId'
+    | '/programming/$language/errors'
+    | '/programming/$language/exercises'
+    | '/programming/$language/plan'
+    | '/programming/$language/records'
+    | '/programming/$language/state'
+    | '/course/$courseId/'
     | '/exam/cs408/'
     | '/exam/subjects/'
+    | '/programming/$language/'
+    | '/programming/$language/exercises/$exerciseId'
+    | '/programming/$language/projects/$projectId'
+    | '/programming/$language/exercises/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/login'
     | '/membership'
+    | '/profile'
+    | '/register'
+    | '/reports'
+    | '/review'
+    | '/course/setup'
     | '/exam/setup'
+    | '/programming/setup'
+    | '/course'
     | '/exam'
+    | '/programming'
+    | '/course/$courseId/ask'
+    | '/course/$courseId/knowledge'
+    | '/course/$courseId/materials'
+    | '/course/$courseId/plan'
+    | '/course/$courseId/practice'
+    | '/course/$courseId/records'
+    | '/course/$courseId/state'
+    | '/course/$courseId/study'
+    | '/course/$courseId/wrong'
     | '/exam/cs408/knowledge'
     | '/exam/cs408/past-papers'
     | '/exam/cs408/plan'
@@ -193,16 +534,47 @@ export interface FileRouteTypes {
     | '/exam/cs408/state'
     | '/exam/cs408/wrong'
     | '/exam/subjects/$subjectId'
+    | '/programming/$language/errors'
+    | '/programming/$language/plan'
+    | '/programming/$language/records'
+    | '/programming/$language/state'
+    | '/course/$courseId'
     | '/exam/cs408'
     | '/exam/subjects'
+    | '/programming/$language'
+    | '/programming/$language/exercises/$exerciseId'
+    | '/programming/$language/projects/$projectId'
+    | '/programming/$language/exercises'
   id:
     | '__root__'
     | '/'
+    | '/course'
     | '/exam'
+    | '/login'
     | '/membership'
+    | '/profile'
+    | '/programming'
+    | '/register'
+    | '/reports'
+    | '/review'
+    | '/course/$courseId'
+    | '/course/setup'
     | '/exam/cs408'
     | '/exam/setup'
+    | '/programming/$language'
+    | '/programming/setup'
+    | '/course/'
     | '/exam/'
+    | '/programming/'
+    | '/course/$courseId/ask'
+    | '/course/$courseId/knowledge'
+    | '/course/$courseId/materials'
+    | '/course/$courseId/plan'
+    | '/course/$courseId/practice'
+    | '/course/$courseId/records'
+    | '/course/$courseId/state'
+    | '/course/$courseId/study'
+    | '/course/$courseId/wrong'
     | '/exam/cs408/knowledge'
     | '/exam/cs408/past-papers'
     | '/exam/cs408/plan'
@@ -211,14 +583,31 @@ export interface FileRouteTypes {
     | '/exam/cs408/state'
     | '/exam/cs408/wrong'
     | '/exam/subjects/$subjectId'
+    | '/programming/$language/errors'
+    | '/programming/$language/exercises'
+    | '/programming/$language/plan'
+    | '/programming/$language/records'
+    | '/programming/$language/state'
+    | '/course/$courseId/'
     | '/exam/cs408/'
     | '/exam/subjects/'
+    | '/programming/$language/'
+    | '/programming/$language/exercises/$exerciseId'
+    | '/programming/$language/projects/$projectId'
+    | '/programming/$language/exercises/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CourseRoute: typeof CourseRouteWithChildren
   ExamRoute: typeof ExamRouteWithChildren
+  LoginRoute: typeof LoginRoute
   MembershipRoute: typeof MembershipRoute
+  ProfileRoute: typeof ProfileRoute
+  ProgrammingRoute: typeof ProgrammingRouteWithChildren
+  RegisterRoute: typeof RegisterRoute
+  ReportsRoute: typeof ReportsRoute
+  ReviewRoute: typeof ReviewRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -230,11 +619,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/course': {
+      id: '/course'
+      path: '/course'
+      fullPath: '/course'
+      preLoaderRoute: typeof CourseRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/exam': {
       id: '/exam'
       path: '/exam'
       fullPath: '/exam'
       preLoaderRoute: typeof ExamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/membership': {
@@ -243,6 +646,62 @@ declare module '@tanstack/react-router' {
       fullPath: '/membership'
       preLoaderRoute: typeof MembershipRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/programming': {
+      id: '/programming'
+      path: '/programming'
+      fullPath: '/programming'
+      preLoaderRoute: typeof ProgrammingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reports': {
+      id: '/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/review': {
+      id: '/review'
+      path: '/review'
+      fullPath: '/review'
+      preLoaderRoute: typeof ReviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/course/': {
+      id: '/course/'
+      path: '/'
+      fullPath: '/course/'
+      preLoaderRoute: typeof CourseIndexRouteImport
+      parentRoute: typeof CourseRoute
+    }
+    '/course/$courseId': {
+      id: '/course/$courseId'
+      path: '/$courseId'
+      fullPath: '/course/$courseId'
+      preLoaderRoute: typeof CourseCourseIdRouteImport
+      parentRoute: typeof CourseRoute
+    }
+    '/course/setup': {
+      id: '/course/setup'
+      path: '/setup'
+      fullPath: '/course/setup'
+      preLoaderRoute: typeof CourseSetupRouteImport
+      parentRoute: typeof CourseRoute
     }
     '/exam/': {
       id: '/exam/'
@@ -264,6 +723,97 @@ declare module '@tanstack/react-router' {
       fullPath: '/exam/setup'
       preLoaderRoute: typeof ExamSetupRouteImport
       parentRoute: typeof ExamRoute
+    }
+    '/programming/': {
+      id: '/programming/'
+      path: '/'
+      fullPath: '/programming/'
+      preLoaderRoute: typeof ProgrammingIndexRouteImport
+      parentRoute: typeof ProgrammingRoute
+    }
+    '/programming/$language': {
+      id: '/programming/$language'
+      path: '/$language'
+      fullPath: '/programming/$language'
+      preLoaderRoute: typeof ProgrammingLanguageRouteImport
+      parentRoute: typeof ProgrammingRoute
+    }
+    '/programming/setup': {
+      id: '/programming/setup'
+      path: '/setup'
+      fullPath: '/programming/setup'
+      preLoaderRoute: typeof ProgrammingSetupRouteImport
+      parentRoute: typeof ProgrammingRoute
+    }
+    '/course/$courseId/': {
+      id: '/course/$courseId/'
+      path: '/'
+      fullPath: '/course/$courseId/'
+      preLoaderRoute: typeof CourseCourseIdIndexRouteImport
+      parentRoute: typeof CourseCourseIdRoute
+    }
+    '/course/$courseId/ask': {
+      id: '/course/$courseId/ask'
+      path: '/ask'
+      fullPath: '/course/$courseId/ask'
+      preLoaderRoute: typeof CourseCourseIdAskRouteImport
+      parentRoute: typeof CourseCourseIdRoute
+    }
+    '/course/$courseId/knowledge': {
+      id: '/course/$courseId/knowledge'
+      path: '/knowledge'
+      fullPath: '/course/$courseId/knowledge'
+      preLoaderRoute: typeof CourseCourseIdKnowledgeRouteImport
+      parentRoute: typeof CourseCourseIdRoute
+    }
+    '/course/$courseId/materials': {
+      id: '/course/$courseId/materials'
+      path: '/materials'
+      fullPath: '/course/$courseId/materials'
+      preLoaderRoute: typeof CourseCourseIdMaterialsRouteImport
+      parentRoute: typeof CourseCourseIdRoute
+    }
+    '/course/$courseId/plan': {
+      id: '/course/$courseId/plan'
+      path: '/plan'
+      fullPath: '/course/$courseId/plan'
+      preLoaderRoute: typeof CourseCourseIdPlanRouteImport
+      parentRoute: typeof CourseCourseIdRoute
+    }
+    '/course/$courseId/practice': {
+      id: '/course/$courseId/practice'
+      path: '/practice'
+      fullPath: '/course/$courseId/practice'
+      preLoaderRoute: typeof CourseCourseIdPracticeRouteImport
+      parentRoute: typeof CourseCourseIdRoute
+    }
+    '/course/$courseId/records': {
+      id: '/course/$courseId/records'
+      path: '/records'
+      fullPath: '/course/$courseId/records'
+      preLoaderRoute: typeof CourseCourseIdRecordsRouteImport
+      parentRoute: typeof CourseCourseIdRoute
+    }
+    '/course/$courseId/state': {
+      id: '/course/$courseId/state'
+      path: '/state'
+      fullPath: '/course/$courseId/state'
+      preLoaderRoute: typeof CourseCourseIdStateRouteImport
+      parentRoute: typeof CourseCourseIdRoute
+    }
+    '/course/$courseId/study': {
+      id: '/course/$courseId/study'
+      path: '/study'
+      fullPath: '/course/$courseId/study'
+      preLoaderRoute: typeof CourseCourseIdStudyRouteImport
+      parentRoute: typeof CourseCourseIdRoute
+    }
+    '/course/$courseId/wrong': {
+      id: '/course/$courseId/wrong'
+      path: '/wrong'
+      fullPath: '/course/$courseId/wrong'
+      preLoaderRoute: typeof CourseCourseIdWrongRouteImport
+      parentRoute: typeof CourseCourseIdRoute
     }
     '/exam/cs408/': {
       id: '/exam/cs408/'
@@ -335,8 +885,116 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ExamSubjectsSubjectIdRouteImport
       parentRoute: typeof ExamRoute
     }
+    '/programming/$language/': {
+      id: '/programming/$language/'
+      path: '/'
+      fullPath: '/programming/$language/'
+      preLoaderRoute: typeof ProgrammingLanguageIndexRouteImport
+      parentRoute: typeof ProgrammingLanguageRoute
+    }
+    '/programming/$language/errors': {
+      id: '/programming/$language/errors'
+      path: '/errors'
+      fullPath: '/programming/$language/errors'
+      preLoaderRoute: typeof ProgrammingLanguageErrorsRouteImport
+      parentRoute: typeof ProgrammingLanguageRoute
+    }
+    '/programming/$language/exercises': {
+      id: '/programming/$language/exercises'
+      path: '/exercises'
+      fullPath: '/programming/$language/exercises'
+      preLoaderRoute: typeof ProgrammingLanguageExercisesRouteImport
+      parentRoute: typeof ProgrammingLanguageRoute
+    }
+    '/programming/$language/plan': {
+      id: '/programming/$language/plan'
+      path: '/plan'
+      fullPath: '/programming/$language/plan'
+      preLoaderRoute: typeof ProgrammingLanguagePlanRouteImport
+      parentRoute: typeof ProgrammingLanguageRoute
+    }
+    '/programming/$language/records': {
+      id: '/programming/$language/records'
+      path: '/records'
+      fullPath: '/programming/$language/records'
+      preLoaderRoute: typeof ProgrammingLanguageRecordsRouteImport
+      parentRoute: typeof ProgrammingLanguageRoute
+    }
+    '/programming/$language/state': {
+      id: '/programming/$language/state'
+      path: '/state'
+      fullPath: '/programming/$language/state'
+      preLoaderRoute: typeof ProgrammingLanguageStateRouteImport
+      parentRoute: typeof ProgrammingLanguageRoute
+    }
+    '/programming/$language/exercises/': {
+      id: '/programming/$language/exercises/'
+      path: '/'
+      fullPath: '/programming/$language/exercises/'
+      preLoaderRoute: typeof ProgrammingLanguageExercisesIndexRouteImport
+      parentRoute: typeof ProgrammingLanguageExercisesRoute
+    }
+    '/programming/$language/exercises/$exerciseId': {
+      id: '/programming/$language/exercises/$exerciseId'
+      path: '/$exerciseId'
+      fullPath: '/programming/$language/exercises/$exerciseId'
+      preLoaderRoute: typeof ProgrammingLanguageExercisesExerciseIdRouteImport
+      parentRoute: typeof ProgrammingLanguageExercisesRoute
+    }
+    '/programming/$language/projects/$projectId': {
+      id: '/programming/$language/projects/$projectId'
+      path: '/projects/$projectId'
+      fullPath: '/programming/$language/projects/$projectId'
+      preLoaderRoute: typeof ProgrammingLanguageProjectsProjectIdRouteImport
+      parentRoute: typeof ProgrammingLanguageRoute
+    }
   }
 }
+
+interface CourseCourseIdRouteChildren {
+  CourseCourseIdAskRoute: typeof CourseCourseIdAskRoute
+  CourseCourseIdKnowledgeRoute: typeof CourseCourseIdKnowledgeRoute
+  CourseCourseIdMaterialsRoute: typeof CourseCourseIdMaterialsRoute
+  CourseCourseIdPlanRoute: typeof CourseCourseIdPlanRoute
+  CourseCourseIdPracticeRoute: typeof CourseCourseIdPracticeRoute
+  CourseCourseIdRecordsRoute: typeof CourseCourseIdRecordsRoute
+  CourseCourseIdStateRoute: typeof CourseCourseIdStateRoute
+  CourseCourseIdStudyRoute: typeof CourseCourseIdStudyRoute
+  CourseCourseIdWrongRoute: typeof CourseCourseIdWrongRoute
+  CourseCourseIdIndexRoute: typeof CourseCourseIdIndexRoute
+}
+
+const CourseCourseIdRouteChildren: CourseCourseIdRouteChildren = {
+  CourseCourseIdAskRoute: CourseCourseIdAskRoute,
+  CourseCourseIdKnowledgeRoute: CourseCourseIdKnowledgeRoute,
+  CourseCourseIdMaterialsRoute: CourseCourseIdMaterialsRoute,
+  CourseCourseIdPlanRoute: CourseCourseIdPlanRoute,
+  CourseCourseIdPracticeRoute: CourseCourseIdPracticeRoute,
+  CourseCourseIdRecordsRoute: CourseCourseIdRecordsRoute,
+  CourseCourseIdStateRoute: CourseCourseIdStateRoute,
+  CourseCourseIdStudyRoute: CourseCourseIdStudyRoute,
+  CourseCourseIdWrongRoute: CourseCourseIdWrongRoute,
+  CourseCourseIdIndexRoute: CourseCourseIdIndexRoute,
+}
+
+const CourseCourseIdRouteWithChildren = CourseCourseIdRoute._addFileChildren(
+  CourseCourseIdRouteChildren,
+)
+
+interface CourseRouteChildren {
+  CourseCourseIdRoute: typeof CourseCourseIdRouteWithChildren
+  CourseSetupRoute: typeof CourseSetupRoute
+  CourseIndexRoute: typeof CourseIndexRoute
+}
+
+const CourseRouteChildren: CourseRouteChildren = {
+  CourseCourseIdRoute: CourseCourseIdRouteWithChildren,
+  CourseSetupRoute: CourseSetupRoute,
+  CourseIndexRoute: CourseIndexRoute,
+}
+
+const CourseRouteWithChildren =
+  CourseRoute._addFileChildren(CourseRouteChildren)
 
 interface ExamCs408RouteChildren {
   ExamCs408KnowledgeRoute: typeof ExamCs408KnowledgeRoute
@@ -382,10 +1040,76 @@ const ExamRouteChildren: ExamRouteChildren = {
 
 const ExamRouteWithChildren = ExamRoute._addFileChildren(ExamRouteChildren)
 
+interface ProgrammingLanguageExercisesRouteChildren {
+  ProgrammingLanguageExercisesExerciseIdRoute: typeof ProgrammingLanguageExercisesExerciseIdRoute
+  ProgrammingLanguageExercisesIndexRoute: typeof ProgrammingLanguageExercisesIndexRoute
+}
+
+const ProgrammingLanguageExercisesRouteChildren: ProgrammingLanguageExercisesRouteChildren =
+  {
+    ProgrammingLanguageExercisesExerciseIdRoute:
+      ProgrammingLanguageExercisesExerciseIdRoute,
+    ProgrammingLanguageExercisesIndexRoute:
+      ProgrammingLanguageExercisesIndexRoute,
+  }
+
+const ProgrammingLanguageExercisesRouteWithChildren =
+  ProgrammingLanguageExercisesRoute._addFileChildren(
+    ProgrammingLanguageExercisesRouteChildren,
+  )
+
+interface ProgrammingLanguageRouteChildren {
+  ProgrammingLanguageErrorsRoute: typeof ProgrammingLanguageErrorsRoute
+  ProgrammingLanguageExercisesRoute: typeof ProgrammingLanguageExercisesRouteWithChildren
+  ProgrammingLanguagePlanRoute: typeof ProgrammingLanguagePlanRoute
+  ProgrammingLanguageRecordsRoute: typeof ProgrammingLanguageRecordsRoute
+  ProgrammingLanguageStateRoute: typeof ProgrammingLanguageStateRoute
+  ProgrammingLanguageIndexRoute: typeof ProgrammingLanguageIndexRoute
+  ProgrammingLanguageProjectsProjectIdRoute: typeof ProgrammingLanguageProjectsProjectIdRoute
+}
+
+const ProgrammingLanguageRouteChildren: ProgrammingLanguageRouteChildren = {
+  ProgrammingLanguageErrorsRoute: ProgrammingLanguageErrorsRoute,
+  ProgrammingLanguageExercisesRoute:
+    ProgrammingLanguageExercisesRouteWithChildren,
+  ProgrammingLanguagePlanRoute: ProgrammingLanguagePlanRoute,
+  ProgrammingLanguageRecordsRoute: ProgrammingLanguageRecordsRoute,
+  ProgrammingLanguageStateRoute: ProgrammingLanguageStateRoute,
+  ProgrammingLanguageIndexRoute: ProgrammingLanguageIndexRoute,
+  ProgrammingLanguageProjectsProjectIdRoute:
+    ProgrammingLanguageProjectsProjectIdRoute,
+}
+
+const ProgrammingLanguageRouteWithChildren =
+  ProgrammingLanguageRoute._addFileChildren(ProgrammingLanguageRouteChildren)
+
+interface ProgrammingRouteChildren {
+  ProgrammingLanguageRoute: typeof ProgrammingLanguageRouteWithChildren
+  ProgrammingSetupRoute: typeof ProgrammingSetupRoute
+  ProgrammingIndexRoute: typeof ProgrammingIndexRoute
+}
+
+const ProgrammingRouteChildren: ProgrammingRouteChildren = {
+  ProgrammingLanguageRoute: ProgrammingLanguageRouteWithChildren,
+  ProgrammingSetupRoute: ProgrammingSetupRoute,
+  ProgrammingIndexRoute: ProgrammingIndexRoute,
+}
+
+const ProgrammingRouteWithChildren = ProgrammingRoute._addFileChildren(
+  ProgrammingRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CourseRoute: CourseRouteWithChildren,
   ExamRoute: ExamRouteWithChildren,
+  LoginRoute: LoginRoute,
   MembershipRoute: MembershipRoute,
+  ProfileRoute: ProfileRoute,
+  ProgrammingRoute: ProgrammingRouteWithChildren,
+  RegisterRoute: RegisterRoute,
+  ReportsRoute: ReportsRoute,
+  ReviewRoute: ReviewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -1,25 +1,11 @@
 import { render, screen } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider, createMemoryHistory, createRootRoute, createRouter } from '@tanstack/react-router';
 import { describe, expect, it } from 'vitest';
 import { SubjectAvailabilityBadge } from '@/features/exam/components/subject-availability-badge';
 import { ContentUnavailableState } from '@/features/exam/components/content-unavailable-state';
 import { normalizeApiError } from '@/features/exam/api/errors';
 import { knowledgeStatusLabel, wrongResolutionLabel } from '@/features/exam/view-models/status-labels';
-import { routeTree } from '@/routeTree.gen';
-
-function renderApp(initialPath = '/exam') {
-  const router = createRouter({
-    routeTree,
-    history: createMemoryHistory({ initialEntries: [initialPath] }),
-  });
-  const queryClient = new QueryClient();
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>,
-  );
-}
+import { renderApp } from '@/test/render-app';
 
 function renderUnavailable(subjectName: string, selected = false) {
   const router = createRouter({
@@ -96,7 +82,7 @@ describe('Exam foundation primitives', () => {
     renderApp('/exam/cs408');
 
     expect(await screen.findByRole('heading', { name: '学习工作区' })).toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: 'CS408 工作区工具' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'CS408 工具导航' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '数据结构' })).toBeInTheDocument();
   });
 });

@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { Cs408PracticeWorkspace } from '@/features/exam/components/cs408-practice-workspace';
+import { AdaptivePractice } from '@/components/learning/adaptive-practice';
 
 export const Route = createFileRoute('/exam/cs408/practice')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -18,5 +19,5 @@ export const Route = createFileRoute('/exam/cs408/practice')({
 function PracticeRoute() {
   const { module, chapter, concept, attempt } = Route.useSearch();
   const navigate = Route.useNavigate();
-  return <Cs408PracticeWorkspace moduleKey={module} chapterCode={chapter} conceptCode={concept} attemptId={attempt} onAttemptChange={(attemptId) => void navigate({ search: (current) => ({ ...current, attempt: attemptId }) })} />;
+  return <><AdaptivePractice serviceKey="exam_11408" examModuleId={module} entryHref="/exam/cs408/practice" /><Cs408PracticeWorkspace moduleKey={module} chapterCode={chapter} conceptCode={concept} attemptId={attempt} onAttemptChange={(attemptId) => void navigate({ search: (current) => ({ ...current, attempt: attemptId }) })} /></>;
 }
