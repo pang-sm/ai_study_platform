@@ -317,7 +317,7 @@ def test_the_migration_chain_reaches_a_single_head_on_a_fresh_database(tmp_path)
     con = sqlite3.connect(f"file:{fresh.as_posix()}?mode=ro", uri=True)
     try:
         revision = con.execute("select version_num from alembic_version").fetchone()[0]
-        assert revision == "20260919_0012"
+        assert revision == "20260921_0013"
         columns = {row[1] for row in con.execute("PRAGMA table_info(practice_attempts)")}
         assert {"response_time_source", "attempt_index"} <= columns
         # the tables S9 relies on exist, and no hint column was invented for a model's sake
@@ -335,7 +335,7 @@ def test_there_is_exactly_one_alembic_head():
     assert result.returncode == 0, result.stderr[-1000:]
     heads = [line for line in result.stdout.splitlines() if line.strip()]
     assert len(heads) == 1, result.stdout
-    assert heads[0].startswith("20260919_0012")
+    assert heads[0].startswith("20260921_0013")
 
 
 def test_s9_added_no_migration_of_its_own():
@@ -344,7 +344,15 @@ def test_s9_added_no_migration_of_its_own():
     S10 added ``0011`` (the unified-membership back-fill, a data migration) and ``0012``
     (the ``data_origin`` provenance column). Both are ADDITIVE: neither rewrites a legacy
     row's existing values, and ``0011`` only ever INSERTs.
+
+    Later work APPENDS to the chain, so the S10 pair is asserted to still be adjacent and
+    intact rather than to be last: a revision slipped in between them — or a renamed file —
+    is still caught, which is what this guard is for.
     """
     versions = sorted(p.name for p in (REPO_ROOT / "migrations" / "versions").glob("*.py"))
-    assert versions[-2:] == ["20260919_0011_unified_membership_backfill.py",
-                             "20260919_0012_data_origin_provenance.py"]
+    s10 = ["20260919_0011_unified_membership_backfill.py",
+           "20260919_0012_data_origin_provenance.py"]
+    start = versions.index(s10[0])
+    assert versions[start:start + 2] == s10, versions[start:start + 2]
+    # and nothing dated on or before the pair may follow it
+    assert all(name > s10[1] for name in versions[start + 2:]), versions[start:]

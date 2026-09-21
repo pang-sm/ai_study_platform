@@ -295,7 +295,10 @@ def record_attempt(db: DbSession, user, session: PracticeSession, question_ref: 
         attempt_no=attempt_no,
         response_time_source=telemetry.duration_source if telemetry is not None else None,
         attempt_index=attempt_index,
-        data_origin=origin.active_origin(),
+        # The ATTEMPT carries its account's origin, and every later fact derived from it
+        # (its learning events, a re-emit, the wrong-answer state) inherits this value
+        # rather than re-deriving it — see ``data_plane.origin.origin_for_user``.
+        data_origin=origin.origin_for_user(user),
         context_json=_context_json(context) or session.context_json,
         fact_hash=digest,
     )

@@ -433,6 +433,7 @@
 | GET | `/admin/users/{target_username}/detail` | 用户详情 |
 | PUT | `/admin/users/{target_username}/status` | 启用/禁用 |
 | PUT | `/admin/users/{target_username}/admin-role` | 设置管理员角色 |
+| PUT | `/admin/users/{target_username}/data-origin` | 设置/清除账号数据来源标记（仅超管；只能设为不进入训练集的取值，留空清除） |
 | POST | `/admin/users/{target_username}/plan` | 设置用户套餐 |
 | POST | `/admin/users/{user_id}/ban` | 封禁用户 |
 | POST | `/admin/users/{user_id}/unban` | 解封用户 |

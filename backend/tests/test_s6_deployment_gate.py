@@ -44,7 +44,7 @@ RUNTIME_PYTHON = Path(r"D:\ZhixueAI\envs\runtime-service\Scripts\python.exe")
 RUNTIME_SERVICE_ROOT = REPO_ROOT / "scientific_runtime_service"
 
 DEPLOY_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "deploy.yml"
-EXPECTED_HEAD = "20260919_0012"
+EXPECTED_HEAD = "20260921_0013"
 
 # The legacy baseline the copy must still satisfy after migrating.
 PROTECTED_TABLES = ("exam_question_bank", "programming_exercises", "knowledge_points")
@@ -820,7 +820,8 @@ def test_the_migrations_refuse_to_downgrade_rather_than_pretending_to_be_lossles
     for name in ("20260919_0009_wrong_answer_module_key",
                  "20260919_0010_attempt_telemetry_provenance",
                  "20260919_0011_unified_membership_backfill",
-                 "20260919_0012_data_origin_provenance"):
+                 "20260919_0012_data_origin_provenance",
+                 "20260921_0013_user_data_origin"):
         text = (REPO_ROOT / "migrations" / "versions" / f"{name}.py").read_text(
             encoding="utf-8")
         assert "raise NotImplementedError" in text, name

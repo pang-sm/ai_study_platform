@@ -183,11 +183,14 @@ def emit_for_attempt(db, attempt: PracticeAttempt) -> dict:
     The emitted event inherits the ATTEMPT's recorded origin, not the emitting process's:
     the fact was created when the attempt was created, and a later re-emit (a repair run, a
     different process) must not be able to relabel it.
+
+    When the attempt predates its own origin being recorded, the fallback resolves the
+    ATTEMPT'S ACCOUNT origin (not the process origin), so a re-emit of an acceptance
+    account's attempt cannot become training-admissible by passing through here.
     """
     event = build_event(attempt)
     if event is None:
         return {"emitted": 0, "reason": "not_practice_owned"}
-    event["data_origin"] = attempt.data_origin or origin.active_origin()
 
     # The caller's practice transaction is already committed; a distinct session keeps a
     # data-plane failure from rolling the attempt back.
@@ -198,6 +201,9 @@ def emit_for_attempt(db, attempt: PracticeAttempt) -> dict:
         logger.warning("practice.event_emit_failed attempt_id=%s error=%s",
                        attempt.id, type(exc).__name__)
         return {"emitted": 0, "reason": "session_unavailable"}
+
+    event["data_origin"] = attempt.data_origin or origin.origin_for_user_id(
+        attempt.user_id, session)
 
     try:
         stmt = sqlite_insert(LearningEvent).values(**event).on_conflict_do_nothing(

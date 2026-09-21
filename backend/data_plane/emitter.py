@@ -90,7 +90,9 @@ def build_course_practice_events(attempt, item, answer, correct, user) -> list:
             "snapshot_completeness": "FULL",
             "snapshot_missing_fields_json": identity.canonical_json([]),
         })
-        origin.stamp(events[-1])
+        # The event belongs to the ATTEMPT's account, so it takes that account's origin —
+        # not the emitting process's alone. A later re-emit must not be able to relabel it.
+        events[-1]["data_origin"] = origin.origin_for_user(user)
     return events
 
 

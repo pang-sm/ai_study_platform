@@ -28,6 +28,12 @@ class User(Base):
     plan_expire_at = Column(DateTime, nullable=True)
     is_admin = Column(Integer, nullable=True, default=0)
     admin_role = Column(String(30), nullable=True, default="none")
+    # The account's own declared origin, which every training-relevant fact it produces
+    # inherits (ACCEL_PRODUCT provenance closure). NULL means "no marker — use the process
+    # origin", which is every normal learner. Written ONLY through the admin contract
+    # `PUT /admin/users/{username}/data-origin`, never from a request body/header, and only
+    # ever set to an origin that is EXCLUDED from training. See ``data_plane.origin``.
+    data_origin = Column(String(30), nullable=True, default=None)
     admin_real_name = Column("admin_real_name", Text, nullable=True)
     school = Column(String(100), nullable=True, default="")
     learning_direction = Column(String(100), nullable=True, default="")

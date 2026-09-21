@@ -31232,6 +31232,76 @@ def admin_update_user_admin_role(
     }
 
 
+@app.put("/admin/users/{target_username}/data-origin")
+def admin_update_user_data_origin(
+    target_username: str,
+    req: schemas.AdminUserDataOriginRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_admin_user),
+):
+    """Mark (or clear) the dataset origin of ONE account's facts. Super-admin only.
+
+    THE TRUST BOUNDARY. This is the only way to set ``users.data_origin``. It is server
+    state behind an admin-only contract, so no client can make itself an ACCEPTANCE account
+    by sending a body, header, cookie or query value. The marker is what the fact writers
+    resolve through ``data_plane.origin.origin_for_user``, and it is what keeps an
+    acceptance account's practice, review, agenda, AI request and feedback facts out of the
+    training set.
+
+    ONE-WAY BY CONSTRUCTION. Only an origin EXCLUDED from training may be set, and an empty
+    value clears the marker. ``LEARNER`` is refused rather than accepted as a no-op: the
+    marker exists to withhold facts, and a contract that could also claim facts are real
+    would be a way to relabel another deployment's data as training-admissible.
+    """
+    admin = require_super_admin(current_user)
+    target_user = get_user_by_username(target_username, db)
+
+    from data_plane import origin
+
+    raw = (req.data_origin or "").strip().upper()
+    if not raw:
+        new_origin = None
+    elif raw in origin.ALLOWED_ACCOUNT_ORIGINS:
+        new_origin = raw
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail=("数据来源只能设为不进入训练集的取值："
+                    + " / ".join(sorted(origin.ALLOWED_ACCOUNT_ORIGINS))
+                    + "；留空表示清除标记"),
+        )
+
+    old_origin = (target_user.data_origin or "").strip().upper() or None
+    if old_origin == new_origin:
+        return {
+            "success": True,
+            "username": target_user.username,
+            "data_origin": new_origin,
+            "unchanged": True,
+        }
+
+    target_user.data_origin = new_origin
+    db.commit()
+    db.refresh(target_user)
+
+    _write_audit_log(
+        admin_username=admin.username,
+        action="update_user_data_origin",
+        db=db,
+        target_type="user",
+        target_username=target_user.username,
+        detail=f"data_origin {old_origin} -> {new_origin}",
+        details={"old_origin": old_origin, "new_origin": new_origin},
+    )
+
+    return {
+        "success": True,
+        "username": target_user.username,
+        "data_origin": new_origin,
+        "unchanged": False,
+    }
+
+
 @app.get("/admin/admins")
 def admin_list_admins(
     keyword: str = "",

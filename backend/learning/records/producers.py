@@ -56,13 +56,17 @@ def write_event(event: dict) -> dict:
     The dataset origin is stamped HERE rather than by each producer: this is the single
     insert every produced event passes through, so no producer can forget to declare why
     its fact exists (``data_plane.origin``).
+
+    The origin is resolved for the EVENT'S OWN account, not just for the process: an
+    acceptance account's events must carry its origin however they were produced, and this
+    funnel is the one place that sees every one of them (``origin.origin_for_user_id``).
     """
     session = None
     try:
         from data_plane import origin
-        event = origin.stamp(event)
         from database import SessionLocal
         session = SessionLocal()
+        event["data_origin"] = origin.origin_for_user_id(event.get("user_id"), session)
         stmt = sqlite_insert(LearningEvent).values(**event).on_conflict_do_nothing(
             index_elements=["event_id"])
         result = session.execute(stmt)

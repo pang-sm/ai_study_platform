@@ -19,7 +19,7 @@ from .models import LearningEvent
 logger = logging.getLogger("data_plane.backfill")
 
 
-def build_backfill_events(attempt, user_id) -> list:
+def build_backfill_events(attempt, user_id, data_origin=None) -> list:
     """Build PARTIAL LearningEvent payloads from a durable attempt record alone."""
     qids = json.loads(attempt.question_ids_json or "[]")
     answers = json.loads(attempt.answers_json or "{}")
@@ -78,9 +78,12 @@ def build_backfill_events(attempt, user_id) -> list:
             "snapshot_missing_fields_json": identity.canonical_json(missing),
         })
         # This backfill RE-PROJECTS recorded source attempts; it invents nothing, so the
-        # fact keeps whatever origin the process is running under. A backfill that
-        # synthesized facts would have to stamp BACKFILL_SYNTHETIC (``data_plane.origin``).
-        origin.stamp(events[-1])
+        # fact keeps the origin it would have had when recorded. The caller resolves that
+        # from the ATTEMPT'S ACCOUNT (``origin.origin_for_user_id``) and passes it in, so a
+        # re-projection cannot turn an acceptance account's history into real data. Without
+        # a resolved value the process origin applies, which is what a dry run gets. A
+        # backfill that synthesized facts would stamp BACKFILL_SYNTHETIC instead.
+        events[-1]["data_origin"] = data_origin or origin.active_origin()
     return events
 
 
@@ -101,7 +104,10 @@ def backfill(attempts, SessionLocal, user_map, apply=False) -> dict:
             if user_id is None:
                 continue
             report["attempts_eligible"] += 1
-            events = build_backfill_events(attempt, user_id)
+            # Dry runs have no session and write nothing, so they need no lookup.
+            resolved_origin = (origin.origin_for_user_id(user_id, session)
+                               if session is not None else None)
+            events = build_backfill_events(attempt, user_id, resolved_origin)
             for ev in events:
                 report["items_seen"] += 1
                 if ev["snapshot_completeness"] == "PARTIAL":

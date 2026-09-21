@@ -5867,6 +5867,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/users/{target_username}/data-origin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Admin Update User Data Origin
+         * @description Mark (or clear) the dataset origin of ONE account's facts. Super-admin only.
+         *
+         *     THE TRUST BOUNDARY. This is the only way to set ``users.data_origin``. It is server
+         *     state behind an admin-only contract, so no client can make itself an ACCEPTANCE account
+         *     by sending a body, header, cookie or query value. The marker is what the fact writers
+         *     resolve through ``data_plane.origin.origin_for_user``, and it is what keeps an
+         *     acceptance account's practice, review, agenda, AI request and feedback facts out of the
+         *     training set.
+         *
+         *     ONE-WAY BY CONSTRUCTION. Only an origin EXCLUDED from training may be set, and an empty
+         *     value clears the marker. ``LEARNER`` is refused rather than accepted as a no-op: the
+         *     marker exists to withhold facts, and a contract that could also claim facts are real
+         *     would be a way to relabel another deployment's data as training-admissible.
+         */
+        put: operations["admin_update_user_data_origin_admin_users__target_username__data_origin_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/admins": {
         parameters: {
             query?: never;
@@ -7302,6 +7334,21 @@ export interface components {
         AdminUpdateStatusRequest: {
             /** Is Active */
             is_active: boolean;
+        };
+        /**
+         * AdminUserDataOriginRequest
+         * @description Mark (or clear) the trusted origin of one account's facts.
+         *
+         *     Empty string clears the marker. Only an origin EXCLUDED from training may be set: the
+         *     marker exists to withhold an acceptance/demo account's facts, never to admit any. See
+         *     ``data_plane.origin.ALLOWED_ACCOUNT_ORIGINS``.
+         */
+        AdminUserDataOriginRequest: {
+            /**
+             * Data Origin
+             * @default
+             */
+            data_origin: string;
         };
         /**
          * AgendaItemView
@@ -25654,6 +25701,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["AdminUpdateRoleRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_update_user_data_origin_admin_users__target_username__data_origin_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                target_username: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminUserDataOriginRequest"];
             };
         };
         responses: {

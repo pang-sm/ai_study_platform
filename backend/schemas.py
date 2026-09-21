@@ -812,6 +812,17 @@ class AdminUpdateRoleRequest(BaseModel):
     admin_role: str = "none"
 
 
+class AdminUserDataOriginRequest(BaseModel):
+    """Mark (or clear) the trusted origin of one account's facts.
+
+    Empty string clears the marker. Only an origin EXCLUDED from training may be set: the
+    marker exists to withhold an acceptance/demo account's facts, never to admit any. See
+    ``data_plane.origin.ALLOWED_ACCOUNT_ORIGINS``.
+    """
+
+    data_origin: str = ""
+
+
 # ── Learning Reports ──────────────────────────────────────
 
 
