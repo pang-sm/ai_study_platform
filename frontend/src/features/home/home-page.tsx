@@ -72,7 +72,10 @@ export function HomePage() {
           <p className="text-metadata font-medium tracking-eyebrow text-text-muted">
             个人学习首页
           </p>
-          <h1 className="mt-2 text-page-title font-semibold text-text-primary">
+          {/* `wrap-anywhere` because the greeting opens with the learner's own name: a long
+              unbroken one (no spaces, no hyphen) has no wrap opportunity and would push the
+              heading — and the page — wider than the viewport on a phone. */}
+          <h1 className="mt-2 text-page-title font-semibold text-text-primary wrap-anywhere">
             {displayName ? `${displayName}，今天从这里继续` : '今天从这里继续'}
           </h1>
           <p className="mt-3 max-w-prose text-body text-text-secondary">

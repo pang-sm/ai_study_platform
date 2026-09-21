@@ -106,11 +106,14 @@ function Entitlements({ rows, loading, failed }: { rows: ReturnType<typeof entit
           </span>
           {/* The requirement is a UNIFIED TIER (`Standard 及以上`), which is the same
               vocabulary as the tier table below — so the learner can act on it directly
-              rather than translating a legacy plan code. The feature key and the deciding
-              capability are still shown, because those are what the product really gates on. */}
+              rather than translating a legacy plan code. The deciding capability is named in
+              Chinese; its id and the feature key are internal identifiers and stay unrendered. */}
           <small>
-            {row.allowed ? row.featureKey : `需要 ${requirementLabel(row)}`}
-            {row.requiredCapability ? <> · <code>{row.requiredCapability}</code></> : null}
+            {row.allowed
+              ? '当前档位已包含'
+              : `需要 ${requirementLabel(row)}${
+                  row.requiredCapability ? ` · ${capabilityGloss(row.requiredCapability)}` : ''
+                }`}
           </small>
         </li>
       ))}
@@ -192,7 +195,9 @@ function PlanLedger({ currentTier }: { currentTier?: string }) {
   if (plans.isError || !plans.data) return <p className="membership-note">暂时无法读取档位信息</p>;
   const rows = planRows(plans.data.plans, currentTier);
   return (
-    <div className="membership-plans__scroll">
+    // The wrapper really scrolls at narrow widths, so it must be reachable by keyboard:
+    // a named, focusable landmark is the pattern axe's `scrollable-region-focusable` asks for.
+    <div className="membership-plans__scroll" role="region" aria-label="档位额度对照表" tabIndex={0}>
       <table className="membership-plans">
         <caption>各档位额度以平台 Credits 计（1 Credit ≈ ¥0.01 平台成本）。</caption>
         <thead>
@@ -210,10 +215,10 @@ function PlanLedger({ currentTier }: { currentTier?: string }) {
               <td>
                 <ul className="membership-plans__capabilities">
                   {row.capabilities.map((capability) => (
+                    // The id stays the React key and still decides permissions; it is only
+                    // ever *rendered* as its Chinese name.
                     <li key={capability}>
-                      {/* The capability ID is always shown: the gloss is a label, and the
-                          id is what the product actually gates on. */}
-                      <span>{capabilityGloss(capability)}</span><code>{capability}</code>
+                      <span>{capabilityGloss(capability)}</span>
                     </li>
                   ))}
                 </ul>

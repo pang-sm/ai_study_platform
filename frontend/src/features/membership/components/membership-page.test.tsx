@@ -52,6 +52,12 @@ let redeemError: unknown;
 // the point: they are one authority, so a fixture that made them disagree would be testing a
 // state the backend cannot produce.
 let tier = 'free';
+// A capability id this BUILD has no Chinese name for, added to a plan's list on demand. The
+// page must name such a capability generically and must never print the id itself.
+let unknownCapability: string | null = null;
+function planCapabilities(base: string[]): string[] {
+  return unknownCapability ? [...base, unknownCapability] : base;
+}
 const entitlementsFor = (t: string) => ({
   service_key: 'exam_11408',
   current_tier: t,
@@ -73,7 +79,7 @@ vi.mock('@/lib/api/client', () => ({
           data: {
             policy_version: 'v1',
             plans: {
-              free: { label: 'Free', daily_budget: 100, weekly_budget: 500, capabilities: ['tutor.chat', 'question.explain'] },
+              free: { label: 'Free', daily_budget: 100, weekly_budget: 500, capabilities: planCapabilities(['tutor.chat', 'question.explain']) },
               standard: { label: 'Standard', daily_budget: 1000, weekly_budget: 5000, capabilities: ['tutor.chat', 'programming.debug'] },
               advanced: { label: 'Advanced', daily_budget: null, weekly_budget: 20000, capabilities: ['tutor.chat', 'answer.grade'] },
             },
@@ -131,6 +137,7 @@ describe('MembershipPage', () => {
     redeemData = undefined;
     redeemError = undefined;
     tier = 'free';
+    unknownCapability = null;
     postSpy.mockClear();
     redeemMutate.mockClear();
     // The real mutation invokes its `onSuccess` callback; the page records the previewed code
@@ -182,10 +189,30 @@ describe('MembershipPage', () => {
     expect(document.body.textContent).not.toMatch(/monthly|quarterly|full_exam|sprint|boost/);
   });
 
-  it('shows each plan capability by its real id, so nothing is hidden behind a label', async () => {
+  it('names each plan capability in Chinese, and never prints its internal id', async () => {
     renderPage();
-    expect(await screen.findByText('programming.debug')).toBeInTheDocument();
-    expect(screen.getByText('代码调试')).toBeInTheDocument();
+    expect(await screen.findByText('代码调试')).toBeInTheDocument();
+    // `tutor.chat` is granted by all three tiers, so its name appears once per plan row.
+    expect(screen.getAllByText('学习对话').length).toBeGreaterThan(0);
+    // `programming.debug` still decides permissions and is still the React key — it is just
+    // not rendered. This is the regression gate for the capability-id leak.
+    expect(screen.queryByText('programming.debug')).not.toBeInTheDocument();
+    expect(screen.queryByText('tutor.chat')).not.toBeInTheDocument();
+  });
+
+  it('renders NO dotted capability identifier anywhere on the learner surface', async () => {
+    renderPage();
+    await screen.findByText('Free');
+    expect(document.body.textContent).not.toMatch(/\b[a-z_]+\.[a-z_]+\b/);
+  });
+
+  it('names an unknown capability generically rather than printing its id', async () => {
+    unknownCapability = 'internal.undeclared_capability';
+    renderPage();
+    await screen.findByText('Free');
+    expect(screen.getAllByText('高级学习能力').length).toBeGreaterThan(0);
+    expect(screen.queryByText('internal.undeclared_capability')).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/\b[a-z_]+\.[a-z_]+\b/);
   });
 
   it('does NOT create a pending order — no checkout that cannot complete is offered', async () => {

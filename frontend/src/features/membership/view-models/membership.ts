@@ -20,23 +20,31 @@ export function tierInkClass(tier?: string | null): string {
   return 'membership-standing--resting';
 }
 
-// Capability ids are the product's own vocabulary (`tutor.chat`, `programming.debug`, ...).
-// The gloss is a display label ONLY; the id is always shown beside it, so a reader can see
-// exactly which capability a plan grants and no capability is hidden behind a paraphrase.
+// Capability ids are the product's INTERNAL vocabulary (`tutor.chat`, `programming.debug`, ...).
+// They still decide permissions, keys and payloads — but they are never rendered: the learner
+// surface names the capability in Chinese and states the tier it needs. A capability this build
+// does not know gets a generic name, so an unmapped id can never reach a learner as a raw key.
 const CAPABILITY_GLOSSES: Record<string, string> = {
   'tutor.chat': '学习对话',
+  'tutor.strong_reasoning': '深度讲解',
   'question.explain': '题目讲解',
-  'material.qa': '资料问答',
   'question.generate': '生成练习',
+  'material.qa': '资料问答',
   'programming.debug': '代码调试',
   'programming.explain': '代码讲解',
+  'programming.agent': '调试助手',
   'planning.generate': '生成学习计划',
+  'planning.adjust': '调整学习计划',
+  'report.generate': '生成学习报告',
+  'wrong_answer.analyze': '错题分析',
   'knowledge.structure': '知识结构整理',
   'answer.grade': '主观题批改',
 };
 
+const UNKNOWN_CAPABILITY_LABEL = '高级学习能力';
+
 export function capabilityGloss(capability: string): string {
-  return CAPABILITY_GLOSSES[capability] ?? capability;
+  return CAPABILITY_GLOSSES[capability] ?? UNKNOWN_CAPABILITY_LABEL;
 }
 
 export interface UsageMeter {
@@ -79,14 +87,20 @@ export interface EntitlementRow {
   requiredCapability: string | null;
 }
 
-// Feature keys the product actually gates. A key with no gloss is shown as its own id.
-const FEATURE_LABELS: Record<string, string> = { learning_plan: '学习计划' };
+// Feature keys the product actually gates. A key with no name reads as a generic one, never as
+// its own key — the same rule as the capability glosses above.
+const FEATURE_LABELS: Record<string, string> = {
+  learning_plan: '学习计划',
+  learning_report: '学习报告',
+};
+
+const UNKNOWN_FEATURE_LABEL = '高级功能';
 
 export function entitlementRows(entitlements?: ServiceEntitlements): EntitlementRow[] {
   const features = entitlements?.features ?? {};
   return Object.entries(features).map(([featureKey, feature]) => ({
     featureKey,
-    label: FEATURE_LABELS[featureKey] ?? featureKey,
+    label: FEATURE_LABELS[featureKey] ?? UNKNOWN_FEATURE_LABEL,
     allowed: feature.allowed === true,
     requiredTier: feature.required_tier,
     requiredCapability: feature.required_capability ?? null,

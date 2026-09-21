@@ -49,6 +49,13 @@ export default tseslint.config(
       ],
       '@typescript-eslint/consistent-type-imports': 'error',
       'no-console': ['warn', { allow: ['warn', 'error'] }],
+      // The plugin's recommended options plus `region`: a horizontally scrollable table needs a
+      // keyboard-reachable wrapper (axe's `scrollable-region-focusable`), and a named `region`
+      // landmark is the pattern for it. `tabpanel` is kept because the login tabs use it.
+      'jsx-a11y/no-noninteractive-tabindex': [
+        'error',
+        { tags: [], roles: ['tabpanel', 'region'], allowExpressionValues: true },
+      ],
       'no-alert': 'error',
       'no-debugger': 'error',
       'eqeqeq': ['error', 'always'],

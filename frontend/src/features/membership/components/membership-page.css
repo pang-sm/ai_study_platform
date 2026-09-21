@@ -32,7 +32,11 @@
 .membership-standing--unknown { font-size: var(--text-section-title); color: var(--color-text-secondary); }
 
 .membership__grid { display: grid; grid-template-columns: minmax(0, 1fr) 22rem; gap: 2.5rem; margin-top: 2rem; align-items: start; }
-.membership__main { display: grid; gap: 2.25rem; min-width: 0; }
+/* `minmax(0, 1fr)` is load-bearing: without an explicit track the column is an implicit `auto`
+   one, which sizes to max-content — the plans table's `min-width: 34rem` then sets the track to
+   544px and the whole page pans sideways at 390px instead of the table scrolling in its own
+   wrapper. The explicit 0-minimum track lets it shrink and hands the overflow to `.membership-plans__scroll`. */
+.membership__main { display: grid; gap: 2.25rem; min-width: 0; grid-template-columns: minmax(0, 1fr); }
 .membership__main section > h2,
 .membership-rail > h2 {
   margin: 0 0 .75rem;
