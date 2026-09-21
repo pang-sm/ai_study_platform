@@ -23,19 +23,27 @@ from core.learning_context import LearningContext, ServiceNamespace
 from .. import service
 from ...spaces.exam_prep.catalog import CS408_SUBJECT
 from ...spaces.exam_prep.context import cs408_context
-from ..refs import QuestionRef, QuestionSourceType
+from ..refs import QuestionRef, QuestionSourceType, resolve_source_type
 from .base import MirrorOutcome, safe_mirror
 
 logger = logging.getLogger("learning.practice")
 
 SOURCE_ATTEMPT_TYPE = "ai_question_attempt"
 
-# ai_question_attempts.mode → (learning space, legacy question origin)
+# ai_question_attempts.mode → (learning space, the table its question ids live in).
+#
+# CONTRACT CORRECTION (P1.2): a ``course_learning`` row's ``question_ids_json`` holds
+# ``ai_generated_questions`` primary keys — the course generator writes the generated item
+# itself (``main._create_course_learning_attempt`` is handed an ``AIGeneratedQuestion``).
+# Declaring ``questions`` filed every course AI attempt under an id space it never belonged
+# to: real questions resolved to no row (empty stem / reference answer), and where the two
+# tables' ids overlapped, to ANOTHER LEARNER'S question. The table is stated here, once.
+#
+# The canonical source type is then obtained from ``refs.resolve_source_type`` rather than
+# re-declared, so there is exactly one mapping from a legacy origin to a QuestionSourceType.
 _MODE_MAP = {
-    "course_learning": (ServiceNamespace.COURSE_LEARNING, "questions",
-                        QuestionSourceType.MATERIAL_GENERATED),
-    "11408": (ServiceNamespace.EXAM_PREP, "ai_generated_questions",
-              QuestionSourceType.AI_GENERATED),
+    "course_learning": (ServiceNamespace.COURSE_LEARNING, "ai_generated_questions"),
+    "11408": (ServiceNamespace.EXAM_PREP, "ai_generated_questions"),
 }
 
 
@@ -64,10 +72,14 @@ def _answers_map(attempt) -> dict:
 
 
 def build_refs(attempt) -> tuple[ServiceNamespace, list[tuple[int, str, QuestionRef, dict]]]:
-    """Return (namespace, [(index, item_key, QuestionRef, item_dict), ...])."""
+    """Return (namespace, [(index, item_key, QuestionRef, item_dict), ...]).
+
+    The row's ``mode`` names the learning space and the question table; an unknown mode has
+    no canonical identity to give, so it is reported rather than filed under a default.
+    """
     mode = (attempt.mode or "").strip()
-    ns, origin, source_type = _MODE_MAP.get(mode) or (
-        ServiceNamespace.COURSE_LEARNING, "questions", QuestionSourceType.MATERIAL_GENERATED)
+    ns, origin = _MODE_MAP[mode]        # unknown mode is a loud failure, never a default
+    source_type = resolve_source_type(ns.value, origin)
 
     try:
         qids = json.loads(attempt.question_ids_json or "[]")
@@ -124,6 +136,14 @@ def mirror_ai_question_attempt(db, user, attempt,
         if (attempt.status or "") != "submitted":
             return MirrorOutcome(reason="not_submitted")
 
+        mode = (attempt.mode or "").strip()
+        if mode not in _MODE_MAP:
+            # No canonical identity can be stated for this row, so none is invented: it is
+            # skipped, counted, and logged (the log is the only place it can be seen).
+            logger.warning("practice.ai_question_attempt_unknown_mode mode=%r attempt_id=%s",
+                           mode, attempt.id)
+            return MirrorOutcome(reason="unknown_mode")
+
         ns, refs = build_refs(attempt)
         if not refs:
             return MirrorOutcome(reason="no_item_detail")
@@ -136,7 +156,12 @@ def mirror_ai_question_attempt(db, user, attempt,
                 user, module_key=attempt.subject_key,
                 knowledge_point_id=attempt.knowledge_point_id)
         else:
+            # ``course_id`` is set alongside ``subject_key`` because for a course attempt
+            # they are the SAME identity: a course-scoped read of the canonical rows filters
+            # on it (sessions through the context, attempts through the question ref), and a
+            # context without it would make this course's own session unfindable.
             context = LearningContext(user_id=user.id, service_namespace=ns,
+                                      course_id=attempt.subject_key,
                                       subject_key=attempt.subject_key,
                                       knowledge_point_id=attempt.knowledge_point_id)
         session, session_created = service.ensure_legacy_session(

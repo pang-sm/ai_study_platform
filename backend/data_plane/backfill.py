@@ -13,7 +13,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from core import timeutil
 
 from . import identity, origin, snapshots
-from .emitter import SOURCE_TYPE, SERVICE_KEY, EVENT_TYPE
+from .emitter import SOURCE_TYPE, SERVICE_KEY, EVENT_TYPE, course_identity
 from .models import LearningEvent
 
 logger = logging.getLogger("data_plane.backfill")
@@ -55,7 +55,10 @@ def build_backfill_events(attempt, user_id) -> list:
             "user_id": user_id,
             "source_user_ref": attempt.username,
             "service_key": SERVICE_KEY,
-            "course_id": None,
+            # Same derivation as the live emitter: a backfilled course event must carry
+            # the same course identity a live one does, or replaying history would file
+            # the same fact differently than recording it did.
+            "course_id": course_identity(attempt),
             "subject_key": attempt.subject_key,
             "question_id": qid_str,
             "knowledge_point_ref_json": identity.canonical_json(snapshots.build_knowledge_point_ref(attempt)),

@@ -25,6 +25,20 @@ import models  # noqa: E402
 from usage.models import Subscription  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _reset_provider_health():
+    """Router V1 availability state is PROCESS-global; a test must not leak it into the next.
+
+    One test degrading a model (three provider failures) would otherwise change which model a
+    later test's router selects — a suite that passes or fails depending on test order. The
+    registry itself is untouched: this only clears the outcomes recorded during a test.
+    """
+    from ai.health import registry
+    registry().reset()
+    yield
+    registry().reset()
+
+
 @pytest.fixture
 def client():
     with TestClient(main.app) as test_client:

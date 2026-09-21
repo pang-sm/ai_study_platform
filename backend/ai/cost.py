@@ -27,6 +27,16 @@ EXPECTED_OUTPUT_TOKENS = {
     "programming.explain": 600,
     "planning.generate": 800,
     "report.generate": 1500,
+    # P3A. Sized from the workflow, not from a target: a Deep Study answer is long and
+    # reasoned (the endpoint's own default max_tokens is 2400), and one agent step answers
+    # with a diagnosis or a whole revised file. Under-reserving here would surface as a
+    # reservation overage, so both are deliberately generous.
+    "tutor.strong_reasoning": 1500,
+    "programming.agent": 900,
+    # P3B. A wrong-cause analysis is a structured JSON answer (five fields, each bounded), and
+    # a plan adjustment is a bounded list of task changes. Sized from the shape, not a target.
+    "wrong_answer.analyze": 700,
+    "planning.adjust": 900,
 }
 DEFAULT_EXPECTED_OUTPUT_TOKENS = 400
 

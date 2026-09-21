@@ -143,10 +143,17 @@ def _ledger_entry(session, user_id: int, request_id: str, entry_type: str,
 
 def reserve_credits(session, user_id: int, request_id: str, capability: str,
                     amount: int, *, service_namespace: str | None = None,
-                    context_json: dict | None = None) -> dict:
-    """Permission check → budget check → atomic reservation. Idempotent per request_id."""
+                    context_json: dict | None = None,
+                    permission_tier: str | None = None) -> dict:
+    """Permission check → budget check → atomic reservation. Idempotent per request_id.
+
+    ``permission_tier`` (P6) overrides the tier used for the PERMISSION check ONLY, for a call
+    an ops feature flag already granted at the AI boundary. The budget caps, the ledger, the
+    settlement and the ``ai_requests.tier`` column all keep using the learner's REAL tier —
+    a grant opens a feature, it never grants credits.
+    """
     tier = effective_subscription(session, user_id)
-    perm = check_capability_permission(tier, capability)
+    perm = check_capability_permission(permission_tier or tier, capability)
     if not perm["allowed"]:
         return {"reserved": False, "reason": perm["reason"], "tier": tier,
                 "capability": capability, "policy_version": perm["policy_version"]}

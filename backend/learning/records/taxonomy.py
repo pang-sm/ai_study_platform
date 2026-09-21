@@ -122,7 +122,97 @@ TAXONOMY: tuple[EventTypeSpec, ...] = (
         description="One real judged programming submission. code_passed / code_failed "
                     "are DERIVED classifications; no source code is stored.",
     ),
+    # ── the programming working loop (THREE_DOMAIN P1) ──
+    #
+    # `code_submitted` covers the GRADED fact. The other three deliberate, server-executed
+    # actions in the exercise loop had no canonical fact at all, so the product could not
+    # say what a learner actually did before they submitted. They are emitted from the
+    # request that really executed the code, never from the AI's prose about it.
+    #
+    # NOTHING HERE FEEDS A MODEL: all three are student_twin_eligible=False, the S2/eligibility
+    # input rule rejects them by family, and `data_plane.worker` selects `course_practice`
+    # only. `code_run` is EVENT_ONLY (the progress row keeps only the LAST run time, so the
+    # event is the durable record) — it is recovered by nothing and claims nothing.
+    EventTypeSpec(
+        event_type="exercise_started",
+        category=CAT_PROGRAMMING,
+        owner="learning.spaces.programming.events.emit_exercise_started",
+        durable_source="code_projects (the exercise's per-learner project)",
+        granularity=ACTIVITY_LEVEL,
+        status=ACTIVE,
+        student_twin_eligible=False,
+        namespaces=(PROG,),
+        description="The learner began working on an exercise. Deduped per (user, "
+                    "exercise): opening the same exercise again is not a second fact.",
+    ),
+    EventTypeSpec(
+        event_type="code_run",
+        category=CAT_PROGRAMMING,
+        owner="learning.spaces.programming.events.emit_exercise_activity",
+        durable_source="programming_exercise_progress.last_run_at (last only → EVENT_ONLY)",
+        granularity=ACTIVITY_LEVEL,
+        status=ACTIVE,
+        student_twin_eligible=False,
+        namespaces=(PROG,),
+        description="The learner ran their code for an exercise and the server executed "
+                    "it. A run produces no verdict: it is neither pass nor fail.",
+    ),
+    EventTypeSpec(
+        event_type="code_tested",
+        category=CAT_PROGRAMMING,
+        owner="learning.spaces.programming.events.emit_exercise_activity",
+        durable_source="programming_exercise_progress.last_test_at (last only → EVENT_ONLY)",
+        granularity=ACTIVITY_LEVEL,
+        status=ACTIVE,
+        student_twin_eligible=False,
+        namespaces=(PROG,),
+        description="The learner checked their code against the exercise's own tests. "
+                    "The verdict of that check belongs to `code_submitted`.",
+    ),
     # ── AI ──
+    #
+    # P3A — the Deep Study workflow. ``ai_called`` is the ACCOUNTING fact for each model
+    # call; these two are the STUDY fact: the learner ran a grounded strong-reasoning session
+    # and it produced an answer. They are separate families because they answer separate
+    # questions (what did the platform spend / what did the learner study), and neither is a
+    # duplicate of the other: a denied or failed call emits ``ai_called`` and NO study fact.
+    #
+    # The payload carries references and counts (run id, capability, the AI request that
+    # answered, how much evidence was used). It never carries the question, the answer or a
+    # material body — those stay in their own stores (§34, enforced by
+    # ``envelope.assert_payload_is_safe``).
+    EventTypeSpec(
+        event_type="strong_reasoning_requested",
+        category=CAT_AI,
+        owner="learning.deep_study.run_deep_study",
+        durable_source="ai_requests / the Deep Study workflow's accepted request",
+        granularity=ACTIVITY_LEVEL,
+        status=ACTIVE,
+        student_twin_eligible=False,
+        required_payload=("run_id",),
+        namespaces=(COURSE, EXAM),
+        description="The learner started a Deep Study session in a real learning space. "
+                    "Emitted once the TIER permission is granted and before the model call, "
+                    "so a request the tier does not permit produces no study fact at all. A "
+                    "request the tier allowed but the BUDGET then refused keeps this fact "
+                    "(the session really started) and gets no completed fact — its "
+                    "accounting outcome is the ``ai_called`` denial.",
+    ),
+    EventTypeSpec(
+        event_type="strong_reasoning_completed",
+        category=CAT_AI,
+        owner="learning.deep_study.run_deep_study",
+        durable_source="ai_requests (the settled request that produced the answer)",
+        granularity=ACTIVITY_LEVEL,
+        status=ACTIVE,
+        student_twin_eligible=False,
+        required_payload=("run_id", "status"),
+        namespaces=(COURSE, EXAM),
+        description="The Deep Study session produced an answer. Carries the run id and the "
+                    "AI request id that answered, so the answer's cost and evidence are "
+                    "traceable; a failed session emits nothing here — its accounting fact is "
+                    "``ai_called``.",
+    ),
     EventTypeSpec(
         event_type="ai_called",
         category=CAT_AI,
@@ -136,6 +226,156 @@ TAXONOMY: tuple[EventTypeSpec, ...] = (
         description="One terminal AI request. No prompt, no response, no model cost "
                     "detail beyond a coarse class. Accounting/ops fact: excluded from the "
                     "user-facing record surface (F1C6), never deleted.",
+    ),
+    # ── the programming debug agent (P3A) ──
+    #
+    # ONE RUN → these three types, and the run's steps are carried in the payload as a
+    # CODE-FREE trace (index, action, status, latency, credits, the id of the AI request that
+    # served it, the exercise's own test result, a patch's SIZE). Source code, diffs, prompts
+    # and model responses belong to their own stores — §34 forbids them here, and the
+    # producer is the only writer of these families.
+    EventTypeSpec(
+        event_type="programming_agent_started",
+        category=CAT_PROGRAMMING,
+        owner="learning.spaces.programming.agent.run_debug_agent",
+        durable_source="the agent run itself (bounded workflow)",
+        granularity=ACTIVITY_LEVEL,
+        status=ACTIVE,
+        student_twin_eligible=False,
+        required_payload=("agent_run_id",),
+        namespaces=(PROG,),
+        description="A bounded debug workflow began for the learner's own exercise. Emitted "
+                    "after the capability permission is granted, never for a refused run.",
+    ),
+    EventTypeSpec(
+        event_type="programming_agent_completed",
+        category=CAT_PROGRAMMING,
+        owner="learning.spaces.programming.agent.run_debug_agent",
+        durable_source="the agent run itself (bounded workflow)",
+        granularity=ACTIVITY_LEVEL,
+        status=ACTIVE,
+        student_twin_eligible=False,
+        required_payload=("agent_run_id", "status"),
+        namespaces=(PROG,),
+        description="The debug workflow finished — whether the tests passed, and every step "
+                    "it took. ``status`` distinguishes a completed run from a failed one; the "
+                    "run id is the same id its ``ai_requests`` rows carry. The verdict of "
+                    "any execution stays the exercise's own fact: this family never claims "
+                    "``code_tested`` or ``code_submitted`` on the learner's behalf.",
+    ),
+    EventTypeSpec(
+        event_type="programming_agent_failed",
+        category=CAT_PROGRAMMING,
+        owner="learning.spaces.programming.agent.run_debug_agent",
+        durable_source="the agent run itself (bounded workflow)",
+        granularity=ACTIVITY_LEVEL,
+        status=ACTIVE,
+        student_twin_eligible=False,
+        required_payload=("agent_run_id", "status"),
+        namespaces=(PROG,),
+        description="A debug workflow stopped before it could finish (budget, refusal or a "
+                    "technical failure), with the steps that DID happen. The steps already "
+                    "run were settled individually; this event states the outcome instead of "
+                    "hiding a partial workflow.",
+    ),
+    # ── P3B: the structured learning report ──
+    #
+    # ONE fact: a report was produced for a learner and a period. The report's CONTENT (its
+    # metrics and its narrative) stays in the response and in the AI request that composed the
+    # narrative — the event states that it happened, for which period, and which deterministic
+    # blocks it covered.
+    EventTypeSpec(
+        event_type="report_generated",
+        category=CAT_AI,
+        owner="learning.report.generate_learning_report",
+        durable_source="ai_requests (the report's own request) + the deterministic builder",
+        granularity=ACTIVITY_LEVEL,
+        status=ACTIVE,
+        student_twin_eligible=False,
+        required_payload=("report_id", "period_days"),
+        namespaces=(COURSE, EXAM, PROG),
+        description="A structured learning report was generated. Its metrics are computed "
+                    "from stored facts by a deterministic builder; the narrative (when "
+                    "requested) is an AI composition OVER those metrics and never a new fact "
+                    "about the learner.",
+    ),
+    # ── P3B: deep wrong-cause analysis ──
+    EventTypeSpec(
+        event_type="wrong_analysis_generated",
+        category=CAT_WRONG_ANSWER,
+        owner="learning.wrong_analysis.analyze_wrong_answer",
+        durable_source="wrong_answer_states + the AI request that analysed it",
+        granularity=ITEM_LEVEL,
+        status=ACTIVE,
+        student_twin_eligible=False,
+        required_payload=("state_id",),
+        namespaces=(COURSE, EXAM),
+        description="A wrong-answer state was analysed. The FACTS (the question, the "
+                    "learner's answer, the reference answer, the attempt history) come from "
+                    "the canonical stores; the analysis itself is an AI hypothesis and is "
+                    "reported as such — never as a measured property of the learner.",
+    ),
+    # ── P3B: dynamic planning (proposal and apply are SEPARATE facts) ──
+    EventTypeSpec(
+        event_type="plan_adjustment_proposed",
+        category=CAT_PLAN,
+        owner="learning.plan_adjustment.propose_adjustment",
+        durable_source="the AI proposal (request) — writes nothing to the plan",
+        granularity=ACTIVITY_LEVEL,
+        status=ACTIVE,
+        student_twin_eligible=False,
+        required_payload=("proposal_id", "change_count"),
+        namespaces=(COURSE, EXAM, PROG),
+        description="A plan adjustment was proposed. A proposal NEVER mutates the plan: it "
+                    "carries the plan identity it was built from, so a stale proposal can be "
+                    "refused at apply time.",
+    ),
+    EventTypeSpec(
+        event_type="plan_adjustment_applied",
+        category=CAT_PLAN,
+        owner="learning.plan_adjustment.apply_adjustment",
+        durable_source="exam_study_plan_tasks (the learner-accepted change)",
+        granularity=ACTIVITY_LEVEL,
+        status=ACTIVE,
+        student_twin_eligible=False,
+        required_payload=("proposal_id", "applied_count"),
+        namespaces=(COURSE, EXAM, PROG),
+        description="The learner ACCEPTED a proposal and it was applied. Only this action "
+                    "changes a plan, and only after re-verifying ownership and the plan "
+                    "identity it was proposed against.",
+    ),
+    # ── P4: review completion (promoted from DEFERRED by building its producer) ──
+    EventTypeSpec(
+        event_type="review_completed",
+        category=CAT_REVIEW,
+        owner="learning.review_schedule.complete_review",
+        durable_source="the learner's own review action + its REAL result",
+        granularity=ITEM_LEVEL,
+        status=ACTIVE,
+        student_twin_eligible=False,
+        required_payload=("item_id", "result"),
+        namespaces=(COURSE, EXAM),
+        description="The learner finished a review of one item, with the result they "
+                    "reported or produced. The next due date is derived from that result by "
+                    "the deterministic policy, and both facts are emitted together — a "
+                    "schedule is never advanced by a review that did not happen.",
+    ),
+    # ── P4: unified AI response feedback (AUDIT_ONLY: product telemetry, not study history) ──
+    EventTypeSpec(
+        event_type="ai_feedback_submitted",
+        category=CAT_AI,
+        owner="learning.feedback.submit_feedback",
+        durable_source="ai_requests (the request being rated) + the learner's rating",
+        granularity=ACTIVITY_LEVEL,
+        status=ACTIVE,
+        student_twin_eligible=False,
+        visibility=AUDIT_ONLY,
+        required_payload=("request_id", "rating"),
+        namespaces=(COURSE, EXAM, PROG),
+        description="One rating of one AI response, with the frozen reason taxonomy when it "
+                    "is negative. References and classifications only — no free text, no "
+                    "prompt, no response. It never trains the router online: it is stored so "
+                    "a later, offline decision can use it.",
     ),
     # ── knowledge ──
     EventTypeSpec(
@@ -176,9 +416,39 @@ TAXONOMY: tuple[EventTypeSpec, ...] = (
                     "UTC day) so page refreshes do not become events.",
     ),
 
+    # ── P4: adaptive practice, review scheduling, model feedback ──
+    EventTypeSpec(
+        event_type="adaptive_practice_selected",
+        category=CAT_PRACTICE,
+        owner="learning.adaptive.select_candidates",
+        durable_source="the selection request (practice_attempts / wrong_answer_states / "
+                        "review dates / knowledge status — all read-only inputs)",
+        granularity=ACTIVITY_LEVEL,
+        status=ACTIVE,
+        student_twin_eligible=False,
+        required_payload=("selection_id", "candidate_count"),
+        namespaces=(COURSE, EXAM, PROG),
+        description="An adaptive practice selection was made, with the deterministic REASON "
+                    "CODE of every candidate. A selection is a product decision over stored "
+                    "facts — it is not a weakness prediction and carries no model output.",
+    ),
+    EventTypeSpec(
+        event_type="review_scheduled",
+        category=CAT_REVIEW,
+        owner="learning.review_schedule.schedule_items",
+        durable_source="the review scheduling policy run (policy_version + its input facts)",
+        granularity=ITEM_LEVEL,
+        status=ACTIVE,
+        student_twin_eligible=False,
+        required_payload=("item_id", "due_at", "policy_version"),
+        namespaces=(COURSE, EXAM),
+        description="A next review date was computed for one item by the DETERMINISTIC "
+                    "policy: policy_version, the reason code and the facts it used travel "
+                    "with the date, so any due date can be re-derived and checked. No "
+                    "interval history is invented — an item with no real history gets the "
+                    "policy's first-schedule interval and says so.",
+    ),
     # ── reserved, NO SOURCE YET: names only, never synthesized ──
-    EventTypeSpec("review_completed", CAT_REVIEW, "—", "review_items (not built)",
-                  ACTIVITY_LEVEL, DEFERRED, False, description="STEP7G+ Review Core."),
     EventTypeSpec("plan_created", CAT_PLAN, "—", "plans (not built)",
                   ACTIVITY_LEVEL, DEFERRED, False, description="Planning Core, later STEP."),
     EventTypeSpec("task_completed", CAT_PLAN, "—", "tasks (not built)",

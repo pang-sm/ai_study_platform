@@ -26,14 +26,62 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 import database
+from core.learning_context import ServiceNamespace
+from learning.spaces.course_learning import wrong_answers as course_wrong
 from learning.spaces.exam_prep import wrong_answers as exam_wrong
 from learning.wrong_answers import service
 from learning.wrong_answers.models import STATUSES
+from ops import feature_flags
 
 router = APIRouter(prefix="/wrong-answers", tags=["wrong-answers"])
 
 WrongAnswerStatus = Literal["active", "resolved"]
-WrongAnswerSourceKind = Literal["chapter_practice", "past_paper", "ai_generated", "other"]
+# P1.3: ``course_material`` joins the vocabulary because a course state now renders through
+# the COURSE resolver on this surface too, and that resolver reports what its row provably is.
+WrongAnswerSourceKind = Literal["chapter_practice", "past_paper", "ai_generated",
+                                "course_material", "other"]
+
+COURSE_NAMESPACE = ServiceNamespace.COURSE_LEARNING.value
+
+
+def _render_records(db: Session, states: list) -> list[dict]:
+    """ONE record per state, rendered by the resolver that OWNS that state's learning space.
+
+    The global surface is a UNION of two spaces, and each space's content has its own identity
+    rules. Rendering a course state through the exam resolver (the previous behaviour) applied
+    the exam space's resolution rules to a course question — the exact cross-space mixing this
+    dispatch removes. Order is the caller's: the page order never depends on which resolver a
+    row went to.
+    """
+    groups: dict[str, list] = {}
+    for state in states:
+        groups.setdefault(state.service_namespace, []).append(state)
+    by_id: dict[int, dict] = {}
+    for namespace, group in groups.items():
+        resolver = (course_wrong if namespace == COURSE_NAMESPACE else exam_wrong)
+        is_course = namespace == COURSE_NAMESPACE
+        for record in resolver.build_records(db, group):
+            by_id[record["wrong_record_id"]] = (
+                _union_shape(record) if is_course else record)
+    return [by_id[state.id] for state in states]
+
+
+def _union_shape(record: dict) -> dict:
+    """A COURSE record in this surface's union shape: it states no exam module.
+
+    The module fields are required here (BC7 froze them as always-present), and a course
+    question has no module — so they are filled with the honest empty value rather than the
+    field being dropped or the record being reshaped.
+    """
+    return {"module_key": "", "module_name": "", **record}
+
+
+def _render_one(db: Session, state) -> dict:
+    resolver = (course_wrong if state.service_namespace == COURSE_NAMESPACE else exam_wrong)
+    record = resolver.build_record(db, state)
+    if state.service_namespace == COURSE_NAMESPACE:
+        return _union_shape(record)
+    return record
 
 
 def _require_user(request: Request, db: Session = Depends(database.get_db)):
@@ -68,8 +116,13 @@ class WrongAnswerRecord(BaseModel):
     status: WrongAnswerStatus
 
     service_namespace: str
+    # An exam record names its module; a course record states NO module (both stay required
+    # and are honest empty strings for a space that has no module, so no client has to branch
+    # on which space a row came from). ``course_id`` is the course counterpart: present and
+    # null for an exam row.
     module_key: str
     module_name: str
+    course_id: str | None = None
 
     source_kind: WrongAnswerSourceKind
     source_label: str
@@ -88,6 +141,9 @@ class WrongAnswerRecord(BaseModel):
 
     # chapter-practice context: the authoritative bank question id the redo contract takes
     question_bank_id: int | None = None
+    # course context: the AI 题册 id the COURSE redo contract takes (a different id space
+    # from the exam bank — see the course resolver). Only a course record fills it.
+    question_id: int | None = None
     knowledge_point_id: str | None = None
     knowledge_point_name: str | None = None
     knowledge_point_path: str | None = None
@@ -132,6 +188,56 @@ class StateUpdate(BaseModel):
     resolved: bool
 
 
+# ---------------------------------------------------------------- deep wrong-cause (P3B)
+
+
+class WrongAnalysisFacts(BaseModel):
+    """The FACT half: what was asked, what the learner answered, what the records show."""
+
+    model_config = ConfigDict(extra="allow")
+
+    question: dict
+    user_answer: str = ""
+    wrong_count: int = 0
+    state_status: str | None = None
+    first_wrong_at: str | None = None
+    last_wrong_at: str | None = None
+    attempt_history: list[dict] = Field(default_factory=list)
+    context: dict = Field(default_factory=dict)
+    source: dict = Field(default_factory=dict)
+
+
+class WrongAnalysisResult(BaseModel):
+    """The AI half: a hypothesis about the mistake. Never a measured learner property."""
+
+    model_config = ConfigDict(extra="allow")
+
+    error_category: str = ""
+    reasoning_gap: str = ""
+    correct_reasoning: str = ""
+    next_action: str = ""
+    review_recommendation: str = ""
+
+
+class WrongAnalysisResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    state_id: int
+    service_namespace: str
+    capability: str
+    request_id: str
+
+    facts: WrongAnalysisFacts
+    fact_origin: str
+    analysis: WrongAnalysisResult
+    analysis_origin: str
+    analysis_semantics: str
+
+    usage: dict = Field(default_factory=dict)
+    persistence: dict = Field(default_factory=dict)
+    generated_at: str
+
+
 def _validate_filters(service_namespace: str, status: str, module: str) -> None:
     if status and status not in STATUSES:
         raise HTTPException(status_code=400,
@@ -161,7 +267,7 @@ def list_wrong_answers(
                                      module_key=module or None)
     except service.WrongAnswerError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    return {"items": exam_wrong.build_records(db, rows),
+    return {"items": _render_records(db, rows),
             "total": total, "limit": limit, "offset": offset}
 
 
@@ -172,10 +278,39 @@ def get_wrong_answer(state_id: int, db: Session = Depends(database.get_db),
         state = service.get_state(db, current_user.id, state_id)
     except service.StateNotFound:
         raise HTTPException(status_code=404, detail="wrong answer state not found")
-    record = exam_wrong.build_record(db, state)
-    record["attempt_history"] = exam_wrong.attempt_history(db, state)
-    record["error_analysis"] = exam_wrong.error_analysis(db, state)
+    resolver = (course_wrong if state.service_namespace == COURSE_NAMESPACE else exam_wrong)
+    record = _render_one(db, state)
+    record["attempt_history"] = resolver.attempt_history(db, state)
+    record["error_analysis"] = resolver.error_analysis(db, state)
     return record
+
+
+@router.post("/{state_id}/analysis", response_model=WrongAnalysisResponse)
+def analyze_wrong_answer(state_id: int, db: Session = Depends(database.get_db),
+                         current_user=Depends(_require_user)):
+    """Deep wrong-cause analysis for ONE of the caller's own wrong-answer states.
+
+    The state is resolved through the SAME ownership check every read here uses, and its
+    question is resolved through the space's hardened resolver — so a state whose content
+    cannot be proven is not analysed (409), rather than analysed from an empty stem.
+    """
+    from learning import wrong_analysis
+
+    feature_flags.ensure_feature_allowed(db, current_user, "wrong_analysis")
+    try:
+        state = service.get_state(db, current_user.id, state_id)
+    except service.StateNotFound:
+        raise HTTPException(status_code=404, detail="wrong answer state not found")
+    try:
+        return wrong_analysis.analyze_wrong_answer(db, current_user, state=state)
+    except wrong_analysis.WrongAnalysisRefusal as exc:
+        status = 409 if exc.reason == "question_content_unavailable" else 400
+        raise HTTPException(status_code=status,
+                            detail={"code": exc.reason, "message": exc.message})
+    except wrong_analysis.WrongAnalysisOutputError:
+        raise HTTPException(status_code=502,
+                            detail={"code": "unusable_analysis",
+                                    "message": "模型未返回可用的错因分析"})
 
 
 @router.patch("/{state_id}", response_model=WrongAnswerRecord)
@@ -186,4 +321,4 @@ def update_wrong_answer(state_id: int, payload: StateUpdate,
         state = service.set_status(db, current_user.id, state_id, resolved=payload.resolved)
     except service.StateNotFound:
         raise HTTPException(status_code=404, detail="wrong answer state not found")
-    return exam_wrong.build_record(db, state)
+    return _render_one(db, state)

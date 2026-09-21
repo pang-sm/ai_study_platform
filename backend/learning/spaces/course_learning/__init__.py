@@ -7,6 +7,6 @@ The space owns COURSE identity and course-specific reads. Everything shared is
 delegated: practice to ``learning.practice``, wrong answers to ``learning.wrong_answers``,
 records to ``learning.records``, AI to ``ai.orchestrator``.
 """
-from . import context, knowledge, service  # noqa: F401
+from . import context, knowledge, service, wrong_answers  # noqa: F401
 
-__all__ = ["context", "knowledge", "service"]
+__all__ = ["context", "knowledge", "service", "wrong_answers"]

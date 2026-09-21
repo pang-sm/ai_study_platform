@@ -634,8 +634,13 @@ def test_canonical_surface_is_typed_in_openapi(client):
         "reference_answer", "analysis", "year", "question_number", "question_bank_id",
         "knowledge_point_id", "resources", "first_wrong_at", "last_wrong_at", "resolved_at",
         "repeat_wrong_count"}
+    # CONTRACT CORRECTION (P1.3). This surface serves BOTH spaces, and a COURSE state now
+    # renders through the COURSE resolver (it used to be rendered by the exam resolver, which
+    # applied the wrong space's resolution rules to it). The course resolver distinguishes a
+    # material-generated course question from an unmapped one, so its kind is part of the
+    # vocabulary now. The four BC7 values are unchanged — the list only gained one.
     assert record["properties"]["source_kind"]["enum"] == [
-        "chapter_practice", "past_paper", "ai_generated", "other"]
+        "chapter_practice", "past_paper", "ai_generated", "course_material", "other"]
     assert record["properties"]["status"]["enum"] == ["active", "resolved"]
 
     detail = spec["paths"]["/wrong-answers/{state_id}"]["get"]["responses"]["200"][

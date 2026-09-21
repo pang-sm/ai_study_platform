@@ -28,6 +28,12 @@ class RecordContext(BaseModel):
     exam_module_id: str | None = None
     course_id: str | None = None
     subject_key: str | None = None
+    # programming references. ``learning_events`` has no column for either (see
+    # ``native_concept.PROGRAMMING_CONTEXT_KEYS``); they travel in the fact's snapshot and
+    # are projected here so a programming record can name its language and exercise.
+    programming_language: str | None = None
+    exercise_id: int | None = None
+    project_id: int | None = None
 
 
 class RecordSummary(BaseModel):
@@ -48,6 +54,12 @@ class RecordSummary(BaseModel):
     old_status: str | None = None
     # material
     material_id: str | None = None
+    # programming execution (code_run / code_tested). Real counts the server produced;
+    # a run reports no verdict and a test is not a submission, so no `correct` here.
+    passed_count: int | None = None
+    total_count: int | None = None
+    exit_code: int | None = None
+    timed_out: bool | None = None
     # audit-only (returned only with include_audit=true)
     capability: str | None = None
     status: str | None = None
@@ -99,6 +111,7 @@ class RecordsSummaryResponse(BaseModel):
     window: RecordSummaryWindow
     service_namespace: str | None = None
     exam_module_id: str | None = None
+    course_id: str | None = None
     total_events: int
     practice_attempts: int
     graded_attempts: int

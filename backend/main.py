@@ -61,9 +61,19 @@ from routers.subscription import router as subscription_router
 from routers.ai_models import router as ai_models_router
 from routers.practice import router as practice_router
 from routers.wrong_answers import router as wrong_answers_router
+from routers.course_learning import router as course_learning_router
 from routers.exam_prep import router as exam_prep_router
 from routers.learning_records import router as learning_records_router
+from routers.programming import router as programming_router
 from routers.scientific import router as scientific_router
+from routers.deep_study import router as deep_study_router
+from routers.programming_agent import router as programming_agent_router
+from routers.review import router as review_router
+from routers.learning_report import router as learning_report_router
+from routers.plan_adjustment import router as plan_adjustment_router
+from routers.p4_adaptive_feedback import router as p4_router
+from routers.agenda import router as agenda_router
+from routers.admin_ops import router as admin_ops_router
 import schemas
 from auth import hash_password, verify_password
 from core import schema_preflight as core_schema_preflight
@@ -132,22 +142,37 @@ def _course_ai_content(db: Session, user: models.User, capability: str, messages
     this guard makes the rule hold for every other caller too, so an exam fact cannot be
     filed under ``course_learning`` merely because a route reached for the course helper.
     """
+    return _course_ai_result(db, user, capability, messages, course_id=course_id,
+                             chapter_id=chapter_id, knowledge_point_id=knowledge_point_id,
+                             material_ids=material_ids, session_id=session_id,
+                             temperature=temperature, max_tokens=max_tokens).content
+
+
+def _course_ai_result(db: Session, user: models.User, capability: str, messages: list[dict], *,
+                      course_id: str, chapter_id=None, knowledge_point_id=None,
+                      material_ids=None, session_id=None, temperature=None,
+                      max_tokens=None):
+    """The same invocation, returning the whole result — including its real ``request_id``.
+
+    P6.1: an endpoint that returns an AI answer must be able to return the identity of the
+    ``ai_requests`` row that produced it, so the learner can rate THAT response. The id is
+    never invented here: it is the orchestrator's own.
+    """
     if _is_exam_ai_scope(course_id):
-        return _exam_ai_content(db, user, capability, messages,
-                                scope_values=(course_id, chapter_id, knowledge_point_id),
-                                chapter_id=chapter_id,
-                                knowledge_point_id=knowledge_point_id,
-                                temperature=temperature, max_tokens=max_tokens)
+        return _exam_ai_result(db, user, capability, messages,
+                               scope_values=(course_id, chapter_id, knowledge_point_id),
+                               chapter_id=chapter_id,
+                               knowledge_point_id=knowledge_point_id,
+                               temperature=temperature, max_tokens=max_tokens)
     from learning.spaces.course_learning.ai import execute_course_ai
     from learning.spaces.course_learning.context import build_course_context
-    result = execute_course_ai(
+    return execute_course_ai(
         db, user, capability, messages,
         learning_context=build_course_context(
             user, course_id=course_id, chapter_id=chapter_id,
             knowledge_point_id=knowledge_point_id, material_ids=material_ids,
             session_id=session_id),
         temperature=temperature, max_tokens=max_tokens)
-    return result.content
 
 
 def _is_exam_ai_scope(*values) -> bool:
@@ -178,15 +203,23 @@ def _exam_ai_content(db: Session, user: models.User, capability: str, messages: 
     CS408 is currently the only exam with real data; the adapter resolves the module from
     whichever legacy scope string the caller holds.
     """
+    return _exam_ai_result(db, user, capability, messages, scope_values=scope_values,
+                           chapter_id=chapter_id, knowledge_point_id=knowledge_point_id,
+                           temperature=temperature, max_tokens=max_tokens).content
+
+
+def _exam_ai_result(db: Session, user: models.User, capability: str, messages: list[dict], *,
+                    scope_values=(), chapter_id=None, knowledge_point_id=None,
+                    temperature=None, max_tokens=None):
+    """The same invocation, returning the whole result (P6.1 — see ``_course_ai_result``)."""
     from learning.spaces.exam_prep import context as _exam_context
     from learning.spaces.exam_prep.ai import execute_exam_ai
-    result = execute_exam_ai(
+    return execute_exam_ai(
         db, user, capability, messages,
         learning_context=_exam_context.cs408_context_from_values(
             user, *scope_values, chapter_id=chapter_id,
             knowledge_point_id=knowledge_point_id),
         temperature=temperature, max_tokens=max_tokens)
-    return result.content
 
 
 def _scoped_ai_content(db: Session, user: models.User, capability: str, messages: list[dict], *,
@@ -270,6 +303,18 @@ def resolve_material_scope(course_id: str, subject_key: str = "", subject: str =
         expected_key = raw_course_id
         expected_subject = display_by_id[raw_course_id]
         resolved_track = "course_learning"
+    elif raw_course_id in COURSE_LEARNING_ID_MAP:
+        # The CANONICAL course_learning identity — the exact string
+        # ``course_learning_preferences.course_id`` stores and the whole course workspace
+        # addresses a course by. It IS the course, so it is also its own subject: no
+        # second, fabricated subject_key is derived for it.
+        #
+        # Both spellings above are exact dictionary lookups into the ONE course identity
+        # map; neither is inferred from a display label, so a course whose name merely
+        # resembles another course's key resolves to nothing and is refused below.
+        expected_key = raw_course_id
+        expected_subject = raw_course_id
+        resolved_track = "course_learning"
     elif raw_course_id.endswith("_11408") and raw_course_id[:-6] in EXAM_MATERIAL_SCOPE_NAMES:
         expected_key = raw_course_id[:-6]
         expected_subject = f"11408 {EXAM_MATERIAL_SCOPE_NAMES[expected_key]}"
@@ -299,6 +344,14 @@ def _material_domain(course_id: str | None, subject_key: str | None = None) -> s
     programming course (python_programming) never collides with the same course
     id in course_learning. Two materials with the same file hash may coexist
     across domains (exam_11408 vs course_learning vs programming).
+
+    A course_learning material is recognized under BOTH spellings of the course's
+    identity — the stable English key the material library was built around, and the
+    canonical name ``course_learning_preferences`` stores. They are one course, so every
+    domain-scoped decision (duplicate detection, storage quota, the label shown to the
+    learner) has to classify them the same way; treating the canonical spelling as
+    "legacy" would silently exempt a course's uploads from its own quota and let the same
+    file be stored twice.
     """
     skey = (subject_key or "").strip()
     if skey == "programming":
@@ -306,7 +359,7 @@ def _material_domain(course_id: str | None, subject_key: str | None = None) -> s
     cid = (course_id or "").strip()
     if cid.endswith("_11408") and cid[:-6] in EXAM_MATERIAL_SCOPE_NAMES:
         return "exam_11408"
-    if cid in {value for value in COURSE_LEARNING_ID_MAP.values()}:
+    if cid in COURSE_LEARNING_ID_MAP or cid in set(COURSE_LEARNING_ID_MAP.values()):
         return "course_learning"
     if cid == "programming":
         return "programming"
@@ -5551,8 +5604,24 @@ app.include_router(ai_models_router)
 app.include_router(practice_router)
 app.include_router(wrong_answers_router)
 app.include_router(learning_records_router)
+app.include_router(course_learning_router)
+app.include_router(programming_router)
 app.include_router(exam_prep_router)
 app.include_router(scientific_router)
+# P3A: the competitive-ability workflows. Deep Study and the debug agent are capabilities of
+# the ONE AI boundary, and /review is a projection over the facts the spaces already store —
+# none of them is a second system for a space.
+app.include_router(deep_study_router)
+app.include_router(programming_agent_router)
+app.include_router(review_router)
+app.include_router(learning_report_router)
+app.include_router(plan_adjustment_router)
+# P4: adaptive practice selection (deterministic) + unified AI feedback (audit fact).
+app.include_router(p4_router)
+# P5: the daily learning agenda — a projection over the facts the spaces already own.
+app.include_router(agenda_router)
+# P6: admin-only operations read contracts + the advanced-workflow feature switches.
+app.include_router(admin_ops_router)
 
 
 @app.get("/home/summary")
@@ -6381,9 +6450,36 @@ def complete_onboarding(req: OnboardingUpdateRequest, username: str = "", db: Se
     return {"message": "onboarding saved", "user": profile, "profile": profile}
 
 
+def course_learning_goal_for(course: str, raw_goals: dict | None) -> str:
+    """The stored learning goal for ONE course, under either key it may have been written with.
+
+    Two writers reach the same fact with different spellings: the setup endpoint keys the goal by
+    the name the learner typed, while the per-course settings endpoint keys it by the canonical
+    course identity. They are one course, so a reader has to accept both — otherwise a course
+    whose goal was set from one screen reads as unset on the other, and the editor silently
+    offers the default for something the learner has already chosen.
+    """
+    goals = raw_goals if isinstance(raw_goals, dict) else {}
+    if course in goals:
+        return str(goals[course] or "") or "平日学习"
+    for key, value in goals.items():
+        if normalize_subject_course_learning(str(key or "")) == course:
+            return str(value or "") or "平日学习"
+    # Nothing stored for this course. 平日学习 is not a guess: it is the value the write path
+    # applies and the value `get_or_create_course_learning_preference` creates the row with, so
+    # an unset goal and a defaulted one are the same fact.
+    return "平日学习"
+
+
 def _course_learning_onboarding_payload(user: models.User, track: models.UserLearningTrack | None):
     detail = _parse_track_onboarding_detail(track)
     completed = bool(detail.get("course_learning_onboarding_completed"))
+    # The SAME resolution the course space lists courses with. Reporting the track's raw
+    # `selected_courses` instead made this endpoint describe a different course set from the one
+    # the space shows: a learner whose courses come from the account-level list saw an empty
+    # editor over a course space that was demonstrably not empty.
+    selected_courses = get_course_learning_selected_courses(user, track)
+    raw_goals = detail.get("course_goals") if isinstance(detail.get("course_goals"), dict) else {}
     return {
         "service_key": "course_learning",
         "onboarding_completed": completed,
@@ -6391,9 +6487,9 @@ def _course_learning_onboarding_payload(user: models.User, track: models.UserLea
         "major": detail.get("major") or user.major or "",
         "grade": detail.get("grade") or user.grade or "",
         "semester": user.semester or "",
-        "selected_courses": detail.get("selected_courses") if isinstance(detail.get("selected_courses"), list) else [],
+        "selected_courses": selected_courses,
         "material_types": detail.get("material_types") if isinstance(detail.get("material_types"), list) else [],
-        "course_goals": detail.get("course_goals") if isinstance(detail.get("course_goals"), dict) else {},
+        "course_goals": {course: course_learning_goal_for(course, raw_goals) for course in selected_courses},
         "created_at": detail.get("course_learning_created_at") or (serialize_datetime(track.created_at) if track else None),
         "updated_at": detail.get("course_learning_updated_at") or (serialize_datetime(track.updated_at) if track else None),
     }
@@ -6640,10 +6736,23 @@ def save_programming_onboarding(
         detail["programming_created_at"] = now_text
 
     if completed:
-        user.learning_direction = "编程能力提升"
-        user.default_course_id = language
+        # Programming writes the PROGRAMMING track and nothing else.
+        #
+        # This block used to stamp three account-level fields as well. `default_course_id` got the
+        # LANGUAGE, and the course space reads that column as a course source — so configuring
+        # `C++` here made a course called `C++` appear in the course space. `learning_direction`
+        # and `onboarding_detail` were the same mistake with a quieter symptom: profile fields
+        # holding programming state that no programming reader ever consults.
+        #
+        # The language's real home is this track's `selected_languages`, which is where every
+        # programming reader already looks (`declared_languages` in the programming space,
+        # `_programming_onboarding_payload`, `build_programming_learner_context`). Nothing has to
+        # be copied out of the track for programming to work, so nothing is.
+        #
+        # `onboarding_completed` is deliberately kept: it is the account's "has finished an
+        # onboarding" marker rather than programming state, `needs_onboarding` is serialized from
+        # it, and clearing it is a property of this route that the product already relies on.
         user.onboarding_completed = True
-        user.onboarding_detail = json.dumps({**detail, "learning_goal_type": "programming"}, ensure_ascii=False)
 
     track = upsert_user_track(
         db,
@@ -8837,22 +8946,6 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
         file_names = "、".join(m.original_filename for m in selected_materials)
         user_content = f"【本轮引用资料：{file_names}】\n{user_content}"
 
-    if ((req.service_key or "").strip() == "exam_11408" or exam_subject
-            or is_exam_408_context(subject, req.course)):
-        usage_feature = "chat"
-        # STEP7H3 B7: exam chat authorization is the unified capability + budget path,
-        # decided inside the orchestrator. The legacy exam quota no longer gets a vote.
-        usage_service = "exam_prep"
-    elif (req.service_key or "").strip() == "programming":
-        # Programming AI 问答 shares the "AI问答/纠错" programming quota counter
-        # with /code/analyze, so both are limited by ai_chat_daily_limit together.
-        usage_feature = "code_analyze"
-        usage_service = "programming"
-        check_programming_usage_limit(user, "code_analyze", db)
-    else:
-        usage_feature = "chat"
-        usage_service = "course_learning"
-
     _chat_messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_content},
@@ -8860,20 +8953,41 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
     # Server-side capability choice (B11): grounded material QA vs plain tutoring. The
     # client never names a capability, so it cannot pick its way around permission.
     _chat_capability = "material.qa" if material_ids else "tutor.chat"
-    if usage_service == "course_learning":
-        answer = _course_ai_content(
+    _chat_service_key = (req.service_key or "").strip()
+    if (_chat_service_key == "exam_11408" or exam_subject
+            or is_exam_408_context(subject, req.course)):
+        # STEP7H3 B7: exam chat authorization is the unified capability + budget path,
+        # decided inside the orchestrator. The legacy exam quota no longer gets a vote.
+        _chat_result = _exam_ai_result(
+            db, user, _chat_capability, _chat_messages,
+            scope_values=(rag_course_id, rag_subject_key, subject))
+    elif _chat_service_key == "programming":
+        # P6.2 §A: this branch used to call the provider directly, so it created NO
+        # ``ai_requests`` row, took no capability/permission/budget decision and answered
+        # with no identity at all. It now runs on the SAME chain as every other programming
+        # AI call — one capability, one reservation, one settlement, one real request_id —
+        # through the programming space's own adapter (never a programming-specific stack).
+        #
+        # The capability is the ordinary tutoring pair, so the Free learning loop keeps the
+        # access it had: the legacy programming quota is not replaced by a second gate here.
+        # The language is the learner's OWN declared language (the same profile the prompt
+        # above already carries); when none is declared the context takes its documented
+        # canonical default.
+        from learning.spaces.programming.ai import execute_programming_ai
+        from learning.spaces.programming.context import build_programming_context
+        from learning.spaces.programming.service import declared_languages
+        _declared_languages = declared_languages(db, user)
+        _chat_result = execute_programming_ai(
+            db, user, _chat_capability, _chat_messages,
+            learning_context=build_programming_context(
+                user, language=_declared_languages[0] if _declared_languages else None,
+                session_id=chat_session.id))
+    else:
+        _chat_result = _course_ai_result(
             db, user, _chat_capability, _chat_messages,
             course_id=rag_course_id or subject or "course_learning", material_ids=material_ids,
             session_id=chat_session.id)
-    elif usage_service == "exam_prep":
-        answer = _exam_ai_content(
-            db, user, _chat_capability, _chat_messages,
-            scope_values=(rag_course_id, rag_subject_key, subject))
-    else:
-        answer = call_deepseek(_chat_messages)
-        record_ai_usage(user.username, usage_feature, db,
-                        estimated_tokens=estimate_tokens_from_text(answer), status="success",
-                        service_key=usage_service)
+    answer, _chat_request_id = _chat_result.content, _chat_result.request_id
 
     answer = normalize_assistant_markdown(answer)
 
@@ -8916,6 +9030,11 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
         "version_index": version_index,
         "session": serialize_session(chat_session),
         "rag_sources": sorted({item["source_filename"] for item in rag_chunks}),
+        # P6.1/P6.2: the real identity of the ``ai_requests`` row behind this answer. It is
+        # the orchestrator's own id on every branch — course, exam and (since §A closed the
+        # last legacy branch) programming. Absent identity would be reported as ``None``,
+        # never invented.
+        "request_id": _chat_request_id,
     }
 
 
@@ -10601,16 +10720,14 @@ PROJECT_FILE_EXTENSIONS = {
 
 
 def normalize_project_language(language: str | None) -> str:
-    raw = (language or "").strip().lower()
-    if raw in ("c++", "cpp", "cplusplus") or "c++" in raw:
-        return "C++"
-    if raw == "c" or raw == "c语言":
-        return "C"
-    if raw in ("python", "py") or "python" in raw:
-        return "Python"
-    if raw == "java" or "java" in raw:
-        return "Java"
-    return "Python"
+    """The ONE language normalizer, owned by the programming space.
+
+    Delegates rather than restating the rules: the legacy call sites here and the canonical
+    event writers in ``learning.spaces.programming`` must agree on what "cpp" means, and two
+    copies of that rule is exactly how they stop agreeing.
+    """
+    from learning.spaces.programming.context import normalize_language
+    return normalize_language(language)
 
 
 def default_project_code(language: str) -> str:
@@ -11104,6 +11221,31 @@ def _record_programming_exercise_activity(user, exercise, db: Session, action: s
     return progress
 
 
+def _emit_programming_exercise_activity(user, exercise, action: str, progress, result: dict,
+                                        project_id: int | None = None) -> None:
+    """Record one real run/test on the canonical event stream.
+
+    Called AFTER the progress row has committed, with the SAME timestamp the row recorded —
+    so the event and the row can never disagree about when the action happened. Failures are
+    absorbed downstream (``learning.records.producers`` counts them); a data-plane problem
+    must never fail the learner's run.
+
+    The verdict is deliberately NOT passed through. Running code produces no correctness
+    fact (``code_run``), and checking code against the exercise's own tests is not a
+    submission — the graded verdict belongs to ``code_submitted``.
+    """
+    if progress is None:
+        return
+    occurred = progress.last_run_at if action == "run" else progress.last_test_at
+    if occurred is None:
+        return
+    from learning.spaces.programming import events as _programming_events
+    _programming_events.emit_exercise_activity(
+        user_id=user.id, exercise=exercise, action=action, occurred_at=occurred,
+        language=getattr(exercise, "language", None), project_id=project_id,
+        observed=result, source_user_ref=user.username)
+
+
 def _serialize_programming_progress(progress: models.ProgrammingExerciseProgress | None) -> dict:
     if not progress:
         return {
@@ -11418,6 +11560,14 @@ def start_programming_exercise(exercise_id: int, req: schemas.ProgrammingExercis
                 db.commit()
                 db.refresh(project)
     files = list_project_files(project.id, db)
+    # The learner's project row is committed above; the canonical fact that they started
+    # this exercise follows it. Deduped per (user, exercise), so resuming is not a second
+    # start (the deterministic event id collapses it), and failure-isolated: a data-plane
+    # problem can never fail the start. The time is NOW, not the project's last edit.
+    from learning.spaces.programming import events as _programming_events
+    _programming_events.emit_exercise_started(
+        user_id=user.id, exercise=exercise, occurred_at=utc_now(),
+        language=language, project_id=project.id, source_user_ref=user.username)
     return {"exercise": serialize_programming_exercise(exercise, include_starter=True), "project": serialize_code_project(project, files), "resumed": resumed}
 
 
@@ -12088,7 +12238,9 @@ def test_programming_exercise(exercise_id: int, req: schemas.ProgrammingExercise
     payload["public_case_ids"] = [str(sample.get("id") or "") for sample in selected_samples]
     payload["tests_executed"] = "public_only"
     payload["state_updated"] = False
-    _record_programming_exercise_activity(user, exercise, db, "test", payload)
+    progress = _record_programming_exercise_activity(user, exercise, db, "test", payload)
+    _emit_programming_exercise_activity(user, exercise, "test", progress, result,
+                                        project_id=project.id)
     return payload
 
 
@@ -12117,7 +12269,9 @@ def run_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerciseR
         ),
         db,
     )
-    _record_programming_exercise_activity(user, exercise, db, "run", result)
+    progress = _record_programming_exercise_activity(user, exercise, db, "run", result)
+    _emit_programming_exercise_activity(user, exercise, "run", progress, result,
+                                        project_id=project.id)
     return {
         **result,
         "mode": "run",
@@ -13165,7 +13319,23 @@ def _parse_python_diagnostics(output: str) -> list[dict]:
 
 @app.post("/code/diagnose")
 def diagnose_code(req: schemas.CodeDiagnoseRequest, current_user: models.User = Depends(get_current_user)):
-    """Perform syntax/compile diagnostics without executing code."""
+    """代码诊断（静态语法检查）— deterministic syntax/compile diagnostics; NOT an AI capability.
+
+    C is checked with ``gcc -fsyntax-only`` in the sandbox image, Python with
+    ``sys.executable -m py_compile``; neither executes the learner's program. No model is
+    involved at any point, so this endpoint:
+
+    * creates no ``ai_requests`` row and returns NO ``request_id`` — there is nothing to
+      identify, because the answer came from a compiler and not from a request;
+    * consumes no AI credits and is not subject to capability / budget decisions;
+    * produces no AI answer, therefore nothing ``POST /ai/feedback`` can rate.
+
+    The line/column it reports are the COMPILER's real positions. It is not converged onto
+    the AI stack on purpose: that would replace a compiler verdict with a model's
+    description of one, and would make a syntax check fail when a model is unavailable.
+    AI code analysis lives at ``POST /code/analyze``; the multi-step repair workflow at
+    ``POST /programming/agent/debug``.
+    """
     language = (req.language or "").strip().lower()
     code = (req.code or "")
 
@@ -13577,7 +13747,6 @@ def analyze_code(
 用户问题：{question}"""
 
     if str(req.course_id or "").strip().lower() in {"programming", "编程", "编程学习"}:
-        check_programming_usage_limit(user, "code_analyze", db)
         analyze_service = "programming"
     else:
         # Course AI authorization is owned by Subscription + Capability Permission +
@@ -13590,17 +13759,24 @@ def analyze_code(
         {"role": "user", "content": user_message},
     ]
     if analyze_service == "course_learning":
-        answer = _course_ai_content(
+        _ai_result = _course_ai_result(
             db, user, "programming.explain", _analysis_messages,
             course_id=(req.course_id or "course_learning"),
         )
     else:
-        answer = call_deepseek(_analysis_messages)
-        record_ai_usage(user.username, "code_analyze", db,
-                        estimated_tokens=estimate_tokens_from_text(answer),
-                        status="success", service_key=analyze_service)
+        # P6.1: the programming branch used to call the provider directly, so it created no
+        # ``ai_requests`` row and no capability/budget/routing decision. It now runs through
+        # the SAME unified boundary as every other programming AI call — one capability
+        # (``programming.explain``), one reservation, one settlement, one real request_id.
+        from learning.spaces.programming.ai import execute_programming_ai
+        from learning.spaces.programming.context import build_programming_context
+        _ai_result = execute_programming_ai(
+            db, user, "programming.explain", _analysis_messages,
+            learning_context=build_programming_context(
+                user, language=language, exercise_id=getattr(exercise, "id", None)),
+        )
 
-    answer = normalize_assistant_markdown(answer)
+    answer = normalize_assistant_markdown(_ai_result.content or "")
 
     if session:
         db.add(models.CodeAIMessage(
@@ -13617,6 +13793,9 @@ def analyze_code(
         "answer": answer,
         "language": language,
         "code_truncated": len(code) > MAX_CODE_ANALYZE_CHARS,
+        # P6.1: the identity of the ``ai_requests`` row that produced THIS answer. The client
+        # may rate it via POST /ai/feedback; it must never generate one of its own.
+        "request_id": _ai_result.request_id,
     }
 
 
@@ -14425,6 +14604,12 @@ def submit_code_challenge(
     code = (req.code or "").strip()
     language = (req.language or challenge.language or "").strip()
 
+    # P6.2 §B: the identity of the model judgment when this submission reaches a model.
+    # The two branches below are DETERMINISTIC — they answer from the request itself, call
+    # no model and therefore have no request to identify. They keep said identity absent
+    # rather than inventing one, exactly as ``/chat`` does on a branch that makes no call.
+    ai_request_id = None
+
     if not code:
         status = "failed"
         ai_feedback = (
@@ -14480,18 +14665,32 @@ def submit_code_challenge(
 
 请根据题目要求判定以上代码。"""
 
-        check_programming_usage_limit(user, "code_analyze", db)
-
-        ai_feedback = call_deepseek(
+        # P6.2 §B: the judgment is a real model call, so it belongs on the unified chain
+        # (capability → permission → usage reserve → router → gateway → settle →
+        # ai_requests). It used to call the provider directly with a legacy quota check, so
+        # it created no ai_requests row and no routing decision; the legacy per-service quota
+        # no longer gets a second vote on whether the call runs — the same rule the course
+        # branch of ``/code/analyze`` already follows.
+        #
+        # The capability is the programming space's code-analysis one, which is what this
+        # operation is: the challenge's requirements are the reference, and the answer is an
+        # analysis of the learner's code against them. No ``exercise_id`` is passed: a
+        # challenge id is not a ``programming_exercises`` id, and claiming one would file the
+        # fact under an exercise the learner never touched.
+        from learning.spaces.programming.ai import execute_programming_ai
+        from learning.spaces.programming.context import build_programming_context
+        _submit_result = execute_programming_ai(
+            db, user, "programming.explain",
             [
                 {"role": "system", "content": CODE_CHALLENGE_SUBMIT_PROMPT},
                 {"role": "user", "content": user_prompt},
-            ]
+            ],
+            learning_context=build_programming_context(
+                user, language=language or challenge.language, session_id=session.id),
         )
+        ai_request_id = _submit_result.request_id
 
-        record_ai_usage(user.username, "code_analyze", db, estimated_tokens=estimate_tokens_from_text(ai_feedback), status="success", service_key="programming")
-
-        ai_feedback = normalize_assistant_markdown(ai_feedback)
+        ai_feedback = normalize_assistant_markdown(_submit_result.content or "")
 
         # Determine status from AI response
         if "大概率不通过" in ai_feedback:
@@ -14540,6 +14739,10 @@ def submit_code_challenge(
         "status": status,
         "ai_feedback": ai_feedback,
         "attempt_id": attempt.id,
+        # P6.2 §B: the real identity of the ``ai_requests`` row behind the judgment, so the
+        # learner can rate THAT answer via ``POST /ai/feedback``. ``None`` when the branch
+        # answered deterministically and made no model call.
+        "request_id": ai_request_id,
     }
 
 

@@ -424,6 +424,9 @@ def test_exam_endpoints_reach_the_exam_boundary():
         body = _function_source(src, fn)
         assert body, fn
         assert ("_exam_ai_content" in body or "_scoped_ai_content" in body
+                # P6.1: the same exam invocation, returning the orchestrator result so the
+                # endpoint can return the real `ai_requests` identity.
+                or "_exam_ai_result" in body
                 or "execute_exam_ai" in body or "GradeOutputError" in body
                 or "_paper_big_answer_grader" in body
                 # BC6: past-paper reads delegate to the shared normalization adapter instead of

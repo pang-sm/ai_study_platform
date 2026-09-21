@@ -94,6 +94,22 @@ def _safe_view(event: LearningEvent) -> dict:
         if value:
             context[key] = value
 
+    # PROGRAMMING facts carry their language and exercise identity in the snapshot's own
+    # context, not in a column (``learning_events`` has none for either — see
+    # ``native_concept.PROGRAMMING_CONTEXT_KEYS``, which is the same declaration the
+    # producers write against). Without this a programming record could not say which
+    # language it belongs to, and the caller would have to parse an implementation blob.
+    if event.service_key == ServiceNamespace.PROGRAMMING.value:
+        program_context = payload.get("context")
+        program_context = program_context if isinstance(program_context, dict) else {}
+        language = str(program_context.get("programming_language") or "").strip()
+        if language:
+            context["programming_language"] = language
+        if program_context.get("exercise_id") is not None:
+            context["exercise_id"] = program_context["exercise_id"]
+        if payload.get("project_id") is not None:
+            context["project_id"] = payload["project_id"]
+
     return {
         "event_id": event.event_id,
         "event_type": event.event_type,
@@ -128,6 +144,13 @@ def _summary_of(event: LearningEvent, payload: dict) -> dict:
             summary["question_source_id"] = payload.get("question_source_id")
         if event.question_id:
             summary["question_source_id"] = event.question_id
+    elif event.event_type in ("code_run", "code_tested"):
+        # EXECUTION facts only. A run produces no verdict and a check against the
+        # exercise's own tests is not a submission, so neither carries `correct` — that
+        # belongs to `code_submitted`, the one graded fact in the programming loop.
+        for key in ("passed_count", "total_count", "exit_code", "timed_out"):
+            if payload.get(key) is not None:
+                summary[key] = payload[key]
     elif event.event_type == "ai_called":
         summary["capability"] = payload.get("capability")
         summary["status"] = payload.get("status")
@@ -252,7 +275,8 @@ def get_record(db: DbSession, user_id: int, event_id: str,
 
 def summarize_records(db: DbSession, user_id: int, *, start_at=None, end_at=None,
                       service_namespace: str | None = None,
-                      exam_module_id: str | None = None) -> dict:
+                      exam_module_id: str | None = None,
+                      course_id: str | None = None) -> dict:
     """Deterministic records metrics over the study-history scope.
 
     BOUNDED BY CONSTRUCTION: every figure is a SQL aggregate (COUNT / SUM over
@@ -263,7 +287,7 @@ def summarize_records(db: DbSession, user_id: int, *, start_at=None, end_at=None
     end_epoch = _to_epoch(end_at)
     base = _base_query(db, user_id, start_at=start_at, end_at=end_at,
                        service_namespace=service_namespace,
-                       exam_module_id=exam_module_id)
+                       exam_module_id=exam_module_id, course_id=course_id)
 
     by_type = dict(
         base.with_entities(LearningEvent.event_type, func.count())
@@ -291,6 +315,7 @@ def summarize_records(db: DbSession, user_id: int, *, start_at=None, end_at=None
                    "timezone": "UTC"},
         "service_namespace": service_namespace or None,
         "exam_module_id": exam_module_id or None,
+        "course_id": course_id or None,
         "total_events": sum(by_type.values()),
         "practice_attempts": practice_attempts,
         "graded_attempts": graded_attempts,

@@ -299,6 +299,20 @@ def trim_chunks_for_prompt(chunks: list[dict], total_limit: int = MAX_TOTAL_CONT
     return selected
 
 
+def _course_scope_clause(course_ids: list[str]) -> tuple[str, dict]:
+    """SQL fragment + params restricting a chunk to one course's exact identity forms.
+
+    An empty list yields an empty fragment (no restriction), so a caller that passes nothing
+    keeps the previous behaviour byte for byte.
+    """
+    if not course_ids:
+        return "", {}
+    keys = [f":course_scope_{index}" for index in range(len(course_ids))]
+    fragment = f"\n                          AND mc.course_id IN ({', '.join(keys)})"
+    params = {key.lstrip(":"): value for key, value in zip(keys, course_ids)}
+    return fragment, params
+
+
 def search_relevant_material_chunks(
     username: str,
     subject: str | None,
@@ -306,8 +320,18 @@ def search_relevant_material_chunks(
     top_k: int = DEFAULT_TOP_K,
     course_id: str | None = None,
     subject_key: str | None = None,
+    course_ids: list[str] | None = None,
 ):
+    """FTS5/BM25 (with a keyword-bonus fallback) over the materials this user may read.
+
+    ``course_ids`` is an ADDITIVE alternative to ``course_id``: a course is stored under more
+    than one exact spelling, and a caller that holds the identity set (see
+    ``learning.spaces.course_learning.context.course_identity_forms``) needs every one of them
+    to match, without matching anything else. Both params filter in SQL, before the limit.
+    """
     safe_top_k = max(1, min(top_k, MAX_TOP_K))
+    safe_course_ids = [str(value).strip() for value in (course_ids or [])
+                       if str(value).strip()]
     question_tokens = tokenize_query(question, subject)
     results: list[dict] = []
     fts_query = build_fts_query(question, subject)
@@ -328,9 +352,13 @@ def search_relevant_material_chunks(
             base_filter = base_filter.filter(models.MaterialChunk.course_id == course_id)
         if subject_key:
             base_filter = base_filter.filter(models.MaterialChunk.subject_key == subject_key)
+        if safe_course_ids:
+            base_filter = base_filter.filter(
+                models.MaterialChunk.course_id.in_(safe_course_ids))
 
         if is_material_chunks_fts_enabled() and fts_query:
             try:
+                course_scope_sql, course_scope_params = _course_scope_clause(safe_course_ids)
                 rows = session.execute(
                     text(
                         """
@@ -367,6 +395,9 @@ def search_relevant_material_chunks(
                           AND (:subject = '' OR mc.subject = :subject)
                           AND (:course_id = '' OR mc.course_id = :course_id)
                           AND (:subject_key = '' OR mc.subject_key = :subject_key)
+                        """
+                        + course_scope_sql
+                        + """
                         LIMIT 24
                         """
                     ),
@@ -376,6 +407,7 @@ def search_relevant_material_chunks(
                         "subject": subject or "",
                         "course_id": course_id or "",
                         "subject_key": subject_key or "",
+                        **course_scope_params,
                     },
                 ).mappings().all()
 

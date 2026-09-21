@@ -66,7 +66,16 @@ def test_course_adapter_fans_out_one_attempt_per_question(db_session):
     by_qid = {a.question_source_id: a for a in attempts}
     assert by_qid["11"].correct is True
     assert by_qid["12"].correct is None          # ungraded stays None
-    assert by_qid["11"].question_source_type == "material_generated"
+    # CONTRACT CORRECTION (P1.2). This assertion used to read "material_generated". It was
+    # wrong about where a course AI question lives: ``question_ids_json`` holds
+    # ``ai_generated_questions`` primary keys (main._create_course_learning_attempt is handed
+    # an AIGeneratedQuestion), so declaring the static ``questions`` table made every course
+    # AI attempt resolve against an id space it never belonged to — an empty stem for a real
+    # question, and another learner's question where the two tables' ids happened to overlap.
+    # The declared source now states the table the id really is in.
+    assert by_qid["11"].question_source_type == "AI_generated"
+    ref = json.loads(by_qid["11"].question_ref_json)
+    assert ref["raw_source"]["table"] == "ai_generated_questions"
     assert by_qid["11"].source_attempt_id == str(row.id)
 
 
@@ -98,6 +107,22 @@ def test_course_mirror_is_idempotent(db_session):
     assert first.mirrored == 1
     assert second.mirrored == 0 and second.deduped == 1
     assert len(service.list_attempts(db_session, u.id)) == 1
+
+
+def test_course_adapter_refuses_an_unknown_mode_instead_of_defaulting(db_session):
+    """CONTRACT CORRECTION (P1.2): an unmapped ``mode`` used to be filed as course_learning /
+    material_generated — an identity invented for a row that states none — and the invented
+    table is what made a bare id resolvable against the wrong id space. A row whose
+    provenance cannot be named now records nothing.
+    """
+    u = make_user(db_session, "ad_c5")
+    row = _ai_attempt(db_session, "ad_c5", mode="some_future_mode", qids=[41], results={
+        "results": [{"question_id": 41, "correct": True, "question_type": "选择题"}]})
+
+    outcome = course_adapter.mirror_ai_question_attempt(db_session, u, row)
+    assert outcome.mirrored == 0 and outcome.failed == 0
+    assert outcome.reason == "unknown_mode"
+    assert service.list_attempts(db_session, u.id) == []
 
 
 # ---------------------------------------------------------------- exam

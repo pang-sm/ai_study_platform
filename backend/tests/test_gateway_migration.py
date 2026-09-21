@@ -51,11 +51,18 @@ def test_course_code_analysis_uses_course_orchestrator_boundary(client, monkeypa
     register_and_login(client, "mig-course-code")
     captured = {}
 
+    class _StubResult:
+        """The boundary now returns the whole result (P6.1) so the endpoint can expose the
+        real ``ai_requests`` identity; the assertion below is about WHICH boundary it takes."""
+
+        content = "统一 AI 代码讲解"
+        request_id = "stub-course-request"
+
     def fake_course_ai(_db, _user, capability, _messages, **kwargs):
         captured.update(capability=capability, kwargs=kwargs)
-        return "统一 AI 代码讲解"
+        return _StubResult()
 
-    monkeypatch.setattr(main, "_course_ai_content", fake_course_ai)
+    monkeypatch.setattr(main, "_course_ai_result", fake_course_ai)
     monkeypatch.setattr(main, "call_deepseek", lambda *_a, **_kw: (_ for _ in ()).throw(
         AssertionError("Course code analysis reached legacy direct provider")))
     response = client.post("/code/analyze", json={

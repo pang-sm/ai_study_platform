@@ -337,3 +337,119 @@ def build_system_prompt(
         sections.append(f"当前用户问题：{normalized_question}")
 
     return "\n\n".join(sections).strip()
+
+
+# ---------------------------------------------------------------- Deep Study (P3A)
+#
+# The Deep Study prompt is built from the SAME system prompt the product already uses (so the
+# evidence rules, the citation behaviour and the markdown contract do not fork), plus the ONE
+# instruction block that makes the workflow a deep study rather than a single answer. Keeping
+# it here — and not in the endpoint — is the long-term Prompt Registry rule: business code
+# asks for a message list, it does not assemble one.
+
+DEEP_STUDY_INSTRUCTION = (
+    "## 深度研习模式（Strong Reasoning）\n"
+    "用户请求的是一次深入研习，而不是一句话回答。请严格遵守：\n"
+    "- 先给出**结论**，再展开**推理过程**，明确写出关键判断的依据。\n"
+    "- 当参考片段支持某个结论时，在句末用【文件名】标注来源；只标注真实命中的资料。\n"
+    "- 如果参考片段不足以支撑某个结论，直接说明“资料未覆盖”，再给出通用解释，"
+    "并且不要为该部分标注来源。\n"
+    "- 涉及易混淆概念时，给出**对比**与**常见误区**。\n"
+    "- 最后给出**可执行的下一步**（下一步该学什么、该练什么），但不要编造用户的学习数据。\n"
+    "- 不要臆造资料内容、页码、公式编号或引用。\n"
+)
+
+
+PLAN_ADJUSTMENT_INSTRUCTION = (
+    "你是一名学习规划助手。下面给出学生**当前计划**的真实状态、复习投影、练习统计与最近的"
+    "学习事件。请给出一次**有界**的计划调整建议，严格返回 JSON（不要 markdown 代码块）：\n"
+    '{"reason":"为什么要这样调整（结合给定数据，80字内）",\n'
+    ' "changes":[{"op":"create_task","title":"任务标题","task_type":"knowledge|review|practice",'
+    '"due_date":"YYYY-MM-DD 或 null","reason":"理由"},\n'
+    '            {"op":"update_task","task_id":123,"due_date":"YYYY-MM-DD 或 null",'
+    '"title":"可选的新标题","status":"可选：not_started|in_progress|completed",'
+    '"reason":"理由"}]}'
+    "\n\n要求："
+    "\n- 只能使用给定数据中出现的事实，禁止编造学生没有的课程、知识点或成绩；"
+    "\n- changes 最多 5 条，优先处理逾期任务与到期复习项；"
+    "\n- update_task 只能针对 tasks 中出现的 task_id；不要删除任务；"
+    "\n- 不要做长期预测，也不要替学生决定学习目标。"
+)
+
+
+def build_plan_adjustment_messages(facts: dict, goal: str = "") -> list[dict]:
+    """The ONLY thing the planning model sees: the learner's real plan and real facts."""
+    import json as _json
+
+    payload = _json.dumps(facts, ensure_ascii=False, sort_keys=True, default=str)
+    parts = [f"学生当前状态：\n{payload}"]
+    if goal:
+        parts.append(f"学生本次的目标/偏好：{goal}")
+    return [{"role": "system", "content": PLAN_ADJUSTMENT_INSTRUCTION},
+            {"role": "user", "content": "\n\n".join(parts)}]
+
+
+WRONG_ANALYSIS_INSTRUCTION = (
+    "你是一名计算机课程老师，正在分析学生一道错题的原因。\n"
+    "下面给出的是学生这道题的**真实记录**（题干、学生的答案、参考答案、解析、作答历史）。\n"
+    "请做错因分析，严格返回 JSON（不要 markdown 代码块），字段如下：\n"
+    '{"error_category":"错误类型（如：概念混淆/计算错误/审题偏差/步骤缺失/知识空缺）",\n'
+    ' "reasoning_gap":"学生的推理在哪里断了（结合其真实答案说明）",\n'
+    ' "correct_reasoning":"正确的推理过程（简明的步骤化讲解）",\n'
+    ' "next_action":"下一步具体可执行的复习动作（一条）",\n'
+    ' "review_recommendation":"建议的复习重点与时机"}'
+    "\n\n要求："
+    "\n- 只依据给出的记录分析，不要编造学生没有出现过的答案或历史；"
+    "\n- 不要对学生能力、天赋或掌握程度下结论，也不要预测分数；"
+    "\n- 每个字段控制在 120 字以内，使用中文。"
+)
+
+
+def build_wrong_analysis_messages(facts: dict) -> list[dict]:
+    """The ONLY thing the wrong-cause model sees: the state's own recorded facts."""
+    import json as _json
+
+    payload = _json.dumps(facts, ensure_ascii=False, sort_keys=True, default=str)
+    return [{"role": "system", "content": WRONG_ANALYSIS_INSTRUCTION},
+            {"role": "user", "content": f"这道错题的记录：\n{payload}"}]
+
+
+REPORT_NARRATIVE_INSTRUCTION = (
+    "## 学习报告叙述（仅基于给定数据）\n"
+    "下面是一份由系统确定性计算出的学习报告数据（JSON）。请写一段中文学习总结，严格遵守：\n"
+    "- 只能使用 JSON 中出现的数字与事实，禁止编造任何未出现的数据、日期或事件。\n"
+    "- 某个指标为 null 表示该学习空间没有这类数据，请直接不要提及，不要说成 0。\n"
+    "- 不要评价学习者的能力、天赋或掌握程度，不要做预测；只描述这段时间发生了什么。\n"
+    "- 若存在 attention 项，请在结尾给出一到两条具体、可执行的下一步建议。\n"
+    "- 直接输出 150-300 字的总结，不要使用标题或代码块，不要复述 JSON。\n"
+)
+
+
+def build_report_narrative_messages(report_data: dict) -> list[dict]:
+    """The ONLY thing a report narrative model is allowed to see: the computed ReportData."""
+    import json as _json
+
+    payload = _json.dumps(report_data, ensure_ascii=False, sort_keys=True, default=str)
+    return [{"role": "system", "content": REPORT_NARRATIVE_INSTRUCTION},
+            {"role": "user", "content": f"报告数据：\n{payload}"}]
+
+
+def build_deep_study_messages(question: str,
+                              subject: str | None = None,
+                              rag_chunks: list[dict] | None = None,
+                              knowledge_point_id: str | None = None) -> list[dict]:
+    """System + user messages for ONE Deep Study answer.
+
+    ``rag_chunks`` is the already-retrieved, already-isolated evidence: whatever is in it is
+    what the answer may cite, and an empty list is a legitimate state that the prompt states
+    honestly rather than papering over.
+    """
+    system_prompt = build_system_prompt(
+        subject, question, user_profile_data=None,
+        has_attachment=bool(rag_chunks), rag_chunks=rag_chunks,
+        knowledge_context="")
+    parts = [system_prompt, DEEP_STUDY_INSTRUCTION]
+    if knowledge_point_id:
+        parts.append(f"当前知识点：{knowledge_point_id}")
+    parts.append(f"请就以下问题进行深度研习：{_normalize_question(question)}")
+    return [{"role": "system", "content": "\n\n".join(parts)}]

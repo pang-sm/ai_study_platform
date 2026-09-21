@@ -83,6 +83,34 @@ def normalize_namespace(value=COURSE_NAMESPACE) -> str:
     return normalize_service_namespace(value)
 
 
+def course_identity_forms(course_id) -> frozenset[str]:
+    """EVERY exact stored form this course's identity is allowed to take.
+
+    A course is one identity with more than one stored spelling in this database, and the
+    spellings are not free text: ``course_learning_preferences.course_id`` (and everything
+    written from it since STEP 7G) holds the canonical name, while the pre-STEP7G material
+    library addressed the same course by its stable English key. ``subjects.py`` is the
+    authority for BOTH mappings, so this resolves through it and nothing else:
+
+        canonical name  "数据结构"          (the preference key, the workspace's course_id)
+        English key     "data_structure"    (the legacy material scope)
+
+    Membership is EXACT — a lookup in a fixed dictionary, never a substring, a case-fold, a
+    prefix or a fuzzy match. That is the whole point: a caller may accept any spelling the
+    product itself writes, and must reject anything it does not recognize rather than
+    guess which course a stray string meant.
+
+    The result always contains the normalized key itself, so a course this build has never
+    heard of still resolves to exactly one form — its own.
+    """
+    from subjects import normalize_subject_course_learning, resolve_course_id_from_display
+
+    key = normalize_course_id(course_id)
+    canonical = normalize_subject_course_learning(key) or key
+    english = resolve_course_id_from_display(canonical)
+    return frozenset(form for form in (key, canonical, english) if form)
+
+
 def build_course_context(user, *, course_id, chapter_id=None, knowledge_point_id=None,
                          material_ids=None, session_id=None,
                          display_name=None) -> LearningContext:

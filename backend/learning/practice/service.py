@@ -149,14 +149,27 @@ def get_session(db: DbSession, user_id: int, session_id: int,
     return session
 
 
+def _course_filter(q, model, course_id):
+    """Restrict a practice query to ONE course's rows, in SQL.
+
+    The course a practice row belongs to lives in its context JSON (a course is part of the
+    question's identity, not a column on the attempt), so the filter is a JSON extract —
+    applied in SQL, BEFORE any limit. Filtering the fetched page in Python instead would
+    let another course's rows fill the page the caller asked for.
+    """
+    return q.filter(func.json_extract(model.context_json, "$.course_id") == str(course_id))
+
+
 def list_sessions(db: DbSession, user_id: int, *, service_namespace: str | None = None,
-                  status: str | None = None, limit: int = 50,
-                  offset: int = 0) -> list[PracticeSession]:
+                  status: str | None = None, course_id: str | None = None,
+                  limit: int = 50, offset: int = 0) -> list[PracticeSession]:
     q = db.query(PracticeSession).filter(PracticeSession.user_id == user_id)
     if service_namespace is not None:
         q = q.filter(PracticeSession.service_namespace == _namespace_value(service_namespace))
     if status is not None:
         q = q.filter(PracticeSession.status == status)
+    if course_id is not None:
+        q = _course_filter(q, PracticeSession, course_id)
     return (q.order_by(PracticeSession.id.desc()).offset(offset).limit(limit).all())
 
 
@@ -384,14 +397,51 @@ def get_attempt(db: DbSession, user_id: int, attempt_id: int,
 
 
 def list_attempts(db: DbSession, user_id: int, *, session_id: int | None = None,
-                  service_namespace: str | None = None, limit: int = 100,
-                  offset: int = 0) -> list[PracticeAttempt]:
+                  service_namespace: str | None = None, course_id: str | None = None,
+                  limit: int = 100, offset: int = 0) -> list[PracticeAttempt]:
     q = db.query(PracticeAttempt).filter(PracticeAttempt.user_id == user_id)
     if session_id is not None:
         q = q.filter(PracticeAttempt.session_id == session_id)
     if service_namespace is not None:
         q = q.filter(PracticeAttempt.service_namespace == _namespace_value(service_namespace))
+    if course_id is not None:
+        # the course travels on the attempt's QUESTION REF, which is where the ONE context
+        # builder put it — the session is a container, the ref is the identity
+        q = q.filter(func.json_extract(PracticeAttempt.question_ref_json,
+                                       "$.context.course_id") == str(course_id))
     return (q.order_by(PracticeAttempt.id.desc()).offset(offset).limit(limit).all())
+
+
+def attempt_counts(db: DbSession, user_id: int, *, service_namespace: str | None = None,
+                   course_id: str | None = None) -> dict:
+    """Factual attempt counts for one scope, computed in SQL.
+
+    BOUNDED BY CONSTRUCTION: three aggregates, no rows materialized. Every figure is a
+    count over the stored ``correct`` tri-state, which is why an ungraded attempt is
+    reported rather than folded into "incorrect".
+    """
+    q = db.query(PracticeAttempt).filter(PracticeAttempt.user_id == user_id)
+    if service_namespace is not None:
+        q = q.filter(PracticeAttempt.service_namespace == _namespace_value(service_namespace))
+    if course_id is not None:
+        q = q.filter(func.json_extract(PracticeAttempt.question_ref_json,
+                                       "$.context.course_id") == str(course_id))
+
+    attempts = q.count()
+    graded = (q.with_entities(PracticeAttempt.correct, func.count())
+              .filter(PracticeAttempt.correct.isnot(None))
+              .group_by(PracticeAttempt.correct).all())
+    correct_true = next((c for v, c in graded if v is True), 0)
+    correct_false = next((c for v, c in graded if v is False), 0)
+    graded_total = correct_true + correct_false
+    return {
+        "attempts": attempts,
+        "graded_attempts": graded_total,
+        "factual_correct": correct_true,
+        "factual_incorrect": correct_false,
+        # a blank submission has no verdict and no score — it is counted, not scored
+        "ungraded_attempts": attempts - graded_total,
+    }
 
 
 def session_summary(db: DbSession, user_id: int, session_id: int) -> dict:

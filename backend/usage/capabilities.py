@@ -21,6 +21,13 @@ KNOWLEDGE_STRUCTURE_PROFILE = "STRUCTURED_GENERATION_PROXY_V1"
 ANSWER_GRADE_PROFILE = "QUESTION_EXPLAIN_PROXY_V1"
 
 # Tier → allowed capability set (CONFIG). Unknown capability → fail closed.
+#
+# P3A adds two capabilities and NO second quota system: ``tutor.strong_reasoning`` (the Deep
+# Study workflow) and ``programming.agent`` (the bounded debug workflow) are ordinary
+# capabilities of this policy, so they are opened by the unified tier, bounded by the unified
+# usage budget, and routed by the unified model pool like everything else. Both are
+# Standard-and-above: each one is several model calls' worth of work, so they are not part of
+# the Free learning loop.
 CAPABILITY_TIER_POLICY = {
     "free": {
         "tutor.chat",
@@ -37,6 +44,10 @@ CAPABILITY_TIER_POLICY = {
         "planning.generate",
         "knowledge.structure",
         "answer.grade",
+        "tutor.strong_reasoning",
+        "programming.agent",
+        "wrong_answer.analyze",
+        "planning.adjust",
     },
     "advanced": {
         "tutor.chat",
@@ -49,6 +60,10 @@ CAPABILITY_TIER_POLICY = {
         "knowledge.structure",
         "answer.grade",
         "report.generate",
+        "tutor.strong_reasoning",
+        "programming.agent",
+        "wrong_answer.analyze",
+        "planning.adjust",
     },
 }
 

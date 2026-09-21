@@ -561,16 +561,20 @@ def serialize_service_plan(service_key: str, plan_code: str, definition: dict) -
     }
 
 
-# Feature keys are deliberately finite, and the DIRECTION decides which of them exist:
+# Feature keys are deliberately finite, and the DIRECTION decides which of them exist.
 # ``exam_11408`` and ``course_learning`` gate a study plan and a learning report;
-# ``programming`` gates neither and legitimately answers with an empty mapping.
+# ``programming`` gates the study plan only, because the product has no programming report
+# surface — a key is listed here only when a real route consumes it.
 #
 # The direction does NOT decide which TIER grants a feature — that lives in exactly one
 # place, ``usage.capabilities.FEATURE_CAPABILITY``, so a feature can no longer be opened by
-# a second, independently activated membership row (ACCEL_PRODUCT_S10).
+# a second, independently activated membership row (ACCEL_PRODUCT_S10). Adding a direction
+# here therefore adds NO membership: it says which features that direction HAS, and the
+# unified subscription tier still decides every one of them.
 SERVICE_FEATURES = {
     "exam_11408": ("learning_plan", "learning_report"),
     "course_learning": ("learning_plan", "learning_report"),
+    "programming": ("learning_plan",),
 }
 
 

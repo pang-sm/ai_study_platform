@@ -4,7 +4,7 @@ Gates this file exists to prove:
 
   * `GET /membership/entitlements` has a concrete 2xx response model that faithfully
     describes what the endpoint ACTUALLY returns, for every tier and every direction —
-    including the empty mapping `programming` legitimately answers with;
+    including a direction whose feature mapping is empty;
   * `features.learning_plan.allowed`, `.required_tier` and `.required_capability` are typed,
     with their values preserved exactly;
   * the membership POLICY holds: Free denied, Standard and Advanced allowed, and the
@@ -14,6 +14,15 @@ Gates this file exists to prove:
 S10 changed WHAT the entry carries — a unified tier instead of a legacy plan code — because
 the old value named nothing a learner could act on and forced every consumer to invent a
 plan→tier translation the backend never made.
+
+CONTRACT EVOLUTION (accepted, not a regression)
+-----------------------------------------------
+THREE_DOMAIN_PRODUCTIZATION_P1 added `programming` to ``SERVICE_FEATURES``, so its mapping
+is no longer empty. That is an explicit product decision — the direction has a study-plan
+route now — and NOT a membership: the tier-only rule asserted below is unchanged, and
+`learning_report` is absent because no programming report route exists to gate. The
+"empty mapping" case is still covered as a SHAPE (`features` is an open mapping), which is
+why a direction with no features at all would still validate.
 
 `backend/app.db` is never opened for write.
 """
@@ -71,12 +80,17 @@ def test_granting_tier_responses_validate_against_the_response_model(client, db_
 
 
 def test_every_direction_validates_including_the_empty_mapping(client):
-    """`features` is a mapping, not a closed record — `programming` really is `{}`."""
+    """`features` is a mapping, not a closed record.
+
+    THREE_DOMAIN P1 gave ``programming`` the study-plan feature it now has a route for.
+    The mapping is still open by construction: a direction with no features at all remains
+    a valid answer, which is why this test validates the SHAPE rather than a fixed set.
+    """
     register_and_login(client, "bc8r1_directions")
     for service_key, expected_keys in (
         ("exam_11408", {"learning_plan", "learning_report"}),
         ("course_learning", {"learning_plan", "learning_report"}),
-        ("programming", set()),
+        ("programming", {"learning_plan"}),
     ):
         model = main.MembershipEntitlementsResponse.model_validate(
             entitlements(client, service_key))
@@ -160,9 +174,14 @@ def test_the_direction_catalog_is_untouched():
     over any product FEATURE.
     """
     from membership import SERVICE_FEATURES, get_service_plan_catalog
+    # THREE_DOMAIN P1 added ``programming`` and the study-plan feature it actually consumes.
+    # That is a DIRECTION gaining a feature, not a membership: the tier still decides it, as
+    # `test_the_tier_alone_decides_the_feature` proves. `learning_report` is absent because
+    # no programming report route exists — a key appears here only when a real route uses it.
     assert SERVICE_FEATURES == {
         "exam_11408": ("learning_plan", "learning_report"),
         "course_learning": ("learning_plan", "learning_report"),
+        "programming": ("learning_plan",),
     }
     catalog = get_service_plan_catalog("exam_11408")
     assert {tier: bool(d["quota"]["learning_plan"]) for tier, d in catalog.items()} == {

@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from ..practice.models import PracticeAttempt
 from .models import STATUS_ACTIVE, STATUS_RESOLVED, WrongAnswerState
-from .project import attempts_for_question, rebuild, scope_key
+from .project import attempts_for_question, course_scope, rebuild, scope_key
 
 logger = logging.getLogger("learning.wrong_answers")
 
@@ -44,8 +44,18 @@ def _namespace_value(service_namespace) -> str:
         raise WrongAnswerError(str(exc)) from exc
 
 
+def course_scope_key(course_id) -> str:
+    """The scope discriminator that isolates ONE course's wrong-answer states.
+
+    Built by the SAME function the writer used (``project.course_scope``), so the read
+    filter and the write discriminator can never disagree about the format.
+    """
+    return course_scope(course_id)
+
+
 def _filtered(db: DbSession, user_id: int, *, service_namespace: str | None = None,
-              status: str | None = None, module_key: str | None = None):
+              status: str | None = None, module_key: str | None = None,
+              course_id: str | None = None):
     q = db.query(WrongAnswerState).filter(WrongAnswerState.user_id == user_id)
     if service_namespace:
         q = q.filter(WrongAnswerState.service_namespace == _namespace_value(service_namespace))
@@ -56,24 +66,33 @@ def _filtered(db: DbSession, user_id: int, *, service_namespace: str | None = No
         # string or a context blob. A module the caller does not own any state in simply
         # yields nothing — it is a filter, not an authorization boundary.
         q = q.filter(WrongAnswerState.module_key == str(module_key).strip())
+    if course_id:
+        # Applied in SQL, BEFORE any limit: filtering after pagination would return short
+        # pages and let another course's states consume the page the caller asked for.
+        # A state whose question carries no course scope is NOT matched here — an unscoped
+        # row is of unknown provenance, and reporting it under a specific course would be
+        # the cross-course leak this filter exists to prevent.
+        q = q.filter(WrongAnswerState.question_scope_key == course_scope_key(course_id))
     return q
 
 
 def list_states(db: DbSession, user_id: int, *, service_namespace: str | None = None,
                 status: str | None = None, module_key: str | None = None,
+                course_id: str | None = None,
                 limit: int = 100, offset: int = 0) -> list[WrongAnswerState]:
     return (_filtered(db, user_id, service_namespace=service_namespace, status=status,
-                      module_key=module_key)
+                      module_key=module_key, course_id=course_id)
             .order_by(WrongAnswerState.last_wrong_at.desc().nullslast(),
                       WrongAnswerState.id.desc())
             .offset(offset).limit(limit).all())
 
 
 def count_states(db: DbSession, user_id: int, *, service_namespace: str | None = None,
-                 status: str | None = None, module_key: str | None = None) -> int:
+                 status: str | None = None, module_key: str | None = None,
+                 course_id: str | None = None) -> int:
     """Total rows the same filters match — the pagination contract needs it server-side."""
     return _filtered(db, user_id, service_namespace=service_namespace, status=status,
-                     module_key=module_key).count()
+                     module_key=module_key, course_id=course_id).count()
 
 
 def get_state(db: DbSession, user_id: int, state_id: int,

@@ -27,6 +27,23 @@ order of preference:
 
 The legacy wrong-answer tables are read by NOTHING in this module. They are not a
 fallback, not a merge input, and not a source of status.
+
+CONTENT RESOLUTION IS FAIL-CLOSED (P1.3)
+----------------------------------------
+Every content row is shown only when it is PROVEN to belong to the state that points at it:
+
+  * the right TABLE — the state's declared source type names it (bank states read the bank,
+    AI states read ``ai_generated_questions``), and a miss is never retried against another
+    table;
+  * the right OWNER — an AI-generated question must belong to the state's own learner (the
+    query itself is owner-scoped), and anything learner-owned must be that learner's;
+  * the right DOMAIN CONTEXT — the row's subject must resolve to the state's module;
+  * for public BANK content, still PROVEN public (or the caller's own) and of this module.
+
+A row that cannot prove all of that is treated exactly like a missing one: the state keeps
+its factual status, the learner's own answer and the timing, and the stem stays empty. For a
+legacy past-paper row whose id two public sources claim for different questions, NOTHING is
+resolved — an ambiguous id is refused rather than guessed.
 """
 from __future__ import annotations
 
@@ -114,6 +131,88 @@ def state_module(state: WrongAnswerState) -> str:
     return (state.module_key or "").strip() or _scope_module(state.question_scope_key)
 
 
+# ---------------------------------------------------------------- identity gate (P1.3)
+#
+# THE RULE: a content row is shown only when it is PROVEN to belong to the state that points
+# at it — the right table (the state's declared source names it), the right OWNER (anything a
+# learner owns must be that learner's) and the right DOMAIN CONTEXT (module). A bare primary
+# key is never enough on its own, no lookup falls through to another table because the first
+# one missed, and nothing is chosen by "whichever source happens to contain this id".
+#
+# Exam BANK content is public teaching material rather than learner data, so it carries no
+# per-user owner requirement — but it must still prove it is public (or the caller's own) and
+# that it belongs to the state's module, so one subject's question can never render inside
+# another subject's record.
+
+def _public_or_owned(row, usernames: set[str]) -> bool:
+    """Whether a bank row may be shown at all: public content, or the learner's own."""
+    visibility = str(getattr(row, "visibility", None) or "public").strip()
+    if visibility == "public":
+        return True
+    owner = str(getattr(row, "owner_username", None) or "").strip()
+    return bool(owner) and owner in usernames
+
+
+def _module_matches(subject_key, state: WrongAnswerState) -> bool:
+    """Whether a row's subject belongs to the module this state is filed under.
+
+    Both sides are resolved through the ONE module resolver the exam space already uses, so
+    every spelling the product writes (``data_structure``, ``data_structure_11408``,
+    ``11408 数据结构``, ``数据结构``) compares equal. When either side cannot be resolved the
+    comparison falls back to exact string equality — a mismatch is NOT resolved, it is
+    refused, because a question from another subject rendered here is worse than no question.
+    """
+    row_key = str(subject_key or "").strip()
+    state_key = state_module(state)
+    if not state_key:
+        return True                      # a subject-level state makes no module claim
+    if not row_key:
+        return False                     # the row states no module → nothing to prove
+    from .scope import resolve_cs408_module
+    row_module = resolve_cs408_module(row_key)
+    state_resolved = resolve_cs408_module(state_key)
+    if row_module is None or state_resolved is None:
+        return row_key == state_key
+    return row_module == state_resolved
+
+
+def _chapter_row_for(state: WrongAnswerState, index: "_SourceIndex"):
+    """The ONE bank/AI row this chapter-or-AI state may show — or None (fail closed)."""
+    from learning.practice.refs import QuestionSourceType
+
+    if state.question_source_type == QuestionSourceType.STATIC_QUESTION_BANK.value:
+        row = index.bank(state.question_source_id)
+        if row is None:
+            return None
+        if not _public_or_owned(row, {str(state.username or "").strip()}):
+            return None
+        if not _module_matches(getattr(row, "subject_key", None), state):
+            return None
+        return row
+
+    row = index.ai(str(state.username or "").strip(), state.question_source_id)
+    if row is None:
+        return None
+    if str(getattr(row, "username", None) or "").strip() != str(state.username or "").strip():
+        return None                      # another learner's generated question is not ours
+    if not _module_matches(getattr(row, "subject_key", None), state):
+        return None
+    return row
+
+
+def _past_paper_bank_row(state: WrongAnswerState, row) -> object | None:
+    """A past-paper bank row that proves it belongs to this state, or None."""
+    if row is None:
+        return None
+    if str(getattr(row, "source_type", None) or "").strip() != "past_paper":
+        return None
+    if not _public_or_owned(row, {str(state.username or "").strip()}):
+        return None
+    if not _module_matches(getattr(row, "subject_key", None), state):
+        return None
+    return row
+
+
 # ---------------------------------------------------------------- fact helpers
 
 
@@ -170,14 +269,16 @@ class _SourceIndex:
     def __init__(self, db: DbSession):
         self._db = db
         self._bank: dict[str, object] | None = None
-        self._ai: dict[str, object] | None = None
+        self._ai: dict[tuple[str, str], object] | None = None
         self._bank_by_number: dict[tuple[str, int, int], object] = {}
         self._documents: dict[tuple[str, int], dict[str, dict]] = {}
 
     def prime(self, states: list[WrongAnswerState]) -> None:
         bank_ids = set()
-        ai_ids = set()
+        ai_pairs = set()
         papers = set()
+        usernames = {(state.username or "").strip() for state in states}
+        usernames.discard("")
         for state in states:
             kind = source_kind_of(state.question_source_type)
             value = _as_int(state.question_source_id)
@@ -190,10 +291,14 @@ class _SourceIndex:
                     if module and year:
                         papers.add((module, int(year)))
             elif kind == SOURCE_KIND_AI and value is not None:
-                ai_ids.add(value)
+                # OWNER-SCOPED: the query itself never loads a question that belongs to
+                # somebody else, so a mis-pointed state cannot even reach one.
+                owner = (state.username or "").strip()
+                if owner:
+                    ai_pairs.add((owner, value))
         self._bank = self._load_bank(bank_ids)
-        self._ai = self._load_ai(ai_ids)
-        self._bank_by_number = self._load_bank_numbers(papers)
+        self._ai = self._load_ai(ai_pairs)
+        self._bank_by_number = self._load_bank_numbers(papers, usernames)
 
     def _load_bank(self, ids: set[int]) -> dict[str, object]:
         from models import ExamQuestionBank
@@ -203,8 +308,12 @@ class _SourceIndex:
                 .filter(ExamQuestionBank.id.in_(sorted(ids))).all())
         return {str(r.id): r for r in rows}
 
-    def _load_bank_numbers(self, papers: set) -> dict:
-        """Every active past-paper bank row of the papers this page touches."""
+    def _load_bank_numbers(self, papers: set, usernames: set[str]) -> dict:
+        """The past-paper bank rows of the papers this page touches that the caller may see.
+
+        Only PUBLIC rows and the page's OWN rows are loaded — another learner's private bank
+        row is never a candidate, whatever its number.
+        """
         from models import ExamQuestionBank
         if not papers:
             return {}
@@ -213,20 +322,28 @@ class _SourceIndex:
                         ExamQuestionBank.is_active == True)  # noqa: E712
                 .all())
         wanted = {(module, int(year)) for module, year in papers}
+        # the caller's OWN row wins over a public row for the same public identity
+        rows.sort(key=lambda row: 0 if str(row.owner_username or "").strip() in usernames
+                  else 1)
         out = {}
         for row in rows:
+            if not _public_or_owned(row, usernames):
+                continue
             key = (row.subject_key, int(row.year or 0))
             if key in wanted and row.question_number is not None:
-                out[(key[0], key[1], int(row.question_number))] = row
+                out.setdefault((key[0], key[1], int(row.question_number)), row)
         return out
 
-    def _load_ai(self, ids: set[int]) -> dict[str, object]:
+    def _load_ai(self, pairs: set[tuple[str, int]]) -> dict[tuple[str, str], object]:
         from models import AIGeneratedQuestion
-        if not ids:
+        if not pairs:
             return {}
+        usernames = sorted({owner for owner, _ in pairs})
+        ids = sorted({value for _, value in pairs})
         rows = (self._db.query(AIGeneratedQuestion)
-                .filter(AIGeneratedQuestion.id.in_(sorted(ids))).all())
-        return {str(r.id): r for r in rows}
+                .filter(AIGeneratedQuestion.username.in_(usernames),
+                        AIGeneratedQuestion.id.in_(ids)).all())
+        return {((r.username or "").strip(), str(r.id)): r for r in rows}
 
     def bank(self, source_id: str):
         return (self._bank or {}).get(str(source_id))
@@ -234,8 +351,8 @@ class _SourceIndex:
     def bank_by_number(self, subject_key: str, year: int, question_number: int):
         return self._bank_by_number.get((subject_key, int(year), int(question_number)))
 
-    def ai(self, source_id: str):
-        return (self._ai or {}).get(str(source_id))
+    def ai(self, username: str, source_id: str):
+        return (self._ai or {}).get((str(username or "").strip(), str(source_id)))
 
     def _document_cache(self, subject_key: str, year: int) -> dict[str, dict]:
         key = (subject_key, int(year))
@@ -346,7 +463,10 @@ def _fill_chapter(record: dict, state: WrongAnswerState, snapshot: dict,
         # the already-authoritative chapter question identity the attempt recorded. It comes
         # from the FACT, so it is reported even when the content row cannot be read.
         record["question_bank_id"] = _as_int(state.question_source_id)
-    row = index.bank(state.question_source_id) if is_bank else index.ai(state.question_source_id)
+    # THE GATE: a row is resolved only when it proves it belongs to this state — the right
+    # table, the right owner (for a generated question) and the right module. A row that
+    # cannot prove it is treated exactly like a missing one.
+    row = _chapter_row_for(state, index)
     record["question_type"] = snapshot.get("question_type") or (row.question_type if row else None)
     if row is None:
         return
@@ -377,17 +497,34 @@ def _fill_past_paper(record: dict, state: WrongAnswerState, snapshot: dict,
     row = None
     raw = None
     if not has_facts:
-        # A legacy-imported state has no attempt facts at all, so there is no recorded
-        # number to inherit. Its only identity is the source's own id, which for this table
-        # is a bank PK or a document internal id.
-        row = index.bank(state.question_source_id)
+        # A legacy-imported state has no attempt facts at all, so there is no recorded number
+        # to inherit; its only identity is the source's own id, which for this table is a bank
+        # primary key or a document internal id. BOTH candidates are resolved and BOTH must
+        # agree: when two public sources claim this id for DIFFERENT questions, neither is
+        # shown — silently preferring one is exactly the "whichever source hits" guess this
+        # gate exists to remove. Each candidate is also proven first: the bank row must be a
+        # public (or own) past-paper row of THIS module, and the document lookup is scoped by
+        # this state's own (module, year).
+        #
+        # (P1.3 identity gate — see ``_chapter_row_for`` and ``_past_paper_bank_row``.)
+        bank_candidate = _past_paper_bank_row(
+            state, index.bank(state.question_source_id) if module_key else None)
+        document_candidate = (index.document_by_id(module_key, year,
+                                                   state.question_source_id)
+                              if module_key and year else None)
+        if bank_candidate is not None and document_candidate is not None and (
+                _as_int(bank_candidate.question_number)
+                != _as_int(document_candidate.get("number"))):
+            bank_candidate, document_candidate = None, None      # ambiguous → fail closed
+        row = bank_candidate
+        raw = document_candidate
         if row is not None:
             number = _as_int(row.question_number)
-        elif module_key and year:
-            raw = index.document_by_id(module_key, year, state.question_source_id)
-            if raw is not None:
-                number = _as_int(raw.get("number"))
+        elif raw is not None:
+            number = _as_int(raw.get("number"))
     elif module_key and year and number is not None:
+        # The public identity (subject, year, number) the attempt itself recorded — never a
+        # bare id: this is the same resolution the past-paper question list performs.
         row = index.bank_by_number(module_key, year, number)
         if row is None:
             raw = index.document_by_number(module_key, year, number)

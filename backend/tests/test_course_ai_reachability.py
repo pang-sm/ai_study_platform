@@ -21,8 +21,13 @@ MAIN_SOURCE = (BACKEND_DIR / "main.py").read_text(encoding="utf-8")
 LEGACY_PROVIDER_FN = "call_deepseek"
 # `_scoped_ai_content` (STEP7H1) dispatches to the space that owns the request, so it is
 # a boundary entry point in its own right; `_exam_ai_content` is the exam side of it.
+# P6.1: `*_ai_result` are the SAME invocations returning the whole orchestrator result
+# (so an endpoint can hand the caller the real `ai_requests` identity it produced), and
+# `execute_programming_ai` is the programming adapter — reached by /code/analyze once its
+# programming branch stopped using the legacy client.
 AI_BOUNDARY_FNS = ("_course_ai_content", "execute_course_ai",
-                   "_scoped_ai_content", "_exam_ai_content")
+                   "_scoped_ai_content", "_exam_ai_content",
+                   "_course_ai_result", "_exam_ai_result", "execute_programming_ai")
 
 # Every remaining direct-provider callsite, with the space that owns it. A function
 # listed here must reach the call ONLY through a non-Course branch.
@@ -30,11 +35,15 @@ AI_BOUNDARY_FNS = ("_course_ai_content", "execute_course_ai",
 # / refine_question_analysis_with_ai / _repair_json_with_ai / _generate_plan_preview_core and
 # generate_exam_ai_questions all moved to the exam boundary, so the direct client remains
 # only on the PROGRAMMING and non-course-legacy branches.
+#
+# P6.2 §A/§B removed `chat` and `submit_code_challenge` from this list: both now run every
+# one of their branches through the unified boundary (see CLOSED_ENDPOINTS), so the guard
+# keeps them only in the STRICTER set that must never reach the legacy client at all.
+# What remains below is the honest, still-open programming surface: these are real product
+# endpoints with a real model call that has not been converged yet, and each one owes the
+# same closure (capability → permission → usage → router → gateway → settle → ai_requests).
 NON_COURSE_DIRECT_CALLS = {
-    "chat": "programming branch only; Course → material.qa|tutor.chat, Exam → exam_prep",
-    "analyze_code": "programming branch only; Course maps to programming.explain",
     "generate_code_challenge": "programming",
-    "submit_code_challenge": "programming",
     "explain_challenge_failure": "programming",
     "generate_challenge_tests": "programming",
     "generate_learning_diagnosis": "programming",
@@ -205,3 +214,100 @@ def test_legacy_provider_client_is_confined_to_declared_modules():
         if "OpenAI(" in text or "chat.completions.create" in text:
             offenders.append(str(rel))
     assert not offenders, f"raw provider clients outside adapters: {offenders}"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# P6.2 §D — the CLOSED product AI paths
+#
+# A product path named here is claimed to be CLOSED, which means exactly two things, and
+# both are executed below:
+#
+#   * it REACHES the unified AI boundary, and
+#   * it cannot reach a provider on its own — not through the legacy ``call_deepseek``
+#     client, not by constructing a raw provider client, not by importing one.
+#
+# The claim is per-path and executable, so "0 forbidden bypasses" stays a checked fact
+# instead of a remembered one. Only the Gateway / Provider layer may talk to a provider.
+#
+# The list is the P6.1+P6.2 closure set — the three surfaces converged in those two rounds
+# (`/chat`, `/code/analyze`, the challenge submit AI branch) plus the advanced workflows
+# that were built on the boundary from the start (Deep Study, Report, Wrong Analysis,
+# Plan Adjustment, Debug Agent). It is NOT "every programming endpoint": the programming
+# endpoints that still call the legacy client are declared in NON_COURSE_DIRECT_CALLS
+# above, and they stay visible there until each one is converged in its own round.
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Endpoint handler → the boundary entry points it is allowed to use. At least one must be
+# called; NONE of the provider markers below may appear anywhere in its body.
+CLOSED_ENDPOINTS = {
+    "chat": ("_course_ai_result", "_exam_ai_result", "execute_programming_ai"),
+    "analyze_code": ("_course_ai_result", "execute_programming_ai"),
+    "submit_code_challenge": ("execute_programming_ai",),
+}
+
+# Module → the product path it implements. Every closed module must use the orchestrator
+# (directly or through its space's adapter) and reach no provider by itself.
+CLOSED_MODULES = {
+    Path("learning/deep_study.py"): "Deep Study (tutor.strong_reasoning)",
+    Path("learning/report.py"): "Learning Report (report.generate)",
+    Path("learning/wrong_analysis.py"): "Wrong Analysis (wrong_answer.analyze)",
+    Path("learning/plan_adjustment.py"): "Plan Adjustment (planning.adjust)",
+    Path("learning/spaces/programming/agent.py"): "Debug Agent (programming.agent)",
+}
+
+BOUNDARY_TOKENS = ("execute_course_ai", "execute_exam_ai", "execute_programming_ai",
+                   "AIOrchestrator")
+# Calls that mean "this code is talking to a provider itself".
+FORBIDDEN_CALLS = ("call_deepseek", "OpenAI", "AsyncOpenAI")
+FORBIDDEN_MODULES = ("openai", "ai.providers")
+
+
+def _provider_violations(tree: ast.AST, within: tuple[int, int] | None = None) -> list[str]:
+    """Provider reach in a parsed module, or inside one line range of it.
+
+    Read from the AST rather than the text so a comment that merely NAMES the legacy client
+    cannot make a clean path look dirty (nor a dirty one look clean).
+    """
+    out: list[str] = []
+    for node in ast.walk(tree):
+        if within is not None and not (within[0] <= getattr(node, "lineno", 0) <= within[1]):
+            continue
+        if isinstance(node, ast.Call):
+            rendered = ast.unparse(node.func)
+            if rendered in FORBIDDEN_CALLS or "chat.completions" in rendered:
+                out.append(f"line {node.lineno}: calls {rendered}")
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            targets = [getattr(node, "module", None) or "", *(a.name for a in node.names)]
+            for target in targets:
+                if target in FORBIDDEN_MODULES or target.startswith("ai.providers."):
+                    out.append(f"line {node.lineno}: imports {target}")
+    return out
+
+
+def _bounds(index, func_name: str) -> tuple[int, int]:
+    found = [(f[0], f[1]) for f in index.funcs if f[2] == func_name]
+    assert len(found) == 1, f"{func_name}: expected exactly one definition, got {len(found)}"
+    return found[0]
+
+
+def test_closed_product_endpoints_reach_the_unified_boundary(index):
+    for func_name, boundaries in CLOSED_ENDPOINTS.items():
+        reachable = [b for b in boundaries if index.calls_in(func_name, b)]
+        assert reachable, (
+            f"{func_name} is declared CLOSED but reaches none of {boundaries}")
+
+
+def test_closed_product_endpoints_cannot_reach_a_provider(index):
+    for func_name in CLOSED_ENDPOINTS:
+        violations = _provider_violations(index.tree, _bounds(index, func_name))
+        assert not violations, (
+            f"{func_name} is declared CLOSED but reaches a provider: {violations}")
+
+
+def test_closed_product_modules_use_the_orchestrator_only():
+    for rel, label in CLOSED_MODULES.items():
+        text = (BACKEND_DIR / rel).read_text(encoding="utf-8")
+        violations = _provider_violations(ast.parse(text))
+        assert not violations, f"{label} ({rel}) reaches a provider: {violations}"
+        assert any(token in text for token in BOUNDARY_TOKENS), (
+            f"{label} ({rel}) does not go through the unified AI boundary")

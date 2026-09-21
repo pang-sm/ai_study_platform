@@ -32,6 +32,15 @@ ALL_CAPABILITIES = (
     "tutor.chat", "question.explain", "material.qa", "question.generate",
     "programming.debug", "programming.explain", "planning.generate", "report.generate",
     "knowledge.structure", "answer.grade",
+    # P3A. Two product capabilities, NOT two new model qualifications: both are served by
+    # already qualified profiles through the proxies below (see the P3A report). They are
+    # listed here so the pool's own coverage invariant holds and so ``/ai/models`` can answer
+    # for them — the entries they resolve to are unchanged.
+    "tutor.strong_reasoning", "programming.agent",
+    # P3B. Same rule: product capabilities served by already qualified profiles (see the
+    # proxies below). ``report.generate`` is NOT added — it already exists here and in the
+    # tier policy, and P3B's structured report REUSES it.
+    "wrong_answer.analyze", "planning.adjust",
 )
 
 # STEP7G-C2 is deliberately a proxy: structured Course knowledge previews use the
@@ -46,6 +55,18 @@ ANSWER_GRADE_PROFILE = "QUESTION_EXPLAIN_PROXY_V1"
 CAPABILITY_QUALIFICATION_PROXIES = {
     "knowledge.structure": "question.generate",
     "answer.grade": "question.explain",
+    # P3A. Deep Study is a deep-reasoning, long-answer workflow: it is served by the
+    # already qualified deep-work profile (report.generate) rather than by a new benchmark.
+    # The debug agent is a programming-repair workflow: it is served by the already qualified
+    # programming.debug profile. No provider was re-benchmarked and no pool entry changed;
+    # a future qualification can replace either proxy without touching a single caller.
+    "tutor.strong_reasoning": "report.generate",
+    "programming.agent": "programming.debug",
+    # P3B. Explaining WHY an answer went wrong is a distinct product operation, served by the
+    # already qualified explanation profile. Adjusting a plan is the planning capability's own
+    # profile. Neither re-benchmarks a model.
+    "wrong_answer.analyze": "question.explain",
+    "planning.adjust": "planning.generate",
 }
 
 

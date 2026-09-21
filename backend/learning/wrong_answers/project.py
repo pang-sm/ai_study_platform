@@ -80,6 +80,18 @@ def past_exam_scope(exam_subject_id=None, exam_module_id=None,
     return "|".join(parts)
 
 
+def course_scope(course_id) -> str:
+    """The scope discriminator for a COURSE question (§42 cross-course isolation).
+
+    Two courses of the same learner may reuse the same question id, so the course is part
+    of the question's identity rather than a filter over a shared pool. A course with no
+    id yields "" — an unscoped row is of unknown provenance and must never be matched by a
+    course-scoped read.
+    """
+    key = str(course_id or "").strip()
+    return f"course:{key}" if key else ""
+
+
 def scope_key(service_namespace: str, question_source_type: str,
               ref_context: dict | None) -> str:
     """Identity discriminator for a question that is NOT globally unique.
@@ -102,8 +114,7 @@ def scope_key(service_namespace: str, question_source_type: str,
             exam_module_id=context.get("exam_module_id") or context.get("subject_key"),
             question_year=context.get("question_year", context.get("year")))
     if service_namespace == ServiceNamespace.COURSE_LEARNING.value:
-        course_id = context.get("course_id")
-        return f"course:{course_id}" if course_id else ""
+        return course_scope(context.get("course_id"))
     return ""
 
 

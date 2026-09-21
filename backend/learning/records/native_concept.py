@@ -72,6 +72,15 @@ NATIVE_CONCEPT_LEVELS = (
 # the same value twice would let the two disagree.
 NATIVE_CONCEPT_KEYS = ("knowledge_point_id", "exam_module_id")
 
+# What a PROGRAMMING fact records about itself. Deliberately NOT part of
+# ``NATIVE_CONCEPT_KEYS`` and NOT a concept level: a language and an exercise id say WHICH
+# ITEM was worked on, not which concept it is about. They travel in the fact's context
+# instead (``learning_events`` has no such column, and adding one would be a migration for
+# a value that is additive and not identity-bearing). Declared here because this module is
+# the ONE place the product states what each surface records; read back by the records
+# projection, and ignored by the KT export on purpose.
+PROGRAMMING_CONTEXT_KEYS = ("programming_language", "exercise_id")
+
 # Never an input to a concept reference. Listed so a future reader sees the prohibition
 # where the reference is defined, not only in a review comment.
 NON_IDENTITY_INPUTS = (
@@ -168,7 +177,7 @@ def declared_granularity_report() -> dict:
         "surfaces": {
             "exam_prep.chapter_practice": ["exam_module_id", "knowledge_point_id"],
             "exam_prep.past_papers": ["exam_module_id"],
-            "programming": ["programming_language", "exercise_id"],
+            "programming": list(PROGRAMMING_CONTEXT_KEYS),
         },
         "non_identity_inputs": list(NON_IDENTITY_INPUTS),
     }

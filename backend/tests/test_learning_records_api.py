@@ -138,5 +138,8 @@ def test_taxonomy_endpoint_is_read_only_reference(client):
     assert body["event_schema_version"] == 2
     # ACCEL_SPRINT_S2: the type-level set; the per-event input rule is what decides.
     assert body["student_twin_eligible_types"] == ["course_practice", "question_answered"]
-    assert body["audit_only_event_types"] == ["ai_called"]
+    # CONTRACT CORRECTION (P4). A rating of an AI response is product telemetry about the
+    # RESPONSE, not study history — the same family as the AI accounting fact that was
+    # already here. It joins this list so no learner ever sees "you rated this 👎" in 学习记录.
+    assert body["audit_only_event_types"] == ["ai_called", "ai_feedback_submitted"]
     assert any(row["event_type"] == "ai_called" for row in body["ownership_matrix"])

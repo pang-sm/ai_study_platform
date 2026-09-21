@@ -11,6 +11,7 @@ import time
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from core import timeutil
+from core.learning_context import ServiceNamespace
 
 from . import identity, origin, snapshots
 from .models import LearningEvent
@@ -18,12 +19,28 @@ from .models import LearningEvent
 logger = logging.getLogger("data_plane")
 
 EVENT_TYPE = "course_practice"
-SERVICE_KEY = "course_learning"
+# The canonical namespace constant, not a bare literal: this is the ONE emitter that writes
+# the course family, and a typo here would file a learner's facts under a space that does
+# not exist.
+SERVICE_KEY = ServiceNamespace.COURSE_LEARNING.value
 SOURCE_TYPE = "course_practice"
 
 
 def write_enabled() -> bool:
     return os.getenv("DATA_PLANE_WRITE_ENABLED", "false").strip().lower() in ("1", "true", "yes", "on")
+
+
+def course_identity(attempt) -> str | None:
+    """The course a course-mode ``AIQuestionAttempt`` was recorded under.
+
+    In course_learning mode the attempt's ``subject_key`` IS the course identity — the same
+    value the canonical practice mirror carries into the question reference, and the value
+    ``course_learning_preferences.course_id`` holds. There is no second course column to
+    read, which is why the event carries it in ``course_id`` rather than leaving the fact
+    only in ``subject_key``: a course-scoped records read filters on ``course_id``, and an
+    event without it is invisible to the course it belongs to.
+    """
+    return (str(getattr(attempt, "subject_key", "") or "").strip()) or None
 
 
 def build_course_practice_events(attempt, item, answer, correct, user) -> list:
@@ -52,7 +69,9 @@ def build_course_practice_events(attempt, item, answer, correct, user) -> list:
             "user_id": user.id,
             "source_user_ref": attempt.username,
             "service_key": SERVICE_KEY,
-            "course_id": None,
+            # The course the fact belongs to, derived from the attempt itself. A course
+            # event with a NULL course_id cannot be read by the course's own timeline.
+            "course_id": course_identity(attempt),
             "subject_key": attempt.subject_key,
             "question_id": qid_str,
             "knowledge_point_ref_json": identity.canonical_json(snapshots.build_knowledge_point_ref(attempt)),

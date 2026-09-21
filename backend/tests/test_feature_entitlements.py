@@ -14,7 +14,15 @@ into it does NOT open a product feature — because if it did, the membership su
 hand out two kinds of activation that disagree, which is the state S10 removes.
 
 The direction still matters, but for a different job: it decides which features EXIST.
-`programming` gates neither feature and answers with an empty mapping.
+
+CONTRACT EVOLUTION (accepted, not a regression)
+-----------------------------------------------
+THREE_DOMAIN_PRODUCTIZATION_P1 gave `programming` a study-plan route, so `learning_plan`
+now EXISTS in that direction. This is an explicit product decision — a DIRECTION gaining a
+feature it has a route for — and it is NOT a second membership: the tests below still prove
+that one single ``FEATURE_CAPABILITY['learning_plan'] → planning.generate`` (decided by the
+unified tier alone) opens it in every direction. `learning_report` deliberately still does
+NOT exist for programming, because the product has no programming report route to gate.
 """
 from datetime import timedelta
 
@@ -78,9 +86,16 @@ def test_the_direction_decides_which_features_exist(client, db_session):
     assert exam["required_tier"] == "standard"
     assert exam["required_capability"] == "planning.generate"
 
-    # `programming` gates neither feature, so the feature does not exist there.
+    # THREE_DOMAIN P1 added `programming`: it has a study-plan route now, so the feature
+    # EXISTS there and is gated by the SAME unified capability — no programming membership.
+    programming = get_feature_entitlement(user, db_session, "programming", "learning_plan")
+    assert programming["allowed"] is False
+    assert programming["required_tier"] == "standard"
+    assert programming["required_capability"] == "planning.generate"
+    assert programming["service_key"] == "programming"
+    # …and a feature the direction still has no route for does not exist there.
     with pytest.raises(ValueError, match="Unsupported membership feature"):
-        get_feature_entitlement(user, db_session, "programming", "learning_plan")
+        get_feature_entitlement(user, db_session, "programming", "learning_report")
 
 
 def test_one_tier_opens_the_feature_in_every_direction(client, db_session):

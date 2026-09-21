@@ -89,6 +89,9 @@ class OrchestratorResult:
     actual_credits: int | None = None
     usage: dict | None = None
     router: dict | None = field(default=None)
+    # P6: set ONLY when an ops feature flag granted the entitlement step for this call. The
+    # recorded tier stays the learner's REAL tier — the grant widens permission, never billing.
+    entitlement_grant: dict | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -106,6 +109,7 @@ class OrchestratorResult:
             "actual_credits": self.actual_credits,
             "usage": self.usage,
             "router": self.router,
+            "entitlement_grant": self.entitlement_grant,
         }
 
 
@@ -151,12 +155,23 @@ class AIOrchestrator:
                 username = getattr(user, "username", None)
             except Exception:  # noqa: BLE001
                 username = None
+            # Router V1: the decision travels with the accounting fact, so "which model,
+            # chosen why, out of how many" is answerable from the audit stream alone.
+            decision = result.router or {}
+            grant = result.entitlement_grant or {}
             producers.emit_ai_called(
                 user_id=user_id, ai_request_id=result.request_id,
                 capability=result.capability, status=status,
                 occurred_at=None, provider=result.provider,
                 credits=result.actual_credits,
                 error_category=result.error_category if status == "failed" else None,
+                model=result.model,
+                reason_code=decision.get("reason_code"),
+                candidate_count=decision.get("candidate_count"),
+                quality_class=decision.get("quality_class"),
+                latency_class=decision.get("latency_class"),
+                router_version=decision.get("router_version"),
+                entitlement_grant=(grant.get("mode") if grant.get("granted") else None),
                 source_user_ref=username, learning_context=learning_context)
         except Exception as exc:  # noqa: BLE001 — never fail the AI request
             logger.warning("records ai_called hook failed: %s", type(exc).__name__)
@@ -173,11 +188,22 @@ class AIOrchestrator:
 
         # 1. permission (entitlement, not budget)
         perm = check_capability_permission(tier, capability)
+        grant = None
+        # P6: the tier every GATING step below is evaluated against. Normally the learner's
+        # real tier; when an ops feature flag granted this one capability it is the lowest
+        # tier that already permits it. BILLING never uses it: the reservation, the budget
+        # caps, the settlement and the recorded tier all stay the learner's REAL tier.
+        gate_tier = tier
         if not perm["allowed"]:
-            return OrchestratorResult(ok=False, request_id=request_id,
-                                      capability=capability, tier=tier, status="denied",
-                                      error_category="permission_denied",
-                                      error_message=perm["reason"])
+            # Consulted only here — on the denial path — so the ordinary request pays nothing
+            # for the flag lookup.
+            grant = self._feature_flag_grant(db, user_id, capability)
+            if not grant["granted"]:
+                return OrchestratorResult(ok=False, request_id=request_id,
+                                          capability=capability, tier=tier, status="denied",
+                                          error_category="permission_denied",
+                                          error_message=perm["reason"])
+            gate_tier = grant.get("gate_tier") or tier
 
         chat_messages = [m if isinstance(m, ChatMessage)
                          else ChatMessage(role=m["role"], content=m["content"])
@@ -189,12 +215,12 @@ class AIOrchestrator:
         available = self._available_budget(db, user_id)
 
         # 2. ordered budget-compatible qualified candidates (cheapest first)
-        candidates = ordered_candidates(tier, capability, explicit_model=explicit_model,
+        candidates = ordered_candidates(gate_tier, capability, explicit_model=explicit_model,
                                         input_tokens=input_tokens,
                                         expected_output_tokens=expected_output,
                                         available_budget=available)
         if not candidates:
-            decision = select_model(tier, capability, explicit_model=explicit_model,
+            decision = select_model(gate_tier, capability, explicit_model=explicit_model,
                                     input_tokens=input_tokens,
                                     expected_output_tokens=expected_output,
                                     available_budget=available)
@@ -203,6 +229,7 @@ class AIOrchestrator:
                 status="denied",
                 error_category=decision.reason if decision else "no_qualified_model_available",
                 error_message=decision.error if decision else "no_qualified_model_available",
+                entitlement_grant=grant,
                 router=decision.to_dict() if decision else None)
 
         primary_entry, primary_estimate = candidates[0]
@@ -212,13 +239,15 @@ class AIOrchestrator:
             db, user_id, request_id, capability, primary_estimate["credits"],
             service_namespace=(learning_context.service_namespace.value
                                if learning_context is not None else None),
-            context_json=(learning_context.to_dict() if learning_context is not None else None))
+            context_json=(learning_context.to_dict() if learning_context is not None else None),
+            permission_tier=gate_tier)
         if reservation.get("reason") == "already_exists":
             return OrchestratorResult(
                 ok=False, request_id=request_id, capability=capability, tier=tier,
                 status="already_exists", error_category="already_exists",
                 error_message="request already processed",
                 estimated_credits=primary_estimate["credits"],
+                entitlement_grant=grant,
                 router=self._decision_dict(primary_entry))
         if not reservation["reserved"]:
             return OrchestratorResult(
@@ -226,13 +255,15 @@ class AIOrchestrator:
                 status="denied", error_category="budget_reserve_failed",
                 error_message=reservation["reason"],
                 estimated_credits=primary_estimate["credits"],
+                entitlement_grant=grant,
                 router=self._decision_dict(primary_entry))
 
         self._mark_executing(db, request_id)
 
         # 4. external provider call with cross-provider fallback (outside transaction)
         last_entry, last_error = primary_entry, None
-        for entry, estimate in candidates[:MAX_FALLBACK_ATTEMPTS]:
+        failed_primary: str | None = None
+        for index, (entry, estimate) in enumerate(candidates[:MAX_FALLBACK_ATTEMPTS]):
             last_entry = entry
             # The reservation already priced this model's thinking behaviour; the same
             # policy decides the switch actually sent, so reserved and billed output
@@ -245,27 +276,58 @@ class AIOrchestrator:
             try:
                 provider = self._provider_factory(entry.provider)
                 response = provider.complete(spec)
-                return self._settle_success(db, request_id, entry, primary_estimate,
-                                            response, tier, capability)
+                return self._settle_success(
+                    db, request_id, entry, primary_estimate, response, tier, capability,
+                    candidate_count=len(candidates), fallback_from=failed_primary,
+                    entitlement_grant=grant)
             except GatewayError as exc:
                 last_error = exc
+                if index == 0:
+                    # Router V1: the failure of the selected model is recorded as such, so a
+                    # fallback is never silently reported as if it were the first choice.
+                    failed_primary = f"{entry.provider}/{entry.model}"
+                # Router V1: EVERY provider failure is an availability signal — including an
+                # attempt that the fallback then rescued, which is exactly the case a later
+                # selection needs to know about. A failure that was really the REQUEST's fault
+                # (invalid request / content policy) says nothing about the provider.
+                try:
+                    from .health import registry as health_registry
+                    if exc.category.value not in ("invalid_request", "content_policy"):
+                        health_registry().record_failure(entry.provider, entry.model,
+                                                         exc.category.value)
+                except Exception:  # noqa: BLE001 — health never blocks a request
+                    pass
                 if not exc.retriable:
                     break  # permanent error → no fallback
 
         return self._settle_failure(db, request_id, last_entry, primary_estimate,
-                                    last_error, tier, capability)
+                                    last_error, tier, capability,
+                                    candidate_count=len(candidates),
+                                    entitlement_grant=grant)
 
     # ---- settlement helpers ----
 
     def _settle_success(self, db, request_id, entry, reserve_estimate: dict,
-                        response, tier: str, capability: str) -> OrchestratorResult:
+                        response, tier: str, capability: str, *,
+                        candidate_count: int | None = None,
+                        fallback_from: str | None = None,
+                        entitlement_grant: dict | None = None) -> OrchestratorResult:
+        # Router V1: a real success is an availability signal for this (provider, model).
+        try:
+            from .health import registry as health_registry
+            health_registry().record_success(entry.provider, entry.model)
+        except Exception:  # noqa: BLE001 — health is telemetry, never a request blocker
+            pass
         actual = cost.actual_credits_from_usage(response.provider, response.model,
                                                 response.usage)
         base = OrchestratorResult(
             ok=True, request_id=request_id, capability=capability, tier=tier,
             provider=response.provider, model=response.model,
             estimated_credits=reserve_estimate["credits"],
-            router=self._decision_dict(entry, response.model))
+            entitlement_grant=entitlement_grant,
+            router=self._decision_dict(entry, response.model, estimate=reserve_estimate,
+                                       candidate_count=candidate_count,
+                                       fallback_from=fallback_from))
         if response.usage.usage_source != "PROVIDER_REPORTED" or not actual["ok"]:
             usage_service.mark_reconciliation_pending(db, request_id)
             base.status = "reconciliation_pending"
@@ -302,14 +364,20 @@ class AIOrchestrator:
         return base
 
     def _settle_failure(self, db, request_id, entry, reserve_estimate: dict,
-                        exc: GatewayError | None, tier: str, capability: str) -> OrchestratorResult:
+                        exc: GatewayError | None, tier: str, capability: str, *,
+                        candidate_count: int | None = None,
+                        entitlement_grant: dict | None = None) -> OrchestratorResult:
+        # NOTE: the availability signal for a failed attempt is recorded where the attempt
+        # fails (the fallback loop), so an attempt the fallback rescued is counted too.
         base = OrchestratorResult(
             ok=False, request_id=request_id, capability=capability, tier=tier,
             provider=entry.provider, model=entry.model,
             estimated_credits=reserve_estimate["credits"],
+            entitlement_grant=entitlement_grant,
             error_category=(exc.category.value if exc else "provider_error"),
             error_message=(exc.message if exc else "provider call failed"),
-            router=self._decision_dict(entry))
+            router=self._decision_dict(entry, estimate=reserve_estimate,
+                                       candidate_count=candidate_count))
         if exc is not None and exc.category.value in _NO_USAGE_CATEGORIES:
             usage_service.release_credits(db, request_id)
             base.status = "released"
@@ -321,10 +389,53 @@ class AIOrchestrator:
     # ---- helpers ----
 
     @staticmethod
-    def _decision_dict(entry, model: str | None = None) -> dict:
-        return RouterDecision(ok=True, provider=entry.provider,
-                              model=model or entry.model,
-                              reason="auto_recommended").to_dict()
+    def _decision_dict(entry, model: str | None = None, *, estimate: dict | None = None,
+                       candidate_count: int | None = None,
+                       fallback_from: str | None = None) -> dict:
+        """The decision record attached to a result — Router V1 observability.
+
+        A fallback that actually served the request is recorded AS a fallback (its own reason
+        code), with the model that failed named — so "which model answered, and why that one"
+        is answerable from the audit stream even when the primary failed.
+        """
+        from .router import (
+            REASON_CHEAPEST, REASON_EXPLICIT, REASON_ONLY_CANDIDATE,
+        )
+
+        if fallback_from:
+            reason_code = "fallback_after_failure"
+            reason = "fallback_after_failure"
+        elif candidate_count == 1:
+            reason_code, reason = REASON_ONLY_CANDIDATE, "auto_recommended"
+        else:
+            reason_code, reason = REASON_CHEAPEST, "auto_recommended"
+        decision = RouterDecision(ok=True, provider=entry.provider,
+                                  model=model or entry.model, reason=reason,
+                                  reason_code=reason_code,
+                                  quality_class=entry.quality_class,
+                                  latency_class=entry.latency_class,
+                                  cost_profile=getattr(entry, "cost_profile", None),
+                                  estimated_credits=(estimate or {}).get("credits"))
+        payload = decision.to_dict()
+        if candidate_count is not None:
+            payload["candidate_count"] = int(candidate_count)
+        if fallback_from:
+            payload["fallback_from"] = fallback_from
+        return payload
+
+    @staticmethod
+    def _feature_flag_grant(db: Session, user_id: int, capability: str) -> dict:
+        """P6: may an ops feature flag grant this capability's ENTITLEMENT step?
+
+        Failure-isolated: an ops-flag problem must never turn into a different AI answer than
+        the policy already gave — a broken lookup is simply "no grant".
+        """
+        try:
+            from ops import feature_flags
+            return feature_flags.capability_entitlement_grant(db, user_id, capability)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("feature flag grant lookup failed: %s", type(exc).__name__)
+            return {"granted": False, "reason": "lookup_failed"}
 
     @staticmethod
     def _available_budget(db: Session, user_id: int) -> int | None:
