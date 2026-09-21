@@ -63,6 +63,20 @@ export default tseslint.config(
     },
   },
   {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: {
+        ...globals.node,
+      },
+    },
+    rules: {
+      // A CLI script's stdout is its interface.
+      'no-console': 'off',
+    },
+  },
+  {
     files: ['tests/**/*.ts'],
     rules: {
       'no-console': 'off',

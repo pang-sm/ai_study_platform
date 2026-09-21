@@ -69,6 +69,12 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      # The frontend is same-origin in production; a machine-local API origin in the built
+      # artifact is a total outage and must never reach the server.
+      - name: Guard production API origin
+        working-directory: frontend
+        run: npm run check:api-origin
+
       - name: Prepare SSH
         shell: bash
         env:
