@@ -2,7 +2,11 @@
 
 > **权威层级**：唯一最高权威是仓库根目录 `ZHIXUE_AI_PRODUCT_REDESIGN_SSOT.md`。
 > 本文档在**视觉方向**这一层保持权威，但**从属于** SSOT；冲突时 SSOT wins。
-> 前端状态见 SSOT §3 / §38：`OLD_FRONTEND_RESURRECTED = NO`，全新前端 = `NOT_STARTED`。
+> 前端状态（事实，2026-09-20）：Clean-Slate 全新前端**已开始并已成体系**——`frontend/src/` 含完整路由树、
+> Course / 11408（`exam_prep`）/ Programming 三个学习空间，以及 review / reports / membership / profile
+> 等共享学习面与统一 Auth、AppShell。当前阶段 = **frontend product-system convergence / refinement**。
+> `OLD_FRONTEND_RESURRECTED = NO` 长期有效。
+> （SSOT §3 / §38 对本项的表述仍为 `NOT_STARTED`，属 stale CURRENT 段：按治理规则只报告、不自行回写。）
 
 - **Title**：智学平台视觉方向基准
 - **Version**：V1.0

@@ -1,0 +1,590 @@
+{
+  "generated_at": "2026-09-20T12:38:04.207965",
+  "phase": "THREE_DOMAIN_COMPETITIVE_PRODUCTIZATION_P6",
+  "purpose": "drift detection for the advanced-capability API surface after the freeze; regenerate and diff — a changed fingerprint is a contract change",
+  "count": 21,
+  "missing": [],
+  "entries": [
+    {
+      "method": "POST",
+      "path": "/ai/deep-study",
+      "handler": "run_deep_study_ai_deep_study_post",
+      "parameters": [],
+      "request_model": "DeepStudyRequest",
+      "request_fields": [
+        "chapter_id",
+        "course_id",
+        "knowledge_point_id",
+        "material_ids",
+        "max_tokens",
+        "question",
+        "service_key",
+        "subject_key"
+      ],
+      "response_model": "DeepStudyResponse",
+      "response_fields": [
+        "answer",
+        "capability",
+        "citations",
+        "context",
+        "evidence",
+        "material_refs",
+        "materials",
+        "model",
+        "request_id",
+        "status",
+        "usage"
+      ],
+      "intent": "grounded strong-reasoning answer + citations + usage",
+      "summary": "Run Deep Study",
+      "fingerprint": "394bf4761cdf1bf0"
+    },
+    {
+      "method": "POST",
+      "path": "/programming/agent/debug",
+      "handler": "run_programming_agent_programming_agent_debug_post",
+      "parameters": [],
+      "request_model": "AgentDebugRequest",
+      "request_fields": [
+        "exercise_id",
+        "files",
+        "goal",
+        "project_id"
+      ],
+      "response_model": "AgentDebugResponse",
+      "response_fields": [
+        "agent_run_id",
+        "diagnosis",
+        "error_category",
+        "executions_used",
+        "exercise_id",
+        "explanation",
+        "final_code",
+        "iterations_used",
+        "language",
+        "message",
+        "patch_file",
+        "patch_summary",
+        "proposed_patch",
+        "reason",
+        "status",
+        "steps",
+        "stop_reason",
+        "tests_after",
+        "tests_before",
+        "usage"
+      ],
+      "intent": "bounded debug run: code-free step trace + verdict",
+      "summary": "Run Programming Agent",
+      "fingerprint": "b239b158923a4e1e"
+    },
+    {
+      "method": "POST",
+      "path": "/ai/learning-report",
+      "handler": "generate_learning_report_ai_learning_report_post",
+      "parameters": [],
+      "request_model": "LearningReportRequest",
+      "request_fields": [
+        "course_id",
+        "exam_module_id",
+        "include_narrative",
+        "language",
+        "period_days",
+        "service_key"
+      ],
+      "response_model": "LearningReportResponse",
+      "response_fields": [
+        "attention_items",
+        "context",
+        "data_coverage",
+        "generated_at",
+        "highlights",
+        "narrative",
+        "narrative_error",
+        "report_id",
+        "report_period",
+        "structured_metrics"
+      ],
+      "intent": "deterministic report + optional AI narrative",
+      "summary": "Generate Learning Report",
+      "fingerprint": "74a8add94e834394"
+    },
+    {
+      "method": "POST",
+      "path": "/wrong-answers/{state_id}/analysis",
+      "handler": "analyze_wrong_answer_wrong_answers__state_id__analysis_post",
+      "parameters": [
+        "state_id:path"
+      ],
+      "request_model": "inline",
+      "request_fields": [],
+      "response_model": "WrongAnalysisResponse",
+      "response_fields": [
+        "analysis",
+        "analysis_origin",
+        "analysis_semantics",
+        "capability",
+        "fact_origin",
+        "facts",
+        "generated_at",
+        "persistence",
+        "request_id",
+        "service_namespace",
+        "state_id",
+        "usage"
+      ],
+      "intent": "facts / AI reading, explicitly separated",
+      "summary": "Analyze Wrong Answer",
+      "fingerprint": "5ea2402f7739f9dc"
+    },
+    {
+      "method": "POST",
+      "path": "/ai/plan-adjustment",
+      "handler": "propose_plan_adjustment_ai_plan_adjustment_post",
+      "parameters": [],
+      "request_model": "PlanScope",
+      "request_fields": [
+        "course_id",
+        "exam_module_id",
+        "goal",
+        "language",
+        "service_key"
+      ],
+      "response_model": "PlanAdjustmentProposal",
+      "response_fields": [
+        "affected_tasks",
+        "applies_to",
+        "capability",
+        "dropped_changes",
+        "generated_at",
+        "plan_identity",
+        "plan_snapshot",
+        "proposal_id",
+        "proposed_changes",
+        "reason",
+        "request_id",
+        "service_namespace",
+        "subject_key",
+        "usage"
+      ],
+      "intent": "plan adjustment PROPOSAL (writes nothing)",
+      "summary": "Propose Plan Adjustment",
+      "fingerprint": "823e960b029e3d80"
+    },
+    {
+      "method": "POST",
+      "path": "/ai/plan-adjustment/apply",
+      "handler": "apply_plan_adjustment_ai_plan_adjustment_apply_post",
+      "parameters": [],
+      "request_model": "PlanApplyRequest",
+      "request_fields": [
+        "course_id",
+        "exam_module_id",
+        "language",
+        "plan_identity",
+        "proposal_id",
+        "proposed_changes",
+        "service_key"
+      ],
+      "response_model": "PlanApplyResponse",
+      "response_fields": [
+        "applied_at",
+        "applied_count",
+        "dropped_changes",
+        "plan_identity",
+        "plan_identity_before",
+        "service_namespace",
+        "subject_key"
+      ],
+      "intent": "apply an accepted proposal (stale → 409)",
+      "summary": "Apply Plan Adjustment",
+      "fingerprint": "865b1971ccba8cac"
+    },
+    {
+      "method": "GET",
+      "path": "/adaptive/practice",
+      "handler": "adaptive_practice_adaptive_practice_get",
+      "parameters": [
+        "course_id:query?",
+        "exam_module_id:query?",
+        "language:query?",
+        "limit:query?",
+        "service_key:query?"
+      ],
+      "request_model": "inline",
+      "request_fields": [],
+      "response_model": "AdaptivePracticeResponse",
+      "response_fields": [
+        "candidates",
+        "context",
+        "counts_by_reason",
+        "excluded_count",
+        "generated_at",
+        "policy_version",
+        "reasons",
+        "selection_id",
+        "semantics",
+        "service_namespace",
+        "total_candidates"
+      ],
+      "intent": "next-practice candidates, each with its factual reason",
+      "summary": "Adaptive Practice",
+      "fingerprint": "433144f1f90c229d"
+    },
+    {
+      "method": "POST",
+      "path": "/ai/feedback",
+      "handler": "submit_ai_feedback_ai_feedback_post",
+      "parameters": [],
+      "request_model": "AIFeedbackRequest",
+      "request_fields": [
+        "rating",
+        "reason",
+        "regenerated",
+        "request_id",
+        "switched_model",
+        "workflow_id"
+      ],
+      "response_model": "AIFeedbackResponse",
+      "response_fields": [
+        "actual_credits",
+        "capability",
+        "context",
+        "created_at",
+        "estimated_credits",
+        "latency_ms",
+        "model",
+        "provider",
+        "rating",
+        "reason",
+        "reason_taxonomy",
+        "regenerated",
+        "request_id",
+        "router_reason",
+        "service_namespace",
+        "status",
+        "submitted_at",
+        "switched_model",
+        "tier",
+        "trains_router_online",
+        "workflow_id"
+      ],
+      "intent": "rate one of the caller's own AI responses",
+      "summary": "Submit Ai Feedback",
+      "fingerprint": "c01b537f7dc0ec45"
+    },
+    {
+      "method": "GET",
+      "path": "/ai/feedback/analytics",
+      "handler": "feedback_analytics_ai_feedback_analytics_get",
+      "parameters": [
+        "scope:query?",
+        "window_days:query?"
+      ],
+      "request_model": "inline",
+      "request_fields": [],
+      "response_model": "FeedbackAnalyticsResponse",
+      "response_fields": [
+        "by_capability",
+        "by_model",
+        "by_provider",
+        "by_reason",
+        "by_workflow",
+        "generated_at",
+        "per_capability_model",
+        "router_mutation",
+        "scope",
+        "semantics",
+        "totals",
+        "window_days"
+      ],
+      "intent": "mine | admin-only platform aggregate of ratings",
+      "summary": "Feedback Analytics",
+      "fingerprint": "7f2c5446b572bb8f"
+    },
+    {
+      "method": "GET",
+      "path": "/ai/feedback/availability",
+      "handler": "model_availability_ai_feedback_availability_get",
+      "parameters": [],
+      "request_model": "inline",
+      "request_fields": [],
+      "response_model": "object",
+      "response_fields": [],
+      "intent": "router availability WITH its process-local scope",
+      "summary": "Model Availability",
+      "fingerprint": "b333b410e1742529"
+    },
+    {
+      "method": "GET",
+      "path": "/review",
+      "handler": "list_review_items_review_get",
+      "parameters": [
+        "course_id:query?",
+        "exam_module_id:query?",
+        "language:query?",
+        "limit:query?",
+        "offset:query?",
+        "service_namespace:query?",
+        "status:query?"
+      ],
+      "request_model": "inline",
+      "request_fields": [],
+      "response_model": "ReviewListResponse",
+      "response_fields": [
+        "buckets",
+        "items",
+        "limit",
+        "offset",
+        "semantics",
+        "total"
+      ],
+      "intent": "outstanding review work (due / needs_attention / scheduled)",
+      "summary": "List Review Items",
+      "fingerprint": "15e242ee8a3a30e0"
+    },
+    {
+      "method": "GET",
+      "path": "/review/summary",
+      "handler": "review_summary_review_summary_get",
+      "parameters": [
+        "service_namespace:query?"
+      ],
+      "request_model": "inline",
+      "request_fields": [],
+      "response_model": "ReviewSummaryResponse",
+      "response_fields": [
+        "by_namespace",
+        "by_source",
+        "by_status",
+        "has_stored_due_dates",
+        "semantics",
+        "service_namespace",
+        "total"
+      ],
+      "intent": "counts over the SAME projection the list serves",
+      "summary": "Review Summary",
+      "fingerprint": "a7f871d34d67fa3f"
+    },
+    {
+      "method": "POST",
+      "path": "/review/schedule",
+      "handler": "schedule_reviews_review_schedule_post",
+      "parameters": [],
+      "request_model": "ReviewScheduleRequest",
+      "request_fields": [
+        "include_all",
+        "item_ids"
+      ],
+      "response_model": "ReviewScheduleResponse",
+      "response_fields": [
+        "count",
+        "generated_at",
+        "policy_version",
+        "scheduled",
+        "semantics"
+      ],
+      "intent": "record the next review date from stored facts",
+      "summary": "Schedule Reviews",
+      "fingerprint": "d2988430f3defb09"
+    },
+    {
+      "method": "POST",
+      "path": "/review/{item_id}/complete",
+      "handler": "complete_review_review__item_id__complete_post",
+      "parameters": [
+        "item_id:path"
+      ],
+      "request_model": "ReviewCompleteRequest",
+      "request_fields": [
+        "result"
+      ],
+      "response_model": "ReviewCompleteResponse",
+      "response_fields": [
+        "due_at",
+        "interval_days",
+        "item_id",
+        "policy_version",
+        "previous_review_result",
+        "reason",
+        "result",
+        "scheduled_at",
+        "semantics",
+        "source_facts"
+      ],
+      "intent": "record a real review result and reschedule",
+      "summary": "Complete Review",
+      "fingerprint": "b27ff3b16b7fc517"
+    },
+    {
+      "method": "GET",
+      "path": "/learning/agenda",
+      "handler": "get_learning_agenda_learning_agenda_get",
+      "parameters": [
+        "course_id:query?",
+        "exam_module_id:query?",
+        "language:query?",
+        "limit:query?",
+        "service_key:query?"
+      ],
+      "request_model": "inline",
+      "request_fields": [],
+      "response_model": "AgendaResponse",
+      "response_fields": [
+        "by_namespace",
+        "by_reason",
+        "filters",
+        "generated_at",
+        "items",
+        "policy_version",
+        "priority_order",
+        "semantics",
+        "source_summary",
+        "total_items"
+      ],
+      "intent": "the daily learning agenda projection",
+      "summary": "Get Learning Agenda",
+      "fingerprint": "e14bb89baf7aa701"
+    },
+    {
+      "method": "GET",
+      "path": "/learning/agenda/explain",
+      "handler": "explain_learning_agenda_learning_agenda_explain_get",
+      "parameters": [
+        "course_id:query?",
+        "exam_module_id:query?",
+        "language:query?",
+        "limit:query?",
+        "service_key:query?"
+      ],
+      "request_model": "inline",
+      "request_fields": [],
+      "response_model": "object",
+      "response_fields": [],
+      "intent": "why an agenda entry is where it is",
+      "summary": "Explain Learning Agenda",
+      "fingerprint": "eebdd9a33f5af901"
+    },
+    {
+      "method": "GET",
+      "path": "/admin/ai-operations/summary",
+      "handler": "ai_operations_summary_admin_ai_operations_summary_get",
+      "parameters": [
+        "window_days:query?"
+      ],
+      "request_model": "inline",
+      "request_fields": [],
+      "response_model": "AIOperationsSummary",
+      "response_fields": [
+        "availability",
+        "bounded",
+        "by_capability",
+        "by_model",
+        "by_provider",
+        "by_service_namespace",
+        "by_tier",
+        "credits",
+        "feedback",
+        "generated_at",
+        "latency",
+        "privacy",
+        "requests",
+        "router",
+        "scope",
+        "window_days",
+        "window_start"
+      ],
+      "intent": "admin-only AI accounting aggregate",
+      "summary": "Ai Operations Summary",
+      "fingerprint": "d7b1dfb71b3cee36"
+    },
+    {
+      "method": "GET",
+      "path": "/admin/workflow-operations/summary",
+      "handler": "workflow_operations_summary_admin_workflow_operations_summary_get",
+      "parameters": [
+        "window_days:query?"
+      ],
+      "request_model": "inline",
+      "request_fields": [],
+      "response_model": "WorkflowOperationsSummary",
+      "response_fields": [
+        "generated_at",
+        "privacy",
+        "scope",
+        "window_days",
+        "window_start",
+        "workflows"
+      ],
+      "intent": "admin-only per-workflow aggregate",
+      "summary": "Workflow Operations Summary",
+      "fingerprint": "10a4cccd400f78b5"
+    },
+    {
+      "method": "GET",
+      "path": "/admin/workflow-operations/agent-runs/{run_id}",
+      "handler": "agent_run_detail_admin_workflow_operations_agent_runs__run_id__get",
+      "parameters": [
+        "run_id:path"
+      ],
+      "request_model": "inline",
+      "request_fields": [],
+      "response_model": "AgentRunDetail",
+      "response_fields": [
+        "agent_run_id",
+        "durable_sources",
+        "exercise_id",
+        "found",
+        "language",
+        "model_steps",
+        "privacy",
+        "run_status",
+        "steps",
+        "stopped_reason",
+        "trace"
+      ],
+      "intent": "admin-only run trace (code-free)",
+      "summary": "Agent Run Detail",
+      "fingerprint": "ddace2711cf88a84"
+    },
+    {
+      "method": "GET",
+      "path": "/admin/feature-flags",
+      "handler": "list_feature_flags_admin_feature_flags_get",
+      "parameters": [],
+      "request_model": "inline",
+      "request_fields": [],
+      "response_model": "FeatureFlagList",
+      "response_fields": [
+        "default_mode",
+        "items",
+        "modes",
+        "never_changes",
+        "semantics"
+      ],
+      "intent": "the seven advanced-workflow kill switches",
+      "summary": "List Feature Flags",
+      "fingerprint": "8ae6200ddde36c9e"
+    },
+    {
+      "method": "PUT",
+      "path": "/admin/feature-flags",
+      "handler": "update_feature_flags_admin_feature_flags_put",
+      "parameters": [],
+      "request_model": "FeatureFlagUpdate",
+      "request_fields": [
+        "flags"
+      ],
+      "response_model": "FeatureFlagUpdateResult",
+      "response_fields": [
+        "modes",
+        "previous",
+        "updated"
+      ],
+      "intent": "set a flag mode (OFF/INTERNAL/TIER/ALL)",
+      "summary": "Update Feature Flags",
+      "fingerprint": "2a5aee93242c433c"
+    }
+  ],
+  "surface_fingerprint": "572d9e68c9bc5138"
+}

@@ -448,3 +448,179 @@ S6 PART E 演练的就是这条）。
    仍会返回 legacy plan code。新前端不调用它们（前端用 `/subscription/plans`），因此
    「legacy code 不出现给用户」在**产品表面**成立，但旧端点本身未删除（Preserve
    Capability）。若要彻底移除，属下一步独立任务。
+
+---
+
+# 附录 A — ACCEL_PRODUCT_S10_PRODUCTION_RELEASE（2026-09-20）
+
+本附录记录**已授权的生产发布**。发布通过仓库既有部署机制完成：`git push origin main`
+→ GitHub Actions `deploy.yml` → SSH 到生产主机。**未**直连生产 SQLite、**未**绕过 CI、
+**未**手工执行 ALTER/INSERT。
+
+## A0. 本地数据库事故（措辞按任务书 §0，不得简化为「未发生」）
+
+```
+LOCAL_DB_WRITE_INCIDENT            = YES
+MAIN_DB_FILE_RESTORED_BYTE_IDENTICAL = YES
+FULL_PRE_INCIDENT_SQLITE_STATE_PROVEN = NO
+PRE_INCIDENT_WAL_STATE_KNOWN         = NO
+```
+
+`.s10tmp/appdb_mutated_by_alembic.db` **未被删除**，作为事故证据保留。
+
+## A1. 目标与前置校验
+
+```
+MIGRATION_HEAD = 20260919_0012
+PRE_MIGRATION_REVISION = 20260919_0010
+```
+
+发布前生产侧只读校验（新增 `scripts/deploy/check_membership_mapping.py`，已纳入部署流程，
+位于 `alembic upgrade head` **之前**）：
+
+```
+[membership-precheck] {"state": "OK", "legacy_paid_users_seen": 0,
+                       "active_membership_rows": 0, "legacy_user_plan_rows": 0,
+                       "unmappable_users": 0, "unmappable_rows": []}
+```
+
+该脚本 import 迁移模块自身取映射规则，因此预检与实际迁移不可能分歧；遇到不可映射行时
+`exit 1`，部署在**写入任何东西之前**停止。
+
+## A2. 备份（stop writers → consistent backup → integrity → migrate）
+
+生产使用 WAL 语义，因此**没有**热拷贝裸 `app.db`；使用部署流程已有的冻结顺序：
+停 `ai-backend` → 确认已停 → 复制 → 非空断言 → `PRAGMA integrity_check` → 迁移。
+
+```
+[deploy] Catalog database backup:
+   /home/***/ai_study_platform/backend/backups/app.db.before-catalog-reform.20260920_125***5.db (39M)
+[deploy] Persistent database integrity_check: ok
+[deploy] Migration log:
+   /home/***/ai_study_platform/backend/backups/migration.20260920_125***5.log
+```
+
+（路径中的 `***` 是 GitHub Actions 对 runner 家用目录的自动脱敏，非我改写。）
+
+## A3. 迁移
+
+```
+INFO  Running upgrade 20260919_0010 -> 20260919_0011, backfill unified subscriptions
+                       from legacy paid entitlements
+INFO  Running upgrade 20260919_0011 -> 20260919_0012, add data_origin provenance to
+                       the two fact tables
+[20260919_0011] legacy rows read: memberships=0 users.plan=0; users derived=0;
+                subscriptions inserted=0; unmappable=0
+[20260919_0012] learning_events: classified 0 historical rows as LEARNER
+[20260919_0012] practice_attempts: classified 0 historical rows as LEARNER
+[schema-check] OK: AT_HEAD revision=20260919_0012
+[deploy] Post-migration integrity_check: ok
+```
+
+生产库当前**没有任何付费会员行、也没有任何 learning_events / practice_attempts 行**
+（`legacy_paid_users_seen = 0`，两张事实表历史行数 = 0）。因此 0011 无需翻译任何用户，
+也不存在被降级的用户；0012 的回填没有行可分类。这同时说明**没有任何真实学习数据**会在
+本次发布中被改写。
+
+## A4. 应用启动与前端
+
+```
+[deploy] backend health ok
+[deploy] zhixue-runtime health ok
+[deploy] HTTPS health ok
+```
+
+前端资源指纹与本地 S10 构建**逐字节同名**（部署端自行 `npm run build`，同一 lockfile）：
+
+| 资源 | 本地 | 生产 |
+|---|---|---|
+| entry | `index-DVtBZ_ra.js` | `index-DVtBZ_ra.js` |
+| css | `index-BnPkasm3.css` | `index-BnPkasm3.css` |
+| jsx-runtime | `jsx-runtime-Cltr0gcK.js` | 同 |
+| link / matchContext / preload-helper / query / useNavigate / useStore | 全部一致 | 全部一致 |
+| membership chunk | `membership-rHFt4id9.js` | 200 |
+| membership css | `membership-C8-ncojl.css` | 200 |
+| exam-product-pages | `exam-product-pages-wqr4WBEG.js` | 200 |
+
+## A5. 公开 Smoke（只读、匿名）
+
+```
+GET /api/health                                     -> 200 {"status":"ok"}
+GET /api/exam/prep/catalog                          -> 200 catalog_version=v2, cs_408 active
+GET /api/exam/prep/subjects/cs_408/content-status   -> 200 has_questions/past_papers/knowledge_tree
+GET /api/subscription/plans                         -> 200 policy_version=v1, free/standard/advanced
+```
+
+匿名访问受保护端点，全部按预期拒绝：
+
+```
+GET /api/subscription              -> 401 {"detail":"请先登录"}
+GET /api/membership/entitlements   -> 401
+GET /api/usage/summary             -> 401
+GET /api/science/status            -> 401
+```
+
+其它：`http://` → `https://` **308**；`/membership` SPA 路由 200 且引用 S10 entry chunk；
+TLS 握手正常。
+
+## A6. 部署后契约验证（只读，未认证）
+
+生产 `/api/openapi.json` 是公开的，因此可以在**不登录、不创建账号**的前提下验证部署后的
+契约确实是 S10：
+
+```
+MembershipEntitlementsResponse  = [current_tier, features, policy_version, service_key]
+MembershipFeatureEntitlement    = [allowed, required_capability, required_tier]
+RedeemPreviewResponse           = [code_expires_at, current_tier, duration_days,
+                                   projected_expires_at, tier, tier_label]
+RedeemResultResponse            = [current_tier, duration_days, end_at, status, tier, tier_label]
+
+current_tier 存在 = True        legacy current_plan 已消失 = True
+required_tier 存在 = True       legacy required_plan 已消失 = True
+/subscription/redeem[ /preview] 200 -> RedeemPreview/ResultResponse  # 具体类型
+```
+
+## A7. 科学模式（§9）
+
+**未晋升任何模型。** 证据：本发布改动的 science 文件只有
+`kt_dataset.py` / `kt_native.py` / `status.py`；定义 mode 的文件
+（`capabilities.py` / `metadata.py` / `student_twin.py` / `evidence_reliability.py` /
+`tutor_policy.py` / `learner_state.py` / `misconception.py`）在本发布中
+**逐字节未改动**，本地 `test_the_frozen_scientific_modes_are_unchanged` 通过。
+
+生产 `/api/exam/prep/scientific/capabilities` 需要认证（匿名 401），因此其 mode 载荷
+**未**在生产上直接读取 —— 见 §A9「未做之事」。
+
+## A8. APP_ENV：一处部署配置变更（必须报告）
+
+发现：`APP_ENV` **此前从未在任何部署配置中设置**，因此 `is_production_runtime()` 在生产
+上一直返回 False —— 代码内置的两道生产门（`is_mock_payment_allowed()` 拒绝模拟支付、
+`data_plane.origin` 拒绝非 LEARNER 来源）在生产上**从未真正生效**。
+
+本次在 `deploy.yml` 的 `security.conf` drop-in 中增加 `Environment="APP_ENV=production"`
+（与既有的 `AI_SESSION_COOKIE_SECURE=true` 同处），使这两道门真正armed。日志确认该步骤
+于 `04:52:45` 执行、随后 `daemon-reload` + `restart`、`04:52:50` HTTPS health ok。
+
+**行为后果（如实报告）**：4 个模拟支付端点（`/subscription/orders/{id}/pay` 等）在生产
+上现在会返回 403。新前端本就不提供在线支付（按钮 disabled + 「在线支付尚未开通」），
+`is_production_runtime` 不被任何启动路径使用，因此无启动面影响。这是 S10 PART E
+「在线支付保持有界不可用」在生产上的落实。
+
+## A9. 未做之事（边界声明）
+
+- **没有创建生产测试账号**，没有发送注册邮件，没有改动任何真实学员。
+- **没有在生产上兑换任何兑换码**（§7 明确禁止）。
+- **没有插入任何合成生产事件**来验证 `data_origin`（§8 明确禁止）。
+- **没有直连生产 SQLite** 执行 ALTER / INSERT / 手工补数据。
+- **未读取** 生产上需要认证的 scientific capabilities 载荷。
+
+因此：
+
+```
+AUTHENTICATED_PRODUCTION_E2E = NOT PERFORMED (by design, §11)
+DEMO_ACCEPTANCE_E2E          = PASS (S10 DEMO 环境 20/20；S9 回归 41/41)
+```
+
+完整认证链路（注册/登录 → 知识 → 练习 → 错题 → 学习计划 → 学习记录 → StudentTwin →
+会员 → 兑换 → 计划解锁）的端到端证明来自 **DEMO/ACCEPTANCE 环境**；生产侧的部署证据来自
+**公开探针 + 资源指纹一致 + schema/契约只读验证**。两者是不同性质的证据，不互相替代。

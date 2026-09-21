@@ -322,11 +322,11 @@
 | POST | `/code/challenges/generate` | AI 出题 |
 | POST | `/code/challenges/{challenge_id}/generate-tests` | 生成测试 |
 | POST | `/code/challenges/{challenge_id}/run-tests` | 运行测试 |
-| POST | `/code/challenges/{challenge_id}/submit` | 提交挑战 |
+| POST | `/code/challenges/{challenge_id}/submit` | 提交挑战（AI 判定 → 统一 AI 链路，返回真实 `request_id`；空代码 / 语言不符为确定性判定，`request_id` 为 `null`） |
 | POST | `/code/challenges/{challenge_id}/explain-failure` | 解释失败原因 |
 | POST | `/code/execute` | 执行代码 |
-| POST | `/code/analyze` | AI 分析代码 |
-| POST | `/code/diagnose` | AI 诊断 |
+| POST | `/code/analyze` | AI 分析代码（统一 AI 链路，返回真实 `request_id`） |
+| POST | `/code/diagnose` | 代码诊断（静态语法检查，**非 AI**：gcc / py_compile，无 `request_id`、不消耗 AI credits） |
 | POST | `/code/learning-diagnosis` | 学习诊断 |
 | GET | `/code/attempts` | 提交尝试记录 |
 | GET | `/code/attempts/{attempt_id}` | 尝试详情 |
@@ -359,7 +359,7 @@
 ### 6.1 通用 AI 问答
 | Method | Path | 用途 |
 |---|---|---|
-| POST | `/chat` | 通用 AI 问答 |
+| POST | `/chat` | 通用 AI 问答（course / exam / programming 三个分支共用统一 AI 链路，返回真实 `request_id`） |
 | GET | `/chat/history` | 问答历史 |
 | GET | `/chat/sessions/{session_id}` | 会话详情 |
 | DELETE | `/chat/sessions/{session_id}` | 删除会话 |
@@ -370,7 +370,8 @@
 > 已在对应模块列出，这里集中索引：
 - 考研 AI 出题：`POST /exam/11408/{subject_key}/ai-questions/generate`、`POST /exam/11408/{subject_key}/question-analysis`
 - 通用出题：`POST /practice/questions/generate`、`POST /practice/questions/batch-create-from-ai`、`POST /practice/questions/{question_id}/ai-explain`
-- 编程 AI：`POST /code/challenges/generate`、`POST /code/analyze`、`POST /code/diagnose`、`POST /code/learning-diagnosis`
+- 编程 AI：`POST /code/challenges/generate`、`POST /code/analyze`、`POST /code/learning-diagnosis`
+- 编程**确定性**能力（无模型、无 request_id、不消耗 AI credits）：`POST /code/diagnose`（静态语法检查）、`POST /code/execute`、`POST /code/challenges/{challenge_id}/run-tests`
 - 资料解析/知识：`POST /materials/upload`（触发 OCR/解析）、`POST /materials/analyze-knowledge-preview`、`POST /materials/{material_id}/reparse`、`POST /materials/reindex`
 - 知识点生成：`POST /knowledge-points/generate-preview`、`POST /knowledge-path/generate-from-materials`
 - 计划/报告生成：`POST /learning/plans/generate-preview`、`POST /learning/plans/generate-preview-advanced`、`POST /learning/reports/generate-preview`、`POST /learning-report/ai-generate`
@@ -632,6 +633,150 @@ CONCEPT_QUESTION_SET_MISMATCH}`。**该值从不被改写、不被就近匹配**
 以及 `uncollected_fields`（`response_time_ms = NOT_COLLECTED`、
 `hint_count = NOT_AVAILABLE`，`coverage` 为 `null`）。无任何逐用户标识。
 未传入 db 会话时 `measured = false` 且**不出现**计数键 —— 没数过与数到 0 不同。
+
+### THREE_DOMAIN_PRODUCTIZATION_P1：三方向最小契约补齐
+
+第一轮「三方向完整产品化」补的是**最小契约**，不重写任何既有能力。后端既有
+`/course-learning/*`、`/programming/*`、`/code/*`、`/exam/prep/*` 路由全部不动。
+
+**新增路由**（全部需登录，全部只读，除计划任务外均无写操作）：
+
+| Method | Path | 说明 |
+|---|---|---|
+| GET | `/course-learning/courses/{course_id}/records` | 该课程的学习记录页（游标分页）。SQL 层同时按 `service_key=course_learning` 与事件自身 `course_id` 过滤，**在分页之前**，因此 exam_prep / programming 事件与其它课程的事件都不可能出现在这一页 |
+| GET | `/course-learning/courses/{course_id}/records/summary` | 同一作用域的确定性计数（`course_id` 新增进响应体） |
+| GET | `/course-learning/courses/{course_id}/wrong-answers` | 该课程的错题/待复习读取契约（`status` 过滤 active/resolved） |
+| GET | `/course-learning/courses/{course_id}/wrong-answers/{wrong_record_id}` | 单条错题 + 真实作答历史（`attempt_history`）+ 已有错因分析（`error_analysis`） |
+| GET | `/course-learning/courses/{course_id}/state` | 该课程的**确定性状态投影**，只读、不写、不预测 |
+| GET | `/programming/records` | 编程学习记录页，SQL 层固定 `service_key=programming` |
+| GET | `/programming/records/summary` | 同一作用域的计数 |
+| GET | `/programming/state` | 编程的确定性状态投影，只读、不写、不预测 |
+| GET | `/programming/plan` | 编程学习计划。**由统一会员档位门控**（`learning_plan`） |
+| POST | `/programming/plan/tasks` | 新增计划任务（同一门控） |
+| PATCH | `/programming/plan/tasks/{task_id}` | 更新计划任务（同一门控） |
+| DELETE | `/programming/plan/tasks/{task_id}` | 删除计划任务（同一门控） |
+
+语义要点（前端可依赖）：
+
+- **课程隔离以 `course_id` 为身份而非查询参数**。`/course-learning/courses/{course_id}/...`
+  的路径形态让隔离边界写在路由里；调用者没有的课程返回 **404**（不是空列表）。
+- **`/course-learning/courses/{course_id}/state` 与 `/programming/state` 不产生任何预测字段。**
+  没有掌握概率、没有就绪度评分、没有薄弱项排序、没有模型输出。课程侧**不接 Student Twin**。
+  课程状态里的 `course.declared_level` 是学习者**自己填的**入门水平（存
+  `course_learning_preferences.mastery_level`），在线上改名以免被读成实测能力。
+- **编程记录带 `context.programming_language` / `context.exercise_id` / `context.project_id`。**
+  `learning_events` 没有对应列，也没有为此加列：这些值走事件的 snapshot 上下文
+  （见 `learning.records.native_concept.PROGRAMMING_CONTEXT_KEYS`）。
+- **`RecordContext` / `RecordSummary` 新增字段（ADDITIVE）** — `programming_language` /
+  `exercise_id` / `project_id`，以及 `code_run` / `code_tested` 的 `passed_count` /
+  `total_count` / `exit_code` / `timed_out`。无字段被删除或改义。
+- **`RecordsSummaryResponse` 新增 `course_id`（ADDITIVE）**。
+- **`summary.practice_attempts` 与 `summary.programming_submissions` 是互斥计数**：
+  前者只数客观题作答（`question_answered` / `course_practice`），编程提交由后者计数。
+  因此一个纯编程作用域的 `practice_attempts` 合法地为 0。
+- **编程学习计划复用统一会员门控**：`FEATURE_CAPABILITY["learning_plan"] → planning.generate`，
+  Free 拒绝并返回标准 `FEATURE_REQUIRES_UPGRADE` 403，Standard / Advanced 允许。
+  `SERVICE_FEATURES` 新增 `"programming": ("learning_plan",)`（**方向拥有哪些功能**，不是第二套会员）。
+- **编程侧新增三个 canonical 事件**：`exercise_started`（每人每题去重）/
+  `code_run` / `code_tested`（真实执行事实，**不携带 `correct`**）。提交与判定仍由既有
+  `code_submitted` 唯一拥有，不重复发事件。
+
+---
+
+### THREE_DOMAIN_PRODUCTIZATION_P1_1：Course Learning 后端收口
+
+补齐 course 工作区剩余的真实后端阻塞项：**资料上传**、**练习闭环**、**今日计划**。
+全部新增路由都在 `/course-learning/courses/{course_id}/...` 之下，全部需登录。
+
+**新增路由**：
+
+| Method | Path | 说明 |
+|---|---|---|
+| GET | `/course-learning/courses/{course_id}/materials` | 该课程的资料库列表（只读） |
+| POST | `/course-learning/courses/{course_id}/materials` | **上传一个文件到该课程**（multipart，仅 `file`） |
+| GET | `/course-learning/courses/{course_id}/practice/workbook` | 该课程的 AI 题册（含每题自己的作答历史与 `workbook_status`） |
+| GET | `/course-learning/courses/{course_id}/practice/history` | 该课程的练习历史 |
+| POST | `/course-learning/courses/{course_id}/practice/questions/{question_id}/attempts` | 对**本课程**某题开启一次新作答（「下一题」/重做） |
+| POST | `/course-learning/courses/{course_id}/practice/generate` | 为本课程生成一道新题并开启作答 |
+| POST | `/course-learning/courses/{course_id}/practice/{attempt_id}/submit` | 提交本课程某次作答（判分 + 知识状态 + 学习记录 + 数据面事件 + practice 镜像） |
+| GET | `/course-learning/courses/{course_id}/today-plan` | 本课程今日任务（只读） |
+
+语义要点（前端可依赖）：
+
+- **身份不由客户端提供。** 上传接口的请求体**只有文件**：没有 `username`、没有
+  `subject_key`、没有 `course_id`。提交接口的请求体**只有 `answer`**，`extra="forbid"`，
+  多传 `course_id` / `username` 直接 **422**。用户来自会话 cookie，课程来自路径。
+- **课程身份 = `course_learning_preferences.course_id`**，也就是 `/course-learning/courses`
+  返回的 `course_id`。课程作用域路径**只认这个精确字符串**，其它拼写为 404。
+  课程与它其它已存拼写（如 `data_structure` ↔ `数据结构`）的对应关系只由
+  `subjects.py` 的字典决定，**不做子串 / 前缀 / 模糊匹配**。
+- **资料落库使用课程自身的身份**：`course_id = subject_key = subject =` 该课程 canonical key。
+  **不再为课程伪造一个 subject_key**；同一课程的两个已存拼写在资料域判定里被认成同一门课
+  （重复检测、存储配额、领域标签一致）。
+- **上传复用既有 `/materials/upload` 管线**（配额 → 重复检测 → 存盘 → 解析 → 后台任务），
+  没有第二套材料系统；`course_id` / `subject_key` / `subject` 由服务端从路径解析后注入。
+- **跨课程作答被拒**：`/courses/A/practice/{attempt}/submit` 会先校验该 attempt 属于 A
+  （其存储的课程身份必须是 A 的精确身份形态之一），否则 **404**，且**在判分之前**返回——
+  被拒的提交不会改动任何数据。`/courses/A/practice/questions/{qid}/attempts` 同理。
+- **提交写入的 canonical 事实带课程**：`practice_attempts.question_ref_json.context.course_id`
+  与 `learning_events.course_id` 都是该课程（此前 live emitter 把 `course_id` 留空，
+  导致真实提交在课程自己的时间线里不可见）。
+- **今日计划可归属**：计划任务走共享的 `course_learning:<course>` key；通用
+  `learning_tasks` 仅当其存储的 `course_id` **正好是**本课程身份形态之一时才出现，
+  否则**不返回**（不做标题匹配、不猜、不回退到「当前课程」）。`today-plan` 为只读，
+  不写偏好、不写排序。
+- **答题前不下发答案**：题册 / 历史 / 开始作答三个响应都不含 `standard_answer` 与
+  `analysis`；参考答案只在 submit 的 `result` 里返回。
+- **生成受统一会员门控**：Free 对本路径返回标准 `FEATURE_REQUIRES_UPGRADE` 403
+  （不做本地伪造题目降级）；Standard / Advanced 允许，`generation_mode` 会如实说明
+  题目来自模型还是确定性本地兜底。
+- **资料库读接口推荐用课程作用域这一个**：`/course-learning/courses/{course_id}/materials`
+  按**同一门课的全部已存拼写**取资料，因此旧路径（英文 key）上传的资料也在里面。
+  旧的 `GET /materials?course_id=...&subject_key=...` 仍然可用（新增：canonical 拼写不再 400），
+  但它**只匹配请求里写的那一个拼写**，看不到该课程另一种拼写的资料。
+
+### THREE_DOMAIN_COMPETITIVE_PRODUCTIZATION_P6：运营 / 管理契约 + 高级工作流开关
+
+P6 **不新增任何学习功能**：它把既有高级能力变成可运营、可审计、可随时关闭的系统。
+冻结清单见根目录 `THREE_DOMAIN_COMPETITIVE_PRODUCTIZATION_P6_API_CONTRACT_FREEZE.md`
+（21 条，含逐条 fingerprint；由 `backend/scripts/freeze_advanced_api_contract.py` 从
+FastAPI 路由表直接生成，可重跑比对漂移）。
+
+**新增路由**（全部 `require_admin_user` + 既有权限，不加新权限）：
+
+| Method | Path | 权限 | 说明 |
+|---|---|---|---|
+| GET | `/admin/ai-operations/summary` | `ai_logs.view` | AI 运营总览（聚合）：请求数、成功/失败/拒绝/待结算、延迟、预估与实际 credits、capability / model / provider / tier / space 分布、fallback 数与原因码分布、反馈 up/down 与原因、degraded availability |
+| GET | `/admin/workflow-operations/summary` | `ai_logs.view` | 五个高级工作流逐项聚合：调用、成功/失败、延迟、credits、**归一化**失败类别；调试智能体另报 iterations / executions |
+| GET | `/admin/workflow-operations/agent-runs/{run_id}` | `ai_logs.view` | 单次调试智能体运行的**无代码**轨迹（来自既有 `learning_events` + 每步 `ai_requests` 行） |
+| GET | `/admin/feature-flags` | `feature_flags.manage` | 七个高级工作流开关的当前模式 |
+| PUT | `/admin/feature-flags` | `feature_flags.manage` | 设置模式（`OFF` / `INTERNAL` / `TIER` / `ALL`），**下一次请求即生效**，写入审计日志 |
+
+**行为变化（既有高级路由）**：以下入口在功能开关关闭时**先于任何工作**返回
+`403 {"detail": {"code": "feature_disabled" | "feature_internal_only", "feature", "mode"}}`：
+
+| 开关 | 关闭后拒绝的入口 |
+|---|---|
+| `deep_study` | `POST /ai/deep-study` |
+| `programming_agent` | `POST /programming/agent/debug` |
+| `learning_report` | `POST /ai/learning-report` |
+| `wrong_analysis` | `POST /wrong-answers/{state_id}/analysis` |
+| `dynamic_planning` | `POST /ai/plan-adjustment`、`POST /ai/plan-adjustment/apply` |
+| `adaptive_practice` | `GET /adaptive/practice` |
+| `intelligent_review` | `GET /review`、`GET /review/summary`、`POST /review/schedule`、`POST /review/{item_id}/complete` |
+
+语义要点（前端可依赖）：
+
+- **默认是 `TIER`，未设置开关时行为与 P6 之前完全一致**（`system_settings` 中
+  `feature_flag.<name>` 无行 ⇒ 一律按订阅政策判定）。
+- **`INTERNAL`**：仅管理员账号可达（管理员可无付费档位演练）。
+- **`ALL`**：为**该一个能力**放行 entitlement 判定（按"最低已允许档位"评估模型选择），
+  **不改变**用量预算、结算与 `ai_requests.tier` 记录的真实档位；放行会记入该次调用的
+  `ai_called` 审计事实（`entitlement_grant`）。
+- **`OFF` 优先于一切**：即使管理员也拒绝。
+- 响应 `403` 的 `detail` 是**对象**（不是字符串），前端按 `detail.code` 分支。
+- 运营读接口**只返回聚合**：不含 prompt、回复正文、用户 id、用户名、request_id、
+  错误正文与文件路径。
 
 ---
 

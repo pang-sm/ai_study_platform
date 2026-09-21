@@ -12,7 +12,12 @@ paths:
 > **权威层级**：唯一最高权威是根目录 `ZHIXUE_AI_PRODUCT_REDESIGN_SSOT.md`。
 > `docs/UI_DESIGN_SPEC.md`、`docs/design/ZHIXUE_VISUAL_DIRECTION_V1.md` 与 `docs/**` 其余文件
 > 全部**从属于** SSOT；冲突时 SSOT wins。
-> 前端当前状态见 SSOT §3 与 §38：`OLD_FRONTEND_RESURRECTED = NO`，全新前端 = `NOT_STARTED`。
+> 前端当前状态（事实，2026-09-20）：Clean-Slate 全新前端**已开始并已成体系**——
+> `frontend/src/` 含完整路由树与 Course / 11408 / Programming 三个学习空间，以及
+> review / reports / membership / profile 等共享学习面与统一 Auth、AppShell。
+> 当前阶段 = **frontend product-system convergence / refinement**（不是 INITIAL / NOT_STARTED）。
+> `OLD_FRONTEND_RESURRECTED = NO` 长期有效：不得恢复旧前端 UI，不得从旧 frontend 复制页面。
+> （SSOT §3 / §38 仍写 `NOT_STARTED`，属 stale CURRENT 段；按治理规则只报告、不自行回写。）
 
 ## 处理流程（按顺序）
 

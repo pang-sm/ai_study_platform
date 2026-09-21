@@ -37,12 +37,17 @@
   （Exam 运行时 schema 纳入 Alembic：fresh 部署可仅靠 `alembic upgrade head`）。
 - **`NEXT_SUBSTEP = FRONTEND`**：后端停止继续扩展，进入全新前端产品实现。
   前端契约见 `STEP7H_FRONTEND_API_HANDOFF.md`（新前端只需读该文件）。
-  **`MIGRATION_HEAD = 20260919_0010`**（`migrations/versions/` 中的 Alembic head；以 `ls migrations/versions/` 为准，不要凭本文件断言）。
+  **`MIGRATION_HEAD = 20260919_0012`**（`migrations/versions/` 中的 Alembic head；以 `ls migrations/versions/` 为准，不要凭本文件断言）。
   注意：本地 `backend/app.db` 是 legacy 开发库，**没有** `alembic_version` / `practice_*` / `learning_events` 表；
   它**不是** Alembic 管理的库，也不代表生产 schema。schema 事实一律以 `alembic heads` + 生产部署流程为准。
   非 408 真实内容导入**仍未发生**，必须等用户明确批准。
 - `STEP1`–`STEP6` 已冻结；不得把「当前处于 STEP 6」「下一步做 Scientific Component 产品化设计」「STEP7A 是 NEXT」当作当前状态。
-- 全新前端 = **NOT_STARTED**。`frontend/` 目前只有 Clean-Slate 骨架与首页（`routes/`、`features/home/`）。不得恢复旧前端 UI，不得从旧 frontend 复制页面。
+- **全新前端（Clean-Slate rebuild）已开始，并已形成完整新前端**：
+  `frontend/src/` 现包含完整路由树与真实业务面——Course / 11408（`exam_prep`）/ Programming 三个学习空间，
+  以及共享学习面（`review` / `reports` / `membership` / `profile`）与统一 Auth、AppShell、Learning Records。
+- **当前前端阶段 = frontend product-system convergence / refinement**（P7-A 工程层已完成 → P7-B 收敛到交互/视觉规范）。
+- `OLD_FRONTEND_RESURRECTED = NO` **长期有效**：不得恢复旧前端 UI，不得从旧 frontend 复制页面；
+  现有新前端代码一律在本轮新写的边界内继续演进。
 
 ## 核心约束（长期有效）
 
