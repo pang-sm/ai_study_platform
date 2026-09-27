@@ -69,3 +69,25 @@ docs/*
 !docs/architecture/
 !docs/design/
 !docs/product/
+
+# 本地 QA / 临时产物（只存在于本机，不属于产品，不进版本控制）
+# 路径逐条写明而不是用通配，避免误伤正式目录。
+# 注意：`/artifacts/` 前导斜杠是必须的 —— `deploy/artifacts/` 是受保护的发布产物。
+/.coretmp/
+/.f1c6tmp/
+/.bc7tmp/
+/.bc8tmp/
+/.bc8r1tmp/
+/.f1c5qa/
+/.s8tmp/
+/.s9tmp/
+/.s10tmp/
+/.p11tmp/
+/.p2frontend-openapi-tmp/
+/artifacts/
+/test-results/
+/frontend/.coretmp/
+/frontend/.f1c6tmp/
+/frontend/.f1c5qa/
+/frontend/.iaaccept/
+/frontend/.authpolish/
