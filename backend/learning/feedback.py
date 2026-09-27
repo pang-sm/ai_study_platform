@@ -36,10 +36,52 @@ RATING_UP = "up"
 RATING_DOWN = "down"
 RATINGS = (RATING_UP, RATING_DOWN)
 
-# FROZEN taxonomy for negative feedback. Extending it is a product decision, not a code change.
-REASON_TAXONOMY = ("incorrect", "not_answered", "unclear", "too_shallow", "too_complex",
-                   "too_verbose", "too_brief", "citation_issue", "bad_code", "slow",
-                   "poor_image", "other")
+# WHAT the rating is ABOUT. A rating of an ANSWER and a rating of a PLAN SUGGESTION are two
+# different questions, and a single shared vocabulary would make them answerable with each
+# other's words: "解释不清楚" cannot describe a plan, and "学习任务太多" cannot describe an
+# answer. The target therefore selects which closed vocabulary a submission is validated
+# against — and the frontend only mirrors that decision, it does not make it.
+TARGET_ANSWER = "answer"
+TARGET_PLAN_ADJUSTMENT = "plan_adjustment"
+TARGETS = (TARGET_ANSWER, TARGET_PLAN_ADJUSTMENT)
+
+# FROZEN taxonomy for negative ANSWER feedback. Its names, values and behaviour are unchanged by
+# the plan-adjustment work: this is the set every existing rating was recorded against.
+ANSWER_REASON_TAXONOMY = ("incorrect", "not_answered", "unclear", "too_shallow", "too_complex",
+                          "too_verbose", "too_brief", "citation_issue", "bad_code", "slow",
+                          "poor_image", "other")
+
+# The PLAN-ADJUSTMENT vocabulary: a separate set, never merged into the answer one. Every entry
+# is a judgement a learner can actually make about a proposed schedule change.
+PLAN_ADJUSTMENT_REASON_TAXONOMY = ("adjustment_too_large", "adjustment_too_small",
+                                    "unreasonable_timing", "too_much_work", "too_little_work",
+                                    "wrong_priority", "ignored_goal_or_deadline",
+                                    "insufficient_reason", "too_vague_to_execute", "other")
+
+REASON_TAXONOMY_BY_TARGET = {
+    TARGET_ANSWER: ANSWER_REASON_TAXONOMY,
+    TARGET_PLAN_ADJUSTMENT: PLAN_ADJUSTMENT_REASON_TAXONOMY,
+}
+
+# Backwards-compatible alias: every existing caller, stored payload and analytics reader says
+# `REASON_TAXONOMY` and means the answer set.
+REASON_TAXONOMY = ANSWER_REASON_TAXONOMY
+
+# The capability the rated request must actually have been produced by. Without this a client
+# could relabel an answer as a plan suggestion and have plan reasons accepted against it — the
+# frontend hiding an option is not a boundary.
+TARGET_CAPABILITY = {TARGET_ANSWER: None, TARGET_PLAN_ADJUSTMENT: "planning.adjust"}
+
+
+def normalize_target(value) -> str:
+    """The target a submission is for. An unknown or absent value is an ANSWER rating."""
+    text = str(value or "").strip().lower()
+    return text if text in TARGETS else TARGET_ANSWER
+
+
+def reason_taxonomy(target: str) -> tuple[str, ...]:
+    """The closed vocabulary `target` is validated against."""
+    return REASON_TAXONOMY_BY_TARGET.get(target, ANSWER_REASON_TAXONOMY)
 
 
 class FeedbackRefusal(ValueError):
@@ -76,9 +118,13 @@ def _router_reason(db: DbSession, request_id: str) -> str | None:
 def submit_feedback(db: DbSession, user, *, request_id: str, rating: str,
                     reason: str | None = None, regenerated: bool = False,
                     switched_model: bool = False, workflow_id: str | None = None,
-                    reasons: list[str] | None = None, comment: str = "") -> dict:
+                    reasons: list[str] | None = None, comment: str = "",
+                    target_type: str = TARGET_ANSWER) -> dict:
     """Record ONE rating of ONE of the caller's OWN AI responses."""
     from usage.models import AIRequest
+
+    normalized_target = normalize_target(target_type)
+    allowed_reasons = reason_taxonomy(normalized_target)
 
     normalized_rating = str(rating or "").strip().lower()
     if normalized_rating not in RATINGS:
@@ -88,9 +134,12 @@ def submit_feedback(db: DbSession, user, *, request_id: str, rating: str,
         normalized = str(value or "").strip().lower()
         if not normalized:
             continue
-        if normalized not in REASON_TAXONOMY:
+        # Validated against THIS target's vocabulary, so an answer reason on a plan suggestion
+        # (or the reverse) is refused here rather than stored as an uninterpretable rating.
+        if normalized not in allowed_reasons:
             raise FeedbackRefusal("invalid_reason",
-                                  f"reason 必须是 {list(REASON_TAXONOMY)} 之一")
+                                  f"{normalized_target} 的 reason 必须是 "
+                                  f"{list(allowed_reasons)} 之一")
         if normalized not in normalized_reasons:
             normalized_reasons.append(normalized)
     normalized_reason = normalized_reasons[0] if normalized_reasons else None
@@ -105,6 +154,14 @@ def submit_feedback(db: DbSession, user, *, request_id: str, rating: str,
                        AIRequest.user_id == user.id).first())
     if request is None:
         raise FeedbackRefusal("request_not_found", "AI 请求不存在")
+
+    # The target must match what the request actually was. A caller cannot turn an answer into a
+    # plan suggestion (or back) by declaring it so — the request's own capability decides.
+    required_capability = TARGET_CAPABILITY[normalized_target]
+    if required_capability and request.capability != required_capability:
+        raise FeedbackRefusal(
+            "target_capability_mismatch",
+            f"{normalized_target} 反馈只能针对 {required_capability} 的请求")
 
     latency_ms = None
     if request.started_at and request.finished_at:
@@ -134,7 +191,10 @@ def submit_feedback(db: DbSession, user, *, request_id: str, rating: str,
         "created_at": request.created_at.isoformat() if request.created_at else None,
         "submitted_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         "trains_router_online": False,
-        "reason_taxonomy": list(REASON_TAXONOMY),
+        "target_type": normalized_target,
+        # The vocabulary this submission was validated against. Identical to the historical value
+        # for every answer rating — which is every rating recorded before this field existed.
+        "reason_taxonomy": list(allowed_reasons),
     }
 
     try:
@@ -144,6 +204,7 @@ def submit_feedback(db: DbSession, user, *, request_id: str, rating: str,
             service_namespace=request.service_namespace, capability=request.capability,
             reason=normalized_reason, model=request.model, provider=request.provider,
             reasons=normalized_reasons, comment=normalized_comment,
+            target_type=normalized_target,
             latency_ms=latency_ms, estimated_credits=request.estimated_credits,
             actual_credits=request.actual_credits, regenerated=bool(regenerated),
             switched_model=bool(switched_model), workflow_id=workflow_id,

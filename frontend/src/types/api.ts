@@ -1673,6 +1673,9 @@ export interface paths {
          *     The rating is stored against the request's full context (capability, model, router reason,
          *     latency, cost) as an audit fact. It does NOT adjust the router: ``trains_router_online``
          *     is false and stays false — a single dislike must never re-route anyone's next request.
+         *
+         *     ``target_type`` selects WHICH closed reason vocabulary the submission is validated against,
+         *     and must agree with the rated request's own capability.
          */
         post: operations["submit_ai_feedback_ai_feedback_post"];
         delete?: never;
@@ -7209,10 +7212,16 @@ export interface components {
              * @enum {string}
              */
             rating: "up" | "down";
+            /**
+             * Target Type
+             * @default answer
+             * @enum {string}
+             */
+            target_type: "answer" | "plan_adjustment";
             /** Reason */
-            reason?: ("incorrect" | "not_answered" | "unclear" | "too_shallow" | "too_complex" | "too_verbose" | "too_brief" | "citation_issue" | "bad_code" | "slow" | "poor_image" | "other") | null;
+            reason?: ("incorrect" | "not_answered" | "unclear" | "too_shallow" | "too_complex" | "too_verbose" | "too_brief" | "citation_issue" | "bad_code" | "slow" | "poor_image" | "adjustment_too_large" | "adjustment_too_small" | "unreasonable_timing" | "too_much_work" | "too_little_work" | "wrong_priority" | "ignored_goal_or_deadline" | "insufficient_reason" | "too_vague_to_execute" | "other") | null;
             /** Reasons */
-            reasons?: ("incorrect" | "not_answered" | "unclear" | "too_shallow" | "too_complex" | "too_verbose" | "too_brief" | "citation_issue" | "bad_code" | "slow" | "poor_image" | "other")[];
+            reasons?: ("incorrect" | "not_answered" | "unclear" | "too_shallow" | "too_complex" | "too_verbose" | "too_brief" | "citation_issue" | "bad_code" | "slow" | "poor_image" | "adjustment_too_large" | "adjustment_too_small" | "unreasonable_timing" | "too_much_work" | "too_little_work" | "wrong_priority" | "ignored_goal_or_deadline" | "insufficient_reason" | "too_vague_to_execute" | "other")[];
             /**
              * Comment
              * @default
@@ -7240,6 +7249,11 @@ export interface components {
             request_id: string;
             /** Rating */
             rating: string;
+            /**
+             * Target Type
+             * @default answer
+             */
+            target_type: string;
             /** Reason */
             reason?: string | null;
             /** Reasons */
@@ -12712,10 +12726,22 @@ export interface components {
             subject_key: string;
             /** Plan Identity */
             plan_identity: string;
-            /** Reason */
-            reason: string;
+            /** Summary */
+            summary: string;
+            /** Rationale */
+            rationale: string;
+            /** Adjustment Types */
+            adjustment_types?: string[];
+            /** Evidence */
+            evidence?: components["schemas"]["PlanEvidence"][];
             /** Proposed Changes */
             proposed_changes?: components["schemas"]["ProposedChange"][];
+            impact: components["schemas"]["PlanImpact"];
+            /**
+             * Can Apply
+             * @default false
+             */
+            can_apply: boolean;
             /** Affected Tasks */
             affected_tasks?: number[];
             /** Dropped Changes */
@@ -12824,6 +12850,18 @@ export interface components {
             /** Duration Days */
             duration_days?: number | null;
         };
+        /**
+         * PlanEvidence
+         * @description One reason, stated as the stored number behind it.
+         */
+        PlanEvidence: {
+            /** Code */
+            code: string;
+            /** Text */
+            text: string;
+            /** Metric */
+            metric: number;
+        };
         /** PlanGeneratePreviewRequest */
         PlanGeneratePreviewRequest: {
             /** Username */
@@ -12868,6 +12906,32 @@ export interface components {
              * @default []
              */
             selected_material_ids: number[];
+        };
+        /**
+         * PlanImpact
+         * @description What changes, counted. No estimate of effort, time or future performance.
+         */
+        PlanImpact: {
+            /** Inserted */
+            inserted: number;
+            /** Rescheduled */
+            rescheduled: number;
+            /** Moved Earlier */
+            moved_earlier: number;
+            /** Moved Later */
+            moved_later: number;
+            /** Replaced */
+            replaced: number;
+            /** Task Count Before */
+            task_count_before: number;
+            /** Task Count After */
+            task_count_after: number;
+            /** Overdue Before */
+            overdue_before: number;
+            /** Overdue After */
+            overdue_after: number;
+            /** Text */
+            text: string;
         };
         /** PlanImportTasksRequest */
         PlanImportTasksRequest: {
@@ -13193,7 +13257,15 @@ export interface components {
             /** State Semantics */
             state_semantics: string;
         };
-        /** ProposedChange */
+        /**
+         * ProposedChange
+         * @description One change, carried as BOTH the mutation to apply and the diff to display.
+         *
+         *     ``op`` / ``task_id`` / ``due_date`` / ``title`` are what ``apply`` executes. ``type`` /
+         *     ``field`` / ``before`` / ``after`` are derived by the server from the plan itself. They travel
+         *     in the same object so a screen cannot show one change while the write performs another, and so
+         *     ``before`` is never a value the client asserted — it is read from the plan.
+         */
         ProposedChange: {
             /** Op */
             op: string;
@@ -13205,13 +13277,27 @@ export interface components {
             task_type?: string | null;
             /** Due Date */
             due_date?: string | null;
-            /** Status */
-            status?: string | null;
             /**
-             * Reason
+             * Type
              * @default
              */
-            reason: string;
+            type: string;
+            /**
+             * Task Title
+             * @default
+             */
+            task_title: string;
+            /**
+             * Field
+             * @default
+             */
+            field: string;
+            /** Before */
+            before?: string | null;
+            /** After */
+            after?: string | null;
+            /** Direction */
+            direction?: string | null;
         } & {
             [key: string]: unknown;
         };

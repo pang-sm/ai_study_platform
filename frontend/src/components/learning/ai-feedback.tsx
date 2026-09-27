@@ -2,27 +2,21 @@ import { useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, Copy, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { useAiFeedback } from './p4-api';
+import { resolveFeedbackReasons, type FeedbackReason, type FeedbackTarget } from '@/lib/feedback-reasons';
 
 import { cn } from '@/lib/utils';
 
-const reasons = [
-  ['incorrect', '回答不正确'],
-  ['not_answered', '没有回答我的问题'],
-  ['unclear', '解释不清楚'],
-  ['too_verbose', '太啰嗦'],
-  ['too_brief', '太简略'],
-  ['citation_issue', '引用或依据有问题'],
-  ['other', '其他'],
-] as const;
-
 type Rating = 'up' | 'down';
-type Reason = (typeof reasons)[number][0];
+type Reason = FeedbackReason;
 
-export function AiFeedback({ requestId, workflowId = '', answerText = '' }: {
+export function AiFeedback({ requestId, workflowId = '', answerText = '', target = 'answer' }: {
   requestId?: string | null;
   workflowId?: string;
   answerText?: string;
+  /** WHAT is being rated — selects the reason vocabulary. Defaults to an answer. */
+  target?: FeedbackTarget;
 }) {
+  const reasons = resolveFeedbackReasons(target);
   const feedback = useAiFeedback();
   const [choosing, setChoosing] = useState(false);
   const [selectedReasons, setSelectedReasons] = useState<Reason[]>([]);
@@ -43,6 +37,7 @@ export function AiFeedback({ requestId, workflowId = '', answerText = '' }: {
     feedback.mutate({
       request_id: requestId,
       rating,
+      target_type: target,
       reason: payload.reasons?.[0] ?? null,
       reasons: payload.reasons ?? [],
       comment: payload.comment ?? '',

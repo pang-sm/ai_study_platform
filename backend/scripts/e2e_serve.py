@@ -127,15 +127,16 @@ def _plan_adjustment_content(spec) -> str | None:
     open_tasks = [task for task in tasks if task.get("status") != "completed"]
     if open_tasks:
         changes.append({"op": "update_task", "task_id": open_tasks[0].get("task_id"),
-                        "due_date": due, "reason": "按本次目标把这一项提前"})
+                        "due_date": due})
     if goal:
         changes.append({"op": "create_task", "title": goal[:60], "task_type": "knowledge",
-                        "due_date": later, "reason": "来自本次目标"})
+                        "due_date": later})
     if not changes:
         # No tasks and no goal: there is honestly nothing to propose, and the route says so.
         return None
-    return json.dumps({"reason": f"按「{goal}」调整当前计划" if goal else "按当前进度调整计划",
-                       "changes": changes}, ensure_ascii=False)
+    # `changes` only. The route derives the headline, the reason and the impact from these and
+    # from the learner's own records — a prose `reason` here would be ignored.
+    return json.dumps({"changes": changes}, ensure_ascii=False)
 
 
 class _HarnessProvider:

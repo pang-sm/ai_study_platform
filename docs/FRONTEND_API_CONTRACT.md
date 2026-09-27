@@ -846,3 +846,65 @@ FastAPI 路由表直接生成，可重跑比对漂移）。
 推荐随专业、年级与目录变化，事后重算无法还原当时的选择，而学习者自己输入的课程从来就不是推荐。
 读取时与现存 `selected_courses` **取交集**，因此被移除的课程不会留着「推荐」标记。
 前端据此在 `/course` 的分 band 列表上标注哪些来自推荐框架，其余**不标注**。
+
+---
+
+## PLAN_ADJUSTMENT_PRACTICALITY：计划调整变更为可审阅、可执行的调整
+
+### `POST /ai/plan-adjustment` 的响应由「一段模型文案 + 裸字段」改为结构化建议
+
+新增字段（原 `reason` **移除** —— 模型不再产出解释性文字）：
+
+| 字段 | 含义 |
+|---|---|
+| `summary` | 一句话摘要，**由服务端从 changes 派生**（例如「把「进程调度复习」提前 5 天」） |
+| `rationale` | 调整理由，**只由真实记录构成**；无可用记录时明说没有，不编造 |
+| `adjustment_types` | 本次建议的语义类型集合（见下） |
+| `evidence[]` | `{code, text, metric}`，每条都对应一个真实存储值，`metric` 为 0 的项**不出现** |
+| `impact` | `{inserted, rescheduled, moved_earlier, moved_later, replaced, task_count_before/after, overdue_before/after, text}`，全部为**计数**，没有时长 / 掌握度 / 预测 |
+| `can_apply` | 没有合法变更时为 `false`，前端不得提供「应用调整」 |
+
+`proposed_changes[]` 的每一项同时携带**要执行的 mutation** 与**要展示的 diff**：
+
+```
+{op, task_id, due_date | title,        <- apply 会执行的字段
+ type, field, task_title, before, after, direction}   <- 服务端派生
+```
+
+`type ∈ {RESCHEDULE, INSERT, REPLACE}`。`before` **由服务端从计划中读取**，客户端无法提供或篡改；
+因此「展示的变更」与「应用的变更」是同一个对象，不可能分叉。
+
+### 支持的调整语义（`semantic type ≠ database op`）
+
+| 语义 | 底层 mutation |
+|---|---|
+| `RESCHEDULE` | `update_task(due_date)`（`direction` 给提前 / 推迟） |
+| `INSERT` | `create_task(title, task_type, due_date)` |
+| `REPLACE` | `update_task(title)` |
+| `REDUCE_LOAD` | 整体判定：存在被推迟的任务 |
+| `INCREASE_LOAD` | 整体判定：存在新增或被提前的任务 |
+
+**NOT_SUPPORTED**：`REMOVE`（无 soft-delete，本轮不删任务）、`REORDER`（`ExamStudyPlanTask`
+没有 `sort_order`）。两者在**服务端**被拒绝并记入 `dropped_changes.reason =
+"adjustment_type_not_supported"`；前端不展示它们，也不依赖前端隐藏。
+
+**不再可写**：`status`。标记任务完成是对**学习者已完成什么**的断言，规划模型无权作出；写进去
+就是把伪造的进度写进真实计划。`update_task` 只接受 `due_date` / `title`。
+
+**学习时长不在契约内**：`ExamStudyPlanTask` 没有 duration 字段，因此任何「预计 X 分钟」
+都不可计算，也不产生。
+
+### `POST /ai/feedback` 新增 `target_type`（ADDITIVE，默认 `answer`）
+
+`target_type ∈ {answer, plan_adjustment}` 决定用**哪一套**封闭原因表校验：
+
+- `answer`：原有 FROZEN 词表，**值、名称、行为完全不变**（不传 `target_type` 即为该档）。
+- `plan_adjustment`：独立的计划调整词表（`adjustment_too_large` / `adjustment_too_small` /
+  `unreasonable_timing` / `too_much_work` / `too_little_work` / `wrong_priority` /
+  `ignored_goal_or_deadline` / `insufficient_reason` / `too_vague_to_execute` / `other`）。
+
+跨场景原因被**服务端**拒绝（`invalid_reason`）；`target_type=plan_adjustment` 只能针对
+`capability = planning.adjust` 的请求，否则 `target_capability_mismatch` —— 声明目标不能改变
+被评价请求的实际能力。未知原因仍是 schema 级 422（封闭词表行为不变）。
+存储无需迁移：`target_type` 进入既有 audit payload，`reason_taxonomy` 按目标选取
+（answer 档与历史值逐字相同）。

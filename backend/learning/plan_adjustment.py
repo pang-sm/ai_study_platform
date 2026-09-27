@@ -46,7 +46,6 @@ logger = logging.getLogger("learning.plan_adjustment")
 CAPABILITY = "planning.adjust"
 MAX_CHANGES = 8
 MAX_TITLE_CHARS = 200
-MAX_REASON_CHARS = 600
 MAX_CONTEXT_TASKS = 40
 
 COURSE = ServiceNamespace.COURSE_LEARNING.value
@@ -58,7 +57,41 @@ OP_UPDATE = "update_task"
 ALLOWED_OPS = (OP_CREATE, OP_UPDATE)
 ALLOWED_TASK_TYPES = ("knowledge", "review", "practice", "custom")
 
-STATUS_VALUES = ("not_started", "in_progress", "completed")
+# The update fields a planning suggestion may touch, and nothing else.
+#
+# `status` is deliberately NOT here. Marking a task in_progress/completed is a claim about what
+# the LEARNER has already done, and a planning model has no standing to make it: it would write
+# fabricated progress into the learner's real plan. Progress is a recorded fact, not a suggestion.
+UPDATABLE_FIELDS = ("due_date", "title")
+
+# ---------------------------------------------------------------- what a change MEANS
+
+# The learner-facing meaning of a change. DERIVED by this module from the validated mutation, and
+# never authored by the model — which is what makes the label on screen and the write that
+# happens the same thing by construction rather than by agreement.
+TYPE_INSERT = "INSERT"
+TYPE_RESCHEDULE = "RESCHEDULE"
+TYPE_REPLACE = "REPLACE"
+# Net-effect classification of the WHOLE proposal, over the same validated changes.
+TYPE_REDUCE_LOAD = "REDUCE_LOAD"
+TYPE_INCREASE_LOAD = "INCREASE_LOAD"
+
+SUPPORTED_ADJUSTMENT_TYPES = (TYPE_INSERT, TYPE_RESCHEDULE, TYPE_REPLACE,
+                              TYPE_REDUCE_LOAD, TYPE_INCREASE_LOAD)
+
+# Named so the refusal is legible rather than a generic unknown-op drop:
+#   REMOVE  — ExamStudyPlanTask has no soft-delete, and this feature deletes nothing.
+#   REORDER — ExamStudyPlanTask has no sort_order/position; order is the row id.
+UNSUPPORTED_OP_TYPES = {"remove_task": "REMOVE", "delete_task": "REMOVE", "drop_task": "REMOVE",
+                        "reorder_tasks": "REORDER", "move_task": "REORDER",
+                        "reorder": "REORDER"}
+NOT_SUPPORTED_ADJUSTMENT_TYPES = ("REMOVE", "REORDER")
+
+MAX_EVIDENCE = 2
+
+# Direction words for a date move. `due_date` is a plain YYYY-MM-DD string on the model.
+EARLIER = "earlier"
+LATER = "later"
 
 
 class PlanAdjustmentRefusal(ValueError):
@@ -147,29 +180,37 @@ def plan_identity(db: DbSession, user, space: str, *, course_id=None, exam_modul
 # ---------------------------------------------------------------- deterministic context
 
 def build_plan_context(db: DbSession, user, space: str, *, course_id=None,
-                       exam_module_id=None, language=None) -> dict:
-    """Everything the proposal may reason over — all of it already stored."""
+                       exam_module_id=None, language=None, tasks=None) -> dict:
+    """Everything the proposal may reason over — all of it already stored.
+
+    ``tasks`` may be supplied by a caller that has already read the plan, so one proposal reads
+    the task table once rather than twice.
+    """
     from learning import review as review_service
 
-    tasks = _plan_tasks(db, user, space, course_id=course_id, exam_module_id=exam_module_id,
-                        language=language)
+    if tasks is None:
+        tasks = _plan_tasks(db, user, space, course_id=course_id,
+                            exam_module_id=exam_module_id, language=language)
     today = _now().date()
-    task_views = []
+    # Counted over the WHOLE plan, not over the (truncated) list the model is shown: "2 项已逾期"
+    # is a claim about the learner's plan, and under-reporting it for a long plan would make the
+    # figure on screen disagree with the plan it describes.
     overdue = completed = 0
-    for row in tasks[:MAX_CONTEXT_TASKS]:
+    for row in tasks:
         due = _parse_due(row.due_date)
         status = (row.status or "not_started").strip() or "not_started"
         if status == "completed":
             completed += 1
         elif due is not None and due < today:
             overdue += 1
-        task_views.append({
-            "task_id": row.id,
-            "title": _bounded(row.title, 120),
-            "task_type": row.task_type,
-            "status": status,
-            "due_date": row.due_date or None,
-        })
+
+    task_views = [{
+        "task_id": row.id,
+        "title": _bounded(row.title, 120),
+        "task_type": row.task_type,
+        "status": (row.status or "not_started").strip() or "not_started",
+        "due_date": row.due_date or None,
+    } for row in tasks[:MAX_CONTEXT_TASKS]]
 
     review = review_service.review_summary(db, user, service_namespace=space)
     practice = _practice_counts(db, user, space)
@@ -227,17 +268,43 @@ def _parse_due(value):
 
 # ---------------------------------------------------------------- validation
 
-def _clean_changes(raw, task_ids: set) -> tuple[list[dict], list[dict]]:
-    """(accepted, dropped) — every change is validated against THIS plan's own tasks."""
+def _clean_changes(raw, tasks_by_id: dict) -> tuple[list[dict], list[dict]]:
+    """(accepted, dropped) — every change is validated against THIS plan's own tasks.
+
+    Each accepted change carries BOTH the mutation that will be applied and the display fields
+    derived from it (`type` / `field` / `before` / `after`). They are the same object on purpose:
+    a screen cannot show one change while the write performs another, because there is only one.
+
+    `before` is READ FROM THE PLAN, never taken from the caller. A model (or a client) that
+    claims a task's current date is something it is not cannot make that claim reach the UI or
+    the write — the value shown is the value in the plan, or the change is dropped.
+    """
     accepted, dropped = [], []
+
+    def _keep(change: dict) -> bool:
+        """Keep one change, unless the proposal is already at its bound."""
+        if len(accepted) >= MAX_CHANGES:
+            return False
+        accepted.append(change)
+        return True
+
     for item in (raw or [])[:MAX_CHANGES * 2]:
+        if len(accepted) >= MAX_CHANGES:
+            break
         if not isinstance(item, dict):
             dropped.append({"reason": "not_an_object"})
             continue
         op = str(item.get("op") or "").strip()
+        if op in UNSUPPORTED_OP_TYPES:
+            # Named explicitly: "this kind of change is not supported" is a different answer from
+            # "I did not understand the op", and the learner-facing contract says which.
+            dropped.append({"reason": "adjustment_type_not_supported",
+                            "adjustment_type": UNSUPPORTED_OP_TYPES[op], "op": op})
+            continue
         if op not in ALLOWED_OPS:
             dropped.append({"reason": "unknown_op", "op": op})
             continue
+
         if op == OP_CREATE:
             title = _bounded(item.get("title"), MAX_TITLE_CHARS)
             if not title:
@@ -246,43 +313,258 @@ def _clean_changes(raw, task_ids: set) -> tuple[list[dict], list[dict]]:
             task_type = str(item.get("task_type") or "knowledge").strip()
             if task_type not in ALLOWED_TASK_TYPES:
                 task_type = "knowledge"
-            accepted.append({"op": OP_CREATE, "title": title, "task_type": task_type,
-                             "due_date": _bounded(item.get("due_date"), 30) or None,
-                             "reason": _bounded(item.get("reason"), 200)})
-        else:
-            task_id = item.get("task_id")
-            if task_id not in task_ids:
-                # not this plan's task — never touch it
-                dropped.append({"reason": "task_not_in_this_plan", "task_id": task_id})
+            due = _bounded(item.get("due_date"), 30) or None
+            if due is not None and _parse_due(due) is None:
+                dropped.append({"reason": "invalid_due_date", "due_date": due})
                 continue
-            change = {"op": OP_UPDATE, "task_id": task_id,
-                      "reason": _bounded(item.get("reason"), 200)}
-            if item.get("due_date") is not None:
-                change["due_date"] = _bounded(item.get("due_date"), 30) or None
-            if item.get("title") is not None:
-                title = _bounded(item.get("title"), MAX_TITLE_CHARS)
-                if title:
-                    change["title"] = title
-            status = str(item.get("status") or "").strip()
-            if status in STATUS_VALUES:
-                change["status"] = status
-            if set(change) <= {"op", "task_id", "reason"}:
-                dropped.append({"reason": "no_supported_field", "task_id": task_id})
-                continue
-            accepted.append(change)
-        if len(accepted) >= MAX_CHANGES:
-            break
+            _keep({"op": OP_CREATE, "title": title, "task_type": task_type, "due_date": due,
+                   "type": TYPE_INSERT, "task_title": title, "field": "task",
+                   "before": None, "after": due})
+            continue
+
+        task_id = item.get("task_id")
+        current = tasks_by_id.get(task_id)
+        if current is None:
+            # not this plan's task — never touch it, never describe it
+            dropped.append({"reason": "task_not_in_this_plan", "task_id": task_id})
+            continue
+
+        before_due = (current.get("due_date") or "").strip() or None
+        before_title = (current.get("title") or "").strip()
+        kept = 0
+        complained = False
+
+        if item.get("due_date") is not None:
+            wanted_due = _bounded(item.get("due_date"), 30) or None
+            if wanted_due is not None and _parse_due(wanted_due) is None:
+                dropped.append({"reason": "invalid_due_date", "task_id": task_id,
+                                "due_date": wanted_due})
+                complained = True
+            elif wanted_due != before_due and _keep(
+                    {"op": OP_UPDATE, "task_id": task_id, "due_date": wanted_due,
+                     "type": TYPE_RESCHEDULE, "task_title": before_title, "field": "due_date",
+                     "before": before_due, "after": wanted_due,
+                     "direction": _direction(before_due, wanted_due)}):
+                kept += 1
+
+        if item.get("title") is not None and len(accepted) < MAX_CHANGES:
+            wanted_title = _bounded(item.get("title"), MAX_TITLE_CHARS)
+            if not wanted_title:
+                dropped.append({"reason": "empty_title", "task_id": task_id})
+                complained = True
+            elif wanted_title != before_title and _keep(
+                    {"op": OP_UPDATE, "task_id": task_id, "title": wanted_title,
+                     "type": TYPE_REPLACE, "task_title": before_title, "field": "title",
+                     "before": before_title, "after": wanted_title}):
+                kept += 1
+
+        if kept == 0 and not complained:
+            # The request named no updatable field, or named the value the plan already holds:
+            # there is nothing to tell the learner, so nothing is shown and nothing is written.
+            dropped.append({"reason": "no_supported_field", "task_id": task_id})
+
     return accepted, dropped
+
+
+def _direction(before, after) -> str | None:
+    """earlier / later for two date strings, when both are real dates."""
+    first, second = _parse_due(before), _parse_due(after)
+    if first is None or second is None or first == second:
+        return None
+    return EARLIER if second < first else LATER
+
+
+# ---------------------------------------------------------------- what the learner reads
+
+def _task_index(tasks) -> dict:
+    """task id -> the fields a change may read. The ONLY source of a change's `before`."""
+    return {row.id: {"title": row.title, "due_date": row.due_date,
+                     "status": row.status, "task_type": row.task_type}
+            for row in tasks}
+
+
+def _day_delta(before, after) -> int | None:
+    first, second = _parse_due(before), _parse_due(after)
+    if first is None or second is None:
+        return None
+    return abs((second - first).days)
+
+
+def _describe(change: dict) -> str:
+    """One change, said the way a learner would say it."""
+    title = change.get("task_title") or "计划中的一项任务"
+    if change["type"] == TYPE_INSERT:
+        return f"新增「{title}」"
+    if change["type"] == TYPE_REPLACE:
+        return f"把「{title}」替换为「{change.get('after') or '新标题'}」"
+    if change.get("after") is None:
+        return f"清除「{title}」的计划日期"
+    days = _day_delta(change.get("before"), change.get("after"))
+    if change.get("direction") == LATER:
+        return f"把「{title}」推迟 {days} 天" if days else f"把「{title}」推迟"
+    if change.get("direction") == EARLIER:
+        return f"把「{title}」提前 {days} 天" if days else f"把「{title}」提前"
+    return f"调整「{title}」的计划日期"
+
+
+def _summary(changes: list[dict]) -> str:
+    """The one-line headline. Derived from the same changes that will be applied."""
+    if not changes:
+        return ""
+    head = _describe(changes[0])
+    rest = len(changes) - 1
+    return head if not rest else f"{head}，并另外调整 {rest} 项"
+
+
+def _evidence(context: dict, changes: list[dict]) -> list[dict]:
+    """Reasons a learner can check against their own records — real stored numbers only.
+
+    Every item is a statement ABOUT A VALUE THE PLAN ALREADY HOLDS. Nothing here is inferred,
+    predicted, or phrased as a judgement about the learner: there is no mastery, no error count
+    the system did not record, and no estimate of time. An item whose number is zero is not a
+    weaker reason — it is not a reason — so it is absent rather than restated as zero.
+
+    Items that bear on what this proposal actually does are ranked first; ties go to the larger
+    number. At most ``MAX_EVIDENCE`` are returned.
+    """
+    plan = context.get("plan") or {}
+    review = context.get("review") or {}
+    practice = context.get("practice") or {}
+    by_status = review.get("by_status") or {}
+
+    inserts = [change for change in changes if change["type"] == TYPE_INSERT]
+    inserts_study = any(change.get("task_type") in ("practice", "review") for change in inserts)
+    moves_later = any(change.get("direction") == LATER for change in changes)
+    moves_earlier = any(change.get("direction") == EARLIER for change in changes)
+
+    candidates: list[dict] = []
+
+    overdue = int(plan.get("overdue") or 0)
+    if overdue:
+        candidates.append({"code": "plan_overdue", "metric": overdue,
+                           "text": f"当前有 {overdue} 项任务已逾期",
+                           "bears": moves_later or moves_earlier})
+
+    due = int(by_status.get("due") or 0)
+    if due:
+        candidates.append({"code": "review_due", "metric": due,
+                           "text": f"复习清单里有 {due} 项已经到期",
+                           "bears": inserts_study or moves_earlier})
+
+    incorrect = int(practice.get("factual_incorrect") or 0)
+    if incorrect:
+        candidates.append({"code": "practice_incorrect", "metric": incorrect,
+                           "text": f"已记录的练习中有 {incorrect} 次做错",
+                           "bears": bool(inserts)})
+
+    total = int(plan.get("total") or 0)
+    completed = int(plan.get("completed") or 0)
+    if total:
+        candidates.append({"code": "plan_progress", "metric": total - completed,
+                           "text": f"当前计划共 {total} 项，已完成 {completed} 项",
+                           "bears": bool(inserts) or moves_later})
+
+    candidates.sort(key=lambda item: (item["bears"], item["metric"]), reverse=True)
+    return [{"code": item["code"], "text": item["text"], "metric": item["metric"]}
+            for item in candidates[:MAX_EVIDENCE]]
+
+
+def _rationale(evidence: list[dict]) -> str:
+    if not evidence:
+        # No stored number bears on this change. Saying so is the honest answer; inventing a
+        # reason would be the one thing this module must never do.
+        return "这次调整只依据你计划里现有的任务，系统没有可用于判断进度的记录。"
+    return "依据你当前的记录：" + "；".join(item["text"] for item in evidence) + "。"
+
+
+def _adjustment_types(changes: list[dict]) -> list[str]:
+    """The proposal's meanings, in the canonical order — never a type it did not produce."""
+    present = {change["type"] for change in changes}
+    if any(change.get("direction") == LATER for change in changes):
+        present.add(TYPE_REDUCE_LOAD)          # tasks moved later: less load, sooner
+    if (any(change["type"] == TYPE_INSERT for change in changes)
+            or any(change.get("direction") == EARLIER for change in changes)):
+        present.add(TYPE_INCREASE_LOAD)        # something added, or brought forward
+    return [name for name in SUPPORTED_ADJUSTMENT_TYPES if name in present]
+
+
+def _overdue_count(tasks, changes: list[dict], today) -> int:
+    """Overdue AFTER the proposal — the same rule the plan itself uses, recomputed."""
+    proposed = {change["task_id"]: change.get("after") for change in changes
+                if change["type"] == TYPE_RESCHEDULE and change.get("task_id") is not None}
+    count = 0
+    for row in tasks:
+        status = (row.status or "not_started").strip() or "not_started"
+        due = _parse_due(proposed[row.id]) if row.id in proposed else _parse_due(row.due_date)
+        if status != "completed" and due is not None and due < today:
+            count += 1
+    return count
+
+
+def _impact(context: dict, changes: list[dict], tasks) -> dict:
+    """What actually changes — counted, never narrated into a forecast.
+
+    Every number here is arithmetic over the plan in front of the learner and the changes being
+    proposed. Nothing estimates effort, minutes, mastery or future performance: the plan model
+    holds none of those, so no such sentence is available to write.
+    """
+    inserted = sum(1 for change in changes if change["type"] == TYPE_INSERT)
+    rescheduled = [change for change in changes if change["type"] == TYPE_RESCHEDULE]
+    replaced = sum(1 for change in changes if change["type"] == TYPE_REPLACE)
+    moved_earlier = sum(1 for change in rescheduled if change.get("direction") == EARLIER)
+    moved_later = sum(1 for change in rescheduled if change.get("direction") == LATER)
+
+    plan = context.get("plan") or {}
+    count_before = int(plan.get("total") or len(tasks))
+    overdue_before = int(plan.get("overdue") or 0)
+    overdue_after = _overdue_count(tasks, changes, _now().date())
+
+    parts = []
+    if inserted:
+        parts.append(f"新增 {inserted} 项任务")
+    if moved_earlier:
+        parts.append(f"提前 {moved_earlier} 项")
+    if moved_later:
+        parts.append(f"推迟 {moved_later} 项")
+    if replaced:
+        parts.append(f"替换 {replaced} 项")
+
+    text = "本次调整" + ("。" if not parts else "，" + "，".join(parts) + "。")
+    if overdue_before != overdue_after:
+        text += f"计划中的逾期任务由 {overdue_before} 项变为 {overdue_after} 项。"
+    if inserted:
+        text += f"计划任务总数由 {count_before} 项变为 {count_before + inserted} 项。"
+
+    return {
+        "inserted": inserted,
+        "rescheduled": len(rescheduled),
+        "moved_earlier": moved_earlier,
+        "moved_later": moved_later,
+        "replaced": replaced,
+        "task_count_before": count_before,
+        "task_count_after": count_before + inserted,
+        "overdue_before": overdue_before,
+        "overdue_after": overdue_after,
+        "text": text,
+    }
 
 
 # ---------------------------------------------------------------- propose
 
 def propose_adjustment(db: DbSession, user, *, service_key: str, goal: str = "",
                        course_id=None, exam_module_id=None, language=None) -> dict:
-    """Ask for a bounded adjustment. WRITES NOTHING — the plan is not touched."""
+    """Ask for a bounded adjustment. WRITES NOTHING — the plan is not touched.
+
+    The model contributes CHANGES only. Everything a learner reads about those changes — what
+    they mean, why they are suggested, what they add up to — is derived here from the plan and
+    the learner's own stored records, so no sentence on screen can outrun the data behind it.
+    """
     space = _space_of(service_key)
+    tasks = _plan_tasks(db, user, space, course_id=course_id,
+                        exam_module_id=exam_module_id, language=language)
     context_facts = build_plan_context(db, user, space, course_id=course_id,
-                                       exam_module_id=exam_module_id, language=language)
+                                       exam_module_id=exam_module_id, language=language,
+                                       tasks=tasks)
     from prompts import build_plan_adjustment_messages
     messages = build_plan_adjustment_messages(context_facts, goal=_bounded(goal, 300))
 
@@ -293,12 +575,11 @@ def propose_adjustment(db: DbSession, user, *, service_key: str, goal: str = "",
     parsed = _extract_json_object(result.content or "")
     if parsed is None:
         raise PlanAdjustmentRefusal("unusable_proposal", "模型未返回可用的计划建议")
-    reason = _bounded(parsed.get("reason"), MAX_REASON_CHARS)
-    plan_task_ids = {task["task_id"] for task in context_facts["plan"]["tasks"]}
-    accepted, dropped = _clean_changes(parsed.get("changes"), plan_task_ids)
+    accepted, dropped = _clean_changes(parsed.get("changes"), _task_index(tasks))
     if not accepted:
         raise PlanAdjustmentRefusal("empty_proposal", "模型没有给出可应用的调整")
 
+    evidence = _evidence(context_facts, accepted)
     proposal_id = uuid.uuid4().hex
     identity = context_facts["plan"]["identity"]
     _emit_proposed(user, proposal_id=proposal_id, change_count=len(accepted),
@@ -313,8 +594,13 @@ def propose_adjustment(db: DbSession, user, *, service_key: str, goal: str = "",
         "subject_key": plan_subject_key(space, course_id=course_id,
                                         exam_module_id=exam_module_id, language=language),
         "plan_identity": identity,
-        "reason": reason,
+        "summary": _summary(accepted),
+        "rationale": _rationale(evidence),
+        "adjustment_types": _adjustment_types(accepted),
+        "evidence": evidence,
         "proposed_changes": accepted,
+        "impact": _impact(context_facts, accepted, tasks),
+        "can_apply": True,
         "affected_tasks": [change["task_id"] for change in accepted
                            if change.get("task_id") is not None],
         "dropped_changes": dropped,
@@ -349,7 +635,10 @@ def apply_adjustment(db: DbSession, user, *, service_key: str, plan_identity_val
     tasks = _plan_tasks(db, user, space, course_id=course_id, exam_module_id=exam_module_id,
                         language=language)
     tasks_by_id = {row.id: row for row in tasks}
-    accepted, dropped = _clean_changes(changes, {row.id: {"task_id": row.id} for row in tasks})
+    # Re-validated against the LIVE plan, through the same derivation the proposal used: because
+    # the identity matched, `before` is re-read as the same value the learner was shown, so the
+    # write cannot differ from the preview even if a client edits the payload on the way back.
+    accepted, dropped = _clean_changes(changes, _task_index(tasks))
     if not accepted:
         raise PlanAdjustmentRefusal("empty_proposal", "没有可应用的调整")
 

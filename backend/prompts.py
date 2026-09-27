@@ -363,17 +363,19 @@ DEEP_STUDY_INSTRUCTION = (
 PLAN_ADJUSTMENT_INSTRUCTION = (
     "你是一名学习规划助手。下面给出学生**当前计划**的真实状态、复习投影、练习统计与最近的"
     "学习事件。请给出一次**有界**的计划调整建议，严格返回 JSON（不要 markdown 代码块）：\n"
-    '{"reason":"为什么要这样调整（结合给定数据，80字内）",\n'
-    ' "changes":[{"op":"create_task","title":"任务标题","task_type":"knowledge|review|practice",'
-    '"due_date":"YYYY-MM-DD 或 null","reason":"理由"},\n'
+    '{"changes":[{"op":"create_task","title":"任务标题",'
+    '"task_type":"knowledge|review|practice|custom","due_date":"YYYY-MM-DD 或 null"},\n'
     '            {"op":"update_task","task_id":123,"due_date":"YYYY-MM-DD 或 null",'
-    '"title":"可选的新标题","status":"可选：not_started|in_progress|completed",'
-    '"reason":"理由"}]}'
+    '"title":"可选的新标题"}]}'
     "\n\n要求："
+    "\n- 只返回 changes，不要写任何解释性文字：调整理由由系统依据学生的真实记录生成；"
     "\n- 只能使用给定数据中出现的事实，禁止编造学生没有的课程、知识点或成绩；"
     "\n- changes 最多 5 条，优先处理逾期任务与到期复习项；"
-    "\n- update_task 只能针对 tasks 中出现的 task_id；不要删除任务；"
-    "\n- 不要做长期预测，也不要替学生决定学习目标。"
+    "\n- update_task 只能针对 tasks 中出现的 task_id，且只能修改 due_date 或 title；"
+    "\n- 不支持删除任务，也不支持调整任务顺序：这类改动不要提出；"
+    "\n- 不要修改任务状态，也不要声称学生完成了任何任务；"
+    "\n- 不要臆测学习时长、掌握程度或提分幅度——系统没有这些数据；"
+    "\n- 不要做长期规划预测，也不要替学生决定学习目标。"
 )
 
 

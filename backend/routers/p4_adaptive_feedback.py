@@ -87,9 +87,28 @@ def adaptive_practice(service_key: str = Query("course_learning"),
 # ---------------------------------------------------------------- AI feedback
 
 
-FeedbackReason = Literal[
+AnswerReason = Literal[
     "incorrect", "not_answered", "unclear", "too_shallow", "too_complex", "too_verbose",
     "too_brief", "citation_issue", "bad_code", "slow", "poor_image", "other",
+]
+
+PlanAdjustmentReason = Literal[
+    "adjustment_too_large", "adjustment_too_small", "unreasonable_timing", "too_much_work",
+    "too_little_work", "wrong_priority", "ignored_goal_or_deadline", "insufficient_reason",
+    "too_vague_to_execute", "other",
+]
+
+# The UNION is what the wire accepts. Keeping the field a closed Literal preserves the existing
+# behaviour for an unknown reason (422 at the schema boundary), while WHICH vocabulary applies is
+# decided by ``target_type`` in the service — so a cross-context reason is refused with a stated
+# code rather than silently accepted.
+FeedbackReason = Literal[
+    "incorrect", "not_answered", "unclear", "too_shallow", "too_complex", "too_verbose",
+    "too_brief", "citation_issue", "bad_code", "slow", "poor_image",
+    "adjustment_too_large", "adjustment_too_small", "unreasonable_timing", "too_much_work",
+    "too_little_work", "wrong_priority", "ignored_goal_or_deadline", "insufficient_reason",
+    "too_vague_to_execute",
+    "other",
 ]
 
 
@@ -100,6 +119,9 @@ class AIFeedbackRequest(BaseModel):
 
     request_id: str = Field(min_length=6, max_length=64)
     rating: Literal["up", "down"]
+    # WHAT is being rated. Defaulted to "answer" so every existing client keeps its exact
+    # behaviour without sending the field.
+    target_type: Literal["answer", "plan_adjustment"] = "answer"
     # ``reason`` remains the backwards-compatible primary reason. New clients submit
     # ``reasons`` so a learner can describe more than one issue in one response.
     reason: FeedbackReason | None = None
@@ -115,6 +137,7 @@ class AIFeedbackResponse(BaseModel):
 
     request_id: str
     rating: str
+    target_type: str = "answer"
     reason: str | None = None
     reasons: list[str] = Field(default_factory=list)
     comment: str = ""
@@ -201,11 +224,15 @@ def submit_ai_feedback(payload: AIFeedbackRequest, db: Session = Depends(get_db)
     The rating is stored against the request's full context (capability, model, router reason,
     latency, cost) as an audit fact. It does NOT adjust the router: ``trains_router_online``
     is false and stays false — a single dislike must never re-route anyone's next request.
+
+    ``target_type`` selects WHICH closed reason vocabulary the submission is validated against,
+    and must agree with the rated request's own capability.
     """
     try:
         return feedback_service.submit_feedback(
             db, current_user, request_id=payload.request_id, rating=payload.rating,
             reason=payload.reason, reasons=payload.reasons, comment=payload.comment,
+            target_type=payload.target_type,
             regenerated=payload.regenerated,
             switched_model=payload.switched_model,
             workflow_id=payload.workflow_id or None)

@@ -20,7 +20,8 @@ import json
 from ai.providers import FakeProvider
 from conftest import grant_unified_tier, register_and_login
 from data_plane.models import LearningEvent
-from learning.feedback import REASON_TAXONOMY
+from learning.feedback import (ANSWER_REASON_TAXONOMY, PLAN_ADJUSTMENT_REASON_TAXONOMY,
+                              REASON_TAXONOMY)
 from learning.records import taxonomy
 from models import User
 
@@ -185,3 +186,124 @@ def test_feedback_never_changes_the_live_router(client, db_session, monkeypatch)
     assert (after.model, after.provider, after.reason_code) == \
            (before.model, before.provider, before.reason_code)
     assert health().snapshot() == health_before
+
+
+# ================================================================ 5. feedback CONTEXT
+
+PLAN_ADJUST = "planning.adjust"
+
+
+def _plan_request(db, username) -> str:
+    """A request a PLAN SUGGESTION produced — the only thing a plan rating may be about."""
+    from usage.models import AIRequest
+    user = _user(db, username)
+    request_id = f"plan-adjust-{username}"
+    db.add(AIRequest(request_id=request_id, user_id=user.id, capability=PLAN_ADJUST,
+                     service_namespace="course_learning", status="settled"))
+    db.commit()
+    return request_id
+
+
+def test_the_answer_vocabulary_is_unchanged():
+    """The frozen answer set is pinned: adding a context must not have edited it."""
+    assert ANSWER_REASON_TAXONOMY == (
+        "incorrect", "not_answered", "unclear", "too_shallow", "too_complex", "too_verbose",
+        "too_brief", "citation_issue", "bad_code", "slow", "poor_image", "other")
+    # the historical name still means the answer set
+    assert REASON_TAXONOMY is ANSWER_REASON_TAXONOMY
+    # the two sets share only the word that means "none of the above" — nothing else leaked
+    assert set(ANSWER_REASON_TAXONOMY) & set(PLAN_ADJUSTMENT_REASON_TAXONOMY) == {"other"}
+
+
+def test_a_plan_rating_uses_the_plan_vocabulary(client, db_session, monkeypatch):
+    register_and_login(client, "p4_fb_plan")
+    request_id = _plan_request(db_session, "p4_fb_plan")
+
+    response = client.post(FEEDBACK, json={
+        "request_id": request_id, "rating": "down", "target_type": "plan_adjustment",
+        "reasons": ["adjustment_too_large", "ignored_goal_or_deadline"],
+        "comment": "这周我有考试，别把任务堆在一起"})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["target_type"] == "plan_adjustment"
+    assert body["reason"] == "adjustment_too_large"
+    assert body["reasons"] == ["adjustment_too_large", "ignored_goal_or_deadline"]
+    assert body["comment"] == "这周我有考试，别把任务堆在一起"
+    # the vocabulary that validated this submission is stated on the record
+    assert body["reason_taxonomy"] == list(PLAN_ADJUSTMENT_REASON_TAXONOMY)
+
+    db_session.expire_all()
+    event = (db_session.query(LearningEvent)
+             .filter(LearningEvent.user_id == _user(db_session, "p4_fb_plan").id,
+                     LearningEvent.event_type == "ai_feedback_submitted").first())
+    payload = json.loads(event.item_snapshot_json)
+    assert payload["target_type"] == "plan_adjustment"
+    assert payload["reasons"] == ["adjustment_too_large", "ignored_goal_or_deadline"]
+
+
+def test_a_plan_rating_rejects_an_answer_reason(client, db_session, monkeypatch):
+    register_and_login(client, "p4_fb_plan_cross")
+    request_id = _plan_request(db_session, "p4_fb_plan_cross")
+
+    refused = client.post(FEEDBACK, json={
+        "request_id": request_id, "rating": "down", "target_type": "plan_adjustment",
+        "reasons": ["citation_issue"]})
+    assert refused.status_code == 400, refused.text
+    assert refused.json()["detail"]["code"] == "invalid_reason"
+
+
+def test_an_answer_rating_rejects_a_plan_reason(client, db_session, monkeypatch):
+    """The default target is `answer`, so a client that never heard of contexts is unaffected."""
+    register_and_login(client, "p4_fb_answer_cross")
+    grant_unified_tier(db_session, "p4_fb_answer_cross", "standard")
+    request_id = _run_one_ai_call(client, monkeypatch, "p4_fb_answer_cross")
+
+    refused = client.post(FEEDBACK, json={
+        "request_id": request_id, "rating": "down", "reason": "too_much_work"})
+    assert refused.status_code == 400, refused.text
+    assert refused.json()["detail"]["code"] == "invalid_reason"
+
+    # …and the answer vocabulary it always had still works, on the very same request
+    ok = client.post(FEEDBACK, json={"request_id": request_id, "rating": "down",
+                                     "reason": "too_verbose"})
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["target_type"] == "answer"
+
+
+def test_a_plan_rating_cannot_be_pinned_to_an_answer_request(client, db_session, monkeypatch):
+    """Declaring the target does not make it so: the rated request's own capability decides."""
+    register_and_login(client, "p4_fb_mismatch")
+    grant_unified_tier(db_session, "p4_fb_mismatch", "standard")
+    request_id = _run_one_ai_call(client, monkeypatch, "p4_fb_mismatch")
+
+    refused = client.post(FEEDBACK, json={
+        "request_id": request_id, "rating": "down", "target_type": "plan_adjustment",
+        "reasons": ["adjustment_too_large"]})
+    assert refused.status_code == 400, refused.text
+    assert refused.json()["detail"]["code"] == "target_capability_mismatch"
+
+
+def test_an_unknown_reason_is_still_a_schema_error(client, db_session, monkeypatch):
+    """The closed-vocabulary behaviour is unchanged: an invented word never reaches the service."""
+    register_and_login(client, "p4_fb_unknown")
+    grant_unified_tier(db_session, "p4_fb_unknown", "standard")
+    request_id = _run_one_ai_call(client, monkeypatch, "p4_fb_unknown")
+
+    refused = client.post(FEEDBACK, json={"request_id": request_id, "rating": "down",
+                                          "reason": "vibes"})
+    assert refused.status_code == 422, refused.text
+
+
+def test_a_plan_rating_still_needs_a_reason_and_allows_praise(client, db_session, monkeypatch):
+    register_and_login(client, "p4_fb_plan_shape")
+    request_id = _plan_request(db_session, "p4_fb_plan_shape")
+
+    missing = client.post(FEEDBACK, json={
+        "request_id": request_id, "rating": "down", "target_type": "plan_adjustment"})
+    assert missing.status_code == 400, missing.text
+    assert missing.json()["detail"]["code"] == "reason_required"
+
+    up = client.post(FEEDBACK, json={
+        "request_id": request_id, "rating": "up", "target_type": "plan_adjustment"})
+    assert up.status_code == 200, up.text
+    assert up.json()["reason"] is None and up.json()["reasons"] == []

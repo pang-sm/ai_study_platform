@@ -485,6 +485,7 @@ def emit_ai_feedback_submitted(*, user_id: int, request_id: str, rating: str,
                                service_namespace: str | None = None,
                                capability: str | None = None, reason: str | None = None,
                                reasons: list[str] | None = None, comment: str = "",
+                               target_type: str = "",
                                model: str | None = None, provider: str | None = None,
                                latency_ms: int | None = None,
                                estimated_credits: int | None = None,
@@ -499,7 +500,7 @@ def emit_ai_feedback_submitted(*, user_id: int, request_id: str, rating: str,
                "regenerated": bool(regenerated), "switched_model": bool(switched_model)}
     for key, value in (("capability", capability), ("reason", reason), ("model", model),
                        ("provider", provider), ("workflow_id", workflow_id),
-                       ("router_reason", router_reason)):
+                       ("router_reason", router_reason), ("target_type", target_type)):
         if value:
             payload[key] = str(value)
     if reasons:

@@ -37,6 +37,14 @@ class PlanScope(BaseModel):
 
 
 class ProposedChange(BaseModel):
+    """One change, carried as BOTH the mutation to apply and the diff to display.
+
+    ``op`` / ``task_id`` / ``due_date`` / ``title`` are what ``apply`` executes. ``type`` /
+    ``field`` / ``before`` / ``after`` are derived by the server from the plan itself. They travel
+    in the same object so a screen cannot show one change while the write performs another, and so
+    ``before`` is never a value the client asserted — it is read from the plan.
+    """
+
     model_config = ConfigDict(extra="allow")
 
     op: str
@@ -44,8 +52,35 @@ class ProposedChange(BaseModel):
     title: str | None = None
     task_type: str | None = None
     due_date: str | None = None
-    status: str | None = None
-    reason: str = ""
+    type: str = ""
+    task_title: str = ""
+    field: str = ""
+    before: str | None = None
+    after: str | None = None
+    direction: str | None = None
+
+
+class PlanEvidence(BaseModel):
+    """One reason, stated as the stored number behind it."""
+
+    code: str
+    text: str
+    metric: int
+
+
+class PlanImpact(BaseModel):
+    """What changes, counted. No estimate of effort, time or future performance."""
+
+    inserted: int
+    rescheduled: int
+    moved_earlier: int
+    moved_later: int
+    replaced: int
+    task_count_before: int
+    task_count_after: int
+    overdue_before: int
+    overdue_after: int
+    text: str
 
 
 class PlanAdjustmentProposal(BaseModel):
@@ -57,8 +92,14 @@ class PlanAdjustmentProposal(BaseModel):
     service_namespace: str
     subject_key: str
     plan_identity: str
-    reason: str
+    summary: str
+    rationale: str
+    adjustment_types: list[str] = Field(default_factory=list)
+    evidence: list[PlanEvidence] = Field(default_factory=list)
     proposed_changes: list[ProposedChange] = Field(default_factory=list)
+    impact: PlanImpact
+    # False when nothing survived validation. The client must not offer to apply such a proposal.
+    can_apply: bool = False
     affected_tasks: list[int] = Field(default_factory=list)
     dropped_changes: list[dict] = Field(default_factory=list)
     plan_snapshot: dict
