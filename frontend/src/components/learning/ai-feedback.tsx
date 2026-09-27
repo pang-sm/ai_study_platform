@@ -9,6 +9,16 @@ import { cn } from '@/lib/utils';
 type Rating = 'up' | 'down';
 type Reason = FeedbackReason;
 
+const POPOVER_WIDTH = 320;
+const POPOVER_GAP = 8;
+const VIEWPORT_MARGIN = 12;
+// The panel's preferred height. A ten-reason vocabulary is taller than the room this control used
+// to assume, so the cap is applied against the space ACTUALLY available on the side it opens
+// toward, and the panel scrolls inside it. Without both, the first reasons are laid out above the
+// top of the window, where they are visible to the accessibility tree but cannot be clicked.
+const POPOVER_MAX_HEIGHT = 420;
+const POPOVER_MIN_HEIGHT = 180;
+
 export function AiFeedback({ requestId, workflowId = '', answerText = '', target = 'answer' }: {
   requestId?: string | null;
   workflowId?: string;
@@ -71,13 +81,20 @@ export function AiFeedback({ requestId, workflowId = '', answerText = '', target
     }
     const rect = downButtonRef.current?.getBoundingClientRect();
     if (rect) {
-      const width = 320;
-      const margin = 12;
-      const left = Math.min(Math.max(margin, rect.left), window.innerWidth - width - margin);
-      const opensBelow = rect.bottom + 400 < window.innerHeight;
+      const left = Math.min(Math.max(VIEWPORT_MARGIN, rect.left),
+                            window.innerWidth - POPOVER_WIDTH - VIEWPORT_MARGIN);
+      // Open toward the roomier side, and never taller than that side can actually show. The old
+      // fixed 400px test chose a side for a seven-reason list; ten reasons do not fit there and
+      // the panel ran off the top of the window.
+      const spaceBelow = window.innerHeight - rect.bottom - POPOVER_GAP - VIEWPORT_MARGIN;
+      const spaceAbove = rect.top - POPOVER_GAP - VIEWPORT_MARGIN;
+      const opensBelow = spaceBelow >= spaceAbove;
+      const maxHeight = Math.min(POPOVER_MAX_HEIGHT,
+                                 Math.max(POPOVER_MIN_HEIGHT,
+                                          opensBelow ? spaceBelow : spaceAbove));
       setPopoverPosition(opensBelow
-        ? { top: rect.bottom + 8, left }
-        : { bottom: window.innerHeight - rect.top + 8, left });
+        ? { top: rect.bottom + POPOVER_GAP, left, maxHeight }
+        : { bottom: window.innerHeight - rect.top + POPOVER_GAP, left, maxHeight });
     }
     setChoosing(true);
   };
@@ -94,7 +111,7 @@ export function AiFeedback({ requestId, workflowId = '', answerText = '', target
       <button ref={downButtonRef} type="button" title="需要改进" aria-label="需要改进" aria-pressed={selected === 'down'} aria-expanded={choosing} disabled={feedback.isPending} className={actionClass(selected === 'down')} onClick={toggleNegative}><ThumbsDown className="size-4" /></button>
       {thanks ? <span role="status" className="ml-2 inline-flex items-center gap-1 text-metadata text-success-ink"><Check className="size-3.5" />感谢反馈</span> : null}
     </div>
-    {choosing ? createPortal(<div role="dialog" aria-label="负反馈" style={popoverPosition} className="fixed z-50 w-80 rounded-xl border border-border-default bg-surface p-3 shadow-lg">
+    {choosing ? createPortal(<div role="dialog" aria-label="负反馈" style={popoverPosition} className="fixed z-50 w-80 overflow-y-auto rounded-xl border border-border-default bg-surface p-3 shadow-lg">
       <p className="text-body font-medium text-text-primary">哪里需要改进？</p>
       <div className="mt-3 space-y-1">
         {reasons.map(([value, label]) => <label key={value} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-text-secondary hover:bg-page-background"><input type="checkbox" checked={selectedReasons.includes(value)} onChange={() => toggleReason(value)} className="size-4 accent-primary" />{label}</label>)}

@@ -6,6 +6,13 @@ process.env.no_proxy = 'localhost,127.0.0.1';
 
 import { defineConfig, devices } from '@playwright/test';
 
+// The default target is the local dev server. `PA_BASE_URL` points the run at an EXTERNAL
+// acceptance server instead — the production bundle served behind a same-origin `/api` proxy —
+// and Playwright then attaches to it rather than starting a dev server of its own. That is what
+// allows an isolated run that does not depend on whatever happens to be listening on :5173.
+const externalBase = process.env.PA_BASE_URL;
+const localBase = 'http://127.0.0.1:5173';
+
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
@@ -13,18 +20,20 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
-    baseURL: 'http://127.0.0.1:5173',
+    baseURL: externalBase ?? localBase,
     trace: 'on-first-retry',
     launchOptions: {
       args: ['--no-proxy-server'],
     },
   },
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://127.0.0.1:5173',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  webServer: externalBase
+    ? undefined
+    : {
+        command: 'npm run dev',
+        url: localBase,
+        reuseExistingServer: !process.env.CI,
+        timeout: 120_000,
+      },
   projects: [
     {
       name: 'chromium',

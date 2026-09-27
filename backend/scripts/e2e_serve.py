@@ -125,11 +125,22 @@ def _plan_adjustment_content(spec) -> str | None:
 
     changes = []
     open_tasks = [task for task in tasks if task.get("status") != "completed"]
-    if open_tasks:
-        changes.append({"op": "update_task", "task_id": open_tasks[0].get("task_id"),
-                        "due_date": due})
+    # Each open task the plan actually holds is rescheduled — real ids from the learner's own
+    # plan, so every change still has to survive the route's validation on the way back. Several
+    # of them (not just the first) is what lets browser acceptance exercise the "查看调整详情"
+    # collapse with a proposal that is genuinely several changes long.
+    for task in open_tasks:
+        if (task.get("due_date") or "").strip() == due:
+            # Already at the proposed date — a no-op the route drops. Skipping it here keeps a
+            # second run of the same harness honest instead of proposing nothing.
+            continue
+        changes.append({"op": "update_task", "task_id": task.get("task_id"), "due_date": due})
+        if len(changes) >= 6:
+            break
     if goal:
-        changes.append({"op": "create_task", "title": goal[:60], "task_type": "knowledge",
+        # `practice` on purpose: it exercises the task-type label acceptance checks — a practice
+        # task must read 练习, never fall back to 知识学习.
+        changes.append({"op": "create_task", "title": goal[:60], "task_type": "practice",
                         "due_date": later})
     if not changes:
         # No tasks and no goal: there is honestly nothing to propose, and the route says so.
