@@ -20,6 +20,8 @@ import dataclasses
 import json
 from datetime import datetime, timedelta
 
+import pytest
+
 from ai.providers import FakeProvider
 from conftest import grant_unified_tier, register_and_login
 from core.learning_context import ServiceNamespace
@@ -37,6 +39,23 @@ MOMENT = datetime(2026, 9, 20, 6, 0, 0)
 NARRATIVE_TEXT = "本周期你有 2 次练习记录，其中 1 次做对。建议先订正错题。"
 
 SECRET_STEM = "这是一道不该出现在叙述提示词里的题面"
+
+
+@pytest.fixture(autouse=True)
+def _report_clock_at_moment(monkeypatch):
+    """Read the report's window against MOMENT instead of the wall clock.
+
+    The report's window is ``[now - period_days, now]``, while every fixture in this module is
+    stamped at the fixed ``MOMENT``. Left on the wall clock that window slides forward, so once
+    ``now - 7 days`` passes ``MOMENT`` the fixtures fall silently out of it and the assertions
+    fail for a reason that says nothing about the report. Pinning the report's own clock keeps
+    the fixtures and the window in the same frame of reference.
+
+    Test-only: no production behaviour, window arithmetic or assertion is changed.
+    """
+    from learning import report as report_module
+
+    monkeypatch.setattr(report_module, "_now", lambda: MOMENT)
 
 
 class _ScriptedProvider(FakeProvider):
