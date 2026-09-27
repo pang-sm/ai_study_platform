@@ -86,6 +86,8 @@
 | GET | `/exam/11408/study-plan/summary` | 学习计划汇总 |
 | GET | `/exam/11408/study-plan/tasks/summary` | 计划任务汇总 |
 | GET | `/exam/11408/subjects/{subject_key}/dashboard-summary` | 科目仪表盘汇总 |
+| GET | `/exam/11408/subjects/{subject_key}/materials` | 科目资料库（该科目的真实上传资料，按 `<module>_11408` scope） |
+| POST | `/exam/11408/subjects/{subject_key}/materials` | 上传一份资料到该科目资料库（复用统一 materials 管道） |
 | GET | `/exam/11408/subjects/{subject_key}/study-plan` | 科目学习计划 |
 | POST | `/exam/11408/subjects/{subject_key}/study-plan/tasks` | 创建计划任务 |
 | PATCH | `/exam/11408/subjects/{subject_key}/study-plan/tasks/{task_id}` | 更新任务 |
@@ -365,6 +367,13 @@
 | DELETE | `/chat/sessions/{session_id}` | 删除会话 |
 | POST | `/chat/upload` | 上传文件进行 RAG 问答 |
 | PUT | `/conversations/{conversation_id}` | 更新对话 |
+
+`POST /chat` 新增两个**可选**字段（408 知识脉络 → AI 对话使用，默认 `""`，不影响既有调用方）：
+
+- `knowledge_point_id`：本轮提问所围绕的知识点**身份**（该模块知识图发布的 code）。它进入
+  `LearningContext.knowledge_point_id` 与 `ai_requests.context_json`，**不**选择能力 / 模型 / 预算。
+- `knowledge_point_title`：该知识点的**名称**（页面上学习者看到的那一行）。仅用于告知模型，
+  不落库、不参与任何判定 —— code 是身份，title 是给模型读的，两者不可互相替代。
 
 ### 6.2 各业务域 AI 能力（出题/解析/诊断/生成）
 > 已在对应模块列出，这里集中索引：
@@ -787,3 +796,53 @@ FastAPI 路由表直接生成，可重跑比对漂移）。
 - CORS 仅允许 `http://localhost:5173` 与 `http://127.0.0.1:5173`（开发服务器），与新前端无关，无需改动。
 - 后端无前端跳转 URL（`success_url` / `cancel_url` / `return_url` / `window.location`）耦合；支付回调为后端 webhook 端点。
 - 唯一残留的前端数据文件依赖：`backend/scripts/audit_programming_exercises.py` 与 `backend/scripts/localize_all_exercism.py` 读取 `frontend/src/components/programmingExerciseCopy.js`（编程题中文文案映射），该文件在本次清理中被保留。
+
+## ZHIXUE_PRODUCT_IA_AND_LEARNING_SURFACES_V2：会员档位价格进入契约（ADDITIVE）
+
+**`GET /subscription/plans` 新增两个档位字段** —— `price_cents`（`int | null`）与
+`duration_days`（`int | null`），来源是 `usage/service.py` 的 `UNIFIED_PLAN_PRICING`
+（即 `create_pending_order` 计价所用的同一个常量）。
+
+- **纯新增**：不删除、不改名、不改义任何已有字段；`label` / `daily_budget` /
+  `weekly_budget` / `capabilities` 完全不变。
+- **为什么加**：会员页要展示价格，而此前唯一的价格来源是后端常量本身。前端若自行
+  写死 ¥29 / ¥149，页面就可能与订单实际收取的金额不一致 —— 这是「展示价 ≠ 结算价」
+  这一类缺陷的根源。把价格放进契约后，页面显示的数字只能是订单会收的数字。
+- **`null` 的含义**：`free` 档不可下单，因此没有价格。`null` 是**缺席**，不是 0；
+  前端渲染为「免费」，不渲染为「¥0.00」。
+- **未改动**：价格数值本身未变（standard 2900 / advanced 14900 分，30 天），
+  daily / weekly 额度未变，`UNIFIED_PLAN_PRICING` 未变。成本与定价分析见根目录
+  `ZHIXUE_MEMBERSHIP_COST_AUDIT.md`（该文件只给建议，未改任何预算或价格）。
+
+**learner UI 变更（无契约影响）** —— 兑换码入口从会员页移除：该机制由管理员生成、
+管理员交付，对学习者不构成可完成的路径。后端 `/subscription/redeem*` 与
+`/admin/membership/redemption-codes` 端点**保留不动**。会员页新增 `/membership/payment`
+路由，真实调用 `POST /subscription/orders` 与 `POST /subscription/orders/{id}/pay`；
+支付未开通时如实呈现服务端 403，**不模拟支付成功**。
+
+## ZHIXUE_V2_FINAL_FIX：自命题专业课 + 课程推荐来源（ADDITIVE）
+
+**`GET/PUT /exam/prep/profile` 新增 `custom_subjects`（新增字段，非新增 subject）**
+
+一个学习者**自己命名**的专业课（自命题专业课）。它是一个**独立数组**，不是 `subjects` 里的一员：
+
+- **不进入全国统考目录。** `exam_prep.catalog` 是冻结配置（14 个科目），把自命题课加进去等于宣称第 15 个
+  全国科目存在且背后有内容 —— 而它既不属于统考，也没有题库。
+- **形状**：`custom_subjects: [{id: "custom_<sha1前10>", name: "<用户输入>"}]`，`id` 由**名称派生**
+  （同一名称重复保存保持同一身份，深链不会因再次保存而失效），并且带 `custom_` 前缀，永远不会与目录 id 相撞。
+- **写入**：`PUT` 接受 `custom_subjects: string[]`（**名称**，不是 id —— id 由服务端拥有，客户端不能指定，
+  否则一个学习者就能寻址另一个人的科目）。空数组表示清空；名称去空白、去重、上限 20 条、每条 60 字。
+- **不伪造内容**：没有题库、没有知识点树、没有 availability。前端对它只显示诚实空态
+  「暂未内置题库，可添加资料建立自己的学习内容。」，且**不提供**「进入学习」入口。
+- **存储**：`exam_prep_profiles.custom_subjects_json`（ADDITIVE 列，默认 `[]`，无回填）。
+  Alembic `20260921_0014`。revision 的 `revision` / `down_revision` 采用**带注解**写法，
+  与既有迁移一致 —— 迁移链的 AST 读取器只认注解赋值。
+
+**`GET /subscription/plans` 的价格字段**（`price_cents` / `duration_days`）见上一节，本轮未再变动。
+
+**`GET/PUT /course-learning/onboarding` 新增 `recommended_courses: string[]`（ADDITIVE）**
+
+学习者从**智学AI推荐学习框架**里确认采纳的课程名子集。**来源必须在采纳时记录**：
+推荐随专业、年级与目录变化，事后重算无法还原当时的选择，而学习者自己输入的课程从来就不是推荐。
+读取时与现存 `selected_courses` **取交集**，因此被移除的课程不会留着「推荐」标记。
+前端据此在 `/course` 的分 band 列表上标注哪些来自推荐框架，其余**不标注**。

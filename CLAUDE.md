@@ -126,6 +126,9 @@
 - 图标统一 lucide-react，禁止混用 Emoji / 随机 SVG。
 - 按钮统一 Primary / Secondary / Ghost / Danger，一个视觉区域原则上一个 Primary，使用动作型文案。
 - 完整处理 loading（Skeleton 优先）/ empty / error 状态；responsive（Desktop / Tablet / Mobile）；accessibility。
+- **学生端不得出现内部研发 / 工程术语**：`实验` / `实验视图` / `自研确定性学习状态引擎` / `Student Twin` /
+  `Scientific Runtime` / 内部字段名与科研术语一律不得进入学生可见文案（含 loading / empty / error 态与无障碍名）。
+  学生端只显示学习结果；措辞规则见「模型能力边界（长期）」的术语分层与 SSOT「StudentTwin 冻结状态」。
 - 页面完成后执行 `frontend-review`（`/frontend-review`）与 `zhixue-ui-acceptance`。Dashboard Detection：删除 Logo 后若仍像典型 admin / SaaS dashboard，则 UI 验收 FAIL。
 
 ## 后端修改红线（长期）
@@ -147,9 +150,20 @@
 - 13 个 scientific component 中，当前 `runtime pass = 13 / 13`，但 **runtime ready ≠ product ready**。
   当前 `USER_VISIBLE_PREVIEW = 1`（`student_twin`）、`RUNTIME_ONLY = 12`、`ADVISORY = 0`、`ACTIVE = 0`。
   仅 `student_twin` 有正式 Product Backend 链，且 `controls_product_decision = false`、`writes_learner_fact = false`；
-  其 `MVP_TARGET = USER_VISIBLE_PREVIEW`，用户可见功能 = **学习状态实验视图**（确定性学习状态引擎（实验），
-  **不是**掌握度预测 / 神经网络 / 掌握概率）。权威状态见 SSOT「StudentTwin 冻结状态」。
+  其 `MVP_TARGET = USER_VISIBLE_PREVIEW`，学生端页面 = **学习状态**（页面路由 `/exam/cs408/state`）；
+  科学语义仍是「确定性学习状态引擎（实验）」，**不是**掌握度预测 / 神经网络 / 掌握概率。
+  权威状态见 SSOT「StudentTwin 冻结状态」。
   `misconception_v2` 与 `tutor_policy` 只有 SHADOW 桥，**未晋升**（`RUNTIME_PROVISIONED ≠ PRODUCT_ELIGIBLE`）。
+- **术语分层（长期，CS408_FINAL_RULES 收口）**：内部技术定义与用户可见文案是两回事，**内部定义一条都不删**。
+  - 内部研发 / 工程术语（保留，可出现在 SSOT、代码、设计文档、后台与日志）：
+    `确定性学习状态引擎（实验）` / `Student Twin` / `Scientific Runtime` / `events_seen` /
+    `controls_product_decision` / `writes_learner_fact`。
+  - **这些内部术语不得直接展示在学生端 UI**，包括 loading / empty / error 态、无障碍名与 alt。
+  - 学生端统一使用：**学习状态**。
+  - 学生端允许的唯一一句说明：「基于你的真实学习记录计算。它不参与判分，也不会改写你的知识状态、错题或学习计划。」
+  - 术语分层**不是**语义放宽：`controls_product_decision = false` / `writes_learner_fact = false` 永久有效，
+    禁止表述（掌握率 / 能力预测 / 掌握概率 / 神经网络）不变。
+  - 执行守卫：`frontend/src/test/learner-metadata-leakage.test.tsx` 的 `INTERNAL_VOCABULARY`。
 - 任何 scientific component 上线必须通过 Productization Gate：
   `Runtime Pass → Input Availability → Ontology Compatibility → Domain Compatibility → Offline Validation → Shadow → Decision Influence → Production`。
 - 禁止改写 FROZEN 科学语义：
