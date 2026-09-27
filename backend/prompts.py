@@ -360,17 +360,25 @@ DEEP_STUDY_INSTRUCTION = (
 )
 
 
+# A stable opening sentence, so a caller can recognise this prompt without reproducing it — the
+# E2E harness answers exactly this one and nothing else.
+PLAN_ADJUSTMENT_MARKER = "你是一名学习规划助手"
+
+# `TASK_TYPES` is substituted with the TARGET SPACE's own vocabulary (see
+# learning.spaces.plan_task_types). It is a plain token rather than a `str.format` field because
+# the instruction contains a JSON example whose braces would otherwise have to be escaped.
 PLAN_ADJUSTMENT_INSTRUCTION = (
     "你是一名学习规划助手。下面给出学生**当前计划**的真实状态、复习投影、练习统计与最近的"
     "学习事件。请给出一次**有界**的计划调整建议，严格返回 JSON（不要 markdown 代码块）：\n"
     '{"changes":[{"op":"create_task","title":"任务标题",'
-    '"task_type":"knowledge|review|practice|custom","due_date":"YYYY-MM-DD 或 null"},\n'
+    '"task_type":"TASK_TYPES","due_date":"YYYY-MM-DD 或 null"},\n'
     '            {"op":"update_task","task_id":123,"due_date":"YYYY-MM-DD 或 null",'
     '"title":"可选的新标题"}]}'
     "\n\n要求："
     "\n- 只返回 changes，不要写任何解释性文字：调整理由由系统依据学生的真实记录生成；"
     "\n- 只能使用给定数据中出现的事实，禁止编造学生没有的课程、知识点或成绩；"
     "\n- changes 最多 5 条，优先处理逾期任务与到期复习项；"
+    "\n- create_task 的 task_type 只能取：TASK_TYPES；"
     "\n- update_task 只能针对 tasks 中出现的 task_id，且只能修改 due_date 或 title；"
     "\n- 不支持删除任务，也不支持调整任务顺序：这类改动不要提出；"
     "\n- 不要修改任务状态，也不要声称学生完成了任何任务；"
@@ -379,15 +387,25 @@ PLAN_ADJUSTMENT_INSTRUCTION = (
 )
 
 
-def build_plan_adjustment_messages(facts: dict, goal: str = "") -> list[dict]:
-    """The ONLY thing the planning model sees: the learner's real plan and real facts."""
+def plan_adjustment_system_prompt(task_types=()) -> str:
+    """This proposal's system prompt, specialised to the target space's task vocabulary."""
+    allowed = "|".join(task_types) if task_types else "knowledge"
+    return PLAN_ADJUSTMENT_INSTRUCTION.replace("TASK_TYPES", allowed)
+
+
+def build_plan_adjustment_messages(facts: dict, goal: str = "", task_types=()) -> list[dict]:
+    """The ONLY thing the planning model sees: the learner's real plan and real facts.
+
+    ``task_types`` is the target space's own vocabulary. The model is TOLD it rather than left to
+    guess, so a proposal cannot name a kind the space would have to reject on the way back.
+    """
     import json as _json
 
     payload = _json.dumps(facts, ensure_ascii=False, sort_keys=True, default=str)
     parts = [f"学生当前状态：\n{payload}"]
     if goal:
         parts.append(f"学生本次的目标/偏好：{goal}")
-    return [{"role": "system", "content": PLAN_ADJUSTMENT_INSTRUCTION},
+    return [{"role": "system", "content": plan_adjustment_system_prompt(task_types)},
             {"role": "user", "content": "\n\n".join(parts)}]
 
 

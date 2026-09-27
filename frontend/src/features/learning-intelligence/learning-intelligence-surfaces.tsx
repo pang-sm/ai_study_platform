@@ -13,7 +13,7 @@ import { eventTypeLabel } from '@/features/records/event-labels';
 import { useApplyPlanProposal, useLearningReport, usePlanProposal, useWrongAnalysis, type LearningReport, type PlanProposal, type WrongAnalysis } from './api';
 import { safeActionHref, type LearningScope } from './presentation';
 import { AiFeedback } from '@/components/learning/ai-feedback';
-import { REASON_LABELS, originLabel } from '@/lib/fact-labels';
+import { REASON_LABELS, TASK_TYPE_LABELS, originLabel } from '@/lib/fact-labels';
 import { usageCreditsText, vocabularyText } from '@/lib/learner-safe';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -474,16 +474,10 @@ export function DynamicPlanSurface({ scope, scopeSelect }: { scope: LearningScop
 }
 
 /**
- * A task type, in the learner's words. The keys are the backend's own `task_type` values
- * (`learning/plan_adjustment.py::ALLOWED_TASK_TYPES`) — a value this map does not know is shown
- * as a plain practice-style label rather than being silently relabelled as something it is not.
+ * A task type, in the learner's words — from the shared label registry rather than a second list
+ * here, so a kind is spelled the same wherever it appears. A kind the registry does not know is
+ * shown as a plain `任务` rather than silently relabelled as something it is not.
  */
-const TASK_TYPE_TEXT: Record<string, string> = {
-  knowledge: '知识学习',
-  practice: '练习',
-  review: '复习',
-  custom: '自定义',
-};
 const FALLBACK_TASK_TYPE = '任务';
 
 const text = (value: unknown) => (typeof value === 'string' && value.trim() ? value : undefined);
@@ -548,7 +542,7 @@ function ChangeRow({ change }: { change: Record<string, unknown> }) {
   const title = text(change.task_title) ?? '计划中的一项任务';
 
   if (field === 'task') {
-    const kind = TASK_TYPE_TEXT[text(change.task_type) ?? ''] ?? FALLBACK_TASK_TYPE;
+    const kind = TASK_TYPE_LABELS[text(change.task_type) ?? ''] ?? FALLBACK_TASK_TYPE;
     return (
       <li className="border-b border-border-default pb-3">
         <p className="flex flex-wrap items-center gap-2 text-body text-text-primary">

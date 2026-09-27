@@ -237,12 +237,19 @@ export const JUDGE_LABELS: Record<string, string> = {
   ai_graded: 'AI 判分',
 };
 
-/** `task_type` on a plan task. */
+/**
+ * `task_type` on a plan task.
+ *
+ * These are the kinds a plan can actually hold, one list per space in
+ * `backend/learning/spaces/plan_task_types.py`. `practice` and `custom` are deliberately absent:
+ * they had no completion rule anywhere and were reachable only through a validator that has been
+ * closed, so labelling them would describe a task state the product cannot produce.
+ */
 export const TASK_TYPE_LABELS: Record<string, string> = {
   knowledge: '知识点学习',
+  chapter_practice: '章节练习',
   review: '复习',
-  practice: '练习',
-  custom: '自定义',
+  exercise: '编程练习',
 };
 
 /** `file_type` on a study material — an extension, not a word. */

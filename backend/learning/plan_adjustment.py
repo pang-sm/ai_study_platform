@@ -40,6 +40,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session as DbSession
 
 from core.learning_context import ServiceNamespace, normalize_service_namespace
+from learning.spaces.plan_task_types import plan_task_types
 
 logger = logging.getLogger("learning.plan_adjustment")
 
@@ -55,7 +56,8 @@ PROG = ServiceNamespace.PROGRAMMING.value
 OP_CREATE = "create_task"
 OP_UPDATE = "update_task"
 ALLOWED_OPS = (OP_CREATE, OP_UPDATE)
-ALLOWED_TASK_TYPES = ("knowledge", "review", "practice", "custom")
+# The task kind used when a proposal does not name one. Legal in every space's vocabulary.
+DEFAULT_TASK_TYPE = "knowledge"
 
 # The update fields a planning suggestion may touch, and nothing else.
 #
@@ -268,7 +270,7 @@ def _parse_due(value):
 
 # ---------------------------------------------------------------- validation
 
-def _clean_changes(raw, tasks_by_id: dict) -> tuple[list[dict], list[dict]]:
+def _clean_changes(raw, tasks_by_id: dict, allowed_task_types: tuple) -> tuple[list[dict], list[dict]]:
     """(accepted, dropped) — every change is validated against THIS plan's own tasks.
 
     Each accepted change carries BOTH the mutation that will be applied and the display fields
@@ -310,9 +312,15 @@ def _clean_changes(raw, tasks_by_id: dict) -> tuple[list[dict], list[dict]]:
             if not title:
                 dropped.append({"reason": "missing_title"})
                 continue
-            task_type = str(item.get("task_type") or "knowledge").strip()
-            if task_type not in ALLOWED_TASK_TYPES:
-                task_type = "knowledge"
+            task_type = str(item.get("task_type") or DEFAULT_TASK_TYPE).strip()
+            # The kind must be one the TARGET SPACE can own and complete. Rewriting an
+            # unsupported kind would put a task in the plan that was never proposed, so the
+            # change is dropped and says why instead.
+            if task_type not in allowed_task_types:
+                dropped.append({"reason": "task_type_not_supported_in_space",
+                                "task_type": task_type,
+                                "allowed": list(allowed_task_types)})
+                continue
             due = _bounded(item.get("due_date"), 30) or None
             if due is not None and _parse_due(due) is None:
                 dropped.append({"reason": "invalid_due_date", "due_date": due})
@@ -433,7 +441,11 @@ def _evidence(context: dict, changes: list[dict]) -> list[dict]:
     by_status = review.get("by_status") or {}
 
     inserts = [change for change in changes if change["type"] == TYPE_INSERT]
-    inserts_study = any(change.get("task_type") in ("practice", "review") for change in inserts)
+    # An insert that is not a plain knowledge task bears on the review / practice evidence. Read
+    # as "not knowledge" rather than a list of the other kinds, so a space's vocabulary can change
+    # without this drifting out of step with it.
+    inserts_study = any((change.get("task_type") or DEFAULT_TASK_TYPE) != DEFAULT_TASK_TYPE
+                        for change in inserts)
     moves_later = any(change.get("direction") == LATER for change in changes)
     moves_earlier = any(change.get("direction") == EARLIER for change in changes)
 
@@ -566,7 +578,8 @@ def propose_adjustment(db: DbSession, user, *, service_key: str, goal: str = "",
                                        exam_module_id=exam_module_id, language=language,
                                        tasks=tasks)
     from prompts import build_plan_adjustment_messages
-    messages = build_plan_adjustment_messages(context_facts, goal=_bounded(goal, 300))
+    messages = build_plan_adjustment_messages(context_facts, goal=_bounded(goal, 300),
+                                              task_types=plan_task_types(space))
 
     execution_context = _context_for(user, space, course_id=course_id,
                                      exam_module_id=exam_module_id, language=language)
@@ -575,7 +588,8 @@ def propose_adjustment(db: DbSession, user, *, service_key: str, goal: str = "",
     parsed = _extract_json_object(result.content or "")
     if parsed is None:
         raise PlanAdjustmentRefusal("unusable_proposal", "模型未返回可用的计划建议")
-    accepted, dropped = _clean_changes(parsed.get("changes"), _task_index(tasks))
+    accepted, dropped = _clean_changes(parsed.get("changes"), _task_index(tasks),
+                                       plan_task_types(space))
     if not accepted:
         raise PlanAdjustmentRefusal("empty_proposal", "模型没有给出可应用的调整")
 
@@ -638,7 +652,7 @@ def apply_adjustment(db: DbSession, user, *, service_key: str, plan_identity_val
     # Re-validated against the LIVE plan, through the same derivation the proposal used: because
     # the identity matched, `before` is re-read as the same value the learner was shown, so the
     # write cannot differ from the preview even if a client edits the payload on the way back.
-    accepted, dropped = _clean_changes(changes, _task_index(tasks))
+    accepted, dropped = _clean_changes(changes, _task_index(tasks), plan_task_types(space))
     if not accepted:
         raise PlanAdjustmentRefusal("empty_proposal", "没有可应用的调整")
 

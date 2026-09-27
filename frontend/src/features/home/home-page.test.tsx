@@ -78,7 +78,7 @@ const AGENDA = {
       summary: '计划内任务（无截止日期）',
       priority_reason: 'current_plan_task',
       deep_link: '/exam/cs408/plan',
-      facts: { status: 'open', task_type: 'practice' },
+      facts: { status: 'open', task_type: 'review' },
       status: 'open',
     }),
   ],

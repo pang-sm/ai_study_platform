@@ -28,14 +28,15 @@ from sqlalchemy.orm import Session
 from database import get_db
 from learning.records import service as records_service
 from learning.records.contract import RecordPage, RecordsSummaryResponse, RecordView
+from learning.spaces.plan_task_types import PROGRAMMING_TASK_TYPES
 from learning.spaces.programming import context as programming_context
 from learning.spaces.programming import service as programming_service
 
 router = APIRouter(prefix="/programming", tags=["programming"])
 
-# The task kinds a programming plan may contain. A closed set, because an open string
-# would let a client file an exam task type into a programming plan.
-PROGRAMMING_TASK_TYPES = ("knowledge", "exercise", "project", "review")
+# `PROGRAMMING_TASK_TYPES` is imported, not defined here: a closed set for the programming plan,
+# and the same one plan adjustment validates a proposal against. It lives in
+# learning.spaces.plan_task_types so there is exactly one definition per space.
 
 # Task statuses the shared task row accepts. Same vocabulary the course and exam
 # directions use — the plan page renders them identically.

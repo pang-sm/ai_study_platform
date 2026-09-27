@@ -41,7 +41,7 @@ const proposal: PlanProposal = {
     { op: 'update_task', task_id: 1, due_date: '2026-09-30', type: 'RESCHEDULE',
       task_title: '进程调度复习', field: 'due_date', before: '2026-10-05', after: '2026-09-30',
       direction: 'earlier' },
-    { op: 'create_task', task_id: null, title: '进程调度专项练习', task_type: 'practice',
+    { op: 'create_task', task_id: null, title: '进程调度专项练习', task_type: 'chapter_practice',
       due_date: '2026-09-30', type: 'INSERT', task_title: '进程调度专项练习', field: 'task',
       before: null, after: '2026-09-30' },
   ],
@@ -134,11 +134,13 @@ describe('DynamicPlanSurface', () => {
     expect(screen.getByText('这份建议还没有应用到你的计划。')).toBeInTheDocument();
   });
 
-  it('names an inserted task by its type, and a practice task is not called knowledge', async () => {
+  it('names an inserted task by its own type, never by another type or a fallback', async () => {
     await showProposal();
-    // `practice` is the backend's own value; the map must not fall back to 知识学习
-    expect(screen.getByText('练习')).toBeInTheDocument();
-    expect(screen.queryByText('知识学习')).not.toBeInTheDocument();
+    // `chapter_practice` is a real plan task kind (the exam space's); it must be shown as its own
+    // label rather than falling back to 任务 or being relabelled as another kind.
+    expect(screen.getByText('章节练习')).toBeInTheDocument();
+    expect(screen.queryByText('知识点学习')).not.toBeInTheDocument();
+    expect(screen.queryByText('任务')).not.toBeInTheDocument();
   });
 
   it('shows a REPLACE as the old title and the new one', async () => {

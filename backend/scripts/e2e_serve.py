@@ -90,9 +90,9 @@ def _plan_adjustment_content(spec) -> str | None:
     """
     import json
 
-    from prompts import PLAN_ADJUSTMENT_INSTRUCTION
+    from prompts import PLAN_ADJUSTMENT_MARKER
 
-    if not any((message.content or "").strip() == PLAN_ADJUSTMENT_INSTRUCTION.strip()
+    if not any(PLAN_ADJUSTMENT_MARKER in (message.content or "")
                for message in spec.messages):
         return None
 
@@ -138,9 +138,10 @@ def _plan_adjustment_content(spec) -> str | None:
         if len(changes) >= 6:
             break
     if goal:
-        # `practice` on purpose: it exercises the task-type label acceptance checks — a practice
-        # task must read 练习, never fall back to 知识学习.
-        changes.append({"op": "create_task", "title": goal[:60], "task_type": "practice",
+        # `review` because it is a kind every space's plan can actually own and complete
+        # (learning.spaces.plan_task_types). The harness must not invent a task kind the product
+        # could never produce — an earlier revision asked for `practice`, which no space accepts.
+        changes.append({"op": "create_task", "title": goal[:60], "task_type": "review",
                         "due_date": later})
     if not changes:
         # No tasks and no goal: there is honestly nothing to propose, and the route says so.

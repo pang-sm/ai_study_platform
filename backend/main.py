@@ -20691,13 +20691,19 @@ def create_exam_study_plan_task(
     user = current_user
     now = utc_now()
     kp_name = req.knowledge_point_name or ""
+    # An exam-prep plan task must be a kind its own completion rule can finish; the shared
+    # definition is the same one plan adjustment validates against.
+    from learning.spaces.plan_task_types import EXAM_PREP_TASK_TYPES
+    task_type = (req.task_type or "knowledge").strip()
+    if task_type not in EXAM_PREP_TASK_TYPES:
+        raise HTTPException(status_code=400, detail=f"Invalid task_type: {task_type}")
     task = models.ExamStudyPlanTask(
         username=user.username,
         subject_key=subject_key,
         title=req.title,
         knowledge_point_name=kp_name,
         scope_type=req.scope_type or "single",
-        task_type=req.task_type or "knowledge",
+        task_type=task_type,
         status="not_started",
         due_date=req.due_date or "",
         note=req.note or "",
@@ -20739,7 +20745,13 @@ def update_exam_study_plan_task(
     if req.scope_type is not None:
         task.scope_type = req.scope_type
     if req.task_type is not None:
-        task.task_type = req.task_type
+        # Same shared vocabulary as the create path: an edit must not be able to reach a kind
+        # whose completion rule does not exist.
+        from learning.spaces.plan_task_types import EXAM_PREP_TASK_TYPES
+        candidate = (req.task_type or "").strip()
+        if candidate not in EXAM_PREP_TASK_TYPES:
+            raise HTTPException(status_code=400, detail=f"Invalid task_type: {candidate}")
+        task.task_type = candidate
     if req.due_date is not None:
         task.due_date = req.due_date
     if req.note is not None:
@@ -20789,9 +20801,15 @@ def create_course_learning_study_plan_task(
     if not (req.knowledge_point_name or "").strip() and (req.scope_type or "single") != "all":
         raise HTTPException(status_code=400, detail="knowledge_point_name is required when scope_type is not 'all'")
     task_type = req.task_type or "knowledge"
+    # The space's own vocabulary, from the ONE definition every plan-task writer shares
+    # (learning.spaces.plan_task_types) — a second hardcoded list here is how this endpoint and
+    # the plan-adjustment path came to disagree.
+    from learning.spaces.plan_task_types import COURSE_LEARNING_TASK_TYPES
     if task_type == "chapter_practice":
+        # Kept as its own refusal: chapter practice is a REAL task kind that belongs to another
+        # space, so "not available for course learning" says more than a generic rejection would.
         raise HTTPException(status_code=400, detail="chapter_practice is not available for course learning")
-    if task_type not in {"knowledge", "review"}:
+    if task_type not in COURSE_LEARNING_TASK_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid task_type: {task_type}")
 
     user = current_user
@@ -20843,9 +20861,12 @@ def update_course_learning_study_plan_task(
     if req.scope_type is not None:
         task.scope_type = req.scope_type
     if req.task_type is not None:
+        # Same shared vocabulary as the create path — an edit must not be able to reach a kind
+        # the creation endpoint would have refused.
+        from learning.spaces.plan_task_types import COURSE_LEARNING_TASK_TYPES
         if req.task_type == "chapter_practice":
             raise HTTPException(status_code=400, detail="chapter_practice is not available for course learning")
-        if req.task_type not in {"knowledge", "review"}:
+        if req.task_type not in COURSE_LEARNING_TASK_TYPES:
             raise HTTPException(status_code=400, detail=f"Invalid task_type: {req.task_type}")
         task.task_type = req.task_type
     if req.due_date is not None:

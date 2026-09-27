@@ -849,6 +849,32 @@ FastAPI 路由表直接生成，可重跑比对漂移）。
 
 ---
 
+## TASK_TYPE_CONTRACT_CLOSURE：计划任务的 `task_type` 收敛为每个学习空间唯一一套
+
+`ExamStudyPlanTask` 是三个学习空间共用的一张表，但**各空间能拥有的任务种类不同**，因为「完成」
+的判定是空间独有的。唯一权威定义：`backend/learning/spaces/plan_task_types.py`。
+
+| 空间 | `task_type` 允许值 |
+|---|---|
+| `course_learning` | `knowledge` / `review` |
+| `exam_prep`（11408 等） | `knowledge` / `chapter_practice` / `review` |
+| `programming` | `knowledge` / `exercise` / `project` / `review` |
+
+**三个创建入口 + 计划调整，全部校验同一套词表**：
+`POST /course-learning/study-plan/tasks`、`POST /exam/11408/subjects/{k}/study-plan/tasks`、
+`POST /programming/plan/tasks`，以及 `POST /ai/plan-adjustment/apply` 的 `create_task`。
+不再存在第二份 hardcoded 名单。
+
+**`practice` / `custom` 不再是合法任务类型。** 计划列表的状态由
+`main._compute_task_completion` 推导，它只实现了 `knowledge` / `chapter_practice` / `review`
+三个分支；其他值会永远停在「等待开始」，学习者无法完成。这两个值此前只有计划调整能写入，
+现已关闭：`dropped_changes.reason = "task_type_not_supported_in_space"`。
+`chapter_practice` 在课程空间仍保留**具名**拒绝（「课程学习不使用章节练习任务」），因为它是
+另一个空间真实存在的类型，具名比笼统拒绝更有说明力。
+
+`POST /ai/plan-adjustment` 的模型提示词会按目标空间给出允许值（
+`prompts.plan_adjustment_system_prompt`），因此模型不会提出一个注定被拒的种类。
+
 ## PLAN_ADJUSTMENT_PRACTICALITY：计划调整变更为可审阅、可执行的调整
 
 ### `POST /ai/plan-adjustment` 的响应由「一段模型文案 + 裸字段」改为结构化建议

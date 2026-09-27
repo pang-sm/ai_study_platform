@@ -15,7 +15,7 @@ const summary: DashboardSummary = {
   },
   today_plan: [
     { id: 1, title: '复习线性表', knowledge_point_name: '线性表', task_type: 'knowledge', computed_status: 'in_progress', due_date: '2026-09-17' },
-    { id: 2, title: '完成栈练习', knowledge_point_name: '', task_type: 'practice', computed_status: 'not_started', due_date: '' },
+    { id: 2, title: '完成栈练习', knowledge_point_name: '', task_type: 'chapter_practice', computed_status: 'not_started', due_date: '' },
     { id: 3, title: '不应展示的任务', knowledge_point_name: '队列', task_type: 'knowledge', computed_status: 'not_started', due_date: '' },
   ],
   materials: { lecture_notes: 2, exercises: 1, references: 0, code_examples: 0, total_materials: 3 },

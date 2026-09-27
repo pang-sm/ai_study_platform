@@ -103,7 +103,7 @@ def test_the_proposal_does_not_mutate_the_plan(client, db_session, monkeypatch):
 
     captured: list[str] = []
     monkeypatch.setattr("ai.orchestrator.default_provider_factory", _provider(
-        [{"op": "create_task", "title": "补做线性表练习", "task_type": "practice",
+        [{"op": "create_task", "title": "补做线性表练习", "task_type": "review",
           "due_date": "2026-09-22", "reason": "逾期"},
          {"op": "update_task", "task_id": overdue.id, "due_date": "2026-09-23",
           "reason": "顺延"}],
@@ -325,7 +325,7 @@ def test_a_move_carries_its_before_from_the_plan_and_its_meaning_from_the_mutati
 
     body = _propose_body(client, monkeypatch, [
         {"op": "update_task", "task_id": task.id, "due_date": "2026-09-30"},
-        {"op": "create_task", "title": "进程调度专项练习", "task_type": "practice",
+        {"op": "create_task", "title": "进程调度专项练习", "task_type": "review",
          "due_date": "2026-09-30"}])
 
     moved, added = body["proposed_changes"]

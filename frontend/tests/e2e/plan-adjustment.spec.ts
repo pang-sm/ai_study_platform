@@ -172,14 +172,15 @@ test('a reschedule reads as 原计划 / 调整后, and an insert names its own t
   await expect(row.locator('div', { hasText: '调整后：' }))
     .toContainText(isoToCnDate(reschedule!.after!));
 
-  // INSERT: named, dated, and typed — a practice task reads 练习 and never 知识学习
+  // INSERT: named, dated, and typed. The kind is one the course space can actually hold
+  // (learning.spaces.plan_task_types) and it reads as its own label, never another kind's.
   const insert = proposal.proposed_changes.find((change) => change.type === 'INSERT');
   expect(insert, 'a goal produces an insert').toBeTruthy();
-  expect(insert!.task_type).toBe('practice');
+  expect(insert!.task_type).toBe('review');
   const insertRow = changeRow(page, insert!.task_title);
   await expect(insertRow).toContainText('新增');
-  await expect(insertRow).toContainText('练习');
-  await expect(insertRow).not.toContainText('知识学习');
+  await expect(insertRow).toContainText('复习');
+  await expect(insertRow).not.toContainText('知识点学习');
   await expect(insertRow).toContainText('计划日期：');
 });
 
