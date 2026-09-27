@@ -33,7 +33,7 @@ import fitz
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.exceptions import RequestValidationError
 from openai import OpenAI
 from PIL import Image, UnidentifiedImageError
@@ -134,7 +134,7 @@ from payments.service import apply_verified_payment, recompute_membership_after_
 def _course_ai_content(db: Session, user: models.User, capability: str, messages: list[dict], *,
                        course_id: str, chapter_id=None, knowledge_point_id=None,
                        material_ids=None, session_id=None, temperature=None,
-                       max_tokens=None) -> str:
+                       max_tokens=None, model_preference=None) -> str:
     """One Course production AI invocation: canonical context → orchestrator only.
 
     Defense in depth (STEP7H1 D1): a course context must never be built from an
@@ -145,13 +145,15 @@ def _course_ai_content(db: Session, user: models.User, capability: str, messages
     return _course_ai_result(db, user, capability, messages, course_id=course_id,
                              chapter_id=chapter_id, knowledge_point_id=knowledge_point_id,
                              material_ids=material_ids, session_id=session_id,
-                             temperature=temperature, max_tokens=max_tokens).content
+                             temperature=temperature, max_tokens=max_tokens,
+                             model_preference=model_preference).content
 
 
 def _course_ai_result(db: Session, user: models.User, capability: str, messages: list[dict], *,
                       course_id: str, chapter_id=None, knowledge_point_id=None,
                       material_ids=None, session_id=None, temperature=None,
-                      max_tokens=None):
+                      max_tokens=None, model_preference=None, explicit_model=None,
+                      thinking=None):
     """The same invocation, returning the whole result — including its real ``request_id``.
 
     P6.1: an endpoint that returns an AI answer must be able to return the identity of the
@@ -163,7 +165,9 @@ def _course_ai_result(db: Session, user: models.User, capability: str, messages:
                                scope_values=(course_id, chapter_id, knowledge_point_id),
                                chapter_id=chapter_id,
                                knowledge_point_id=knowledge_point_id,
-                               temperature=temperature, max_tokens=max_tokens)
+                               temperature=temperature, max_tokens=max_tokens,
+                               model_preference=model_preference,
+                               explicit_model=explicit_model, thinking=thinking)
     from learning.spaces.course_learning.ai import execute_course_ai
     from learning.spaces.course_learning.context import build_course_context
     return execute_course_ai(
@@ -172,7 +176,9 @@ def _course_ai_result(db: Session, user: models.User, capability: str, messages:
             user, course_id=course_id, chapter_id=chapter_id,
             knowledge_point_id=knowledge_point_id, material_ids=material_ids,
             session_id=session_id),
-        temperature=temperature, max_tokens=max_tokens)
+        temperature=temperature, max_tokens=max_tokens,
+        explicit_model=explicit_model,
+        model_preference=model_preference, thinking=thinking)
 
 
 def _is_exam_ai_scope(*values) -> bool:
@@ -197,7 +203,7 @@ def _is_exam_ai_scope(*values) -> bool:
 
 def _exam_ai_content(db: Session, user: models.User, capability: str, messages: list[dict], *,
                      scope_values=(), chapter_id=None, knowledge_point_id=None,
-                     temperature=None, max_tokens=None) -> str:
+                     temperature=None, max_tokens=None, model_preference=None) -> str:
     """One Exam Prep production AI invocation: canonical exam context → orchestrator only.
 
     CS408 is currently the only exam with real data; the adapter resolves the module from
@@ -205,12 +211,14 @@ def _exam_ai_content(db: Session, user: models.User, capability: str, messages: 
     """
     return _exam_ai_result(db, user, capability, messages, scope_values=scope_values,
                            chapter_id=chapter_id, knowledge_point_id=knowledge_point_id,
-                           temperature=temperature, max_tokens=max_tokens).content
+                           temperature=temperature, max_tokens=max_tokens,
+                           model_preference=model_preference).content
 
 
 def _exam_ai_result(db: Session, user: models.User, capability: str, messages: list[dict], *,
                     scope_values=(), chapter_id=None, knowledge_point_id=None,
-                    temperature=None, max_tokens=None):
+                    temperature=None, max_tokens=None, model_preference=None,
+                    explicit_model=None, thinking=None):
     """The same invocation, returning the whole result (P6.1 — see ``_course_ai_result``)."""
     from learning.spaces.exam_prep import context as _exam_context
     from learning.spaces.exam_prep.ai import execute_exam_ai
@@ -219,13 +227,15 @@ def _exam_ai_result(db: Session, user: models.User, capability: str, messages: l
         learning_context=_exam_context.cs408_context_from_values(
             user, *scope_values, chapter_id=chapter_id,
             knowledge_point_id=knowledge_point_id),
-        temperature=temperature, max_tokens=max_tokens)
+        temperature=temperature, max_tokens=max_tokens,
+        explicit_model=explicit_model,
+        model_preference=model_preference, thinking=thinking)
 
 
 def _scoped_ai_content(db: Session, user: models.User, capability: str, messages: list[dict], *,
                        course_id: str, exam_scope_values=(), chapter_id=None,
                        knowledge_point_id=None, material_ids=None, session_id=None,
-                       temperature=None, max_tokens=None) -> str:
+                       temperature=None, max_tokens=None, model_preference=None) -> str:
     """Route one AI invocation to the learning space that OWNS the request.
 
     The space is decided HERE, by the same predicate the endpoint uses for authorization —
@@ -237,11 +247,13 @@ def _scoped_ai_content(db: Session, user: models.User, capability: str, messages
         return _exam_ai_content(db, user, capability, messages,
                                 scope_values=(course_id, *exam_scope_values),
                                 chapter_id=chapter_id, knowledge_point_id=knowledge_point_id,
-                                temperature=temperature, max_tokens=max_tokens)
+                                temperature=temperature, max_tokens=max_tokens,
+                                model_preference=model_preference)
     return _course_ai_content(db, user, capability, messages, course_id=course_id,
                               chapter_id=chapter_id, knowledge_point_id=knowledge_point_id,
                               material_ids=material_ids, session_id=session_id,
-                              temperature=temperature, max_tokens=max_tokens)
+                              temperature=temperature, max_tokens=max_tokens,
+                              model_preference=model_preference)
 
 
 def _normalize_course_or_11408(subject: str, default: str = "") -> str:
@@ -275,8 +287,111 @@ PROGRAMMING_COURSE_ID_TO_DISPLAY = {
 }
 
 
-def resolve_material_scope(course_id: str, subject_key: str = "", subject: str = "", track: str = "") -> dict:
-    """Resolve one material-library identity and reject ambiguous input."""
+def owned_course_scope_forms(db: Session, user: models.User) -> frozenset[str]:
+    """Every spelling of every course THIS learner legitimately holds.
+
+    The course set is the learner's own: declared in the setup flow, taken from a
+    recommendation, or written by a later settings change. It therefore cannot be read out of a
+    fixed table of "known courses" — a course nobody has declared yet is not yet a course, and
+    one a learner declares is one immediately.
+
+    `course_learning_preferences` is the authority the course workspace's own entry guard uses
+    (`assert_owned_course`), and the save flow upserts a row for every declared course; the
+    declared list is unioned in as well, because it is the same set and a track can carry it
+    without a preference row. Both go through the EXISTING course canonicalizer, so every stored
+    spelling of one course resolves to one identity rather than to a second mapping table.
+    """
+    from learning.spaces.course_learning.context import CourseContextError, course_identity_forms
+
+    names = {
+        row[0]
+        for row in db.query(models.CourseLearningPreference.course_id)
+        .filter(models.CourseLearningPreference.username == user.username)
+        .all()
+        if (row[0] or "").strip()
+    }
+    names.update(get_course_learning_selected_courses(
+        user, get_user_track(db, user.id, "university_course")))
+
+    forms: set[str] = set()
+    for name in names:
+        try:
+            forms |= course_identity_forms(name)
+        except CourseContextError:
+            continue  # a malformed stored name is not an identity to accept
+    return frozenset(forms)
+
+
+def current_course_scope_forms(db: Session, user: models.User) -> frozenset[str]:
+    """Every spelling of every course this learner CURRENTLY has — the access authority.
+
+    The declared course set is the product's authority for "my courses": the 学习设置 flow writes
+    it, adding a course grows it and REMOVING one shrinks it. It therefore decides access, which
+    is why it comes first here and why `course_learning_preferences` cannot: that row is the
+    durable per-course SETTINGS record (mode, goal) and deliberately survives a removal, so
+    treating it as membership would make a removed course permanently reachable.
+
+    An account that predates the declared list has none — its courses exist only as those
+    preference rows — so for that account the durable store (plus the focus/default fallback the
+    course list already documents) is the only truth, exactly as the course workspace reads it.
+    Both go through the SAME course canonicalizer, so `数据结构` and `data_structure` are one
+    course here as everywhere else.
+    """
+    from learning.spaces.course_learning.context import course_identity_forms
+
+    declared = get_course_learning_selected_courses(
+        user, get_user_track(db, user.id, "university_course"))
+    if not declared:
+        return owned_course_scope_forms(db, user)
+
+    forms: set[str] = set()
+    for name in declared:
+        forms |= course_identity_forms(name)
+    return frozenset(forms)
+
+
+def assert_course_learning_owned(db: Session, user: models.User, course_id: str) -> None:
+    """404 unless this learner currently has the course named by `course_id`.
+
+    The course-chat access rule, and the same one the course's material library already applies:
+    a course the learner does not hold is not a scope they can open. 404 rather than 403, and
+    without a course-existence check, so a name belonging to somebody else is indistinguishable
+    from a name that means nothing — the refusal carries no information about other learners.
+    An empty scope is not this rule's business (there is no course to be owned); the caller's own
+    request validation covers that.
+    """
+    key = (course_id or "").strip()
+    if not key:
+        return
+    canonical = normalize_subject_course_learning(key) or key
+    if not ({key, canonical} & set(current_course_scope_forms(db, user))):
+        raise HTTPException(status_code=404, detail="course is not attached to this user")
+
+
+def _require_session_course_ownership(db: Session, user: models.User,
+                                      session: models.ChatSession) -> None:
+    """A course conversation stays reachable only while its course is still the learner's.
+
+    One verifier for every session operation (continue, read, delete): owner + scope are checked
+    by `_require_chat_session_scope`, and this adds the piece that check cannot see — whether the
+    course is STILL in the learner's course set. Exam and programming conversations are not
+    course scopes and are deliberately untouched here.
+    """
+    subject, exam_subject = _chat_session_scope(session)
+    if subject and not exam_subject:
+        assert_course_learning_owned(db, user, subject)
+
+
+def resolve_material_scope(course_id: str, subject_key: str = "", subject: str = "", track: str = "",
+                           owned_forms: "frozenset[str] | None" = None) -> dict:
+    """Resolve one material-library identity and reject ambiguous input.
+
+    `owned_forms` is the caller's own course identities (see `owned_course_scope_forms`). With
+    it, a course the learner HOLDS is a valid scope even when this build has no fixed entry for
+    its name — which is the normal case for a course that came from a recommendation or was
+    declared by hand. Ownership is decided by the learner's own course set, never by guessing
+    from the string: a name nobody holds is still refused, exactly as before.
+    """
     raw_course_id = (course_id or "").strip()
     raw_subject_key = (subject_key or "").strip()
     raw_subject = (subject or "").strip()
@@ -328,7 +443,19 @@ def resolve_material_scope(course_id: str, subject_key: str = "", subject: str =
         expected_subject = "计算系统基础"
         resolved_track = "legacy"
     else:
-        raise HTTPException(status_code=400, detail="unknown course_id; a parent course or display name is not a valid material scope")
+        # A course this learner HOLDS but that this build has no fixed entry for: everything the
+        # recommendation offers beyond the mapped catalogue (线性代数, 概率统计, 大学物理 …), and
+        # every name a learner declares themselves. Its canonical name IS its scope — the string
+        # `course_learning_preferences` stores and every course-space row is addressed by — so the
+        # course is its own subject, exactly as the canonical branch above does for a mapped one.
+        # An identity is required to be one the learner actually has; the fixed table stays a
+        # catalogue of KNOWN spellings, never the definition of what a course may be.
+        canonical_owned = normalize_subject_course_learning(raw_course_id) or raw_course_id
+        if not owned_forms or not ({raw_course_id, canonical_owned} & set(owned_forms)):
+            raise HTTPException(status_code=400, detail="unknown course_id; a parent course or display name is not a valid material scope")
+        expected_key = canonical_owned
+        expected_subject = canonical_owned
+        resolved_track = "course_learning"
 
     if raw_subject_key and raw_subject_key != expected_key:
         raise HTTPException(status_code=400, detail="subject_key does not match course_id")
@@ -337,7 +464,8 @@ def resolve_material_scope(course_id: str, subject_key: str = "", subject: str =
     return {"course_id": raw_course_id, "subject_key": expected_key, "subject": expected_subject, "track": resolved_track}
 
 
-def _material_domain(course_id: str | None, subject_key: str | None = None) -> str:
+def _material_domain(course_id: str | None, subject_key: str | None = None,
+                     scope_type: str | None = None) -> str:
     """Derive the business domain of a stored material from its scope.
 
     Programming materials are identified by subject_key == "programming" so a
@@ -353,17 +481,24 @@ def _material_domain(course_id: str | None, subject_key: str | None = None) -> s
     "legacy" would silently exempt a course's uploads from its own quota and let the same
     file be stored twice.
     """
+    if scope_type in {"personal", "chat"}:
+        return "course_learning"
     skey = (subject_key or "").strip()
     if skey == "programming":
         return "programming"
     cid = (course_id or "").strip()
     if cid.endswith("_11408") and cid[:-6] in EXAM_MATERIAL_SCOPE_NAMES:
         return "exam_11408"
-    if cid in COURSE_LEARNING_ID_MAP or cid in set(COURSE_LEARNING_ID_MAP.values()):
-        return "course_learning"
     if cid == "programming":
         return "programming"
-    return "legacy"
+    if not cid or cid == "legacy_computer_system_basics":
+        return "legacy"
+    # Everything else is a course_learning course — including the names this build has no fixed
+    # entry for, because the course set is the learner's OWN (declarations and recommendations).
+    # The stable English keys above are a legacy spelling of the same identity, not a closed
+    # universe: reading an unrecognised course name as "legacy" would exempt that course's own
+    # uploads from its own storage quota and let the same file be stored twice.
+    return "course_learning"
 
 
 def _material_domain_label(domain: str) -> str:
@@ -392,7 +527,7 @@ def _material_quota_for_service(db: Session, user: models.User, service_key: str
         .all()
     )
     used_bytes = sum(
-        (int(row.file_size) or 0) for row in rows if _material_domain(row.course_id, row.subject_key) == domain
+        (int(row.file_size) or 0) for row in rows if _material_domain(row.course_id, row.subject_key, getattr(row, "scope_type", None)) == domain
     )
     limit_bytes = limits["material_storage_limit_mb"] * 1024 * 1024
     return {
@@ -480,19 +615,27 @@ async def http_exception_json_handler(request: Request, exc: HTTPException):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_json_handler(request: Request, exc: RequestValidationError):
+    # Same rule as the 500 handler above: the field-level detail is a debugging aid and belongs
+    # in the log. `exc.errors()` names request fields, which is vocabulary for whoever calls the
+    # API and not for whoever reads the screen.
     logger.warning("[validation-error] %s %s → %s", request.method, request.url.path, str(exc.errors())[:500])
     return JSONResponse(
         status_code=422,
-        content={"detail": f"请求参数校验失败：{str(exc.errors())[:500]}"},
+        content={"detail": "请求参数校验失败，请检查后重试。"},
     )
 
 
 @app.exception_handler(Exception)
 async def global_exception_json_handler(request: Request, exc: Exception):
+    # The exception goes to the log, and ONLY to the log. This used to echo `str(exc)` into the
+    # response body, which put whatever the failing layer said in front of whoever asked: for an
+    # AI outage that is the provider SDK's own message, naming the environment variable it wanted
+    # (``OPENAI_API_KEY``) and the provider behind an answer. A learner cannot act on any of that
+    # and must not be able to read it; the log line above keeps it for whoever can.
     logger.exception("[global-exception] %s %s → %s", request.method, request.url.path, str(exc)[:500])
     return JSONResponse(
         status_code=500,
-        content={"detail": f"服务器内部错误，请稍后重试。详情：{str(exc)[:300]}"},
+        content={"detail": "服务器内部错误，请稍后重试。"},
     )
 
 client = OpenAI(
@@ -680,6 +823,12 @@ class CourseLearningOnboardingRequest(BaseModel):
     selected_courses: list[str] = []
     material_types: list[str] = []
     course_goals: dict[str, str] | None = None
+    # The subset of `selected_courses` the learner took from 智学AI推荐学习框架. Recorded because
+    # PROVENANCE CANNOT BE RECONSTRUCTED LATER: a recommendation changes when the major, the grade
+    # or the catalogue does, and a course someone typed themselves was never a recommendation at
+    # all. Absent means "none declared", which is why re-onboarding preserves it rather than
+    # clearing it.
+    recommended_courses: list[str] = []
     plan: str | None = None
     onboarding_completed: bool = True
 
@@ -2666,6 +2815,17 @@ EXAM_SCOPE_SOURCE = "exam_scope"
 PAST_PAPER_SOURCE = "past_paper"
 USER_MANAGED_MATERIAL_SOURCES = {USER_UPLOAD_SOURCE, EXAM_SCOPE_SOURCE, PAST_PAPER_SOURCE}
 
+# Every scope an upload can carry. `scope_type` RECORDS where a file came from and what it joins
+# automatically; it is not what decides whether its owner may see it (see
+# `query_library_materials`). `create_pending_material` accepts exactly these values.
+LIBRARY_SCOPE_TYPES = ("course", "personal", "chat")
+
+
+def library_scope_type(material: models.StudyMaterial) -> str:
+    """The scope a stored material actually carries, defaulting the way the column does."""
+    scope = (getattr(material, "scope_type", None) or "").strip().lower()
+    return scope if scope in LIBRARY_SCOPE_TYPES else "course"
+
 
 def material_source_type(material: models.StudyMaterial) -> str:
     return (getattr(material, "source_type", None) or USER_UPLOAD_SOURCE).strip() or USER_UPLOAD_SOURCE
@@ -3144,7 +3304,7 @@ def get_core_quota_used(db: Session, user: models.User, service_key: str, quota_
             .all()
         )
         used_bytes = sum(
-            (int(r.file_size) or 0) for r in rows if _material_domain(r.course_id, r.subject_key) == service_key
+            (int(r.file_size) or 0) for r in rows if _material_domain(r.course_id, r.subject_key, getattr(r, "scope_type", None)) == service_key
         )
         return round(used_bytes / 1024 / 1024, 2)
     feature = CORE_QUOTA_USAGE_FEATURE.get(quota_key, {}).get(service_key)
@@ -3558,14 +3718,35 @@ def serialize_session(chat_session: models.ChatSession):
     }
 
 
-def serialize_message(message: models.ChatMessage):
+def serialize_message(message: models.ChatMessage, db: Session | None = None):
     references = []
     if message.reference_payload:
         try:
-            references = json.loads(message.reference_payload)
+            references = [
+                {key: item[key] for key in ("filename", "snippet", "page", "section") if item.get(key) not in (None, "")}
+                for item in json.loads(message.reference_payload)
+                if isinstance(item, dict) and item.get("filename")
+            ]
         except json.JSONDecodeError:
             references = []
 
+    attachments = []
+    if db is not None:
+        rows = db.query(models.ChatMessageAttachment, models.StudyMaterial).join(
+            models.StudyMaterial, models.StudyMaterial.id == models.ChatMessageAttachment.material_id
+        ).filter(models.ChatMessageAttachment.message_id == message.id).all()
+        seen = set()
+        for relation, material in rows:
+            seen.add(material.id)
+            attachments.append({"material_id": material.id, "filename": material.original_filename,
+                                "file_type": material.file_type, "source_kind": relation.source_kind,
+                                "parse_status": "deleted" if material.is_deleted else (material.parse_status or "success")})
+        if message.material_id and message.material_id not in seen:
+            material = db.query(models.StudyMaterial).filter(models.StudyMaterial.id == message.material_id).first()
+            if material:
+                attachments.append({"material_id": material.id, "filename": material.original_filename,
+                                    "file_type": material.file_type, "source_kind": "legacy",
+                                    "parse_status": "deleted" if material.is_deleted else (material.parse_status or "success")})
     return {
         "id": message.id,
         "role": message.role,
@@ -3575,6 +3756,7 @@ def serialize_message(message: models.ChatMessage):
         "attachment_path": message.attachment_path,
         "extracted_text": message.extracted_text,
         "material_id": message.material_id,
+        "attachments": attachments,
         "references": references,
         "parent_message_id": message.parent_message_id,
         "root_message_id": message.root_message_id,
@@ -3722,15 +3904,7 @@ def serialize_reference_item(item: dict):
     if len(snippet) > 220:
         snippet = snippet[:220].rstrip() + "..."
 
-    return {
-        "material_id": item["material_id"],
-        "filename": item.get("source_filename") or "",
-        "subject": item.get("subject") or "",
-        "file_type": item.get("file_type") or "",
-        "snippet": snippet,
-        "score": round(float(item.get("score") or 0), 4),
-        "created_at": item.get("created_at"),
-    }
+    return {"filename": item.get("source_filename") or "", "snippet": snippet}
 
 
 def make_json_safe(value):
@@ -4394,7 +4568,7 @@ def get_material_for_parsing(db: Session, material_id: int):
 def create_pending_material(
     db: Session,
     username: str,
-    subject: str,
+    subject: str | None,
     file_type: str,
     original_filename: str,
     file_path: str,
@@ -4406,12 +4580,20 @@ def create_pending_material(
     source_type: str | None = None,
     course_id: str = "",
     subject_key: str = "",
+    scope_type: str = "course",
 ):
+    if scope_type not in LIBRARY_SCOPE_TYPES:
+        raise ValueError("invalid material scope")
+    if scope_type != "course":
+        course_id = None
+        subject_key = None
+        subject = None
     material = models.StudyMaterial(
         username=(username or "").strip(),
-        course_id=(course_id or "").strip(),
-        subject_key=(subject_key or "").strip(),
+        course_id=(course_id or "").strip() if scope_type == "course" else None,
+        subject_key=(subject_key or "").strip() if scope_type == "course" else None,
         subject=subject,
+        scope_type=scope_type,
         file_type=file_type,
         original_filename=os.path.basename(original_filename or "未命名文件"),
         mime_type=mime_type,
@@ -6490,6 +6672,10 @@ def _course_learning_onboarding_payload(user: models.User, track: models.UserLea
         "selected_courses": selected_courses,
         "material_types": detail.get("material_types") if isinstance(detail.get("material_types"), list) else [],
         "course_goals": {course: course_learning_goal_for(course, raw_goals) for course in selected_courses},
+        "recommended_courses": [
+            course for course in (detail.get("recommended_courses") or [])
+            if isinstance(course, str) and course in selected_courses
+        ],
         "created_at": detail.get("course_learning_created_at") or (serialize_datetime(track.created_at) if track else None),
         "updated_at": detail.get("course_learning_updated_at") or (serialize_datetime(track.updated_at) if track else None),
     }
@@ -6530,6 +6716,11 @@ def save_course_learning_onboarding(
         value = (item or "").strip()
         if value and value not in material_types:
             material_types.append(value[:30])
+    recommended_courses = []
+    for item in req.recommended_courses or []:
+        value = (item or "").strip()
+        if value and value not in recommended_courses:
+            recommended_courses.append(value[:60])
     allowed_course_goals = {"daily", "exam", "平日学习", "考前突击", "考试突击"}
     course_goals = {}
     for course in selected_courses:
@@ -6553,6 +6744,10 @@ def save_course_learning_onboarding(
             material_types = existing_detail.get("material_types", [])
         if not course_goals:
             course_goals = existing_detail.get("course_goals", {})
+        if not recommended_courses:
+            stored_recommended = existing_detail.get("recommended_courses")
+            if isinstance(stored_recommended, list):
+                recommended_courses = [str(item) for item in stored_recommended]
 
     if not major:
         raise HTTPException(status_code=400, detail="请选择专业")
@@ -6593,6 +6788,9 @@ def save_course_learning_onboarding(
         "selected_courses": selected_courses,
         "material_types": material_types,
         "course_goals": course_goals,
+        # Intersected with the courses that actually remain: a course the learner later removed
+        # must not stay flagged as a recommendation they kept.
+        "recommended_courses": [course for course in recommended_courses if course in selected_courses],
         "course_learning_onboarding_completed": completed,
         "course_learning_updated_at": now_text,
     })
@@ -8699,20 +8897,301 @@ def apply_knowledge_progress_event(
         return None
 
 
-@app.post("/chat")
-def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    assert_username_matches_current_user(req.username, current_user)
+CHAT_CONTEXT_HISTORY_LIMIT = 24
 
-    ensure_feature_enabled(db, "feature_ai_chat_enabled", "AI 问答功能暂时维护中，请稍后再试")
 
-    user = current_user
-    subject = _normalize_course_or_11408_optional(req.subject or req.course)
+def _chat_session_scope(session: models.ChatSession) -> tuple[str, str]:
+    """Return the one allowed persisted scope, failing closed for ambiguous legacy rows."""
+    exam_subject = normalize_exam_subject_key(session.exam_subject)
+    subject = normalize_subject(session.subject, session.course, default="")
+    if exam_subject and subject:
+        raise HTTPException(status_code=400, detail="聊天记录 scope 无效")
+    return subject, exam_subject
+
+
+def _require_chat_session_scope(session: models.ChatSession, *, subject: str,
+                                exam_subject: str) -> None:
+    """Enforce user + course/exam ownership on every session operation."""
+    session_subject, session_exam_subject = _chat_session_scope(session)
+    requested = bool(subject or exam_subject)
+    persisted = bool(session_subject or session_exam_subject)
+    if persisted and not requested:
+        raise HTTPException(status_code=400, detail="需要指定课程或考试科目")
+    if exam_subject:
+        if session_exam_subject != exam_subject:
+            raise HTTPException(status_code=404, detail="Chat session not found for this subject")
+    elif subject:
+        # Compare CANONICAL course identities, not two spellings of the same course: the stored
+        # row is read back through the 11408-oriented normalizer and the request through the
+        # course-space one, and those disagree on names like 计算机组成原理 (which the legacy one
+        # rewrites to 计算机组成结构). Both sides are put through the course canonicalizer, so a
+        # learner's own conversation is recognized whichever spelling it was written under.
+        if (_normalize_course_or_11408_optional(session_subject)
+                != _normalize_course_or_11408_optional(subject)):
+            raise HTTPException(status_code=404, detail="Chat session not found for this subject")
+
+
+def session_message_path(db: Session, *, user_id: int, session_id: int,
+                         branch: str | None = None) -> list[models.ChatMessage]:
+    """The conversation as it reads on ONE branch, oldest first — not every version of it.
+
+    A question that was re-worded does not overwrite the original. The new wording is a VERSION of
+    that question, recorded in the same session through `parent_message_id` / `root_message_id` /
+    `branch_id` / `version_index`, and both versions stay. So a session's rows are a small tree,
+    and what a learner is looking at is one path through it.
+
+    `branch=None` reads the branch the conversation is CURRENTLY on — the newest message's branch,
+    which is always the last thing the learner did. Naming a branch instead reads that version and
+    everything that continued from it, which is what the version switcher asks for: reading is not
+    writing, so looking at an older version changes nothing about the conversation.
+
+    The path is walked BACKWARDS from the newest message of that branch:
+
+      * an answer follows the question it answers (`parent_message_id`);
+      * a NEW VERSION of a question takes that question's place, so it follows whatever the
+        question it replaces followed — the original is not walked through, because the learner
+        replaced it;
+      * anything else continues the newest earlier message on the SAME branch.
+
+    Everything the walk does not reach is another version of some turn: kept in the database, not
+    part of the reading.
+    """
+    rows = (
+        db.query(models.ChatMessage)
+        .filter(
+            models.ChatMessage.user_id == user_id,
+            models.ChatMessage.session_id == session_id,
+        )
+        .order_by(models.ChatMessage.id.asc())
+        .all()
+    )
+    if not rows:
+        return []
+
+    if branch is None:
+        branch = rows[-1].branch_id or ""
+    wanted = branch or ""
+    start = next((row for row in reversed(rows) if (row.branch_id or "") == wanted), None)
+    if start is None:
+        # A branch that holds no messages of this session is not a reading of it.
+        return []
+    newest_of_branch = start
+
+    by_id = {row.id: row for row in rows}
+    predecessors: dict[int, models.ChatMessage | None] = {}
+
+    def predecessor(row: models.ChatMessage) -> models.ChatMessage | None:
+        if row.id in predecessors:
+            return predecessors[row.id]
+        # Guard against a cycle before resolving, so a bad row cannot hang a read.
+        predecessors[row.id] = None
+        resolved: models.ChatMessage | None
+        parent = by_id.get(row.parent_message_id) if row.parent_message_id else None
+        if parent is not None:
+            resolved = predecessor(parent) if (
+                row.root_message_id and row.parent_message_id == row.root_message_id
+            ) else parent
+        else:
+            branch = row.branch_id or ""
+            resolved = next(
+                (earlier for earlier in reversed(rows)
+                 if earlier.id < row.id and (earlier.branch_id or "") == branch),
+                None,
+            )
+        predecessors[row.id] = resolved
+        return resolved
+
+    path: list[models.ChatMessage] = []
+    node: models.ChatMessage | None = newest_of_branch
+    while node is not None and node not in path:
+        path.append(node)
+        node = predecessor(node)
+    path.reverse()
+    return path
+
+
+def chat_message_versions(db: Session, *, user_id: int, session_id: int) -> dict[int, list[models.ChatMessage]]:
+    """{root question id: every version of it, oldest first}, for questions that HAVE versions.
+
+    A question is its own root until it is re-worded; a version points at the root it re-words.
+    Ordered by `version_index` — the field the edit path already assigns — with the id as the
+    tie-break, so the order is total even if two rows ever shared an index.
+
+    A question with no siblings is deliberately absent: "one version" is not a choice to offer.
+    """
+    rows = (
+        db.query(models.ChatMessage)
+        .filter(
+            models.ChatMessage.user_id == user_id,
+            models.ChatMessage.session_id == session_id,
+            models.ChatMessage.role == "user",
+        )
+        .order_by(models.ChatMessage.id.asc())
+        .all()
+    )
+    grouped: dict[int, list[models.ChatMessage]] = {}
+    for row in rows:
+        grouped.setdefault(row.root_message_id or row.id, []).append(row)
+    for group in grouped.values():
+        group.sort(key=lambda item: (item.version_index or 0, item.id))
+    return {root: group for root, group in grouped.items() if len(group) > 1}
+
+
+def message_version_info(groups: dict[int, list[models.ChatMessage]], message: models.ChatMessage) -> dict | None:
+    """Where this question sits among its own versions, and which message each step names.
+
+    The steps are MESSAGE ids, not branch ids: the client asks to see a message, and which branch
+    that is remains the server's business. `None` when the question has no other version.
+    """
+    group = groups.get(message.root_message_id or message.id)
+    if not group:
+        return None
+    index = next((position for position, item in enumerate(group, start=1) if item.id == message.id), None)
+    if index is None:
+        return None
+    previous = group[index - 2] if index > 1 else None
+    following = group[index] if index < len(group) else None
+    return {
+        "index": index,
+        "total": len(group),
+        "has_previous": previous is not None,
+        "has_next": following is not None,
+        "previous_message_id": previous.id if previous else None,
+        "next_message_id": following.id if following else None,
+    }
+
+
+def active_session_branch(db: Session, session_id: int) -> str:
+    """The branch this conversation currently reads on: its newest message's own branch.
+
+    A turn that is not itself a new version still belongs to the branch it continues — that is
+    what makes the path above readable at all when the learner keeps talking after an edit. An
+    empty string is the ordinary, unversioned conversation.
+    """
+    newest = (
+        db.query(models.ChatMessage.branch_id)
+        .filter(models.ChatMessage.session_id == session_id)
+        .order_by(models.ChatMessage.id.desc())
+        .first()
+    )
+    return (newest[0] or "").strip() if newest else ""
+
+
+def _provider_history_for_chat(db: Session, *, user_id: int, session_id: int,
+                               exclude_message_id: int) -> list[dict[str, str]]:
+    """Newest bounded complete prior turns, oldest-first for the provider.
+
+    Read from the ACTIVE PATH rather than from every row of the session. A re-worded question left
+    its original branch behind in the database, and handing that abandoned branch to the provider
+    would ground the new answer in a conversation the learner is no longer having.
+    """
+    rows = [
+        row for row in session_message_path(db, user_id=user_id, session_id=session_id)
+        if row.id != exclude_message_id and row.role in ("user", "assistant")
+    ][-CHAT_CONTEXT_HISTORY_LIMIT:]
+    # A capped window must never start with an orphan assistant turn.
+    while rows and rows[0].role != "user":
+        rows.pop(0)
+    return [{"role": row.role, "content": row.content} for row in rows]
+
+
+# How one explicit attachment is recorded on the message. A chat upload is `local` — it was
+# made FOR this conversation — while a library file keeps the scope it came from. Historical
+# rows are read back exactly as written, so this only decides new ones.
+CHAT_ATTACHMENT_SOURCE_KIND = {"personal": "personal", "course": "course", "chat": "local"}
+
+
+def _dedupe_materials(materials: list) -> list:
+    """First occurrence of each material id wins; order preserved.
+
+    One turn can hold the same file twice: it is a course material the client already sent
+    for the course's own retrieval AND a library file the learner then attached explicitly.
+    Chunk retrieval takes a de-duplicated id list either way, but this list also writes the
+    「本轮引用资料」line of the prompt, so without this the same file would be announced to the
+    model twice in one request.
+    """
+    seen: set[int] = set()
+    unique: list = []
+    for material in materials:
+        if material.id in seen:
+            continue
+        seen.add(material.id)
+        unique.append(material)
+    return unique
+
+
+class _ChatTurn:
+    """One prepared chat turn: scope resolved, the caller's own, session open, context built.
+
+    Shared by POST /chat and POST /chat/stream so the two cannot drift on what matters — which
+    scope the request is, whether the learner may use it, which session it continues, what
+    retrieval grounded it, and which capability and model class it runs as. The only difference
+    between the endpoints is how the answer is read: one response, or a stream.
+    """
+
+    question: str
+    course_field: str
+    service_key: str
+    subject: str
+    exam_subject: str
+    rag_course_id: str
+    rag_subject_key: str
+    material_ids: list
+    selected_materials: list
+    chat_session: object
+    user_message: object
+    root_message_id: object
+    parent_message_id: object
+    version_index: int
+    branch_id: object
+    rag_chunks: list
+    messages: list
+    capability: str
+    thinking: bool
+    model_preference: str
+    explicit_model: object
+    #: The canonical knowledge point this turn is about, or "" — see `ChatRequest`.
+    knowledge_point_id: str
+
+    _FIELDS = (
+        "question", "course_field", "service_key", "subject", "exam_subject",
+        "rag_course_id", "rag_subject_key", "material_ids", "selected_materials",
+        "chat_session", "user_message", "root_message_id", "parent_message_id",
+        "version_index", "branch_id", "rag_chunks", "messages", "capability",
+        "thinking", "model_preference", "explicit_model", "knowledge_point_id",
+    )
+
+    def __init__(self, **kwargs):
+        for name in self._FIELDS:
+            setattr(self, name, kwargs[name])
+
+
+def _prepare_chat_turn(db: Session, user: models.User, req: schemas.ChatRequest) -> _ChatTurn:
+    """Everything POST /chat and POST /chat/stream must decide identically, decided once.
+
+    Scope resolution, the course-ownership rule, the session (created or continued), the bounded
+    provider history, retrieval, the system prompt and the capability/model-class choice all live
+    here. It raises the same HTTP errors it always did — a 404 for a course the learner does not
+    have, a 400 for a contradictory scope — and it raises them BEFORE any provider is involved.
+    """
+    service_key = (req.service_key or "").strip().lower()
+    # A conversation's identity IS its course scope. The current client carries that scope as the
+    # explicit canonical `course_id` and leaves the legacy display fields empty, so reading only
+    # `subject`/`course` created course conversations with NO course on them: they were missing
+    # from that course's history and indistinguishable from another course's. Both spellings go
+    # through the SAME canonicalizer, so a Chinese display name and an English course_id land on
+    # one identity — no second mapping.
+    scope_hint = req.subject or req.course
+    if not scope_hint and service_key == "course_learning":
+        scope_hint = req.course_id or ""
+    subject = _normalize_course_or_11408_optional(scope_hint)
     exam_subject = normalize_exam_subject_key(req.exam_subject, req.subject_key)
+    if subject and exam_subject:
+        raise HTTPException(status_code=400, detail="一次对话只能属于一个课程或考试科目")
     # Determine the auto-RAG material scope from canonical service/track params.
     # Never rely on the display `subject` alone: programming and course_learning
     # share the same language display name (e.g. "Python 程序设计") and only
     # differ by subject_key ("programming" vs "python_programming").
-    service_key = (req.service_key or "").strip().lower()
     # Prefer the explicit canonical scope carried by new requests; derive it as a
     # legacy fallback when absent (never trust a bare Chinese display name alone).
     rag_subject_key = (req.subject_key or "").strip().lower()
@@ -8736,6 +9215,7 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
         if not rag_subject_key:
             rag_subject_key = rag_course_id
     material_ids = sorted({int(item) for item in (req.material_ids or []) if int(item) > 0})
+    attachment_ids = sorted({int(item) for item in (req.attachment_ids or []) if int(item) > 0})
     selected_materials: list[models.StudyMaterial] = []
     branch_id = (req.branch_id or "").strip()[:64]
     edit_source_message: models.ChatMessage | None = None
@@ -8765,6 +9245,49 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
 
         selected_materials = [material_map[material_id] for material_id in material_ids]
 
+    # Explicit attachments are a distinct contract from course RAG. Validate before creating a
+    # session/message or invoking any provider so an enumerated, deleted or unparsed id has no
+    # side effects.
+    #
+    # What a learner attaches EXPLICITLY is decided by ownership, not by scope: their own
+    # parsed file is theirs to reuse, including a course upload reused in another course's
+    # conversation. Scope still decides what joins a conversation AUTOMATICALLY — that is the
+    # branch above, and it stays pinned to the current course — so choosing a cross-course
+    # file here never widens automatic retrieval.
+    explicit_attachments: list[models.StudyMaterial] = []
+    if attachment_ids:
+        rows = db.query(models.StudyMaterial).filter(
+            models.StudyMaterial.id.in_(attachment_ids),
+            models.StudyMaterial.username == user.username,
+            models.StudyMaterial.is_deleted.is_(False),
+        ).all()
+        found = {row.id: row for row in rows}
+        if len(found) != len(attachment_ids):
+            raise HTTPException(status_code=404, detail="附件不存在或不可用")
+        explicit_attachments = [found[mid] for mid in attachment_ids]
+        if any((row.parse_status or "success") != "success" or not row.chunk_count for row in explicit_attachments):
+            raise HTTPException(status_code=400, detail="附件仍在解析中，解析完成后才能提问。")
+        selected_materials = _dedupe_materials([*selected_materials, *explicit_attachments])
+        material_ids = sorted(set(material_ids + attachment_ids))
+
+    # Course Q&A is a surface OF a course, exactly like that course's material library: a course
+    # this learner does not have is not a scope they can open a conversation in. Decided HERE —
+    # before a session exists, before any retrieval, and long before a provider is paid — so a
+    # refused request leaves no session, no message, no ai_request row and no cost behind it.
+    # Exam (`exam_subject`) and programming scopes have their own contracts and are not course
+    # scopes; a request with no course at all (general chat) is not this rule's business either.
+    if (service_key != "programming" and not exam_subject
+            and (service_key == "course_learning" or subject or rag_course_id)):
+        assert_course_learning_owned(db, user, subject or rag_course_id)
+
+    # Re-wording a question, or continuing from a version the learner stepped onto, both need a
+    # conversation to happen in. Refused HERE, before a session is opened: otherwise either would
+    # create one, then discover it had nothing to point at, and leave the empty session behind.
+    if req.session_id is None and (
+        req.edit_source_message_id is not None or req.continue_from_message_id is not None
+    ):
+        raise HTTPException(status_code=400, detail="编辑或续接历史提问需要指定对话")
+
     if req.session_id is not None:
         chat_session = (
             db.query(models.ChatSession)
@@ -8777,19 +9300,12 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
         if not chat_session:
             raise HTTPException(status_code=404, detail="Chat session not found")
 
-        if not (chat_session.subject or "").strip():
-            chat_session.subject = subject
-        if not (chat_session.course or "").strip():
-            chat_session.course = subject
-        session_exam_subject = normalize_exam_subject_key(chat_session.exam_subject)
-        if exam_subject and session_exam_subject != exam_subject:
-            raise HTTPException(status_code=400, detail="当前对话不属于该 11408 科目，请先新建本科目对话")
-        session_subject = normalize_subject(chat_session.subject, chat_session.course)
-        if not exam_subject and subject and session_subject and session_subject != subject:
-            raise HTTPException(status_code=400, detail="当前对话不属于该科目，请先新建本科目对话")
-        db.commit()
-        db.refresh(chat_session)
-        subject = normalize_subject(chat_session.subject, chat_session.course)
+        _require_chat_session_scope(chat_session, subject=subject, exam_subject=exam_subject)
+        subject, exam_subject = _chat_session_scope(chat_session)
+        # Continuing re-checks the SESSION's own course, which is what a request that carries no
+        # course scope would otherwise leave unchecked: a course taken out of 我的课程 keeps its
+        # history in the database, but it is no longer a conversation the learner can write in.
+        _require_session_course_ownership(db, user, chat_session)
     else:
         title = req.message.strip() or "新对话"
         if len(title) > 30:
@@ -8818,7 +9334,10 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
             .first()
         )
         if not edit_source_message:
-            raise HTTPException(status_code=404, detail="原问题不存在，无法创建分支")
+            raise HTTPException(status_code=404, detail="原问题不存在，无法编辑")
+        # The new wording is a VERSION of the question, in the SAME session: the original and
+        # everything that was answered from it stay exactly as they were, and the learner is now
+        # on this version's branch. No message is updated and no conversation is copied.
         root_message_id = edit_source_message.root_message_id or edit_source_message.id
         parent_message_id = edit_source_message.id
         max_version = (
@@ -8836,6 +9355,27 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
         )
         version_index = int(max_version or 0) + 1
         branch_id = branch_id or f"msg-{root_message_id}-v{version_index}"
+    elif not branch_id:
+        # An ordinary turn continues the branch the learner is reading. Which branch that is comes
+        # from the view they are actually on when they have named one — the version switcher lets
+        # them step back onto an older version, and a question asked from there belongs to THAT
+        # version, not to the newest one. Without a named view it is the conversation's current
+        # branch, which is where an ordinary session always is.
+        if req.continue_from_message_id is not None:
+            anchor = (
+                db.query(models.ChatMessage)
+                .filter(
+                    models.ChatMessage.id == req.continue_from_message_id,
+                    models.ChatMessage.session_id == chat_session.id,
+                    models.ChatMessage.user_id == user.id,
+                )
+                .first()
+            )
+            if anchor is None:
+                raise HTTPException(status_code=404, detail="这条对话分支不存在")
+            branch_id = (anchor.branch_id or "").strip()
+        else:
+            branch_id = active_session_branch(db, chat_session.id)
 
     primary_material = selected_materials[0] if selected_materials else None
     user_message = models.ChatMessage(
@@ -8854,6 +9394,14 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
     db.add(user_message)
     db.commit()
     db.refresh(user_message)
+    for material in explicit_attachments:
+        db.add(models.ChatMessageAttachment(
+            message_id=user_message.id,
+            material_id=material.id,
+            source_kind=CHAT_ATTACHMENT_SOURCE_KIND.get(library_scope_type(material), "local"),
+        ))
+    if explicit_attachments:
+        db.commit()
     # STEP 7F: the learner asked something about material(s). The question text stays in
     # chat_messages — the event carries references only. Failure-isolated.
     if material_ids:
@@ -8888,6 +9436,13 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
             subject_key=rag_subject_key or None,
         )
 
+    # The knowledge point this turn is about — an identity, so it is bounded and normalized the
+    # one place an HTTP value enters. It reaches the model as the turn's focus (below) and the
+    # orchestrator as `LearningContext.knowledge_point_id`; it never selects a capability, a
+    # model or a budget.
+    chat_knowledge_point = (req.knowledge_point_id or "").strip()[:120]
+    chat_knowledge_point_title = (req.knowledge_point_title or "").strip()[:120]
+
     knowledge_context = build_knowledge_context(user.username, subject, db)
     reference_metadata_context = build_reference_metadata_context(selected_materials)
     if reference_metadata_context:
@@ -8907,6 +9462,15 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
         programming_learner_context = build_programming_learner_context(user, db)
         if programming_learner_context:
             knowledge_context = "\n\n".join([item for item in [knowledge_context, programming_learner_context] if item])
+    # The point the learner had open when they asked. Stated as the FOCUS of the question and
+    # never as the question itself: their own words are still what is answered, and they may ask
+    # about anything. A turn carrying no knowledge point says nothing here — which is every turn
+    # outside the 408 knowledge outline.
+    if chat_knowledge_point:
+        point = (f"{chat_knowledge_point_title}（{chat_knowledge_point}）"
+                 if chat_knowledge_point_title else chat_knowledge_point)
+        knowledge_context = "\n\n".join(
+            [item for item in [knowledge_context, f"【当前知识点】\n{point}"] if item])
 
     system_prompt = build_system_prompt(
         subject,
@@ -8948,19 +9512,142 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
 
     _chat_messages = [
         {"role": "system", "content": system_prompt},
+        *_provider_history_for_chat(
+            db, user_id=user.id, session_id=chat_session.id,
+            exclude_message_id=user_message.id,
+        ),
         {"role": "user", "content": user_content},
     ]
     # Server-side capability choice (B11): grounded material QA vs plain tutoring. The
     # client never names a capability, so it cannot pick its way around permission.
-    _chat_capability = "material.qa" if material_ids else "tutor.chat"
+    _chat_thinking = req.thinking_mode == "deep"
+    # Deep reasoning remains a normal conversation turn, but uses the existing capability
+    # permission gate rather than a second session-less workflow.
+    _chat_capability = "tutor.strong_reasoning" if _chat_thinking else ("material.qa" if material_ids else "tutor.chat")
+    # Learner-safe model CLASS preference (never a model name). Normalized HERE, the one
+    # place an HTTP value enters: an unknown / free-form string collapses to auto, so it can
+    # never reach the router as a class comparison that would only ever fail.
+    from ai.pool import normalize_preference as _normalize_model_preference
+    _chat_model_preference = _normalize_model_preference(req.model_preference)
+    _chat_explicit_model = (req.model_id or "").strip() or None
     _chat_service_key = (req.service_key or "").strip()
+
+    return _ChatTurn(
+        question=req.message,
+        course_field=req.course or "",
+        service_key=service_key,
+        subject=subject,
+        exam_subject=exam_subject,
+        rag_course_id=rag_course_id,
+        rag_subject_key=rag_subject_key,
+        material_ids=material_ids,
+        selected_materials=selected_materials,
+        chat_session=chat_session,
+        user_message=user_message,
+        root_message_id=root_message_id,
+        parent_message_id=parent_message_id,
+        version_index=version_index,
+        branch_id=branch_id,
+        rag_chunks=rag_chunks,
+        messages=_chat_messages,
+        capability=_chat_capability,
+        thinking=_chat_thinking,
+        model_preference=_chat_model_preference,
+        explicit_model=_chat_explicit_model,
+        knowledge_point_id=chat_knowledge_point,
+    )
+
+
+def _persist_chat_answer(db: Session, user: models.User, turn: _ChatTurn, answer: str):
+    """Write ONE assistant turn and the learning-record hooks behind it.
+
+    Called once per turn with the WHOLE answer: a streamed answer is accumulated in memory and
+    written once, so a growing message never becomes one row update per token.
+    """
+    answer = normalize_assistant_markdown(answer)
+    references = [serialize_reference_item(item) for item in turn.rag_chunks]
+    safe_references = make_json_safe(references)
+    assistant_message = models.ChatMessage(
+        user_id=user.id,
+        session_id=turn.chat_session.id,
+        role="assistant",
+        content=answer,
+        reference_payload=json.dumps(safe_references, ensure_ascii=False) if safe_references else None,
+        parent_message_id=turn.user_message.id,
+        root_message_id=turn.root_message_id,
+        branch_id=turn.branch_id or None,
+        version_index=turn.version_index,
+    )
+    db.add(assistant_message)
+    db.commit()
+    db.refresh(assistant_message)
+
+    auto_create_learning_record(
+        db=db,
+        user=user,
+        subject=turn.subject,
+        session_id=turn.chat_session.id,
+        message_id=assistant_message.id,
+        question=turn.question,
+        answer=answer,
+        rag_chunks=turn.rag_chunks,
+    )
+    return assistant_message, safe_references
+
+
+def _chat_response_payload(turn: _ChatTurn, *, answer: str, assistant_message,
+                           references, request_id: str | None, resolved_model: str | None) -> dict:
+    """The response body a non-streaming caller of either chat endpoint expects."""
+    return {
+        "answer": answer,
+        "references": references,
+        "assistant_message_id": assistant_message.id,
+        "user_message_id": turn.user_message.id,
+        "branch_id": turn.branch_id,
+        "root_message_id": turn.root_message_id,
+        "version_index": turn.version_index,
+        "session": serialize_session(turn.chat_session),
+        "rag_sources": sorted({item["source_filename"] for item in turn.rag_chunks}),
+        # P6.1/P6.2: the real identity of the ``ai_requests`` row behind this answer. Absent
+        # identity is reported as ``None``, never invented.
+        "request_id": request_id,
+        "resolved_model": resolved_model,
+    }
+
+
+@app.post("/chat")
+def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(req.username, current_user)
+
+    ensure_feature_enabled(db, "feature_ai_chat_enabled", "AI 问答功能暂时维护中，请稍后再试")
+
+    turn = _prepare_chat_turn(db, current_user, req)
+    user = current_user
+    service_key = turn.service_key
+    subject, exam_subject = turn.subject, turn.exam_subject
+    rag_course_id, rag_subject_key = turn.rag_course_id, turn.rag_subject_key
+    material_ids, selected_materials = turn.material_ids, turn.selected_materials
+    chat_session, user_message = turn.chat_session, turn.user_message
+    root_message_id = turn.root_message_id
+    parent_message_id = turn.parent_message_id
+    version_index = turn.version_index
+    branch_id = turn.branch_id
+    rag_chunks = turn.rag_chunks
+    _chat_messages = turn.messages
+    _chat_capability, _chat_thinking = turn.capability, turn.thinking
+    _chat_model_preference, _chat_explicit_model = turn.model_preference, turn.explicit_model
+    _chat_service_key = turn.service_key
+
     if (_chat_service_key == "exam_11408" or exam_subject
             or is_exam_408_context(subject, req.course)):
         # STEP7H3 B7: exam chat authorization is the unified capability + budget path,
         # decided inside the orchestrator. The legacy exam quota no longer gets a vote.
         _chat_result = _exam_ai_result(
             db, user, _chat_capability, _chat_messages,
-            scope_values=(rag_course_id, rag_subject_key, subject))
+            scope_values=(rag_course_id, rag_subject_key, subject),
+            knowledge_point_id=turn.knowledge_point_id or None,
+            model_preference=_chat_model_preference, explicit_model=_chat_explicit_model,
+            thinking=True if _chat_thinking else None)
     elif _chat_service_key == "programming":
         # P6.2 §A: this branch used to call the provider directly, so it created NO
         # ``ai_requests`` row, took no capability/permission/budget decision and answered
@@ -8981,61 +9668,187 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
             db, user, _chat_capability, _chat_messages,
             learning_context=build_programming_context(
                 user, language=_declared_languages[0] if _declared_languages else None,
-                session_id=chat_session.id))
+                session_id=chat_session.id),
+            model_preference=_chat_model_preference, explicit_model=_chat_explicit_model,
+            thinking=True if _chat_thinking else None)
     else:
         _chat_result = _course_ai_result(
             db, user, _chat_capability, _chat_messages,
             course_id=rag_course_id or subject or "course_learning", material_ids=material_ids,
-            session_id=chat_session.id)
+            session_id=chat_session.id, model_preference=_chat_model_preference,
+            explicit_model=_chat_explicit_model, thinking=True if _chat_thinking else None)
     answer, _chat_request_id = _chat_result.content, _chat_result.request_id
 
-    answer = normalize_assistant_markdown(answer)
+    answer = _chat_result.content
+    assistant_message, safe_references = _persist_chat_answer(db, user, turn, answer or "")
+    answer = normalize_assistant_markdown(answer or "")
 
-    references = [serialize_reference_item(item) for item in rag_chunks]
-    safe_references = make_json_safe(references)
+    return _chat_response_payload(
+        turn, answer=answer, assistant_message=assistant_message, references=safe_references,
+        request_id=_chat_result.request_id, resolved_model=_chat_result.model)
+def _sse_frame(event: str, data: dict) -> str:
+    """One Server-Sent Event frame.
 
-    assistant_message = models.ChatMessage(
-        user_id=user.id,
-        session_id=chat_session.id,
-        role="assistant",
-        content=answer,
-        reference_payload=json.dumps(safe_references, ensure_ascii=False) if safe_references else None,
-        parent_message_id=user_message.id,
-        root_message_id=root_message_id,
-        branch_id=branch_id or None,
-        version_index=version_index,
-    )
-    db.add(assistant_message)
-    db.commit()
-    db.refresh(assistant_message)
+    The payload is JSON ONLY: a provider's raw chunk, a routing score, a billing figure or any
+    hidden reasoning never reaches this function, so none of them can reach a browser.
+    """
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
-    auto_create_learning_record(
-        db=db,
-        user=user,
-        subject=subject,
-        session_id=chat_session.id,
-        message_id=assistant_message.id,
-        question=req.message,
-        answer=answer,
-        rag_chunks=rag_chunks,
-    )
 
-    return {
-        "answer": answer,
-        "references": safe_references,
-        "assistant_message_id": assistant_message.id,
-        "user_message_id": user_message.id,
-        "branch_id": branch_id,
-        "root_message_id": root_message_id,
-        "version_index": version_index,
-        "session": serialize_session(chat_session),
-        "rag_sources": sorted({item["source_filename"] for item in rag_chunks}),
-        # P6.1/P6.2: the real identity of the ``ai_requests`` row behind this answer. It is
-        # the orchestrator's own id on every branch — course, exam and (since §A closed the
-        # last legacy branch) programming. Absent identity would be reported as ``None``,
-        # never invented.
-        "request_id": _chat_request_id,
-    }
+def _chat_stream_run(db: Session, user: models.User, turn: _ChatTurn):
+    """The live call for this turn's scope — the SAME three-space branch POST /chat takes.
+
+    Each space hands its own canonical context to the orchestrator's streaming path, so a streamed
+    turn is authorised, budgeted, routed and billed by exactly the code that does it for a
+    non-streamed one.
+    """
+    if (turn.service_key == "exam_11408" or turn.exam_subject
+            or is_exam_408_context(turn.subject, turn.course_field)):
+        from learning.spaces.exam_prep import context as _exam_context
+        from learning.spaces.exam_prep.ai import stream_exam_ai
+        return stream_exam_ai(
+            db, user, turn.capability, turn.messages,
+            learning_context=_exam_context.cs408_context_from_values(
+                user, turn.rag_course_id, turn.rag_subject_key, turn.subject,
+                knowledge_point_id=turn.knowledge_point_id or None),
+            model_preference=turn.model_preference, explicit_model=turn.explicit_model,
+            thinking=True if turn.thinking else None)
+    if turn.service_key == "programming":
+        from learning.spaces.programming.ai import stream_programming_ai
+        from learning.spaces.programming.context import build_programming_context
+        from learning.spaces.programming.service import declared_languages
+        languages = declared_languages(db, user)
+        return stream_programming_ai(
+            db, user, turn.capability, turn.messages,
+            learning_context=build_programming_context(
+                user, language=languages[0] if languages else None,
+                session_id=turn.chat_session.id),
+            model_preference=turn.model_preference, explicit_model=turn.explicit_model,
+            thinking=True if turn.thinking else None)
+    from learning.spaces.course_learning.ai import stream_course_ai
+    from learning.spaces.course_learning.context import build_course_context
+    return stream_course_ai(
+        db, user, turn.capability, turn.messages,
+        learning_context=build_course_context(
+            user, course_id=turn.rag_course_id or turn.subject or "course_learning",
+            material_ids=turn.material_ids, session_id=turn.chat_session.id),
+        model_preference=turn.model_preference, explicit_model=turn.explicit_model,
+        thinking=True if turn.thinking else None)
+
+
+@app.post("/chat/stream")
+def chat_stream(req: schemas.ChatRequest, db: Session = Depends(get_db),
+                current_user: models.User = Depends(get_current_user)):
+    """The same turn as POST /chat, delivered as it is written.
+
+    Preparation is shared with POST /chat (one implementation of scope, ownership, session,
+    retrieval and capability), and so is settlement — the answer is simply read from a provider
+    stream in pieces instead of from one response. Everything the learner is not allowed to see
+    (a provider's raw chunk, hidden reasoning, routing or billing detail) stops before this
+    function: the only frames that leave are start / delta / done / error.
+    """
+    assert_username_matches_current_user(req.username, current_user)
+    ensure_feature_enabled(db, "feature_ai_chat_enabled", "AI 问答功能暂时维护中，请稍后再试")
+
+    user = current_user
+    turn = _prepare_chat_turn(db, user, req)
+    run = _chat_stream_run(db, user, turn)
+    refusal = run.result
+    if refusal is not None and not refusal.ok and refusal.status in {"denied", "already_exists"}:
+        # Nothing streamed yet, so this is an ordinary HTTP refusal — the caller sees the same
+        # status POST /chat would give for the same denial.
+        status = 403 if refusal.error_category in {"permission_denied", "tier_not_permitted"} else (
+            429 if refusal.error_category in {"budget_reserve_failed", "budget_incompatible"} else 502)
+        raise HTTPException(status_code=status, detail="AI capability unavailable")
+
+    return StreamingResponse(_chat_stream_frames(db, user, turn, run),
+                             media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+def _chat_stream_frames(db: Session, user: models.User, turn: _ChatTurn, run):
+    """The SSE frames for one streamed turn, in order: start, deltas…, then exactly one terminal.
+
+    A named function rather than a closure so the disconnect path is directly testable: closing
+    this generator is what a client walking away does, and it must still settle the turn and keep
+    whatever text had reached the learner.
+    """
+    persisted: dict = {}
+
+    def persist_once():
+        """Exactly one assistant row for this turn, or none when nothing was shown."""
+        if "assistant" in persisted:
+            return persisted["assistant"]
+        if not run.text.strip():
+            persisted["assistant"] = None
+            return None
+        assistant, references = _persist_chat_answer(db, user, turn, run.text)
+        persisted["assistant"] = assistant
+        persisted["references"] = references
+        return assistant
+
+    try:
+        # `user_message_id` is the stored id of the question being answered. The learner's own
+        # turn is on screen before the answer finishes, and editing it has to name which stored
+        # question it is — otherwise a question asked in this session could not be edited until
+        # the page was reloaded.
+        yield _sse_frame("start", {"request_id": run.request_id,
+                                   "session_id": turn.chat_session.id,
+                                   "user_message_id": turn.user_message.id})
+        terminal = None
+        for event in run.events():
+            if event.type == "text_delta" and event.text:
+                yield _sse_frame("delta", {"text": event.text})
+            elif event.type == "finish":
+                terminal = "finish"
+                break
+            elif event.type == "error":
+                terminal = "error"
+                break
+        assistant = persist_once()
+        result = run.result
+        if terminal == "error":
+            # The turn FAILED, and the partial text that did arrive is already on disk, so a
+            # reload shows the learner exactly what they saw. Reporting `done` here would tell
+            # the client an interrupted answer was a finished one.
+            yield _sse_frame("error", {
+                "category": _stream_error_category(result, terminal),
+                "message": ("回答已中断，以上为已生成的部分。"
+                            if assistant is not None
+                            else "AI 服务暂时不可用，稍后重试通常就好了。"),
+            })
+        elif assistant is not None:
+            # `done` is emitted only now: the answer is on disk and the ledger has settled, so
+            # a client that reloads the session sees the same thing it just read.
+            yield _sse_frame("done", {
+                "request_id": result.request_id if result else "",
+                "session_id": turn.chat_session.id,
+                "resolved_model": result.model if result else None,
+                "references": persisted.get("references") or [],
+                "finish_reason": run.finish_reason or "stop",
+                "stopped": run.finish_reason == "stopped",
+            })
+        else:
+            yield _sse_frame("error", {
+                "category": _stream_error_category(result, terminal),
+                "message": "AI 服务暂时不可用，稍后重试通常就好了。",
+            })
+    finally:
+        # A client that stopped reading — stop, disconnect, navigation — arrives here. The
+        # provider stream is closed (it stops generating) and whatever text did arrive is
+        # persisted once, so the conversation continues from where the learner left it.
+        run.close()
+        persist_once()
+
+
+
+
+def _stream_error_category(result, terminal: str | None) -> str:
+    """A safe, coarse category for the SSE error frame — never a provider's own error."""
+    if result is not None and result.error_category:
+        return str(result.error_category)[:60]
+    return "provider_error" if terminal != "finish" else "empty_completion"
+
 
 
 # ── LEGACY: /chat/upload ──────────────────────────────────────────────
@@ -9070,33 +9883,19 @@ async def upload_chat_file(
     )
 
 
-@app.post("/materials/upload")
-async def upload_material(
+async def _upload_scoped_material(
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
-    username: str = Form(...),
-    course_id: str = Form(...),
-    subject_key: str = Form(...),
-    subject: str = Form(""),
-    track: str = Form(""),
-    question: str = Form(""),
-    conversation_id: int | None = Form(None),
-    save_to_materials: bool = Form(False),
-    source_type: str | None = Form(None),
-    authorization: str | None = Header(None),
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    file: UploadFile,
+    db: Session,
+    user: models.User,
+    material_scope: dict,
+    source_type: str | None,
+    scope_type: str = "course",
 ):
-    assert_username_matches_current_user(username, current_user)
-    upload_username = current_user.username
-
     ensure_feature_enabled(db, "feature_material_upload_enabled", "资料上传功能暂时维护中，请稍后再试")
-
-    user = current_user
-    material_scope = resolve_material_scope(course_id, subject_key, subject, track)
     normalized_subject = material_scope["subject"]
     normalized_source_type = normalize_material_source_type(source_type)
-    if material_scope["track"] == "course_learning":
+    if scope_type == "course" and material_scope["track"] == "course_learning":
         user_track = get_user_track(db, user.id, "university_course")
         selected_courses = get_course_learning_selected_courses(user, user_track)
         if normalized_subject not in selected_courses:
@@ -9123,7 +9922,7 @@ async def upload_material(
     used_bytes = sum(
         (int(row.file_size) or 0)
         for row in user_material_rows
-        if _material_domain(row.course_id, row.subject_key) == domain
+        if _material_domain(row.course_id, row.subject_key, getattr(row, "scope_type", None)) == domain
     )
 
     # Check single-file size.
@@ -9169,7 +9968,7 @@ async def upload_material(
         # legitimately exist once per domain, but is rejected within a domain.
         existing_materials = get_materials_by_file_hash(db, user.username, file_hash)
         same_domain = next(
-            (m for m in existing_materials if _material_domain(m.course_id, m.subject_key) == domain),
+            (m for m in existing_materials if _material_domain(m.course_id, m.subject_key, getattr(m, "scope_type", None)) == domain),
             None,
         )
         if same_domain:
@@ -9271,6 +10070,7 @@ async def upload_material(
         mime_type=file.content_type,
         file_size=len(file_bytes),
         source_type=normalized_source_type,
+        scope_type=scope_type,
     )
     if normalized_source_type == EXAM_SCOPE_SOURCE:
         _link_material_to_course_exam_scope(db, user, normalized_subject, material.id)
@@ -9425,6 +10225,62 @@ async def upload_material(
     }
 
 
+@app.post("/materials/upload")
+async def upload_material(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    username: str = Form(...),
+    course_id: str = Form(...),
+    subject_key: str = Form(...),
+    subject: str = Form(""),
+    track: str = Form(""),
+    source_type: str | None = Form(None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(username, current_user)
+    scope = resolve_material_scope(course_id, subject_key, subject, track,
+                                   owned_forms=owned_course_scope_forms(db, current_user))
+    return await _upload_scoped_material(background_tasks, file, db, current_user, scope, source_type, "course")
+
+
+def _unscoped_material_scope() -> dict:
+    """The two user-owned non-course scopes deliberately consume course-learning quota."""
+    return {"track": "course_learning", "course_id": "", "subject_key": "", "subject": ""}
+
+
+@app.post("/personal-materials/upload")
+async def upload_personal_material(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    result = await _upload_scoped_material(
+        background_tasks, file, db, current_user, _unscoped_material_scope(), USER_UPLOAD_SOURCE, "personal",
+    )
+    material = db.get(models.StudyMaterial, result["material_id"])
+    # The same payload the library lists this file with, so an upload and a later listing
+    # agree about it (scope, source label, preview/download) without the client inferring any
+    # of it from having called the personal endpoint.
+    return _library_material_payload(material)
+
+
+@app.post("/chat/attachments/upload")
+async def upload_chat_attachment(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    result = await _upload_scoped_material(
+        background_tasks, file, db, current_user, _unscoped_material_scope(), USER_UPLOAD_SOURCE, "chat",
+    )
+    material = db.get(models.StudyMaterial, result["material_id"])
+    return {"material_id": material.id, "filename": material.original_filename, "file_type": material.file_type,
+            "size": material.file_size or 0, "parse_status": material.parse_status or "success"}
+
+
 @app.post("/materials/add-from-message")
 def add_material_from_message(
     req: AddMaterialFromMessageRequest,
@@ -9469,7 +10325,8 @@ def reindex_user_materials(
     user = current_user
 
     if req.course_id or req.subject_key:
-        scope = resolve_material_scope(req.course_id or "", req.subject_key or "", req.subject or "")
+        scope = resolve_material_scope(req.course_id or "", req.subject_key or "", req.subject or "",
+                                       owned_forms=owned_course_scope_forms(db, user))
         try:
             indexed_material_count, indexed_chunk_count = reindex_materials(
                 db=db, username=user.username, course_id=scope["course_id"], force=req.force,
@@ -9679,7 +10536,9 @@ def search_materials(
     assert_username_matches_current_user(username, current_user)
     user = current_user
     keyword = (q or "").strip()
-    scope = resolve_material_scope(course_id, subject_key, subject) if (course_id or subject_key) else None
+    scope = (resolve_material_scope(course_id, subject_key, subject,
+                                    owned_forms=owned_course_scope_forms(db, user))
+             if (course_id or subject_key) else None)
     normalized_subject = scope["subject"] if scope else normalize_subject(subject, default="")
 
     if not keyword:
@@ -9705,7 +10564,8 @@ def get_materials(username: str = "", course_id: str = "", subject_key: str = ""
     query = query_accessible_materials(db, user.username)
 
     if course_id or subject_key or track:
-        scope = resolve_material_scope(course_id, subject_key, subject or "", track)
+        scope = resolve_material_scope(course_id, subject_key, subject or "", track,
+                                       owned_forms=owned_course_scope_forms(db, user))
         query = query.filter(
             models.StudyMaterial.course_id == scope["course_id"],
             models.StudyMaterial.subject_key == scope["subject_key"],
@@ -9715,6 +10575,106 @@ def get_materials(username: str = "", course_id: str = "", subject_key: str = ""
 
     materials = query.order_by(models.StudyMaterial.is_default_reference.desc(), models.StudyMaterial.created_at.desc()).all()
     return {"materials": [serialize_material_list_item(material) for material in materials]}
+
+
+LIBRARY_NON_COURSE_LABELS = {"personal": "个人资料", "chat": "聊天上传"}
+LIBRARY_UNKNOWN_COURSE_LABEL = "课程资料"
+
+
+def library_course_names(db: Session, user: models.User) -> dict[str, str]:
+    """{stored course key: the learner's own name for it}, for labelling course material.
+
+    The 408 subjects are named here too. Their material lives in the same library, stored
+    under the exam scope id (`<module>_11408`), and a learner's own file must not be labelled
+    with a stored key they have never seen — the subjects are named from the same module
+    vocabulary every other exam surface uses, not from a second list kept for this column.
+    """
+    from learning.spaces.course_learning.service import list_user_courses  # lazy: import cycle
+    from learning.spaces.exam_prep.materials import subject_material_names
+
+    names = {row["course_id"]: row["display_name"] for row in list_user_courses(db, user)}
+    names.update(subject_material_names())
+    return names
+
+
+def _library_material_payload(material: models.StudyMaterial, course_names: dict[str, str] | None = None) -> dict:
+    """ONE asset in the learner's library, in the shape a picker displays it.
+
+    The preview/download metadata comes from the SAME helper pair the course library
+    serializer uses, so which file types open in a browser — and which cannot be previewed
+    at all — is decided once by the server and read by every surface. A client that
+    re-derived it from ``file_type`` would drift the moment ``PREVIEWABLE_FILE_TYPES``
+    changed.
+
+    ``source_label`` is the file's ORIGIN in the learner's words — the course's own name,
+    or `个人资料` / `聊天上传` — because `course`, `personal` and `chat` are how the platform
+    decides what joins retrieval automatically, not something a learner ever named.
+
+    Still no storage path, no chunk text and no internal parse plumbing: `id` plus these
+    fields are what a picker needs, and every byte is fetched through the authenticated
+    download/preview endpoints by that id.
+    """
+    scope = library_scope_type(material)
+    course_key = (getattr(material, "course_id", None) or getattr(material, "subject_key", None) or "").strip()
+    if scope == "course":
+        source_label = (course_names or {}).get(course_key) or course_key or LIBRARY_UNKNOWN_COURSE_LABEL
+    else:
+        source_label = LIBRARY_NON_COURSE_LABELS[scope]
+    return {"id": material.id, "filename": material.original_filename, "file_type": material.file_type,
+            "size": material.file_size or 0, "parse_status": material.parse_status or "success",
+            "created_at": serialize_datetime(material.created_at),
+            "scope_type": scope, "source_label": source_label,
+            "course_id": course_key if scope == "course" else "",
+            **get_material_preview_metadata(material),
+            **get_material_download_metadata(material)}
+
+
+def query_library_materials(db: Session, user: models.User):
+    """EVERY asset this learner owns, whichever entry point put it there.
+
+    Scope records where a file came from and what it joins AUTOMATICALLY — a course upload
+    is retrieved with that course, a personal or chat upload is not — which is not the same
+    question as whether the learner may see their own file. So this does NOT filter on
+    scope beyond the three values the pipeline can write: a course upload, a personal
+    upload and a chat upload are one library to the person who made them, and the course
+    library and this list are two views of the same rows rather than two collections.
+
+    Ownership, not scope, is the boundary: only the owner's own private rows are returned,
+    which is also what keeps the seeded system reference indexes (`username = 'system'`,
+    `system_public_metadata`) out of a learner's library.
+    """
+    return (db.query(models.StudyMaterial)
+            .filter(models.StudyMaterial.username == user.username,
+                    models.StudyMaterial.is_deleted.is_(False),
+                    models.StudyMaterial.visibility == PRIVATE_VISIBILITY,
+                    models.StudyMaterial.scope_type.in_(LIBRARY_SCOPE_TYPES))
+            .order_by(models.StudyMaterial.created_at.desc()))
+
+
+@app.get("/library/materials")
+def list_library_materials(q: str = "", db: Session = Depends(get_db),
+                           current_user: models.User = Depends(get_current_user)):
+    """The learner's own material library, across every entry point that uploaded into it."""
+    query = query_library_materials(db, current_user)
+    if q.strip():
+        query = query.filter(models.StudyMaterial.original_filename.ilike(f"%{q.strip()}%"))
+    course_names = library_course_names(db, current_user)
+    return {"materials": [_library_material_payload(item, course_names) for item in query.all()]}
+
+
+@app.delete("/personal-materials/{material_id}")
+def delete_personal_material(material_id: int, db: Session = Depends(get_db),
+                             current_user: models.User = Depends(get_current_user)):
+    material = db.query(models.StudyMaterial).filter(
+        models.StudyMaterial.id == material_id, models.StudyMaterial.username == current_user.username,
+        models.StudyMaterial.scope_type == "personal", models.StudyMaterial.is_deleted.is_(False),
+    ).first()
+    if not material:
+        raise HTTPException(status_code=404, detail="个人资料不存在")
+    material.is_deleted, material.deleted_at = True, utc_now()
+    db.commit()
+    soft_delete_material_chunks(db, material.id)
+    return {"material_id": material_id, "deleted": True}
 
 
 @app.get("/materials/{material_id}/download")
@@ -9818,10 +10778,21 @@ def get_material_detail(material_id: int, username: str = "", db: Session = Depe
     return {"material": serialize_material_detail(material)}
 
 
-@app.delete("/materials/{material_id}")
-def delete_material(material_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    assert_username_matches_current_user(username, current_user)
-    user = current_user
+def soft_delete_owned_material(db: Session, user: models.User, material_id: int) -> models.StudyMaterial:
+    """Soft-delete ONE asset the caller owns, whatever scope it came from.
+
+    Both delete routes call this, so `/library/materials/{id}` and `/materials/{id}` are one
+    operation with one implementation rather than two that can drift.
+
+    Authorization comes FIRST and is the caller's own ownership: a material belonging to someone
+    else, one that does not exist and one already deleted all answer 404 identically, so a guessed
+    id discloses neither the file's name nor that it ever existed. Nothing is written until that
+    has been decided.
+
+    The delete is soft — history keeps its metadata — and it takes the material out of every
+    future RAG path at once: its chunks are soft-deleted, and its knowledge-point links are
+    removed so it stops contributing to knowledge retrieval too.
+    """
     material = get_accessible_material_or_404(db, user.username, material_id)
     if not can_user_modify_material(material, user.username):
         raise HTTPException(status_code=403, detail="只有本人上传的私有资料可以删除")
@@ -9862,6 +10833,26 @@ def delete_material(material_id: int, username: str = "", db: Session = Depends(
             except (HTTPException, OSError):
                 pass
 
+    return material
+
+
+@app.delete("/library/materials/{material_id}")
+def delete_library_material(material_id: int, db: Session = Depends(get_db),
+                            current_user: models.User = Depends(get_current_user)):
+    """Remove ONE asset from the learner's own library.
+
+    The write side of `GET /library/materials`, and deliberately scope-blind: a course upload, a
+    personal upload and a chat upload are all the owner's assets, so the client never has to know
+    which scope a row came from to delete it — the same reason the list does not ask either.
+    """
+    material = soft_delete_owned_material(db, current_user, material_id)
+    return {"material_id": material.id, "deleted": True}
+
+
+@app.delete("/materials/{material_id}")
+def delete_material(material_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    material = soft_delete_owned_material(db, current_user, material_id)
     return {"message": "资料已删除", "material_id": material.id}
 
 
@@ -10226,8 +11217,15 @@ def get_chat_history(
 ):
     assert_username_matches_current_user(username, current_user)
     user = current_user
-    normalized_subject = normalize_subject(subject, course, default="") if (subject or course) else ""
+    normalized_subject = _normalize_course_or_11408_optional(subject or course) if (subject or course) else ""
     normalized_exam_subject = normalize_exam_subject_key(exam_subject, subject_key)
+    if bool(normalized_subject) == bool(normalized_exam_subject):
+        raise HTTPException(status_code=400, detail="需要指定一个课程或考试科目")
+    # A course's history is part of that course's surface, so it is asked for by a learner who
+    # has the course. Refused rather than answered with an empty list: `200 []` would quietly
+    # confirm a scope the learner does not hold.
+    if normalized_subject:
+        assert_course_learning_owned(db, user, normalized_subject)
 
     query = db.query(models.ChatSession).filter(models.ChatSession.user_id == user.id)
     if normalized_exam_subject:
@@ -10240,7 +11238,7 @@ def get_chat_history(
             )
         )
 
-    sessions = query.order_by(models.ChatSession.created_at.desc()).all()
+    sessions = query.order_by(models.ChatSession.created_at.desc(), models.ChatSession.id.desc()).all()
 
     return {"sessions": [serialize_session(session) for session in sessions]}
 
@@ -10253,13 +11251,16 @@ def get_chat_session_messages(
     course: str = "",
     subject_key: str = "",
     exam_subject: str = "",
+    version_message_id: int | None = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
     assert_username_matches_current_user(username, current_user)
     user = current_user
-    normalized_subject = normalize_subject(subject, course, default="") if (subject or course) else ""
+    normalized_subject = _normalize_course_or_11408_optional(subject or course) if (subject or course) else ""
     normalized_exam_subject = normalize_exam_subject_key(exam_subject, subject_key)
+    if bool(normalized_subject) == bool(normalized_exam_subject):
+        raise HTTPException(status_code=400, detail="需要指定一个课程或考试科目")
 
     chat_session = (
         db.query(models.ChatSession)
@@ -10272,33 +11273,124 @@ def get_chat_session_messages(
     if not chat_session:
         raise HTTPException(status_code=404, detail="聊天记录不存在")
 
-    session_exam_subject = normalize_exam_subject_key(chat_session.exam_subject)
-    if normalized_exam_subject and session_exam_subject != normalized_exam_subject:
-        raise HTTPException(status_code=404, detail="Chat session not found for this subject")
-    session_subject = normalize_subject(chat_session.subject, chat_session.course, default="")
-    if not normalized_exam_subject and normalized_subject and session_subject and session_subject != normalized_subject:
-        raise HTTPException(status_code=404, detail="Chat session not found for this subject")
-
-    messages = (
-        db.query(models.ChatMessage)
-        .filter(
-            models.ChatMessage.session_id == session_id,
-            models.ChatMessage.user_id == user.id,
-        )
-        .order_by(models.ChatMessage.created_at.asc())
-        .all()
+    _require_chat_session_scope(
+        chat_session, subject=normalized_subject, exam_subject=normalized_exam_subject,
     )
+    # Holding an old session id is not a way back into a course the learner no longer has.
+    _require_session_course_ownership(db, user, chat_session)
+
+    # The ACTIVE branch by default: a re-worded question left its original branch in the database,
+    # and the conversation the learner is reading is one path through them — not every version at
+    # once. Naming a version reads THAT version's branch instead, which is a read and nothing else:
+    # looking at an older version writes nothing and costs nothing.
+    if version_message_id is None:
+        messages = session_message_path(db, user_id=user.id, session_id=session_id)
+    else:
+        target = (
+            db.query(models.ChatMessage)
+            .filter(
+                models.ChatMessage.id == version_message_id,
+                models.ChatMessage.session_id == session_id,
+                models.ChatMessage.user_id == user.id,
+                models.ChatMessage.role == "user",
+            )
+            .first()
+        )
+        if not target:
+            raise HTTPException(status_code=404, detail="这个版本的提问不存在")
+        messages = session_message_path(
+            db, user_id=user.id, session_id=session_id, branch=target.branch_id or "",
+        )
+
+    groups = chat_message_versions(db, user_id=user.id, session_id=session_id)
+    payload = []
+    for message in messages:
+        item = serialize_message(message, db)
+        if message.role == "user":
+            info = message_version_info(groups, message)
+            if info is not None:
+                item["version"] = info
+        payload.append(item)
 
     return {
         "session": serialize_session(chat_session),
-        "messages": [serialize_message(msg) for msg in messages],
+        "messages": payload,
     }
+
+
+CHAT_SESSION_TITLE_MAX = 100
+
+
+def _require_owned_chat_session(db: Session, user: models.User, session_id: int, *,
+                               subject: str, exam_subject: str) -> models.ChatSession:
+    """The caller's own conversation, in the scope they asked for, or a refusal that says nothing.
+
+    Shared by rename and branch so both answer the same way a session that is not theirs, does
+    not exist, or belongs to another course. Nothing is written and no provider is reached until
+    this has passed.
+    """
+    chat_session = (
+        db.query(models.ChatSession)
+        .filter(
+            models.ChatSession.id == session_id,
+            models.ChatSession.user_id == user.id,
+        )
+        .first()
+    )
+    if not chat_session:
+        raise HTTPException(status_code=404, detail="聊天记录不存在")
+    _require_chat_session_scope(chat_session, subject=subject, exam_subject=exam_subject)
+    # Holding an old session id is not a way back into a course the learner no longer has.
+    _require_session_course_ownership(db, user, chat_session)
+    return chat_session
+
+
+@app.patch("/chat/sessions/{session_id}")
+def rename_chat_session(
+    session_id: int,
+    req: schemas.RenameChatSessionRequest,
+    username: str = "",
+    subject: str = "",
+    course: str = "",
+    subject_key: str = "",
+    exam_subject: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Rename ONE of the caller's own conversations.
+
+    The title is the only thing this writes. It is trimmed, refused when it would be empty, and
+    capped so a name stays a name; the session's messages, scope and ownership are untouched.
+    """
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
+    normalized_subject = _normalize_course_or_11408_optional(subject or course) if (subject or course) else ""
+    normalized_exam_subject = normalize_exam_subject_key(exam_subject, subject_key)
+    if bool(normalized_subject) == bool(normalized_exam_subject):
+        raise HTTPException(status_code=400, detail="需要指定一个课程或考试科目")
+
+    chat_session = _require_owned_chat_session(
+        db, user, session_id, subject=normalized_subject, exam_subject=normalized_exam_subject,
+    )
+
+    title = (req.title or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="对话名称不能为空")
+    if len(title) > CHAT_SESSION_TITLE_MAX:
+        raise HTTPException(status_code=400, detail=f"对话名称最多 {CHAT_SESSION_TITLE_MAX} 个字符")
+
+    chat_session.title = title
+    db.commit()
+    db.refresh(chat_session)
+    return {"session": serialize_session(chat_session)}
 
 
 @app.delete("/chat/sessions/{session_id}")
 def delete_chat_session(
     session_id: int,
     username: str = "",
+    subject: str = "",
+    course: str = "",
     subject_key: str = "",
     exam_subject: str = "",
     db: Session = Depends(get_db),
@@ -10318,9 +11410,16 @@ def delete_chat_session(
     if not chat_session:
         raise HTTPException(status_code=404, detail="聊天记录不存在")
 
+    normalized_subject = _normalize_course_or_11408_optional(subject or course) if (subject or course) else ""
     normalized_exam_subject = normalize_exam_subject_key(exam_subject, subject_key)
-    if normalized_exam_subject and normalize_exam_subject_key(chat_session.exam_subject) != normalized_exam_subject:
-        raise HTTPException(status_code=404, detail="Chat session not found for this subject")
+    if bool(normalized_subject) == bool(normalized_exam_subject):
+        raise HTTPException(status_code=400, detail="需要指定一个课程或考试科目")
+    _require_chat_session_scope(
+        chat_session, subject=normalized_subject, exam_subject=normalized_exam_subject,
+    )
+    # The same verifier as reading and continuing: delete must not be the one operation that
+    # crosses a course boundary the other two refuse.
+    _require_session_course_ownership(db, user, chat_session)
 
     db.query(models.ChatMessage).filter(
         models.ChatMessage.session_id == session_id,
@@ -19783,6 +20882,123 @@ def delete_course_learning_study_plan_task(
     return {"success": True, "deleted_id": task_id}
 
 
+# ── 11408 Subject Materials ──────────────────────────────
+#
+# The 408 subject's own material library. Nothing here is a second material system: the
+# scope is the `<module>_11408` id `learning.spaces.exam_prep.scope` already derives, the
+# upload goes through the SAME `_upload_scoped_material` the course library calls, and the
+# rows are serialized by the SAME `serialize_material_list_item` — so there is one parser,
+# one OCR pass, one storage quota and one soft delete across every space.
+#
+# No plan entitlement is required, deliberately: reading and uploading one's own material is
+# not a plan feature anywhere else in the product (the course library has no such gate), and
+# what bounds it is the exam domain's own storage quota, which
+# `SERVICE_PLAN_CATALOG["exam_11408"]` has carried since the catalog was written.
+
+
+class ExamSubjectMaterialItem(BaseModel):
+    """ONE material in a 408 subject's library.
+
+    A named subset of the pipeline's serializer, with `extra` allowed so anything else that
+    SAME serializer appends arrives intact. `can_preview` / `preview_url` and
+    `can_download` / `download_url` are named explicitly because they are what the page acts
+    on — and they stay the SERVER's judgement of both questions: which file types a browser
+    can render, and whether this particular file is still there to serve.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    id: int
+    course_id: str = ""
+    subject_key: str = ""
+    subject: str | None = None
+    file_type: str | None = None
+    original_filename: str | None = None
+    mime_type: str | None = None
+    file_size: int = 0
+    parse_status: str | None = None
+    parse_progress: int = 0
+    chunk_count: int = 0
+    created_at: str | None = None
+    can_preview: bool = False
+    preview_url: str | None = None
+    can_download: bool = False
+    download_url: str | None = None
+
+
+class ExamSubjectMaterialsResponse(BaseModel):
+    """`subject_key` is echoed because the PATH decided it, not the client."""
+
+    subject_key: str
+    course_id: str
+    items: list[ExamSubjectMaterialItem]
+    total: int
+
+
+class ExamSubjectMaterialUploadResponse(BaseModel):
+    """The upload result, in the material pipeline's own shape plus the subject identity."""
+
+    model_config = ConfigDict(extra="allow")
+
+    subject_key: str
+    course_id: str
+    success: bool = True
+    material_id: int | None = None
+    filename: str | None = None
+    parse_status: str | None = None
+    parse_progress: int = 0
+    message: str = ""
+
+
+@app.get("/exam/11408/subjects/{subject_key}/materials",
+         response_model=ExamSubjectMaterialsResponse)
+def get_exam_subject_materials(subject_key: str, db: Session = Depends(get_db),
+                               current_user: models.User = Depends(get_current_user)):
+    """This subject's material library. READ-ONLY."""
+    from learning.spaces.exam_prep import materials as exam_materials  # lazy: import cycle
+    from learning.spaces.exam_prep.scope import ExamScopeError
+
+    try:
+        return exam_materials.list_subject_materials(db, current_user, subject_key)
+    except ExamScopeError:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+
+
+@app.post("/exam/11408/subjects/{subject_key}/materials",
+          response_model=ExamSubjectMaterialUploadResponse)
+async def upload_exam_subject_material(background_tasks: BackgroundTasks, subject_key: str,
+                                       file: UploadFile = File(...),
+                                       db: Session = Depends(get_db),
+                                       current_user: models.User = Depends(get_current_user)):
+    """Upload ONE file into THIS subject's library.
+
+    WHO and WHICH SUBJECT are both decided here, from the session and the path — the client
+    supplies neither and there is no form field it could supply them through. The scope is
+    then resolved by `resolve_material_scope`, the one function that decides what a
+    `<module>_11408` id means, so the pipeline's own validation is what refuses a malformed
+    subject rather than a second rule written here.
+
+    `source_type` is left unset, exactly as a course upload leaves it: `exam_scope` would
+    additionally file the material into the learner's COURSE-LEARNING exam-cram settings,
+    which is course-space user state and not this space's to write. The material's domain —
+    and therefore its quota and its label — is read off its scope id, which is the exam one
+    either way.
+    """
+    from learning.spaces.exam_prep import materials as exam_materials  # lazy: import cycle
+    from learning.spaces.exam_prep.scope import ExamScopeError
+
+    try:
+        scoped = exam_materials.subject_material_scope(subject_key)
+    except ExamScopeError:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+
+    resolved = resolve_material_scope(scoped["course_id"], scoped["subject_key"],
+                                      scoped["subject"], scoped["track"])
+    payload = await _upload_scoped_material(background_tasks, file, db, current_user,
+                                            resolved, None, "course")
+    return {**payload, "subject_key": resolved["subject_key"], "course_id": resolved["course_id"]}
+
+
 # ── 11408 Subject Dashboard Summary ──────────────────────
 #
 # FRONTEND_BLOCKER_BC2 — these models exist ONLY so the frozen handler below declares a
@@ -22774,6 +23990,12 @@ class ExamQuestionAnalysisRequest(BaseModel):
     `stem` is Optional rather than required so an omitted stem keeps the handler's own 400
     "stem is required" instead of turning into a 422 from validation; `context` is accepted
     for historical callers and is currently not used to build the prompt.
+
+    `knowledge_point`, `analysis` and `follow_up` are the three pieces of the same kind of
+    prompt material, and they are what make this "about THIS question" rather than a generic
+    explanation: the point the question examines, the product's own 解析 (so a follow-up answer
+    cannot contradict it), and the learner's own follow-up question. All three are optional, and
+    a request that carries none of them behaves exactly as before.
     """
 
     stem: str | None = None
@@ -22782,6 +24004,13 @@ class ExamQuestionAnalysisRequest(BaseModel):
     user_answer: str | None = None
     question_type: str | None = None
     context: str | None = None
+    #: The knowledge point the question examines, in the learner's words. Never an id: it is
+    #: named to the model, and the id stays where ids belong.
+    knowledge_point: str | None = None
+    #: The product's own 解析 for this question, when the caller has it (i.e. after submission).
+    analysis: str | None = None
+    #: The learner's follow-up about the SAME question. Present only on a follow-up request.
+    follow_up: str | None = None
 
 
 class ExamQuestionAnalysisResponse(BaseModel):
@@ -22818,14 +24047,35 @@ def generate_question_analysis(subject_key: str, req: ExamQuestionAnalysisReques
 
     is_wrong = ua and sa and ua.upper() != sa.upper()
     opts_text = "\n".join([f"{k}. {v}" for k, v in (opts or {}).items()]) if opts else "无选项"
-    prompt = f"""你是11408考研辅导老师。请为以下错题生成解析。
+    follow_up = (req.follow_up or "").strip()[:500]
+    point_line = f"\n知识点：{req.knowledge_point.strip()[:120]}" if (req.knowledge_point or "").strip() else ""
+    own_analysis = (req.analysis or "").strip()[:1500]
+    # A FOLLOW-UP is answered about the same question, from the same material: the caller sends
+    # the whole context again (this endpoint holds none), the product's own 解析 included so the
+    # answer cannot contradict it, and the learner's follow-up as the instruction.
+    if follow_up:
+        prompt = f"""你是11408考研辅导老师。学习者刚看过这道题的解析，现在有一个追问。
 
 科目：{subject_name}
 题型：{qtype}
 题干：{stem}
 选项：{opts_text}
 标准答案：{sa}
-用户答案：{ua}{'（用户答错）' if is_wrong else ''}
+学习者答案：{ua}{'（答错）' if is_wrong else ''}{point_line}
+{('已有的题目解析：' + own_analysis) if own_analysis else ''}
+
+学习者的追问：{follow_up}
+
+要求：只回答这个追问，始终围绕这道题；不要重复整段解析，不要再说一遍正确答案之外的套话；300字以内。"""
+    else:
+        prompt = f"""你是11408考研辅导老师。请为以下错题生成解析。
+
+科目：{subject_name}
+题型：{qtype}
+题干：{stem}
+选项：{opts_text}
+标准答案：{sa}
+用户答案：{ua}{'（用户答错）' if is_wrong else ''}{point_line}
 
 要求：1)指出本题考点 2)说明正确答案为什么正确 3)说明其他选项错误原因 4)给11408复习建议。300字以内。"""
     try:
@@ -29581,6 +30831,7 @@ def get_membership_recommendation(
 
     major = user.major or ""
     grade = user.grade or ""
+    semester = user.semester or ""
 
     if not major:
         return {
@@ -29598,7 +30849,9 @@ def get_membership_recommendation(
         api_key=os.getenv("DEEPSEEK_API_KEY"),
         base_url=os.getenv("DEEPSEEK_BASE_URL"),
     )
-    result = recommend_plan_by_major(major, grade, db, openai_client)
+    # The learner's whole stage is the context: the grade decides which courses of the direction
+    # are relevant to them, and the semester is carried with it.
+    result = recommend_plan_by_major(major, grade, db, openai_client, semester=semester)
     return result
 
 

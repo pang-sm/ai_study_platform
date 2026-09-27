@@ -13,6 +13,13 @@ export type DeepStudyView = components['schemas']['DeepStudyResponse'];
 export type AgentDebugView = components['schemas']['AgentDebugResponse'];
 export type ReviewItemView = components['schemas']['ReviewItemView'];
 
+/**
+ * The strong-reasoning workflow serves the two spaces that retrieve over materials
+ * (`service_key` is a `Literal["course_learning", "exam_11408"]` on the request). The programming
+ * space has no material corpus for it to reason over, so it is deliberately not expressible here
+ * — a caller in that context must not offer the workflow rather than file its question under a
+ * space it does not belong to.
+ */
 export function toDeepStudyPayload(input: DeepStudyInput): components['schemas']['DeepStudyRequest'] {
   return {
     question: input.question,

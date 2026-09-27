@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { SubjectDetailPage } from '@/features/exam/components/exam-product-pages';
+import { SubjectDetailPage } from '@/features/exam/components/exam-subject-pages';
 
 export const Route = createFileRoute('/exam/subjects/$subjectId')({ component: SubjectRoute });
 

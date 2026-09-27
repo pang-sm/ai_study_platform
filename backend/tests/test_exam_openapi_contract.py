@@ -29,7 +29,7 @@ CANONICAL_ENDPOINTS = (
 )
 
 PROFILE_KEYS = ["configured", "exam_type", "selected_track", "selected_subjects",
-                "target_exam_year", "subjects"]
+                "target_exam_year", "subjects", "custom_subjects"]
 SUBJECT_KEYS = ["id", "display_name", "category", "availability", "has_questions",
                 "has_past_papers", "has_knowledge_tree", "description",
                 "suggested_tracks", "modules"]

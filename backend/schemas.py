@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -24,15 +26,55 @@ class ChatRequest(BaseModel):
     username: str | None = None
     session_id: int | None = None
     material_ids: list[int] = []
+    attachment_ids: list[int] = []
     edit_source_message_id: int | None = None
+    # The message the learner is currently LOOKING AT, when they have stepped onto an older
+    # version of some question. The turn being asked belongs to that view's branch, not to
+    # whichever branch happens to be newest — otherwise switching back to an earlier version and
+    # asking would silently continue the version the learner had stepped away from.
+    continue_from_message_id: int | None = None
     branch_id: str = ""
     hidden_instruction: str = ""
     mastery_level: str = ""
     learning_goal: str = ""
     knowledge_context: dict | None = None
+    # The ONE knowledge point this turn is about, as the canonical id the learner's knowledge
+    # map publishes (`1.1.1.1`, `3.6`). Sent by the 408 knowledge outline when a learner asks
+    # about the node they have open, and empty everywhere else — a course or programming turn
+    # has no knowledge point, and the default keeps every existing caller working unchanged.
+    #
+    # It is an IDENTITY, not an instruction: the id becomes the turn's `LearningContext`
+    # (`knowledge_point_id`, the same field `/ai/deep-study` already carries). It does NOT select
+    # the capability, the model or the budget, and it does not replace anything the learner
+    # types.
+    knowledge_point_id: str = ""
+    # How to NAME that point, as the page the learner came from wrote it — 「数据的逻辑结构」.
+    # The id above is an identity that the platform stores and audits; a bare code is not
+    # something a model can reason about (`_leaf:1.1.1.1` is a path, not a subject), so the
+    # question is asked with the point's own name beside its id. Presentation only: it is not
+    # stored as context and never decides anything.
+    knowledge_point_title: str = ""
     # Explicit service direction for quota enforcement. "programming" maps to the
     # programming plan; empty/absent uses the legacy course-learning global quota.
     service_key: str = ""
+    # Learner-safe model CLASS preference (never a model name): one of basic / standard /
+    # premium / reasoning, or "" / "auto" for the router's own recommendation. Unknown
+    # values are treated as auto. It narrows selection only — entitlement, budget and
+    # billing are unchanged.
+    model_preference: str = ""
+    # A concrete model from the caller's entitled `/ai/models` menu.  The router remains
+    # the authority for qualification, budget and provider health.
+    model_id: str | None = None
+    # A request-level interaction preference. It deliberately does not become a ChatMessage
+    # field: the durable conversation is its user/assistant content, while this only controls
+    # how the current answer is produced.
+    thinking_mode: Literal["standard", "deep"] = "standard"
+
+
+class RenameChatSessionRequest(BaseModel):
+    """A conversation's new name. The only field this endpoint writes."""
+
+    title: str
 
 
 class CourseLearningPreferenceUpsert(BaseModel):
@@ -681,11 +723,13 @@ class ExamStudyPlanTaskCreate(BaseModel):
     `extra="forbid"` is deliberate and load-bearing: without it a body containing
     `{"status": "completed"}` was silently accepted, returned 200, and changed nothing —
     the worst possible answer to a field the caller clearly cared about. It is now a loud
-    422 naming the field. Completing a task means performing the factual action for its
-    type: practising its questions (`chapter_practice`), clearing its review-due leaves
-    (`review`), or marking its knowledge points learned (`knowledge`). `/learning/tasks`
-    is a different system (course_learning / programming) whose completion DOES write
-    mastery, and it must not be used for the CS408 plan.
+    422. The RESPONSE body is only the learner-facing validation sentence: the rejected field
+    and Pydantic's own vocabulary are logged server-side and never returned (main.py's
+    RequestValidationError handler, pinned by test_error_detail_boundary.py). Completing a task
+    means performing the factual action for its type: practising its questions
+    (`chapter_practice`), clearing its review-due leaves (`review`), or marking its knowledge
+    points learned (`knowledge`). `/learning/tasks` is a different system (course_learning /
+    programming) whose completion DOES write mastery, and it must not be used for the CS408 plan.
     """
 
     model_config = ConfigDict(extra="forbid")

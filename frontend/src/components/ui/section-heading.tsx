@@ -22,7 +22,12 @@ export function SectionHeading({
   title: string;
   description?: string;
   action?: React.ReactNode;
-  as?: 'h2' | 'h3';
+  /**
+   * `h1` when this section IS the page — a page whose first block names it needs no second
+   * title above that block, and a document with no level-one heading is a document whose
+   * structure a screen reader cannot announce.
+   */
+  as?: 'h1' | 'h2' | 'h3';
   className?: string;
 }) {
   return (
@@ -35,7 +40,7 @@ export function SectionHeading({
           id={id}
           className={cn(
             'font-semibold text-text-primary',
-            Heading === 'h2' ? 'text-section-title' : 'text-heading',
+            Heading === 'h3' ? 'text-heading' : 'text-section-title',
             eyebrow ? 'mt-1' : undefined,
           )}
         >

@@ -286,6 +286,29 @@ def settle_credits(session, request_id: str, actual_amount: int,
             "released_credits": diff}
 
 
+def record_attempt_cost(session, request_id: str, *, provider: str, model: str,
+                        input_tokens: int | None = None, output_tokens: int | None = None,
+                        provider_cost: float | None = None, currency: str = "CNY",
+                        credits: int = 0, pricing_version: str | None = None) -> None:
+    """Record ONE provider call's real cost against its request.
+
+    A request can reach more than one provider: a candidate that answers with nothing (or fails
+    retriably) is followed by the next qualified one. The call that produced no usable answer was
+    still billed, so its usage gets its own cost record — nothing is silently dropped, and
+    per-model cost stays attributable instead of being folded into the answering model's row.
+
+    The request's own reservation is NOT touched here: it is settled, once, from the attempt that
+    answered (or by the failure path when none did), so the budget arithmetic keeps its existing
+    shape — one reservation, one terminal state per request.
+    """
+    session.add(AICostRecord(request_id=request_id, provider=provider or "unknown",
+                             model=model or "unknown", input_tokens=input_tokens,
+                             output_tokens=output_tokens, provider_cost=provider_cost,
+                             currency=currency, normalized_credits=max(0, int(credits or 0)),
+                             pricing_version=pricing_version, created_at=_utcnow()))
+    session.commit()
+
+
 def mark_reconciliation_pending(session, request_id: str,
                                 error_category: str = "cost_reconciliation_pending") -> dict:
     """Mark a request whose provider may have billed usage but whose usage/cost is
@@ -385,24 +408,44 @@ def estimate_credits(input_tokens: int = 0, output_tokens: int = 0) -> int:
 
 # ---- Subscription activation + plan catalog ----
 
+def _tier_pricing(tier: str) -> dict:
+    """A tier's price and period, read from the ONE place orders are priced from.
+
+    The membership page has to state a price, and the only safe source for it is the constant
+    ``create_pending_order`` charges against — otherwise the page and the order could disagree
+    about what a learner is buying. ``free`` has no order and therefore no price; that is a real
+    absence (`None`), never a zero.
+    """
+    pricing = UNIFIED_PLAN_PRICING.get(tier)
+    if pricing is None:
+        return {"price_cents": None, "duration_days": None}
+    return {
+        "price_cents": pricing["price_cents"],
+        "duration_days": pricing["default_duration_days"],
+    }
+
+
 PLAN_DEFINITIONS = {
     "free": {
         "label": "Free",
         "daily_budget": DAILY_BUDGET["free"],
         "weekly_budget": WEEKLY_BUDGET["free"],
         "capabilities": sorted(CAPABILITY_TIER_POLICY["free"]),
+        **_tier_pricing("free"),
     },
     "standard": {
         "label": "Standard",
         "daily_budget": DAILY_BUDGET["standard"],
         "weekly_budget": WEEKLY_BUDGET["standard"],
         "capabilities": sorted(CAPABILITY_TIER_POLICY["standard"]),
+        **_tier_pricing("standard"),
     },
     "advanced": {
         "label": "Advanced",
         "daily_budget": DAILY_BUDGET["advanced"],
         "weekly_budget": WEEKLY_BUDGET["advanced"],
         "capabilities": sorted(CAPABILITY_TIER_POLICY["advanced"]),
+        **_tier_pricing("advanced"),
     },
 }
 

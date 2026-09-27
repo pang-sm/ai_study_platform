@@ -1,0 +1,105 @@
+{
+  "course_id": "linear_algebra",
+  "course_name": "线性代数",
+  "source": "《线性代数讲义》南京大学·大学数学系列，江惠坤/邵荣/范红军 编，科学出版社",
+  "source_ids": ["linear_algebra_lecture_notes"],
+  "inclusion_policy": "source_content_complete",
+  "inclusion_note": "本图收录该来源作为线性代数课程内容呈现的全部章节（第 1–7 章），包括来源以 * 标注的选学小节。不以「某一考试卷是否考」为标准增删任何节点——那是 coverage 的职责，且 coverage 当前为空。",
+  "source_marks": "来源以 * 标注为选学的小节：3.2、3.5、4.6、4.7、6.5.3、7.2.3。收录，不因选学或考试范围而删除。",
+  "excluded_note": "未收录：参考文献、附录 A（Matlab 实验）、附录 B（部分习题答案与提示）——它们不是知识内容，与考试范围无关。",
+  "scope_note": "本图是 线性代数 这一 canonical 知识域的章节结构，不是某一考试卷的考试范围。考试范围由 exam_prep 数学 taxonomy 的 coverage 单独表达，当前为空。",
+  "chapters": [
+    {"code": "1", "title": "行列式", "children": [
+      {"code": "1.1", "title": "二阶与三阶行列式", "children": [
+        {"code": null, "title": "二阶行列式与二元一次方程组", "children": []},
+        {"code": null, "title": "三阶行列式", "children": []}
+      ]},
+      {"code": "1.2", "title": "n 阶行列式", "children": [
+        {"code": null, "title": "n 阶行列式的定义", "children": []},
+        {"code": null, "title": "n 阶行列式的性质", "children": []},
+        {"code": null, "title": "n 阶行列式的计算", "children": []},
+        {"code": null, "title": "n 元线性方程组的克莱姆（Cramer）法则", "children": []}
+      ]}
+    ]},
+    {"code": "2", "title": "矩阵与向量", "children": [
+      {"code": "2.1", "title": "矩阵和 n 维向量的概念", "children": []},
+      {"code": "2.2", "title": "矩阵运算", "children": [
+        {"code": null, "title": "矩阵的加法运算", "children": []},
+        {"code": null, "title": "矩阵的数乘运算", "children": []},
+        {"code": null, "title": "矩阵的乘法运算", "children": []},
+        {"code": null, "title": "转置矩阵的性质", "children": []}
+      ]},
+      {"code": "2.3", "title": "分块矩阵", "children": []},
+      {"code": "2.4", "title": "初等变换与初等矩阵", "children": []},
+      {"code": "2.5", "title": "矩阵的秩", "children": []},
+      {"code": "2.6", "title": "可逆矩阵与伴随矩阵", "children": []},
+      {"code": "2.7", "title": "向量组的线性相关与线性无关", "children": [
+        {"code": null, "title": "线性相关与线性无关", "children": []},
+        {"code": null, "title": "向量的线性相关性与矩阵秩的关系", "children": []},
+        {"code": null, "title": "极大无关组与向量组的秩", "children": []}
+      ]}
+    ]},
+    {"code": "3", "title": "线性方程组解的结构", "children": [
+      {"code": "3.1", "title": "高斯消元法与矩阵的行变换", "children": []},
+      {"code": "3.2", "title": "高斯消元法的矩阵表示", "children": []},
+      {"code": "3.3", "title": "线性方程组的可解性", "children": []},
+      {"code": "3.4", "title": "线性方程组解的性质与结构", "children": [
+        {"code": null, "title": "齐次方程组解的结构", "children": []},
+        {"code": null, "title": "非齐次方程组解的结构", "children": []}
+      ]},
+      {"code": "3.5", "title": "线性最小二乘法", "children": []}
+    ]},
+    {"code": "4", "title": "矩阵的特征值与特征向量", "children": [
+      {"code": "4.1", "title": "相似矩阵", "children": []},
+      {"code": "4.2", "title": "特征值与特征向量", "children": []},
+      {"code": "4.3", "title": "矩阵可对角化的条件", "children": []},
+      {"code": "4.4", "title": "正交矩阵与施密特正交化方法", "children": []},
+      {"code": "4.5", "title": "实对称矩阵的对角化", "children": []},
+      {"code": "4.6", "title": "若尔当（Jordan）标准形和奇异值分解", "children": []},
+      {"code": "4.7", "title": "应用于解常系数线性齐次微分方程组", "children": []}
+    ]},
+    {"code": "5", "title": "实二次型", "children": [
+      {"code": "5.1", "title": "二次型的化简", "children": [
+        {"code": null, "title": "二次型的定义", "children": []},
+        {"code": null, "title": "二次型的标准形", "children": []},
+        {"code": null, "title": "二次型的规范形", "children": []}
+      ]},
+      {"code": "5.2", "title": "正定二次型", "children": []}
+    ]},
+    {"code": "6", "title": "线性空间与线性变换", "children": [
+      {"code": "6.1", "title": "线性空间的定义", "children": [
+        {"code": null, "title": "线性空间的概念", "children": []},
+        {"code": null, "title": "线性空间的性质", "children": []}
+      ]},
+      {"code": "6.2", "title": "线性空间的基、维数与坐标", "children": [
+        {"code": null, "title": "基与坐标", "children": []},
+        {"code": null, "title": "基变换与坐标变换", "children": []}
+      ]},
+      {"code": "6.3", "title": "线性空间的子空间", "children": [
+        {"code": null, "title": "子空间", "children": []},
+        {"code": null, "title": "子空间的交与和", "children": []}
+      ]},
+      {"code": "6.4", "title": "线性变换", "children": [
+        {"code": null, "title": "线性变换的概念", "children": []},
+        {"code": null, "title": "线性变换的矩阵表示", "children": []}
+      ]},
+      {"code": "6.5", "title": "线性变换的特征值和特征向量", "children": [
+        {"code": null, "title": "线性变换的特征值和特征向量", "children": []},
+        {"code": null, "title": "线性变换的最简表示", "children": []},
+        {"code": null, "title": "不变子空间", "children": []}
+      ]}
+    ]},
+    {"code": "7", "title": "内积空间", "children": [
+      {"code": "7.1", "title": "内积空间", "children": [
+        {"code": null, "title": "长度、范数、夹角与正交性", "children": []},
+        {"code": null, "title": "酉空间", "children": []}
+      ]},
+      {"code": "7.2", "title": "欧氏空间中的正交变换", "children": [
+        {"code": null, "title": "欧氏空间的标准正交基", "children": []},
+        {"code": null, "title": "欧氏空间中的正交变换", "children": []},
+        {"code": null, "title": "酉空间中的酉变换", "children": []}
+      ]},
+      {"code": "7.3", "title": "欧几里得空间的同构", "children": []}
+    ]}
+  ]
+}

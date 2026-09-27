@@ -22,7 +22,7 @@ from usage.capabilities import check_capability_permission
 
 from . import cost
 from .health import registry as health_registry
-from .pool import POOL_VERSION, qualified_models_for
+from .pool import POOL_VERSION, preference_class, qualified_models_for
 
 ROUTER_VERSION = "router_v1"
 
@@ -30,6 +30,24 @@ ROUTER_VERSION = "router_v1"
 REASON_ONLY_CANDIDATE = "only_qualified_candidate"
 REASON_CHEAPEST = "cheapest_qualified_within_budget"
 REASON_EXPLICIT = "explicit_model"
+
+
+def _requested_preference(preference: str | None) -> str:
+    """Normalize the preference argument. ``""`` / ``None`` / ``"auto"`` → no filter."""
+    key = preference.strip().lower() if isinstance(preference, str) else ""
+    return "" if key in ("", "auto") else key
+
+
+def _filter_by_preference(candidates: list, key: str) -> list:
+    """Keep only candidates of the requested learner class.
+
+    The filter runs OVER ``qualified_models_for(tier, capability)``, which is already
+    entitlement- and qualification-filtered. A preference can therefore never select a
+    model outside the tier's entitlement — it can only narrow what the tier already
+    allows, and the Router still chooses within the class (budget / availability /
+    cheapest-first ordering).
+    """
+    return [e for e in candidates if preference_class(e) == key]
 
 
 @dataclass(frozen=True)
@@ -108,12 +126,19 @@ def _fail(reason: str, error: str, pool_candidates: list[str],
 
 def select_model(tier: str, capability: str, explicit_model: str | None = None,
                  input_tokens: int = 0, expected_output_tokens: int | None = None,
-                 available_budget: int | None = None) -> RouterDecision:
+                 available_budget: int | None = None,
+                 preference: str | None = None) -> RouterDecision:
     """Select a qualified model for (capability, tier), optionally honoring budget.
 
     ``available_budget`` (credits) is the amount the caller can reserve. When set,
     only models whose estimated cost fits are eligible. Explicit user choices are
     still validated against pool membership + availability + budget.
+
+    ``preference`` is a learner-safe CLASS (``basic`` / ``standard`` / ``premium`` /
+    ``reasoning``), never a model name: it NARROWS the qualified candidates and the
+    Router still picks among them. ``None`` / ``""`` / ``"auto"`` = no narrowing. A class
+    with no qualified candidate FAILS CLOSED (``preference_not_available``) rather than
+    silently serving a different class.
     """
     tier = (tier or "").strip().lower()
 
@@ -136,6 +161,16 @@ def select_model(tier: str, capability: str, explicit_model: str | None = None,
                          f"model {explicit_model} is not qualified for {capability}/{tier}",
                          candidate_names)
         candidates = [chosen]
+    else:
+        key = _requested_preference(preference)
+        if key:
+            filtered = _filter_by_preference(candidates, key)
+            if not filtered:
+                # Fail closed: never hand back a different class than the learner asked for.
+                return _fail("preference_not_available",
+                             f"no qualified model for preference {key} in {capability}/{tier}",
+                             candidate_names)
+            candidates = filtered
 
     candidates, skipped_degraded = _split_degraded(candidates)
 
@@ -187,13 +222,18 @@ def ordered_candidates(tier: str, capability: str,
                        explicit_model: str | None = None,
                        input_tokens: int = 0,
                        expected_output_tokens: int | None = None,
-                       available_budget: int | None = None):
+                       available_budget: int | None = None,
+                       preference: str | None = None):
     """Ordered budget-compatible qualified candidates: [(ModelPoolEntry, estimate), ...].
 
     Cheapest first (cross-provider fallback order). Used by the orchestrator so a
     retriable primary failure can fall back to the next qualified model — never to an
     unqualified one. Models whose provider is currently degraded go LAST rather than being
     removed: a fallback chain that ends at a degraded model still beats an empty chain.
+
+    ``preference`` narrows the chain to one learner class (same rule as ``select_model``),
+    so a fallback also stays inside the class the learner asked for. An empty result means
+    "this class is not available here", which the caller reports as a fail-closed refusal.
     """
     tier = (tier or "").strip().lower()
     perm = check_capability_permission(tier, capability)
@@ -205,6 +245,13 @@ def ordered_candidates(tier: str, capability: str,
         if not chosen:
             return []
         candidates = chosen
+    else:
+        key = _requested_preference(preference)
+        if key:
+            filtered = _filter_by_preference(candidates, key)
+            if not filtered:
+                return []
+            candidates = filtered
     health = health_registry()
     candidates = sorted(candidates,
                         key=lambda e: health.is_degraded(e.provider, e.model))

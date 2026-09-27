@@ -484,6 +484,7 @@ def emit_review_completed(*, user_id: int, item_id: str, result: str,
 def emit_ai_feedback_submitted(*, user_id: int, request_id: str, rating: str,
                                service_namespace: str | None = None,
                                capability: str | None = None, reason: str | None = None,
+                               reasons: list[str] | None = None, comment: str = "",
                                model: str | None = None, provider: str | None = None,
                                latency_ms: int | None = None,
                                estimated_credits: int | None = None,
@@ -493,7 +494,7 @@ def emit_ai_feedback_submitted(*, user_id: int, request_id: str, rating: str,
                                router_reason: str | None = None,
                                learning_context: LearningContext | None = None,
                                occurred_at, source_user_ref: str | None = None) -> dict:
-    """One rating of one AI response — references and classifications, never free text."""
+    """One rating of one AI response and its learner-provided feedback detail."""
     payload = {"request_id": str(request_id), "rating": str(rating),
                "regenerated": bool(regenerated), "switched_model": bool(switched_model)}
     for key, value in (("capability", capability), ("reason", reason), ("model", model),
@@ -501,6 +502,10 @@ def emit_ai_feedback_submitted(*, user_id: int, request_id: str, rating: str,
                        ("router_reason", router_reason)):
         if value:
             payload[key] = str(value)
+    if reasons:
+        payload["reasons"] = [str(value) for value in reasons]
+    if comment:
+        payload["comment"] = str(comment)
     for key, value in (("latency_ms", latency_ms), ("estimated_credits", estimated_credits),
                        ("actual_credits", actual_credits)):
         if value is not None:

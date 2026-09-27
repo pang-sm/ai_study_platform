@@ -48,7 +48,28 @@ export function useSaveProgrammingOnboarding() {
   });
 }
 
-export function useProgrammingExercises(language: string) { return useQuery({ queryKey: programmingKeys.exercises(language), queryFn: async () => { const r = await apiClient.GET('/programming/exercises', { params: { query: { language } } }); return dataOrThrow(r.response, r.data, r.error); }, retry: false }); }
+export function useProgrammingExercises(language: string, page = 1) {
+  // A learner who has declared no language yet has nothing to list; asking with an empty
+  // language would spend a request to be told so.
+  //
+  // Paged, because the bank is bigger than one screen: the endpoint caps `page_size` at 48 and
+  // defaults to 12, so asking for page 1 and rendering its length as "the exercises" showed a
+  // learner 12 of 60 with nothing to say the rest existed.
+  return useQuery({ queryKey: [...programmingKeys.exercises(language), page], enabled: Boolean(language), queryFn: async () => { const r = await apiClient.GET('/programming/exercises', { params: { query: { language, page } } }); return dataOrThrow(r.response, r.data, r.error); }, retry: false });
+}
+
+/** The real size of a language's bank, which is what the page must report — not the page's own. */
+export function exerciseTotal(data: unknown): number | undefined {
+  if (typeof data !== 'object' || data === null) return undefined;
+  const total = (data as Record<string, unknown>).total;
+  return typeof total === 'number' && Number.isFinite(total) ? total : undefined;
+}
+
+export function exerciseTotalPages(data: unknown): number | undefined {
+  if (typeof data !== 'object' || data === null) return undefined;
+  const pages = (data as Record<string, unknown>).total_pages;
+  return typeof pages === 'number' && Number.isFinite(pages) ? pages : undefined;
+}
 export function useProgrammingExercise(language: string, id: number) { return useQuery({ queryKey: programmingKeys.exercise(language, id), queryFn: async () => { const r = await apiClient.GET('/programming/exercises/{exercise_id}', { params: { path: { exercise_id: id } } }); return dataOrThrow(r.response, r.data, r.error); }, retry: false, enabled: Boolean(language) && Number.isFinite(id) }); }
 export function useProgrammingRecords() { return useQuery({ queryKey: programmingKeys.records, queryFn: async () => { const r = await apiClient.GET('/programming/records', {}); return dataOrThrow(r.response, r.data, r.error); }, retry: false }); }
 export function useProgrammingRecordsSummary() { return useQuery({ queryKey: programmingKeys.summary, queryFn: async () => { const r = await apiClient.GET('/programming/records/summary', {}); return dataOrThrow(r.response, r.data, r.error); }, retry: false }); }

@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderApp } from '@/test/render-app';
@@ -22,9 +22,10 @@ describe('app shell navigation', () => {
     renderApp('/review');
     const nav = await screen.findByRole('navigation', { name: '主导航' });
 
-    for (const label of ['首页', '考研学习', '课程学习', '编程学习', '复习', '学习报告', '会员']) {
+    for (const label of ['首页', '考研学习', '专业学习', '编程学习', '复习', '学习报告', '会员']) {
       expect(within(nav).getByRole('link', { name: label })).toBeInTheDocument();
     }
+    expect(within(nav).queryByRole('link', { name: 'AI学习' })).not.toBeInTheDocument();
   });
 
   it('marks only the current destination as the active page', async () => {
@@ -35,7 +36,7 @@ describe('app shell navigation', () => {
       'aria-current',
       'page',
     );
-    expect(within(nav).getByRole('link', { name: '课程学习' })).not.toHaveAttribute('aria-current');
+    expect(within(nav).getByRole('link', { name: '专业学习' })).not.toHaveAttribute('aria-current');
     // Home is exact-match, so it must not claim to be current on a nested route.
     expect(within(nav).getByRole('link', { name: '首页' })).not.toHaveAttribute('aria-current');
   });
@@ -68,30 +69,18 @@ describe('app shell navigation', () => {
     expect(screen.queryByRole('button', { name: '搜索学习内容' })).not.toBeInTheDocument();
   });
 
-  it('names the signed-in learner in the account menu instead of a placeholder letter', async () => {
+  it('names the signed-in learner and opens their profile directly', async () => {
     renderApp('/review');
     await screen.findByRole('navigation', { name: '主导航' });
 
-    const trigger = screen.getByRole('button', { name: /测试学习者/ });
-    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    // A LINK, not a disclosure. The three destinations the old panel held all live on the
+    // profile page, so the panel was a second copy of one page's table of contents — and the
+    // copy is what drifted. Clicking the learner's own name now opens that page.
+    const link = screen.getByRole('link', { name: /测试学习者/ });
+    expect(link).toHaveAttribute('href', '/profile');
 
-    await userEvent.click(trigger);
-    const panel = document.getElementById(trigger.getAttribute('aria-controls') ?? '');
-    expect(panel).not.toBeNull();
-    expect(within(panel as HTMLElement).getByText(/账号：test_learner/)).toBeInTheDocument();
-    expect(within(panel as HTMLElement).getByRole('link', { name: '学习档案' })).toBeInTheDocument();
-  });
-
-  it('logs out through the real endpoint and clears the session on the way out', async () => {
-    const { router, queryClient } = renderApp('/review');
-    await screen.findByRole('navigation', { name: '主导航' });
-
-    await userEvent.click(screen.getByRole('button', { name: /测试学习者/ }));
-    await userEvent.click(screen.getByRole('button', { name: '退出登录' }));
-
-    await waitFor(() => expect(post).toHaveBeenCalledWith('/logout', {}));
-    await waitFor(() => expect(router.state.location.pathname).toBe('/login'));
-    expect(queryClient.getQueryData(['auth', 'session'])).toBeNull();
+    // Nothing to expand, because there is nothing folded away.
+    expect(screen.queryByRole('button', { name: /测试学习者/ })).not.toBeInTheDocument();
   });
 });
 

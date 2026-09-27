@@ -16,7 +16,7 @@ describe('shared review', () => {
   it('keeps the three learning spaces as filters and an honest empty state', () => {
     render(<ReviewPage />);
     expect(screen.getByRole('button', { name: '全部' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '课程学习' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '专业学习' })).toBeInTheDocument();
     expect(screen.getByText('暂无待处理复习')).toBeInTheDocument();
   });
 });

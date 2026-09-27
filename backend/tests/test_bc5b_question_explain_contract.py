@@ -157,11 +157,17 @@ def test_request_schema_is_concrete(client):
     assert schema == {"$ref": "#/components/schemas/ExamQuestionAnalysisRequest"}
 
     props = spec["components"]["schemas"]["ExamQuestionAnalysisRequest"]["properties"]
+    # `knowledge_point` / `analysis` / `follow_up` were added later, and they are the same KIND of
+    # field as the six above: optional caller-supplied prompt material, not storage and not a
+    # server-side answer. The set is still enumerated here rather than merely `<=`-checked, so a
+    # new field has to be a deliberate change to this contract.
     assert set(props) == {"stem", "options", "standard_answer", "user_answer",
-                          "question_type", "context"}
+                          "question_type", "context", "knowledge_point", "analysis", "follow_up"}
     assert props["options"] == {"additionalProperties": {"type": "string"}, "type": "object",
                                 "title": "Options"}
     assert props["stem"]["anyOf"] == [{"type": "string"}, {"type": "null"}]
+    for added in ("knowledge_point", "analysis", "follow_up"):
+        assert props[added]["anyOf"] == [{"type": "string"}, {"type": "null"}], added
     # no transport field is a free-form `Any` / bare object
     for name, prop in props.items():
         assert prop.get("title") != "Any", name

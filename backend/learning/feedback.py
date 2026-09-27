@@ -37,8 +37,9 @@ RATING_DOWN = "down"
 RATINGS = (RATING_UP, RATING_DOWN)
 
 # FROZEN taxonomy for negative feedback. Extending it is a product decision, not a code change.
-REASON_TAXONOMY = ("incorrect", "too_shallow", "too_complex", "too_verbose", "too_brief",
-                   "bad_code", "slow", "poor_image", "other")
+REASON_TAXONOMY = ("incorrect", "not_answered", "unclear", "too_shallow", "too_complex",
+                   "too_verbose", "too_brief", "citation_issue", "bad_code", "slow",
+                   "poor_image", "other")
 
 
 class FeedbackRefusal(ValueError):
@@ -74,19 +75,30 @@ def _router_reason(db: DbSession, request_id: str) -> str | None:
 
 def submit_feedback(db: DbSession, user, *, request_id: str, rating: str,
                     reason: str | None = None, regenerated: bool = False,
-                    switched_model: bool = False, workflow_id: str | None = None) -> dict:
+                    switched_model: bool = False, workflow_id: str | None = None,
+                    reasons: list[str] | None = None, comment: str = "") -> dict:
     """Record ONE rating of ONE of the caller's OWN AI responses."""
     from usage.models import AIRequest
 
     normalized_rating = str(rating or "").strip().lower()
     if normalized_rating not in RATINGS:
         raise FeedbackRefusal("invalid_rating", f"rating 必须是 {list(RATINGS)} 之一")
-    normalized_reason = str(reason or "").strip().lower() or None
-    if normalized_reason is not None and normalized_reason not in REASON_TAXONOMY:
-        raise FeedbackRefusal("invalid_reason",
-                              f"reason 必须是 {list(REASON_TAXONOMY)} 之一")
+    normalized_reasons: list[str] = []
+    for value in ([reason] if reason else []) + list(reasons or []):
+        normalized = str(value or "").strip().lower()
+        if not normalized:
+            continue
+        if normalized not in REASON_TAXONOMY:
+            raise FeedbackRefusal("invalid_reason",
+                                  f"reason 必须是 {list(REASON_TAXONOMY)} 之一")
+        if normalized not in normalized_reasons:
+            normalized_reasons.append(normalized)
+    normalized_reason = normalized_reasons[0] if normalized_reasons else None
     if normalized_rating == RATING_DOWN and normalized_reason is None:
         raise FeedbackRefusal("reason_required", "负反馈必须给出原因分类")
+    normalized_comment = str(comment or "").strip()
+    if len(normalized_comment) > 1000:
+        raise FeedbackRefusal("comment_too_long", "补充说明不能超过 1000 字")
 
     request = (db.query(AIRequest)
                .filter(AIRequest.request_id == str(request_id),
@@ -103,6 +115,8 @@ def submit_feedback(db: DbSession, user, *, request_id: str, rating: str,
         "request_id": request.request_id,
         "rating": normalized_rating,
         "reason": normalized_reason,
+        "reasons": normalized_reasons,
+        "comment": normalized_comment,
         "regenerated": bool(regenerated),
         "switched_model": bool(switched_model),
         "workflow_id": workflow_id or None,
@@ -129,6 +143,7 @@ def submit_feedback(db: DbSession, user, *, request_id: str, rating: str,
             user_id=user.id, request_id=request.request_id, rating=normalized_rating,
             service_namespace=request.service_namespace, capability=request.capability,
             reason=normalized_reason, model=request.model, provider=request.provider,
+            reasons=normalized_reasons, comment=normalized_comment,
             latency_ms=latency_ms, estimated_credits=request.estimated_credits,
             actual_credits=request.actual_credits, regenerated=bool(regenerated),
             switched_model=bool(switched_model), workflow_id=workflow_id,

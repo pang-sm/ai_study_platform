@@ -15,6 +15,8 @@ Legacy ``/exam/11408/*`` routes are untouched and keep working.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -26,7 +28,7 @@ from core.learning_context import ServiceNamespace
 from database import get_db
 from learning.records import service as records_service
 from learning.records.contract import RecordPage
-from learning.spaces.exam_prep import catalog
+from learning.spaces.exam_prep import catalog, math_taxonomy
 from science import capabilities as science_capabilities
 from science import evidence_reliability, kt_dataset, learner_state, student_twin
 from science.contract import (
@@ -138,13 +140,29 @@ class UnknownExamSubject(BaseModel):
     availability: str
 
 
+class CustomExamSubject(BaseModel):
+    """A subject the learner named themselves — 自命题专业课.
+
+    It is NOT an ``ExamSubjectSummary``: it has no availability, no capability flags and no
+    modules, because none of those exist for it. Modelling it as a catalogue subject would let a
+    client render a 进入学习 affordance for content the product has never had.
+    """
+
+    id: str
+    name: str
+
+
 class ExamPrepProfileResponse(BaseModel):
     """``_profile_payload`` — the learner's Exam Prep profile.
 
     ``subjects`` carries each selected subject's own availability and capability flags, so
-    a client never has to guess which of them can actually be entered. An unconfigured
-    profile is NOT an error: every field is explicitly null/empty and ``configured`` says
-    which case it is.
+    a client never has to guess which of them can actually be entered. ``custom_subjects`` is the
+    learner's own list and is kept SEPARATE from ``subjects`` for that reason: the two are not the
+    same kind of thing, and merging them would make a subject with no content indistinguishable
+    from a national subject whose content is merely not built yet.
+
+    An unconfigured profile is NOT an error: every field is explicitly null/empty and
+    ``configured`` says which case it is.
     """
 
     configured: bool
@@ -153,6 +171,9 @@ class ExamPrepProfileResponse(BaseModel):
     selected_subjects: list[str]
     target_exam_year: int | None
     subjects: list[ExamSubjectSummary | UnknownExamSubject]
+    # No default: `_profile_payload` always sets it, and a default would make the OpenAPI
+    # document understate the guarantee that the field is always present.
+    custom_subjects: list[CustomExamSubject]
 
 
 class ExamPrepCatalogResponse(BaseModel):
@@ -198,6 +219,10 @@ class ExamPrepProfileUpsert(BaseModel):
     selected_track: str | None = None
     selected_subjects: list[str] = Field(default_factory=list)
     target_exam_year: int | None = None
+    # NAMES the learner typed, not ids. The server owns the id (derived from the name, so the
+    # same name keeps the same identity across saves); a client-supplied id would let one learner
+    # address another learner's subject.
+    custom_subjects: list[str] = Field(default_factory=list)
 
 
 def _profile_payload(profile: "models.ExamPrepProfile | None") -> dict:
@@ -211,6 +236,7 @@ def _profile_payload(profile: "models.ExamPrepProfile | None") -> dict:
             "selected_subjects": [],
             "target_exam_year": None,
             "subjects": [],
+            "custom_subjects": [],
         }
     selected = _load_subjects(profile.selected_subjects_json)
     return {
@@ -223,7 +249,43 @@ def _profile_payload(profile: "models.ExamPrepProfile | None") -> dict:
         # has to guess which of them can actually be entered
         "subjects": [(catalog.get_subject(s).to_dict() if catalog.get_subject(s) else
                       {"id": s, "availability": "unknown"}) for s in selected],
+        "custom_subjects": _load_custom_subjects(getattr(profile, "custom_subjects_json", None)),
     }
+
+
+CUSTOM_SUBJECT_PREFIX = "custom_"
+CUSTOM_SUBJECT_NAME_MAX = 60
+
+
+def custom_subject_id(name: str) -> str:
+    """A stable id for a learner-named subject, derived from the name.
+
+    Derived rather than random so that saving the same name twice keeps ONE identity: a random id
+    would make every re-save a new subject, and a deep link into it would die at the next save.
+    It is namespaced so it can never collide with a catalogue id, which is what keeps a custom
+    subject from being mistaken for a national one.
+    """
+    digest = hashlib.sha1(name.strip().encode("utf-8")).hexdigest()[:10]
+    return f"{CUSTOM_SUBJECT_PREFIX}{digest}"
+
+
+def _load_custom_subjects(raw) -> list[dict]:
+    try:
+        data = json.loads(raw or "[]")
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(data, list):
+        return []
+    out: list[dict] = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        if not name:
+            continue
+        subject_id = str(item.get("id") or "").strip() or custom_subject_id(name)
+        out.append({"id": subject_id, "name": name[:CUSTOM_SUBJECT_NAME_MAX]})
+    return out
 
 
 def _load_subjects(raw) -> list[str]:
@@ -271,10 +333,26 @@ def put_exam_prep_profile(req: ExamPrepProfileUpsert, db: Session = Depends(get_
         profile = models.ExamPrepProfile(user_id=current_user.id, exam_type=EXAM_TYPE)
         db.add(profile)
 
-    import json
+    # A learner-named subject becomes a custom subject, never a catalogue one: the catalogue is
+    # frozen config, and this is a name one person owns. Blank names are dropped, duplicates
+    # collapse onto the same derived id, and the count is bounded so a request cannot grow the
+    # row without limit.
+    custom: list[dict] = []
+    for raw in req.custom_subjects or []:
+        name = str(raw or "").strip()[:CUSTOM_SUBJECT_NAME_MAX]
+        if not name:
+            continue
+        subject_id = custom_subject_id(name)
+        if any(item["id"] == subject_id for item in custom):
+            continue
+        custom.append({"id": subject_id, "name": name})
+        if len(custom) >= 20:
+            break
+
     profile.exam_type = EXAM_TYPE
     profile.selected_track = track_id
     profile.selected_subjects_json = json.dumps(subjects, ensure_ascii=False)
+    profile.custom_subjects_json = json.dumps(custom, ensure_ascii=False)
     profile.target_exam_year = int(year) if year is not None else None
     db.commit()
     db.refresh(profile)
@@ -307,6 +385,86 @@ def get_exam_prep_tracks():
 def get_exam_prep_subjects():
     return {"catalog_version": catalog.CATALOG_VERSION,
             "subjects": [s.to_dict() for s in catalog.all_subjects()]}
+
+
+# ---------------------------------------------------------------- maths taxonomy
+
+class MathDomainSummary(BaseModel):
+    """One canonical part of the maths exam. There are three, and each exists once."""
+
+    key: str
+    display_name: str
+    order: int
+    knowledge_map_id: str
+    # "available" once the canonical knowledge map has been built, "pending" until then.
+    status: Literal["available", "pending"]
+    source: str
+    source_reference: str
+
+
+class MathVariantSummary(BaseModel):
+    """A maths paper. It decides SCOPE and owns no content."""
+
+    id: str
+    display_name: str
+    subject_id: str
+    order: int
+
+
+class MathCoverageSourceSummary(BaseModel):
+    id: str
+    name: str
+    kind: str
+    reference: str
+    # "verified" / "pending_source". A claim whose source is not verified is not a claim.
+    verification_status: str
+    note: str
+
+
+class MathCoverageEntrySummary(BaseModel):
+    """One statement about one canonical item's membership in one paper's range.
+
+    ``included`` is true / false / null, and null is NOT false: it means nobody has established
+    the answer, which is the state of every entry the product currently holds.
+    """
+
+    variant: str
+    domain: str
+    level: Literal["domain", "chapter", "section"]
+    code: str
+    included: bool | None
+    source_id: str
+
+
+class MathTaxonomyResponse(BaseModel):
+    """The whole maths taxonomy: domains, papers, and whatever is known about each paper's range.
+
+    ``coverage`` is empty today because no authoritative syllabus has been imported. A client must
+    read ``coverage_status`` and ``included: null`` rather than treating an absent entry as "not
+    examined" — the two are different statements and only one of them is true.
+    """
+
+    math_taxonomy_version: str
+    # Derived from what the product can actually read, never asserted by a client.
+    math_ready_level: Literal["L0", "L1", "L2"]
+    math_openable: bool
+    openable_reason: str
+    domains: list[MathDomainSummary]
+    variants: list[MathVariantSummary]
+    coverage_status: str
+    coverage_note: str
+    coverage_sources: list[MathCoverageSourceSummary]
+    coverage: list[MathCoverageEntrySummary]
+
+
+@router.get("/math/taxonomy", response_model=MathTaxonomyResponse)
+def get_math_taxonomy():
+    """The maths taxonomy — the backend's own statement about the maths subject.
+
+    Public (no session) for the same reason the catalogue is: it is versioned config, identical
+    for every learner, and says nothing about anyone.
+    """
+    return math_taxonomy.taxonomy_payload()
 
 
 # ---------------------------------------------------------------- content availability

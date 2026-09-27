@@ -2,10 +2,14 @@
  * Chinese labels for the ACTIVE user-facing event types of the frozen STEP 7F taxonomy
  * (`EVENT_SCHEMA_VERSION = 2`).
  *
- * An unmapped code falls through to the raw code rather than to a guess, so a new event type
- * shows up as itself instead of being silently mislabelled. Audit-only families
- * (`ai_called`, `ai_feedback_submitted`) are absent on purpose: the records endpoint never
- * returns them unless explicitly asked, and this screen never asks.
+ * An unmapped code does NOT fall through to the code. `exercise_submitted` is a transport
+ * value, and a learner reading their own study history was being shown it verbatim; the fix is
+ * a TRUE generic (something did happen, in this direction) rather than the identifier or a
+ * guess at what the identifier means. Guessing would mislabel; printing the code would put the
+ * backend's vocabulary in front of the learner. Neither is necessary to stay honest.
+ *
+ * Audit-only families (`ai_called`, `ai_feedback_submitted`) are absent on purpose: the records
+ * endpoint never returns them unless explicitly asked, and this screen never asks.
  */
 export const EVENT_TYPE_LABELS: Record<string, string> = {
   course_practice: '课程练习作答',
@@ -31,17 +35,22 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
   review_scheduled: '安排复习',
 };
 
+/** What an event type this build has no name for is called. True, and not an identifier. */
+export const UNNAMED_EVENT = '学习活动';
+/** The same, for a direction this build does not know. */
+export const UNNAMED_NAMESPACE = '学习';
+
 export const SERVICE_NAMESPACE_LABELS: Record<string, string> = {
-  course_learning: '课程学习',
+  course_learning: '专业学习',
   exam_prep: '考研学习',
   exam_11408: '考研学习',
   programming: '编程学习',
 };
 
 export function eventTypeLabel(eventType: string): string {
-  return EVENT_TYPE_LABELS[eventType] ?? eventType;
+  return EVENT_TYPE_LABELS[eventType] ?? UNNAMED_EVENT;
 }
 
 export function serviceNamespaceLabel(namespace: string): string {
-  return SERVICE_NAMESPACE_LABELS[namespace] ?? namespace;
+  return SERVICE_NAMESPACE_LABELS[namespace] ?? UNNAMED_NAMESPACE;
 }

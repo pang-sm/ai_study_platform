@@ -887,14 +887,95 @@ LIBERAL_ARTS_KEYWORDS = [
     "教育", "外语", "英语", "新闻", "传媒", "广告", "艺术", "设计",
 ]
 
+# The course pool of each direction. A pool is what the direction covers over a whole course of
+# study, in the order a course of study reads it — NOT one semester's list. Which of it a given
+# learner is shown is decided by `_apply_stage` from their grade (see the stage rules below).
 COURSE_SUGGESTIONS = {
-    "cs_pro": ["程序设计", "数据结构", "数据库", "操作系统", "计算机网络", "算法设计"],
+    "cs_pro": [
+        "高等数学", "线性代数", "大学物理", "程序设计",
+        "离散数学", "概率统计", "数据结构", "计算机组成原理",
+        "操作系统", "计算机网络", "数据库系统", "软件工程",
+        "算法设计与分析", "项目实践",
+    ],
     "engineering_plus": ["Python程序设计", "工程数学", "C语言编程", "数据结构基础", "建模与仿真"],
     "python_basic": ["Python数据分析", "办公自动化", "Python基础编程", "数据可视化"],
     "free": [],
     "gift_pro": [],
     "developer": [],
 }
+
+# ── Stage model (grade) ──────────────────────────────────────
+#
+# A recommendation is a statement about a STAGE of a course of study, not only about a major:
+# a 大一 student and a 大三 student in 计算机科学与技术 are taking different courses, and a
+# recommendation that answers both with the same list is answering neither. The vocabulary below
+# is the product's own 年级 set (`main.allowed_grades`), and it is deliberately
+# MAJOR-INDEPENDENT: a course is placed by what it teaches, so the same rules serve any
+# engineering direction whose pool is written down in COURSE_SUGGESTIONS.
+GRADE_STAGES = {"大一": 1, "大二": 2, "大三": 3, "大四": 4, "研究生": 5}
+
+# Ordered — the first match wins. A name nothing here recognises has NO stage, which means
+# "always relevant" rather than "unknown": it is never filtered out by the stage rules.
+STAGE_RULES: tuple[tuple[int, tuple[str, ...]], ...] = (
+    (1, ("高等数学", "微积分", "线性代数", "大学物理", "普通物理", "工程数学",
+         "程序设计", "编程", "导论", "概论", "基础")),
+    (2, ("离散", "概率", "统计", "数据结构", "计算机组成", "数字逻辑", "面向对象", "算法")),
+    (3, ("操作系统", "计算机网络", "数据库", "软件工程", "编译", "体系结构", "数值分析")),
+    (4, ("项目", "实践", "实训", "毕业", "论文", "设计分析", "方向", "选修", "前沿")),
+)
+
+# How many courses a stage-selected list must keep before it is worth narrowing at all. A pool
+# that would shrink below this keeps everything, stage-ordered: a thin answer is worse than a
+# slightly wide one.
+MIN_STAGE_SELECTION = 3
+
+
+def stage_of_course(course_name: str) -> Optional[int]:
+    """Which stage of a course of study a course name belongs to, or None if it says nothing."""
+    name = (course_name or "").strip()
+    if not name:
+        return None
+    for stage, keywords in STAGE_RULES:
+        if any(keyword in name for keyword in keywords):
+            return stage
+    return None
+
+
+def _apply_stage(courses: list, grade: str) -> list:
+    """The courses of a pool that belong to this learner's stage, most relevant first.
+
+    The grace band: the learner's own stage plus the one before it — a course of study carries
+    the previous year's courses into the next, so both are legitimately on the table. With no
+    usable grade the pool is returned exactly as it was: an unknown stage must not narrow
+    anything.
+    """
+    if not courses:
+        return list(courses)
+    stage = GRADE_STAGES.get((grade or "").strip())
+    if not stage:
+        return list(courses)
+
+    pool = [(stage_of_course(name), index, name) for index, name in enumerate(courses)]
+    if not any(course_stage for course_stage, _, _ in pool):
+        return list(courses)  # nothing in this pool is classifiable → nothing to select by
+
+    keep = pool if stage >= 5 else [
+        entry for entry in pool
+        if entry[0] is None or entry[0] in (stage, max(1, stage - 1))
+    ]
+    if len(keep) < MIN_STAGE_SELECTION:
+        keep = pool
+
+    # Closest to the learner's stage first, the pool's own order as the tie-break, so the result
+    # is stable and reads as a reading order. A name with no stage is "always relevant" and keeps
+    # its relative position at the end rather than displacing the courses this stage is about.
+    def distance(entry: tuple[Optional[int], int, str]) -> tuple[int, int]:
+        return (abs((entry[0] if entry[0] is not None else -99) - stage), entry[1])
+
+    return [name for _, _, name in sorted(keep, key=distance)]
+
+
+
 
 
 def _keyword_match(major: str) -> Optional[str]:
@@ -929,7 +1010,21 @@ def _build_recommendation(plan_code: str, category: str, confidence: float,
 
 
 def recommend_plan_by_major(major: str, grade: str, db: Session,
-                            ai_client=None) -> dict:
+                            ai_client=None, semester: str = "") -> dict:
+    """The recommendation a learner's major AND stage should get.
+
+    Classification answers "which direction is this major"; this applies the learner's stage to
+    the direction's course pool, so the list a 大一 student is shown is not the list a 大三
+    student is shown. `semester` is part of the context the classification is asked with; it does
+    not select courses on its own.
+    """
+    result = _classify_major(major, grade, db, ai_client, semester=semester)
+    result["suggested_courses"] = _apply_stage(result.get("suggested_courses") or [], grade)
+    return result
+
+
+def _classify_major(major: str, grade: str, db: Session,
+                    ai_client=None, semester: str = "") -> dict:
     """
     Multi-layer major classification → plan recommendation.
 
@@ -993,7 +1088,7 @@ def recommend_plan_by_major(major: str, grade: str, db: Session,
     # ── Layer 4: AI fallback ──
     if ai_client:
         try:
-            ai_result = _ai_classify_major(normalized, grade, ai_client)
+            ai_result = _ai_classify_major(normalized, grade, ai_client, semester=semester)
             if ai_result:
                 _write_classification_cache(db, normalized, major, ai_result)
                 return {
@@ -1035,11 +1130,17 @@ MAJOR_CLASSIFICATION_PROMPT = """你是一个高校专业分类助手。请根�
 }}"""
 
 
-def _ai_classify_major(normalized_major: str, grade: str, ai_client) -> Optional[dict]:
-    """Use AI to classify an unknown major. Returns dict or None on failure."""
+def _ai_classify_major(normalized_major: str, grade: str, ai_client,
+                       semester: str = "") -> Optional[dict]:
+    """Use AI to classify an unknown major. Returns dict or None on failure.
+
+    The prompt carries the learner's whole stage (grade, and the semester when the learner has
+    declared one) because the courses an unknown major is offered are stage-dependent.
+    """
     prompt = MAJOR_CLASSIFICATION_PROMPT.format(
         major=normalized_major,
-        grade=grade or "未知",
+        grade=" ".join(part for part in ((grade or "").strip(), (semester or "").strip()) if part)
+        or "未知",
     )
 
     response = ai_client.chat.completions.create(

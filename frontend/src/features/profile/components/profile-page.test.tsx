@@ -115,17 +115,17 @@ describe('profile page', () => {
     expect(within(section).getByText('练习语言：Python')).toBeInTheDocument();
 
     // Every row leads into the setup flow that owns that space, and asks to come back here.
-    expect(within(section).getByRole('link', { name: '管理课程' })).toHaveAttribute(
+    expect(within(section).getByRole('link', { name: '学习设置' })).toHaveAttribute(
       'href',
-      '/course/setup?returnTo=%2Fprofile',
+      '/course/setup?returnTo=%2Fprofile%3Fsection%3Dlearning',
     );
     expect(within(section).getByRole('link', { name: '编辑备考设置' })).toHaveAttribute(
       'href',
-      '/exam/setup?returnTo=%2Fprofile',
+      '/exam/setup?returnTo=%2Fprofile%3Fsection%3Dlearning',
     );
     expect(within(section).getByRole('link', { name: '编辑编程设置' })).toHaveAttribute(
       'href',
-      '/programming/setup?returnTo=%2Fprofile',
+      '/programming/setup?returnTo=%2Fprofile%3Fsection%3Dlearning',
     );
   });
 
@@ -203,13 +203,14 @@ describe('profile page', () => {
     expect(screen.getByRole('button', { name: '绑定手机号' })).toBeInTheDocument();
   });
 
-  it('says plainly that no legal documents are published rather than linking to a fake page', async () => {
+  it('links the published legal documents instead of saying they are missing', async () => {
     renderApp('/profile');
     await screen.findByDisplayValue('测试学习者');
 
     const legal = screen.getByRole('region', { name: '法务' });
-    expect(within(legal).getByText(/尚未发布用户协议与隐私政策/)).toBeInTheDocument();
-    expect(within(legal).queryByRole('link')).not.toBeInTheDocument();
+    expect(within(legal).getByRole('link', { name: '用户协议' })).toHaveAttribute('href', '/terms');
+    expect(within(legal).getByRole('link', { name: '隐私政策' })).toHaveAttribute('href', '/privacy');
+    expect(within(legal).queryByText(/尚未发布/)).not.toBeInTheDocument();
   });
 
   it('logs out from the profile page through the real endpoint', async () => {

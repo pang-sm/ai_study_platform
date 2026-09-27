@@ -114,7 +114,8 @@ class StudyMaterial(Base):
     # value for existing integrations; course-library requests use this ID.
     course_id = Column(String(100), index=True, nullable=True)
     subject_key = Column(String(100), index=True, nullable=True)
-    subject = Column(String(100), index=True, nullable=False)
+    subject = Column(String(100), index=True, nullable=True)
+    scope_type = Column(String(20), nullable=False, default="course", index=True)
     file_type = Column(String(20), nullable=False)
     original_filename = Column(String(255), nullable=False)
     mime_type = Column(String(255), nullable=True)
@@ -151,6 +152,15 @@ class StudyMaterial(Base):
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
     deleted_at = Column(DateTime, nullable=True)
 
+    def is_course_material(self) -> bool:
+        return self.scope_type == "course"
+
+    def is_personal_material(self) -> bool:
+        return self.scope_type == "personal"
+
+    def is_chat_material(self) -> bool:
+        return self.scope_type == "chat"
+
 
 class MaterialChunk(Base):
     __tablename__ = "material_chunks"
@@ -160,7 +170,7 @@ class MaterialChunk(Base):
     username = Column(String(50), index=True, nullable=False)
     course_id = Column(String(100), index=True, nullable=True)
     subject_key = Column(String(100), index=True, nullable=True)
-    subject = Column(String(100), index=True, nullable=False)
+    subject = Column(String(100), index=True, nullable=True)
     chunk_index = Column(Integer, nullable=False)
     chunk_text = Column(Text, nullable=False)
     chunk_summary = Column(Text, nullable=False)
@@ -168,6 +178,16 @@ class MaterialChunk(Base):
     source_filename = Column(String(255), nullable=False)
     is_deleted = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, default=utc_now)
+
+
+class ChatMessageAttachment(Base):
+    __tablename__ = "chat_message_attachments"
+    __table_args__ = (Index("idx_chat_attachment_message_material", "message_id", "material_id", unique=True),)
+    id = Column(Integer, primary_key=True)
+    message_id = Column(Integer, ForeignKey("chat_messages.id"), nullable=False, index=True)
+    material_id = Column(Integer, ForeignKey("study_materials.id"), nullable=False, index=True)
+    source_kind = Column(String(20), nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
 
 
 class LearningRecord(Base):
@@ -1385,6 +1405,16 @@ class ExamPrepProfile(Base):
     exam_type = Column(String(50), nullable=False, default="postgraduate")
     selected_track = Column(String(64), nullable=True)
     selected_subjects_json = Column(Text, nullable=False, default="[]")
+    # A learner's OWN subjects, as ``[{"id": ..., "name": ...}]``.
+    #
+    # Deliberately NOT part of the national catalogue: `exam_prep.catalog` is frozen config, and
+    # adding a fifteenth row to it would claim a national subject exists with no content behind
+    # it. A 自命题专业课 belongs to a person, not to the taxonomy — the learner names it, only
+    # they can see it, and there is no question bank attached to it by construction.
+    #
+    # Additive column, defaulted to an empty list, so every existing profile reads as "no custom
+    # subjects" without a backfill.
+    custom_subjects_json = Column(Text, nullable=False, default="[]")
     # The learner's TARGET year. Never confused with a past paper's question_year, and never
     # part of any practice / wrong / event identity.
     target_exam_year = Column(Integer, nullable=True)

@@ -28,7 +28,9 @@ test('real authenticated CS408 knowledge VQA and PATCH', async ({ page }) => {
   await authenticate(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/exam/cs408/knowledge?module=data_structure');
-  await expect(page.getByRole('heading', { name: '数据结构知识脉络' })).toBeVisible();
+  // The page names its tool; which paper it is open in is stated once, by the workspace header.
+  await expect(page.getByRole('heading', { name: '知识脉络' })).toBeVisible();
+  await expect(page.getByText('408 · 数据结构')).toBeVisible();
   await page.screenshot({ path: path.join(screenshots, 'desktop-knowledge-data-structure.png') });
   await page.getByRole('button', { name: /展开 / }).nth(1).click();
   await page.getByRole('button', { name: /展开 / }).nth(1).click();
@@ -50,43 +52,60 @@ test('real authenticated CS408 knowledge VQA and PATCH', async ({ page }) => {
   await page.screenshot({ path: path.join(screenshots, 'mobile-knowledge-detail.png') });
   await axe(page);
   await page.goto('/exam/cs408/knowledge?module=operating_system');
-  await expect(page.getByRole('heading', { name: '操作系统知识脉络' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '知识脉络' })).toBeVisible();
+  await expect(page.getByText('408 · 操作系统')).toBeVisible();
   await expect(page.getByRole('button', { name: /展开 / }).first()).toBeVisible();
   await page.screenshot({ path: path.join(screenshots, 'mobile-knowledge-outline.png') });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.screenshot({ path: path.join(screenshots, 'desktop-knowledge-operating-system.png') });
   await axe(page);
-  await page.goto('/exam/cs408');
-  await expect(page.getByRole('heading', { name: '学习工作区' })).toBeVisible();
+  // The paper that was just edited reports it. `/exam/cs408` with no module is the subject's
+  // front door and states a paper's position only as one word, so the reading above lives in the
+  // paper's own 概览 — which is where a learner lands on 继续学习 · 数据结构 from the home.
+  await page.goto('/exam/cs408?module=data_structure');
+  await expect(page.getByRole('heading', { name: '概览' })).toBeVisible();
   await expect(page.getByText(/知识点已学习比例 [1-9]\d*%/).first()).toBeVisible();
   await page.screenshot({ path: path.join(screenshots, 'desktop-cs408-populated-after-knowledge.png') });
   expect(errors).toEqual([]);
 });
 
-test('CS408 home navigation preserves the knowledge child route and history', async ({ page }) => {
+test('CS408 routes into a paper, keeps the deep link, and states its own way back', async ({ page }) => {
   await authenticate(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/exam/cs408');
-  await expect(page.getByRole('heading', { name: '学习工作区' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: '数据结构' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: '计算机组成原理' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: '操作系统' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: '计算机网络' })).toBeVisible();
+
+  // The front door asks which of the four papers to study — four ways in and nothing else.
+  await expect(page.getByRole('heading', { name: '选择学习科目' })).toBeVisible();
+  for (const paper of ['数据结构', '计算机组成原理', '操作系统', '计算机网络']) {
+    await expect(page.getByRole('link', { name: new RegExp(`^${paper}`) })).toBeVisible();
+  }
+
+  await page.getByRole('link', { name: /^数据结构/ }).click();
+  await expect(page).toHaveURL(/\/exam\/cs408\?module=data_structure$/);
+  await expect(page.getByRole('heading', { name: '概览' })).toBeVisible();
+  await expect(page.getByText('408 · 数据结构')).toBeVisible();
 
   await page.getByRole('link', { name: '知识脉络' }).click();
   await expect(page).toHaveURL(/\/exam\/cs408\/knowledge\?module=data_structure$/);
-  await expect(page.getByRole('heading', { name: '数据结构知识脉络' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: '学习工作区' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: '知识脉络' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '选择学习科目' })).toHaveCount(0);
 
+  // A deep link is stable: the module is in the URL, not in a remembered preference.
   await page.reload();
   await expect(page).toHaveURL(/\/exam\/cs408\/knowledge\?module=data_structure$/);
-  await expect(page.getByRole('heading', { name: '数据结构知识脉络' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '知识脉络' })).toBeVisible();
+  await expect(page.getByText('408 · 数据结构')).toBeVisible();
 
-  await page.goBack();
+  // The way out is the page's own, so it is the same one whether the page was reached by
+  // clicking through or by pasting the URL into a fresh tab.
+  await page.getByRole('link', { name: '返回 408', exact: true }).click();
   await expect(page).toHaveURL(/\/exam\/cs408$/);
-  await expect(page.getByRole('heading', { name: '学习工作区' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '选择学习科目' })).toBeVisible();
 
-  await page.goForward();
-  await expect(page).toHaveURL(/\/exam\/cs408\/knowledge\?module=data_structure$/);
-  await expect(page.getByRole('heading', { name: '数据结构知识脉络' })).toBeVisible();
+  await page.goto('/exam/cs408/knowledge?module=operating_system');
+  await expect(page.getByRole('link', { name: '返回 408', exact: true })).toHaveAttribute(
+    'href',
+    '/exam/cs408',
+  );
   await page.unrouteAll({ behavior: 'ignoreErrors' });
 });

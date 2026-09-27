@@ -94,7 +94,7 @@ test('canonical wrong ledger is factual, isolated, responsive and accessible', a
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/exam/cs408/wrong?status=all');
-  await expect(page.getByRole('heading', { name: '错题档案' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '错题' })).toBeVisible();
   await expect(page.locator('.wrong-answer__status', { hasText: '已订正' })).toBeVisible();
   await page.screenshot({ path: path.join(SCREENSHOTS, 'desktop-wrong-ledger-resolved.png') });
   await page.locator('.wrong-answer__row', { hasText: '章节练习' }).first().getByRole('button', { name: /展开第/ }).click();

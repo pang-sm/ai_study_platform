@@ -85,6 +85,35 @@ describe('email code login', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('验证码已发送');
   });
 
+  it('turns the send button into the backend’s resend window once a code is out', async () => {
+    await openEmailCodeMode();
+
+    await userEvent.type(screen.getByLabelText('邮箱', { exact: true }), 'learner@example.com');
+    await userEvent.click(screen.getByRole('button', { name: '发送验证码' }));
+
+    // The window is the server's 60 seconds, so the button is disabled and counting rather than
+    // offering a resend the server would refuse. The long-lived explanations are gone with it.
+    const resend = await screen.findByRole('button', { name: /^重新发送（\d+s）$/ });
+    expect(resend).toBeDisabled();
+    expect(screen.queryByText('没收到可以重新发送。')).not.toBeInTheDocument();
+    expect(screen.queryByText(/验证码会发送到已在这台账号上验证过的邮箱/)).not.toBeInTheDocument();
+  });
+
+  it('takes the server’s refusal as the clock when it rate-limits a send', async () => {
+    post.mockImplementation(async (url: string) => {
+      if (url === '/auth/email-login/send-code') return fail(429, { detail: '请 60 秒后再试' });
+      return fail(401, { detail: '未登录' });
+    });
+    await openEmailCodeMode();
+
+    await userEvent.type(screen.getByLabelText('邮箱', { exact: true }), 'learner@example.com');
+    await userEvent.click(screen.getByRole('button', { name: '发送验证码' }));
+
+    // The refusal and the countdown say the same thing: a code is already outstanding.
+    expect(await screen.findByText('请 60 秒后再试')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /^重新发送（\d+s）$/ })).toBeDisabled();
+  });
+
   it('shows the server’s own sentence when the code cannot be sent', async () => {
     // No SMTP on this deployment is the backend's `503 邮件服务暂未配置`; the screen repeats it
     // rather than inventing a cause it cannot know.

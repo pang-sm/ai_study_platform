@@ -10,21 +10,26 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AiRouteImport } from './routes/ai'
 import { Route as CourseRouteImport } from './routes/course'
 import { Route as ExamRouteImport } from './routes/exam'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MembershipRouteImport } from './routes/membership'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as ProgrammingRouteImport } from './routes/programming'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as ReviewRouteImport } from './routes/review'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as CourseIndexRouteImport } from './routes/course/index'
 import { Route as CourseCourseIdRouteImport } from './routes/course/$courseId'
 import { Route as CourseSetupRouteImport } from './routes/course/setup'
 import { Route as ExamIndexRouteImport } from './routes/exam/index'
 import { Route as ExamCs408RouteImport } from './routes/exam/cs408'
 import { Route as ExamSetupRouteImport } from './routes/exam/setup'
+import { Route as MembershipIndexRouteImport } from './routes/membership/index'
+import { Route as MembershipPaymentRouteImport } from './routes/membership/payment'
 import { Route as ProgrammingIndexRouteImport } from './routes/programming/index'
 import { Route as ProgrammingLanguageRouteImport } from './routes/programming/$language'
 import { Route as ProgrammingSetupRouteImport } from './routes/programming/setup'
@@ -39,7 +44,9 @@ import { Route as CourseCourseIdStateRouteImport } from './routes/course/$course
 import { Route as CourseCourseIdStudyRouteImport } from './routes/course/$courseId/study'
 import { Route as CourseCourseIdWrongRouteImport } from './routes/course/$courseId/wrong'
 import { Route as ExamCs408IndexRouteImport } from './routes/exam/cs408/index'
+import { Route as ExamCs408AskRouteImport } from './routes/exam/cs408/ask'
 import { Route as ExamCs408KnowledgeRouteImport } from './routes/exam/cs408/knowledge'
+import { Route as ExamCs408MaterialsRouteImport } from './routes/exam/cs408/materials'
 import { Route as ExamCs408PastPapersRouteImport } from './routes/exam/cs408/past-papers'
 import { Route as ExamCs408PlanRouteImport } from './routes/exam/cs408/plan'
 import { Route as ExamCs408PracticeRouteImport } from './routes/exam/cs408/practice'
@@ -63,6 +70,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AiRoute = AiRouteImport.update({
+  id: '/ai',
+  path: '/ai',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CourseRoute = CourseRouteImport.update({
   id: '/course',
   path: '/course',
@@ -81,6 +93,11 @@ const LoginRoute = LoginRouteImport.update({
 const MembershipRoute = MembershipRouteImport.update({
   id: '/membership',
   path: '/membership',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfileRoute = ProfileRouteImport.update({
@@ -106,6 +123,11 @@ const ReportsRoute = ReportsRouteImport.update({
 const ReviewRoute = ReviewRouteImport.update({
   id: '/review',
   path: '/review',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CourseIndexRoute = CourseIndexRouteImport.update({
@@ -137,6 +159,16 @@ const ExamSetupRoute = ExamSetupRouteImport.update({
   id: '/setup',
   path: '/setup',
   getParentRoute: () => ExamRoute,
+} as any)
+const MembershipIndexRoute = MembershipIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => MembershipRoute,
+} as any)
+const MembershipPaymentRoute = MembershipPaymentRouteImport.update({
+  id: '/payment',
+  path: '/payment',
+  getParentRoute: () => MembershipRoute,
 } as any)
 const ProgrammingIndexRoute = ProgrammingIndexRouteImport.update({
   id: '/',
@@ -208,9 +240,19 @@ const ExamCs408IndexRoute = ExamCs408IndexRouteImport.update({
   path: '/',
   getParentRoute: () => ExamCs408Route,
 } as any)
+const ExamCs408AskRoute = ExamCs408AskRouteImport.update({
+  id: '/ask',
+  path: '/ask',
+  getParentRoute: () => ExamCs408Route,
+} as any)
 const ExamCs408KnowledgeRoute = ExamCs408KnowledgeRouteImport.update({
   id: '/knowledge',
   path: '/knowledge',
+  getParentRoute: () => ExamCs408Route,
+} as any)
+const ExamCs408MaterialsRoute = ExamCs408MaterialsRouteImport.update({
+  id: '/materials',
+  path: '/materials',
   getParentRoute: () => ExamCs408Route,
 } as any)
 const ExamCs408PastPapersRoute = ExamCs408PastPapersRouteImport.update({
@@ -309,23 +351,28 @@ const ProgrammingLanguageProjectsProjectIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/ai': typeof AiRoute
   '/course': typeof CourseRouteWithChildren
   '/exam': typeof ExamRouteWithChildren
   '/login': typeof LoginRoute
-  '/membership': typeof MembershipRoute
+  '/membership': typeof MembershipRouteWithChildren
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/programming': typeof ProgrammingRouteWithChildren
   '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
   '/review': typeof ReviewRoute
+  '/terms': typeof TermsRoute
   '/course/$courseId': typeof CourseCourseIdRouteWithChildren
   '/course/setup': typeof CourseSetupRoute
   '/exam/cs408': typeof ExamCs408RouteWithChildren
   '/exam/setup': typeof ExamSetupRoute
+  '/membership/payment': typeof MembershipPaymentRoute
   '/programming/$language': typeof ProgrammingLanguageRouteWithChildren
   '/programming/setup': typeof ProgrammingSetupRoute
   '/course/': typeof CourseIndexRoute
   '/exam/': typeof ExamIndexRoute
+  '/membership/': typeof MembershipIndexRoute
   '/programming/': typeof ProgrammingIndexRoute
   '/course/$courseId/ask': typeof CourseCourseIdAskRoute
   '/course/$courseId/knowledge': typeof CourseCourseIdKnowledgeRoute
@@ -336,7 +383,9 @@ export interface FileRoutesByFullPath {
   '/course/$courseId/state': typeof CourseCourseIdStateRoute
   '/course/$courseId/study': typeof CourseCourseIdStudyRoute
   '/course/$courseId/wrong': typeof CourseCourseIdWrongRoute
+  '/exam/cs408/ask': typeof ExamCs408AskRoute
   '/exam/cs408/knowledge': typeof ExamCs408KnowledgeRoute
+  '/exam/cs408/materials': typeof ExamCs408MaterialsRoute
   '/exam/cs408/past-papers': typeof ExamCs408PastPapersRoute
   '/exam/cs408/plan': typeof ExamCs408PlanRoute
   '/exam/cs408/practice': typeof ExamCs408PracticeRoute
@@ -359,17 +408,21 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/ai': typeof AiRoute
   '/login': typeof LoginRoute
-  '/membership': typeof MembershipRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
   '/review': typeof ReviewRoute
+  '/terms': typeof TermsRoute
   '/course/setup': typeof CourseSetupRoute
   '/exam/setup': typeof ExamSetupRoute
+  '/membership/payment': typeof MembershipPaymentRoute
   '/programming/setup': typeof ProgrammingSetupRoute
   '/course': typeof CourseIndexRoute
   '/exam': typeof ExamIndexRoute
+  '/membership': typeof MembershipIndexRoute
   '/programming': typeof ProgrammingIndexRoute
   '/course/$courseId/ask': typeof CourseCourseIdAskRoute
   '/course/$courseId/knowledge': typeof CourseCourseIdKnowledgeRoute
@@ -380,7 +433,9 @@ export interface FileRoutesByTo {
   '/course/$courseId/state': typeof CourseCourseIdStateRoute
   '/course/$courseId/study': typeof CourseCourseIdStudyRoute
   '/course/$courseId/wrong': typeof CourseCourseIdWrongRoute
+  '/exam/cs408/ask': typeof ExamCs408AskRoute
   '/exam/cs408/knowledge': typeof ExamCs408KnowledgeRoute
+  '/exam/cs408/materials': typeof ExamCs408MaterialsRoute
   '/exam/cs408/past-papers': typeof ExamCs408PastPapersRoute
   '/exam/cs408/plan': typeof ExamCs408PlanRoute
   '/exam/cs408/practice': typeof ExamCs408PracticeRoute
@@ -403,23 +458,28 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/ai': typeof AiRoute
   '/course': typeof CourseRouteWithChildren
   '/exam': typeof ExamRouteWithChildren
   '/login': typeof LoginRoute
-  '/membership': typeof MembershipRoute
+  '/membership': typeof MembershipRouteWithChildren
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/programming': typeof ProgrammingRouteWithChildren
   '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
   '/review': typeof ReviewRoute
+  '/terms': typeof TermsRoute
   '/course/$courseId': typeof CourseCourseIdRouteWithChildren
   '/course/setup': typeof CourseSetupRoute
   '/exam/cs408': typeof ExamCs408RouteWithChildren
   '/exam/setup': typeof ExamSetupRoute
+  '/membership/payment': typeof MembershipPaymentRoute
   '/programming/$language': typeof ProgrammingLanguageRouteWithChildren
   '/programming/setup': typeof ProgrammingSetupRoute
   '/course/': typeof CourseIndexRoute
   '/exam/': typeof ExamIndexRoute
+  '/membership/': typeof MembershipIndexRoute
   '/programming/': typeof ProgrammingIndexRoute
   '/course/$courseId/ask': typeof CourseCourseIdAskRoute
   '/course/$courseId/knowledge': typeof CourseCourseIdKnowledgeRoute
@@ -430,7 +490,9 @@ export interface FileRoutesById {
   '/course/$courseId/state': typeof CourseCourseIdStateRoute
   '/course/$courseId/study': typeof CourseCourseIdStudyRoute
   '/course/$courseId/wrong': typeof CourseCourseIdWrongRoute
+  '/exam/cs408/ask': typeof ExamCs408AskRoute
   '/exam/cs408/knowledge': typeof ExamCs408KnowledgeRoute
+  '/exam/cs408/materials': typeof ExamCs408MaterialsRoute
   '/exam/cs408/past-papers': typeof ExamCs408PastPapersRoute
   '/exam/cs408/plan': typeof ExamCs408PlanRoute
   '/exam/cs408/practice': typeof ExamCs408PracticeRoute
@@ -455,23 +517,28 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/ai'
     | '/course'
     | '/exam'
     | '/login'
     | '/membership'
+    | '/privacy'
     | '/profile'
     | '/programming'
     | '/register'
     | '/reports'
     | '/review'
+    | '/terms'
     | '/course/$courseId'
     | '/course/setup'
     | '/exam/cs408'
     | '/exam/setup'
+    | '/membership/payment'
     | '/programming/$language'
     | '/programming/setup'
     | '/course/'
     | '/exam/'
+    | '/membership/'
     | '/programming/'
     | '/course/$courseId/ask'
     | '/course/$courseId/knowledge'
@@ -482,7 +549,9 @@ export interface FileRouteTypes {
     | '/course/$courseId/state'
     | '/course/$courseId/study'
     | '/course/$courseId/wrong'
+    | '/exam/cs408/ask'
     | '/exam/cs408/knowledge'
+    | '/exam/cs408/materials'
     | '/exam/cs408/past-papers'
     | '/exam/cs408/plan'
     | '/exam/cs408/practice'
@@ -505,17 +574,21 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/ai'
     | '/login'
-    | '/membership'
+    | '/privacy'
     | '/profile'
     | '/register'
     | '/reports'
     | '/review'
+    | '/terms'
     | '/course/setup'
     | '/exam/setup'
+    | '/membership/payment'
     | '/programming/setup'
     | '/course'
     | '/exam'
+    | '/membership'
     | '/programming'
     | '/course/$courseId/ask'
     | '/course/$courseId/knowledge'
@@ -526,7 +599,9 @@ export interface FileRouteTypes {
     | '/course/$courseId/state'
     | '/course/$courseId/study'
     | '/course/$courseId/wrong'
+    | '/exam/cs408/ask'
     | '/exam/cs408/knowledge'
+    | '/exam/cs408/materials'
     | '/exam/cs408/past-papers'
     | '/exam/cs408/plan'
     | '/exam/cs408/practice'
@@ -548,23 +623,28 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/ai'
     | '/course'
     | '/exam'
     | '/login'
     | '/membership'
+    | '/privacy'
     | '/profile'
     | '/programming'
     | '/register'
     | '/reports'
     | '/review'
+    | '/terms'
     | '/course/$courseId'
     | '/course/setup'
     | '/exam/cs408'
     | '/exam/setup'
+    | '/membership/payment'
     | '/programming/$language'
     | '/programming/setup'
     | '/course/'
     | '/exam/'
+    | '/membership/'
     | '/programming/'
     | '/course/$courseId/ask'
     | '/course/$courseId/knowledge'
@@ -575,7 +655,9 @@ export interface FileRouteTypes {
     | '/course/$courseId/state'
     | '/course/$courseId/study'
     | '/course/$courseId/wrong'
+    | '/exam/cs408/ask'
     | '/exam/cs408/knowledge'
+    | '/exam/cs408/materials'
     | '/exam/cs408/past-papers'
     | '/exam/cs408/plan'
     | '/exam/cs408/practice'
@@ -599,15 +681,18 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AiRoute: typeof AiRoute
   CourseRoute: typeof CourseRouteWithChildren
   ExamRoute: typeof ExamRouteWithChildren
   LoginRoute: typeof LoginRoute
-  MembershipRoute: typeof MembershipRoute
+  MembershipRoute: typeof MembershipRouteWithChildren
+  PrivacyRoute: typeof PrivacyRoute
   ProfileRoute: typeof ProfileRoute
   ProgrammingRoute: typeof ProgrammingRouteWithChildren
   RegisterRoute: typeof RegisterRoute
   ReportsRoute: typeof ReportsRoute
   ReviewRoute: typeof ReviewRoute
+  TermsRoute: typeof TermsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -617,6 +702,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ai': {
+      id: '/ai'
+      path: '/ai'
+      fullPath: '/ai'
+      preLoaderRoute: typeof AiRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/course': {
@@ -645,6 +737,13 @@ declare module '@tanstack/react-router' {
       path: '/membership'
       fullPath: '/membership'
       preLoaderRoute: typeof MembershipRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/profile': {
@@ -680,6 +779,13 @@ declare module '@tanstack/react-router' {
       path: '/review'
       fullPath: '/review'
       preLoaderRoute: typeof ReviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/course/': {
@@ -723,6 +829,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/exam/setup'
       preLoaderRoute: typeof ExamSetupRouteImport
       parentRoute: typeof ExamRoute
+    }
+    '/membership/': {
+      id: '/membership/'
+      path: '/'
+      fullPath: '/membership/'
+      preLoaderRoute: typeof MembershipIndexRouteImport
+      parentRoute: typeof MembershipRoute
+    }
+    '/membership/payment': {
+      id: '/membership/payment'
+      path: '/payment'
+      fullPath: '/membership/payment'
+      preLoaderRoute: typeof MembershipPaymentRouteImport
+      parentRoute: typeof MembershipRoute
     }
     '/programming/': {
       id: '/programming/'
@@ -822,11 +942,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ExamCs408IndexRouteImport
       parentRoute: typeof ExamCs408Route
     }
+    '/exam/cs408/ask': {
+      id: '/exam/cs408/ask'
+      path: '/ask'
+      fullPath: '/exam/cs408/ask'
+      preLoaderRoute: typeof ExamCs408AskRouteImport
+      parentRoute: typeof ExamCs408Route
+    }
     '/exam/cs408/knowledge': {
       id: '/exam/cs408/knowledge'
       path: '/knowledge'
       fullPath: '/exam/cs408/knowledge'
       preLoaderRoute: typeof ExamCs408KnowledgeRouteImport
+      parentRoute: typeof ExamCs408Route
+    }
+    '/exam/cs408/materials': {
+      id: '/exam/cs408/materials'
+      path: '/materials'
+      fullPath: '/exam/cs408/materials'
+      preLoaderRoute: typeof ExamCs408MaterialsRouteImport
       parentRoute: typeof ExamCs408Route
     }
     '/exam/cs408/past-papers': {
@@ -997,7 +1131,9 @@ const CourseRouteWithChildren =
   CourseRoute._addFileChildren(CourseRouteChildren)
 
 interface ExamCs408RouteChildren {
+  ExamCs408AskRoute: typeof ExamCs408AskRoute
   ExamCs408KnowledgeRoute: typeof ExamCs408KnowledgeRoute
+  ExamCs408MaterialsRoute: typeof ExamCs408MaterialsRoute
   ExamCs408PastPapersRoute: typeof ExamCs408PastPapersRoute
   ExamCs408PlanRoute: typeof ExamCs408PlanRoute
   ExamCs408PracticeRoute: typeof ExamCs408PracticeRoute
@@ -1008,7 +1144,9 @@ interface ExamCs408RouteChildren {
 }
 
 const ExamCs408RouteChildren: ExamCs408RouteChildren = {
+  ExamCs408AskRoute: ExamCs408AskRoute,
   ExamCs408KnowledgeRoute: ExamCs408KnowledgeRoute,
+  ExamCs408MaterialsRoute: ExamCs408MaterialsRoute,
   ExamCs408PastPapersRoute: ExamCs408PastPapersRoute,
   ExamCs408PlanRoute: ExamCs408PlanRoute,
   ExamCs408PracticeRoute: ExamCs408PracticeRoute,
@@ -1039,6 +1177,20 @@ const ExamRouteChildren: ExamRouteChildren = {
 }
 
 const ExamRouteWithChildren = ExamRoute._addFileChildren(ExamRouteChildren)
+
+interface MembershipRouteChildren {
+  MembershipPaymentRoute: typeof MembershipPaymentRoute
+  MembershipIndexRoute: typeof MembershipIndexRoute
+}
+
+const MembershipRouteChildren: MembershipRouteChildren = {
+  MembershipPaymentRoute: MembershipPaymentRoute,
+  MembershipIndexRoute: MembershipIndexRoute,
+}
+
+const MembershipRouteWithChildren = MembershipRoute._addFileChildren(
+  MembershipRouteChildren,
+)
 
 interface ProgrammingLanguageExercisesRouteChildren {
   ProgrammingLanguageExercisesExerciseIdRoute: typeof ProgrammingLanguageExercisesExerciseIdRoute
@@ -1101,15 +1253,18 @@ const ProgrammingRouteWithChildren = ProgrammingRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AiRoute: AiRoute,
   CourseRoute: CourseRouteWithChildren,
   ExamRoute: ExamRouteWithChildren,
   LoginRoute: LoginRoute,
-  MembershipRoute: MembershipRoute,
+  MembershipRoute: MembershipRouteWithChildren,
+  PrivacyRoute: PrivacyRoute,
   ProfileRoute: ProfileRoute,
   ProgrammingRoute: ProgrammingRouteWithChildren,
   RegisterRoute: RegisterRoute,
   ReportsRoute: ReportsRoute,
   ReviewRoute: ReviewRoute,
+  TermsRoute: TermsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

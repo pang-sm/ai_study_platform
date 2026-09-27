@@ -17,14 +17,10 @@ export function FirstRunSurface({ spaces }: { spaces: readonly SpaceContext[] })
 
   return (
     <Panel tone="focus" labelledBy="first-run-title">
-      <p className="text-metadata font-medium tracking-eyebrow text-primary-ink">先建立学习空间</p>
+      <p className="text-metadata font-medium tracking-eyebrow text-primary-ink">先设置一个学习方向</p>
       <h2 id="first-run-title" className="mt-2 text-section-title font-semibold text-text-primary">
-        先建立一个学习空间，智学AI才能为你形成真实学习安排。
+        设置任意一个方向，就可以开始学习。
       </h2>
-      <p className="mt-4 max-w-prose text-body text-text-secondary">
-        每个学习空间都有自己的上下文：课程空间围绕你声明的课程，考研空间围绕你确认的科目，编程空间围绕你要练的语言。
-        设置好任意一个，首页就会回到今天该做什么。
-      </p>
 
       <ul className="mt-6">
         {spaces.map((space) => (
@@ -35,7 +31,7 @@ export function FirstRunSurface({ spaces }: { spaces: readonly SpaceContext[] })
             <div className="min-w-0">
               <p className="text-body font-medium text-text-primary">{space.label}</p>
               <p className="mt-1 max-w-prose text-metadata text-text-secondary">
-                {space.failed ? '暂时无法读取这个学习空间的状态。' : space.missing} {space.purpose}
+                {space.failed ? '暂时读不到这个方向的设置。' : space.missing} {space.purpose}
               </p>
             </div>
             <Link
@@ -51,7 +47,7 @@ export function FirstRunSurface({ spaces }: { spaces: readonly SpaceContext[] })
 
       {failed.length ? (
         <StatusNote tone="warning" className="mt-5">
-          有学习空间的状态没有读到；这不影响你在对应页面里直接开始。
+          有方向的设置没有读到；这不影响你在对应页面里直接开始。
         </StatusNote>
       ) : null}
     </Panel>

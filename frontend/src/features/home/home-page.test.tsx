@@ -10,58 +10,85 @@ vi.mock('@/lib/api/client', () => ({
 
 const ok = (data: unknown) => ({ data, error: undefined, response: { ok: true, status: 200 } });
 
+function agendaItem(overrides: Record<string, unknown>) {
+  return {
+    action_type: 'review',
+    service_namespace: 'exam_prep',
+    domain_context: {},
+    source_type: 'wrong_answer',
+    source_id: '1',
+    title: '错题 · 数据结构',
+    summary: '累计做错 5 次，尚未订正',
+    priority_reason: 'repeated_wrong',
+    deep_link: '/exam/cs408/wrong?module=data_structure',
+    due_at: null,
+    facts: { wrong_count: 5, review_reason: 'wrong_answer_active' },
+    status: 'needs_attention',
+    resolved_by: 'review_completion',
+    ...overrides,
+  };
+}
+
+/** One item per shape the agenda can return, in the order the backend would rank them. */
 const AGENDA = {
-  policy_version: 'v1',
-  generated_at: '2026-09-20T10:00:00+00:00',
+  policy_version: 'agenda_policy_v1',
+  generated_at: '2026-09-25T10:00:00+00:00',
   items: [
-    {
-      action_type: 'review',
+    agendaItem({ domain_context: { exam_module_id: 'data_structure' } }),
+    agendaItem({
+      service_namespace: 'programming',
+      domain_context: { language: 'C', exercise_id: 11 },
+      source_type: 'programming_exercise',
+      source_id: '11',
+      title: '设备序列号校验',
+      summary: '标记为需要加强',
+      priority_reason: 'needs_work',
+      deep_link: '/programming/C/exercises/11',
+      facts: { personal_status: 'needs_work', passed_count: 2, total_count: 5 },
+    }),
+    agendaItem({
+      service_namespace: 'programming',
+      domain_context: { language: 'C', exercise_id: 12 },
+      source_type: 'programming_exercise',
+      source_id: '12',
+      title: '首个独特字符',
+      summary: '标记为需要加强',
+      priority_reason: 'needs_work',
+      deep_link: '/programming/C/exercises/12',
+      facts: { personal_status: 'needs_work' },
+    }),
+    agendaItem({
+      service_namespace: 'programming',
+      domain_context: { language: 'Python', exercise_id: 13 },
+      source_type: 'programming_exercise',
+      source_id: '13',
+      title: '设备序列号校验',
+      summary: '标记为需要加强',
+      priority_reason: 'needs_work',
+      deep_link: '/programming/Python/exercises/13',
+      facts: { personal_status: 'needs_work' },
+    }),
+    agendaItem({
+      action_type: 'plan_task',
       service_namespace: 'exam_prep',
-      domain_context: { exam_module_id: 'data_structure' },
-      source_type: 'review',
-      source_id: 'r-1',
-      title: '复习线性表',
-      summary: '到期复习项',
-      priority_reason: 'due_review',
-      deep_link: '/review',
-      due_at: null,
-      facts: { interval_days: 3 },
+      domain_context: { exam_module_id: 'operating_system' },
+      source_type: 'plan_task',
+      source_id: '9',
+      title: '操作系统真题一套',
+      summary: '计划内任务（无截止日期）',
+      priority_reason: 'current_plan_task',
+      deep_link: '/exam/cs408/plan',
+      facts: { status: 'open', task_type: 'practice' },
       status: 'open',
-      resolved_by: 'review_completion',
-    },
+    }),
   ],
-  total_items: 1,
-  source_summary: { plan_tasks: 0, review_items: 1, adaptive_candidates: 0, unattributable_plan_tasks: 0, deduplicated: 0 },
-  by_namespace: { exam_prep: 1 },
-  by_reason: { due_review: 1 },
-  priority_order: ['overdue_plan_task', 'due_review'],
+  total_items: 5,
+  source_summary: { plan_tasks: 1, review_items: 4, adaptive_candidates: 0, unattributable_plan_tasks: 0, deduplicated: 0 },
+  by_namespace: { exam_prep: 2, programming: 3 },
+  by_reason: { repeated_wrong: 1, needs_work: 3, current_plan_task: 1 },
+  priority_order: ['overdue_plan_task', 'due_review', 'repeated_wrong', 'needs_work'],
   filters: {},
   semantics: 'ranked by the fixed ladder',
-};
-
-const RECORDS = {
-  records: [
-    {
-      event_id: '11111111-1111-5111-8111-111111111111',
-      event_type: 'review_completed',
-      record_category: 'ReviewEvent',
-      service_namespace: 'exam_prep',
-      occurred_at: '2026-09-20T08:30:00+00:00',
-      source: { type: 'review_item', id: 'r-0' },
-      summary: { status: 'done' },
-    },
-    {
-      event_id: '22222222-2222-5222-8222-222222222222',
-      event_type: 'some_future_family',
-      record_category: 'PracticeEvent',
-      service_namespace: 'course_learning',
-      occurred_at: null,
-      source: { type: 'attempt', id: 'a-1' },
-      summary: null,
-    },
-  ],
-  has_more: false,
-  next_cursor: null,
 };
 
 /** Empty by default: these are the three reads that decide whether the page is first-run. */
@@ -76,24 +103,6 @@ function respondWith(overrides: Record<string, unknown> = {}) {
     if (url in overrides) return overrides[url];
     if (url in EMPTY_SPACES) return EMPTY_SPACES[url];
     if (url === '/learning/agenda') return ok(AGENDA);
-    if (url === '/learning/agenda/explain') {
-      return ok({ priority_rules: { due_review: '复习项已到期（存储或策略计算的到期日）' } });
-    }
-    if (url === '/review/summary') return ok({ total: 1, has_stored_due_dates: true });
-    if (url === '/learning-records') return ok(RECORDS);
-    if (url === '/subscription') return ok({ tier: 'free', policy_version: 'v1' });
-    if (url === '/subscription/plans') {
-      return ok({ policy_version: 'v1', plans: { free: { label: '免费版', daily_budget: 5, weekly_budget: 25, capabilities: [] } } });
-    }
-    if (url === '/usage/summary') {
-      return ok({
-        tier: 'free',
-        periods: {
-          daily: { budget: 5, reserved: 0, settled: 1, remaining: 4 },
-          weekly: { budget: 25, reserved: 0, settled: 6, remaining: 19 },
-        },
-      });
-    }
     throw new Error(`unexpected GET ${url}`);
   });
 }
@@ -104,179 +113,258 @@ beforeEach(() => {
 });
 
 describe('home page', () => {
-  it('renders the agenda item with the server’s own rule and the backend deep link', async () => {
+  it('greets the learner by name and states the one thing to do now', async () => {
+    respondWith({ '/exam/prep/profile': ok({ configured: true, subjects: [] }) });
     renderApp('/');
 
-    expect(await screen.findByText('复习线性表')).toBeInTheDocument();
-    expect(screen.getByText(/复习项已到期/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '打开并完成这项学习' })).toHaveAttribute(
-      'href',
-      '/review',
-    );
-  });
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('测试学习者');
+    // The greeting is the whole header: the page goes straight to the task from there.
+    expect(screen.queryByText(/根据你的学习记录/)).not.toBeInTheDocument();
 
-  it('reports the review queue and the real membership position', async () => {
-    renderApp('/');
-
-    const review = await screen.findByRole('region', { name: '待复习' });
-    expect(await within(review).findByText('待处理：1')).toBeInTheDocument();
-
-    expect(await screen.findByText('免费版')).toBeInTheDocument();
-    expect(screen.getByText(/今日剩余额度：4/)).toBeInTheDocument();
-  });
-
-  it('labels known study events and falls back to the raw code for an unknown one', async () => {
-    renderApp('/');
-
-    const recent = await screen.findByRole('region', { name: '最近学习' });
-    expect(await within(recent).findByText('完成复习')).toBeInTheDocument();
-    // An unmapped event type shows as itself rather than as a guess.
-    expect(within(recent).getByText('some_future_family')).toBeInTheDocument();
-    expect(within(recent).getAllByText(/时间未记录/)).toHaveLength(1);
-  });
-
-  it('states the real empty conditions instead of inventing tasks or history', async () => {
-    respondWith({
-      '/learning/agenda': ok({ ...AGENDA, items: [], total_items: 0 }),
-      '/learning-records': ok({ records: [], has_more: false, next_cursor: null }),
-    });
-    renderApp('/');
-
-    expect(await screen.findByText('当前没有需要优先处理的学习任务。')).toBeInTheDocument();
+    const focus = await screen.findByRole('region', { name: '现在先做' });
+    // The order is stated by a section heading of the page's own kind, and the task it holds is
+    // named *under* it — a level deeper, never competing with it.
+    expect(within(focus).getByRole('heading', { name: '现在先做' })).toBeInTheDocument();
     expect(
-      await screen.findByText(/还没有学习记录。完成一次练习、复习或编程提交后/),
+      within(focus).getByRole('heading', { level: 3, name: '错题 · 数据结构' }),
     ).toBeInTheDocument();
-  });
-
-  it('asks for a learning context, per space, only when no space has one', async () => {
-
-    renderApp('/', { user: { ...TEST_USER, onboarding_completed: false, needs_onboarding: true } });
-
-    const start = await screen.findByRole('region', {
-      name: '先建立一个学习空间，智学AI才能为你形成真实学习安排。',
-    });
-    // Each space leads to the setup flow that actually establishes its context, and each one is
-    // asked to come back here once it has.
-    expect(within(start).getByRole('link', { name: '设置课程' })).toHaveAttribute(
+    expect(within(focus).getByText('考研学习 · 数据结构')).toBeInTheDocument();
+    expect(within(focus).getByText('这道内容已经做错 5 次，建议优先完成订正。')).toBeInTheDocument();
+    expect(within(focus).getByText('错 5 次')).toBeInTheDocument();
+    expect(within(focus).getByText('未订正')).toBeInTheDocument();
+    expect(within(focus).getByRole('link', { name: /继续学习/ })).toHaveAttribute(
       'href',
-      '/course/setup?returnTo=%2F',
-    );
-    expect(within(start).getByRole('link', { name: '设置备考' })).toHaveAttribute(
-      'href',
-      '/exam/setup?returnTo=%2F',
-    );
-    expect(within(start).getByRole('link', { name: '设置编程学习' })).toHaveAttribute(
-      'href',
-      '/programming/setup?returnTo=%2F',
+      '/exam/cs408/wrong?module=data_structure',
     );
   });
 
-  it('treats one configured space as enough, whatever the legacy account flag says', async () => {
-    // `needs_onboarding` is an account-level flag only one legacy route clears; a learner with a
-    // declared course is set up, and the home page must stop asking.
-    respondWith({ '/course-learning/courses': ok([{ id: 'data-structure', name: '数据结构' }]) });
-    renderApp('/', { user: { ...TEST_USER, onboarding_completed: false, needs_onboarding: true } });
+  it('says its reason in one sentence, and stacks no second layer of explanation under it', async () => {
+    respondWith({ '/exam/prep/profile': ok({ configured: true, subjects: [] }) });
+    const { container } = renderApp('/');
 
-    await screen.findByText('复习线性表');
-    expect(
-      screen.queryByRole('region', { name: '先建立一个学习空间，智学AI才能为你形成真实学习安排。' }),
-    ).not.toBeInTheDocument();
+    const focus = await screen.findByRole('region', { name: '现在先做' });
+    // The card answers "what now". Everything a learner might want to interrogate about it is
+    // on the surface that owns the item, not folded into the home page.
+    expect(within(focus).queryByText('为什么推荐？')).not.toBeInTheDocument();
+    expect(focus.querySelector('details')).toBeNull();
+    expect(within(focus).queryByText(/智学AI会持续记录/)).not.toBeInTheDocument();
+
+    // The rule text the backend writes for engineers names payload fields. None of it, and none
+    // of the item's own machine fields, may reach the learner.
+    const text = container.textContent ?? '';
+    for (const internal of [
+      'wrong_count',
+      'task_type',
+      'due_source',
+      'review_reason',
+      'policy_version',
+      'agenda_policy_v1',
+      'needs_attention',
+      'repeated_wrong',
+      'current_plan_task',
+      'review_completion',
+      'data_structure',
+      'exercise_id',
+    ]) {
+      expect(text, `home must not show ${internal}`).not.toContain(internal);
+    }
   });
 
-  it('does not show the first-user prompt to a learner who has finished setup', async () => {
-    respondWith({ '/exam/prep/profile': ok({ configured: true, subjects: [{ id: 'cs408' }] }) });
+  it('lists the rest of the agenda compactly, telling same-named exercises apart by language', async () => {
+    respondWith({ '/exam/prep/profile': ok({ configured: true, subjects: [] }) });
     renderApp('/');
 
-    await screen.findByText('复习线性表');
-    expect(
-      screen.queryByRole('region', { name: '先建立一个学习空间，智学AI才能为你形成真实学习安排。' }),
-    ).not.toBeInTheDocument();
+    const list = await screen.findByRole('region', { name: '今天接下来' });
+    // Await the rows, not the section: the section exists while the agenda is still loading, and
+    // asserting against that first frame is how a page that renders nothing looks like a pass.
+    const rows = await within(list).findAllByRole('listitem');
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toHaveTextContent('设备序列号校验');
+    expect(rows[0]).toHaveTextContent('C · 标记为需要加强');
+    expect(rows[1]).toHaveTextContent('首个独特字符');
+    // The same exercise title, in a different language, is a different task — and the row says so.
+    expect(rows[2]).toHaveTextContent('设备序列号校验');
+    expect(rows[2]).toHaveTextContent('Python · 标记为需要加强');
+    // The promoted item is promoted once: the list continues from the second entry.
+    expect(within(list).queryByText('错题 · 数据结构')).not.toBeInTheDocument();
+    expect(within(rows[0] as HTMLElement).getByRole('link')).toHaveAttribute(
+      'href',
+      '/programming/C/exercises/11',
+    );
   });
 
-  it('reports an empty agenda as an empty agenda, never as a first-run prompt', async () => {
-    // The learner has a course, so setup is behind them. What is empty is today's agenda, and
-    // sending them back to "set yourself up" would be asking for something already done.
+  it('asks for the rest of a longer agenda rather than growing the page', async () => {
+    respondWith({ '/exam/prep/profile': ok({ configured: true, subjects: [] }) });
+    renderApp('/');
+
+    const list = await screen.findByRole('region', { name: '今天接下来' });
+    expect(await within(list).findAllByRole('listitem')).toHaveLength(3);
+    expect(within(list).getByRole('button', { name: '还有 1 项' })).toBeInTheDocument();
+  });
+
+  it('names an exercise by its reference only when two rows would otherwise read identically', async () => {
     respondWith({
-      '/course-learning/courses': ok([{ id: 'data-structure', name: '数据结构' }]),
+      '/exam/prep/profile': ok({ configured: true, subjects: [] }),
+      '/learning/agenda': ok({
+        ...AGENDA,
+        items: [
+          AGENDA.items[0],
+          agendaItem({
+            service_namespace: 'programming',
+            domain_context: { language: 'C', exercise_id: 21 },
+            source_type: 'programming_exercise',
+            source_id: '21',
+            title: '两数之和',
+            summary: '标记为需要加强',
+            priority_reason: 'needs_work',
+            facts: { personal_status: 'needs_work' },
+          }),
+          agendaItem({
+            service_namespace: 'programming',
+            domain_context: { language: 'C', exercise_id: 22 },
+            source_type: 'programming_exercise',
+            source_id: '22',
+            title: '两数之和',
+            summary: '标记为需要加强',
+            priority_reason: 'needs_work',
+            facts: { personal_status: 'needs_work' },
+          }),
+        ],
+      }),
+    });
+    renderApp('/');
+
+    const list = await screen.findByRole('region', { name: '今天接下来' });
+    expect(await within(list).findByText('C · 标记为需要加强 · #21')).toBeInTheDocument();
+    expect(within(list).getByText('C · 标记为需要加强 · #22')).toBeInTheDocument();
+  });
+
+  it('says what is empty instead of inventing work, and still leads into every direction', async () => {
+    respondWith({
+      '/exam/prep/profile': ok({ configured: true, subjects: [{ id: 'cs_408', display_name: '计算机学科专业基础' }] }),
       '/learning/agenda': ok({ ...AGENDA, items: [], total_items: 0 }),
     });
     renderApp('/');
 
-    expect(await screen.findByText('当前没有需要优先处理的学习任务。')).toBeInTheDocument();
-    expect(
-      screen.queryByRole('region', { name: '先建立一个学习空间，智学AI才能为你形成真实学习安排。' }),
-    ).not.toBeInTheDocument();
+    expect(await screen.findByText('今天暂时没有需要优先处理的学习任务。')).toBeInTheDocument();
+    expect(screen.queryByText('现在先做')).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '今天接下来' })).not.toBeInTheDocument();
+
+    const spaces = screen.getByRole('region', { name: '我的学习方向' });
+    expect(await within(spaces).findByText('备考：计算机学科专业基础')).toBeInTheDocument();
+    expect(within(spaces).getAllByRole('link').map((link) => link.getAttribute('href')))
+      .toEqual(['/exam', '/course', '/programming']);
+  });
+
+  it('reports a failed agenda read as a failure, never as a day with nothing in it', async () => {
+    respondWith({
+      '/exam/prep/profile': ok({ configured: true, subjects: [] }),
+      '/learning/agenda': { data: undefined, error: { detail: 'x' }, response: { ok: false, status: 500 } },
+    });
+    renderApp('/');
+
+    expect(await screen.findByText(/今天的学习建议暂时读不到/)).toBeInTheDocument();
+    expect(screen.queryByText('今天暂时没有需要优先处理的学习任务。')).not.toBeInTheDocument();
+    // ...and the directions are still reachable, because one failed read is not an outage.
+    expect(screen.getByRole('region', { name: '我的学习方向' })).toBeInTheDocument();
+  });
+
+  it('leaves the learning log, and the way to it, to the destinations in the header', async () => {
+    respondWith({ '/exam/prep/profile': ok({ configured: true, subjects: [] }) });
+    renderApp('/');
+
+    const list = await screen.findByRole('region', { name: '今天接下来' });
+    await within(list).findAllByRole('listitem');
+    expect(screen.queryByRole('region', { name: '最近学习' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '去别的学习方向' })).not.toBeInTheDocument();
+    // 学习报告 is a destination in the header on every screen; a second copy of it beside the
+    // tasks competed with them, so the section carries no link of its own.
+    expect(within(list).queryByRole('link', { name: /学习报告/ })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: '学习报告' }).length).toBeGreaterThan(0);
+  });
+
+  it('names what each direction opens from the context that direction actually holds', async () => {
+    respondWith({
+      '/course-learning/courses': ok([{ course_id: 'data_structure', course_name: '数据结构' }]),
+      '/exam/prep/profile': ok({ configured: true, subjects: [{ id: 'cs_408', display_name: '计算机学科专业基础' }] }),
+      '/programming/onboarding': ok({ main_language: 'C', selected_languages: ['C'], onboarding_completed: true }),
+    });
+    renderApp('/');
+
+    const spaces = await screen.findByRole('region', { name: '我的学习方向' });
+    expect(await within(spaces).findByRole('link', { name: /进入备考/ })).toHaveAttribute('href', '/exam');
+    expect(within(spaces).getByRole('link', { name: /查看课程/ })).toHaveAttribute('href', '/course');
+    expect(within(spaces).getByRole('link', { name: /继续 C 编程/ })).toHaveAttribute(
+      'href',
+      '/programming',
+    );
+  });
+
+  it('promises nothing a direction without a context cannot confirm', async () => {
+    // No space declares anything, and one read fails outright. Neither may be answered with a
+    // wording that claims the learner has something set up.
+    respondWith({
+      '/programming/onboarding': { data: undefined, error: { detail: 'x' }, response: { ok: false, status: 500 } },
+    });
+    renderApp('/');
+
+    const spaces = await screen.findByRole('region', { name: '我的学习方向' });
+    expect(await within(spaces).findByRole('link', { name: /开始专业学习/ })).toBeInTheDocument();
+    expect(within(spaces).getByRole('link', { name: /开始备考/ })).toBeInTheDocument();
+    expect(within(spaces).getByRole('link', { name: /进入编程学习/ })).toBeInTheDocument();
+    expect(within(spaces).queryByRole('link', { name: /继续 .* 编程/ })).not.toBeInTheDocument();
   });
 });
 
 /**
- * The first-run matrix, one row at a time.
- *
- * "Configured" is a statement about each space's own context, so each case below configures
- * exactly one and asserts the surface is gone. The legacy account-level flag is held at
- * `needs_onboarding: true` throughout, because it is precisely the flag that used to keep the
- * prompt on screen after a learner had already set themselves up.
+ * The first-run matrix. "Configured" is a statement about each direction's own context, so each
+ * case below configures exactly one and asserts the start prompt is gone. The legacy
+ * account-level flag is held at `needs_onboarding: true` throughout, because it is precisely the
+ * flag that used to keep the prompt on screen after a learner had already set themselves up.
  */
 describe('first-run home', () => {
-  const firstRun = { name: '先建立一个学习空间，智学AI才能为你形成真实学习安排。' };
+  const firstRun = { name: '设置任意一个方向，就可以开始学习。' };
   const neverSetUp = { ...TEST_USER, onboarding_completed: false, needs_onboarding: true };
 
-  it('shows the surface when no space has a context, with the three real entries', async () => {
-    respondWith();
+  it('asks a learner with no direction configured to set one up, and promotes nothing', async () => {
     renderApp('/', { user: neverSetUp });
 
     const start = await screen.findByRole('region', firstRun);
-    for (const label of ['课程学习', '11408 考研学习', '编程学习']) {
-      expect(within(start).getByText(label)).toBeInTheDocument();
-    }
     expect(within(start).getAllByRole('link')).toHaveLength(3);
+    expect(screen.queryByText('现在先做')).not.toBeInTheDocument();
   });
 
-  it('leaves first-run behind as soon as one space is configured — course', async () => {
+  it('leaves first-run behind as soon as one direction holds a context', async () => {
     respondWith({ '/course-learning/courses': ok([{ course_id: 'data_structure', course_name: '数据结构' }]) });
     renderApp('/', { user: neverSetUp });
 
-    await screen.findByText('复习线性表');
+    await screen.findByText('现在先做');
     expect(screen.queryByRole('region', firstRun)).not.toBeInTheDocument();
   });
 
-  it('leaves first-run behind as soon as one space is configured — exam', async () => {
+  it('does not treat a failed direction read as an unconfigured direction', async () => {
     respondWith({
-      '/exam/prep/profile': ok({ configured: true, subjects: [{ id: 'cs_408' }] }),
+      '/exam/prep/profile': { data: undefined, error: { detail: 'x' }, response: { ok: false, status: 500 } },
     });
     renderApp('/', { user: neverSetUp });
 
-    await screen.findByText('复习线性表');
-    expect(screen.queryByRole('region', firstRun)).not.toBeInTheDocument();
-  });
-
-  it('leaves first-run behind as soon as one space is configured — programming', async () => {
-    respondWith({
-      '/programming/onboarding': ok({ main_language: 'Python', selected_languages: ['Python'], onboarding_completed: true }),
-    });
-    renderApp('/', { user: neverSetUp });
-
-    await screen.findByText('复习线性表');
-    expect(screen.queryByRole('region', firstRun)).not.toBeInTheDocument();
-  });
-
-  it('promotes the agenda once a space exists, and does not ask for setup again', async () => {
-    respondWith({ '/course-learning/courses': ok([{ course_id: 'data_structure', course_name: '数据结构' }]) });
-    renderApp('/', { user: neverSetUp });
-
-    // The server's own first item becomes the page's focal action — the first-run surface and the
-    // focal agenda item are alternatives, never both.
-    expect(await screen.findByRole('region', { name: '复习线性表' })).toBeInTheDocument();
-    expect(screen.queryByRole('region', firstRun)).not.toBeInTheDocument();
-  });
-
-  it('does not treat a failed space read as an unconfigured space', async () => {
-    respondWith({ '/exam/prep/profile': { data: undefined, error: { detail: 'x' }, response: { ok: false, status: 500 } } });
-    renderApp('/', { user: neverSetUp });
-
-    // One space could not be read and the other two answered empty. The page says so rather than
-    // presenting a confident "you have nothing set up", which it cannot know.
     const start = await screen.findByRole('region', firstRun);
-    expect(within(start).getByText(/暂时无法读取这个学习空间的状态/)).toBeInTheDocument();
+    expect(within(start).getByText(/暂时读不到这个方向的设置/)).toBeInTheDocument();
+  });
+
+  it('says a direction’s status is unreadable rather than showing it as empty', async () => {
+    respondWith({
+      '/course-learning/courses': ok([{ course_id: 'data_structure', course_name: '数据结构' }]),
+      '/programming/onboarding': {
+        data: undefined,
+        error: { detail: 'x' },
+        response: { ok: false, status: 500 },
+      },
+    });
+    renderApp('/');
+
+    const spaces = await screen.findByRole('region', { name: '我的学习方向' });
+    expect(await within(spaces).findByText('课程：数据结构')).toBeInTheDocument();
+    expect(within(spaces).getByText('暂时读不到这个方向的状态。')).toBeInTheDocument();
   });
 });

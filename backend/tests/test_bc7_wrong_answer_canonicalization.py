@@ -17,6 +17,7 @@ Gates this file exists to prove:
 Everything here that touches a database builds a TEMP copy. ``backend/app.db`` is only ever
 opened read-only.
 """
+import hashlib
 import json
 import os
 import shutil
@@ -48,7 +49,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 APP_DB = BACKEND_DIR / "app.db"
 
-EXPECTED_HEAD = "20260921_0013"
+EXPECTED_HEAD = "20260923_0015"
 CANONICAL_TABLE = "wrong_answer_states"
 MODULE_COLUMN = "module_key"
 MODULE_INDEX = "ix_wrong_answer_states_user_ns_module"
@@ -659,16 +660,38 @@ def test_canonical_surface_is_typed_in_openapi(client):
 # ================================================================ E. real DB safety
 
 
-def test_real_app_db_is_never_mutated_by_this_suite():
-    """The suite only ever copies. This pins the fact for the BC7 report."""
+def _real_db_fingerprint():
+    """The runtime database AS THIS SUITE MUST LEAVE IT — compared against itself.
+
+    Self-relative, the same convention test_bc5c / test_bc8 use: the file is measured once at
+    import and once when this test runs, so the guard holds on any machine and at any schema
+    revision and never depends on a historical table count.
+    """
+    if not APP_DB.is_file():
+        return None
     con = sqlite3.connect(f"file:{APP_DB.as_posix()}?mode=ro", uri=True)
     try:
-        tables = con.execute(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type='table'").fetchone()[0]
         integrity = con.execute("PRAGMA integrity_check").fetchone()[0]
-        canonical = con.execute(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?",
-            (CANONICAL_TABLE,)).fetchone()[0]
+    finally:
+        con.close()
+    return {"sha256": hashlib.sha256(APP_DB.read_bytes()).hexdigest(),
+            "mtime": APP_DB.stat().st_mtime,
+            "integrity": integrity}
+
+
+_REAL_DB_BASELINE = _real_db_fingerprint()
+
+
+def test_real_app_db_is_never_mutated_by_this_suite():
+    """The suite only ever copies. This pins the fact for the BC7 report.
+
+    Deliberately NOT an assertion about the schema's shape: a fixed table count described one
+    machine's database before Alembic and is not a product contract.
+    """
+    if _REAL_DB_BASELINE is None:
+        pytest.skip("no real app.db in this checkout")
+    con = sqlite3.connect(f"file:{APP_DB.as_posix()}?mode=ro", uri=True)
+    try:
         blank_legacy = con.execute(
             "SELECT COUNT(*) FROM exam_wrong_questions WHERE COALESCE(user_answer,'')=''"
         ).fetchone()[0]
@@ -676,7 +699,13 @@ def test_real_app_db_is_never_mutated_by_this_suite():
             "SELECT COUNT(*) FROM past_paper_wrong_questions").fetchone()[0]
     finally:
         con.close()
-    assert integrity == "ok"
-    assert tables == 72, "the deployed baseline table count is unchanged"
-    assert canonical == 0, "the canonical table still arrives via migration, not by accident"
+
+    # Byte-identity covers every shape concern at once — including "did this suite create or
+    # alter the canonical table": any such change moves the digest. The old
+    # `canonical_table_absent` assertion encoded a premise that no longer holds (it assumed the
+    # runtime database had never been migrated; it is now at head, so the table exists by
+    # migration, exactly as intended).
+    assert _real_db_fingerprint() == _REAL_DB_BASELINE, \
+        "this suite modified the runtime database"
+    assert _REAL_DB_BASELINE["integrity"] == "ok"
     assert blank_legacy == 0 and pp_dupes == 0, "the real wrong stores hold no rows"

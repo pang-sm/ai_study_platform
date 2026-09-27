@@ -217,6 +217,40 @@ def test_space_scoped_retrieval_never_crosses_courses(client, db_session, monkey
     assert cited <= {mine.id}
 
 
+def test_a_natural_chinese_question_retrieves_the_material_that_answers_it(client, db_session, monkeypatch):
+    """A course question is a SENTENCE, and a sentence used to retrieve nothing at all.
+
+    FTS5's default `unicode61` tokenizer has no Chinese word boundaries — it stores a whole run of
+    CJK as ONE term, so no shorter query can equal one of them — and the substring fallback looked
+    for the question's own long runs, which a passage does not contain verbatim. Between the two, an
+    ordinary question retrieved nothing from a course whose material was parsed and indexed, and
+    course Q&A answered with no citations at all.
+    """
+    register_and_login(client, "p3a_cjk_search")
+    grant_unified_tier(db_session, "p3a_cjk_search", "standard")
+    monkeypatch.setattr("ai.orchestrator.default_provider_factory", _provider_factory())
+
+    answers = _material(db_session, "p3a_cjk_search", COURSE, "alpha.txt",
+                        "红杉算法的冻结窗口为 37 分钟，冻结窗口决定调度的公平性。")
+    control = _material(db_session, "p3a_cjk_search", COURSE, "beta.txt",
+                        "循环队列的判空与判满：牺牲一个存储单元来区分队空与队满。")
+
+    body = client.post(DEEP_STUDY, json={
+        "question": "红杉算法的冻结窗口是多少分钟？", "course_id": COURSE}).json()
+    cited = {c["material_id"] for c in body["citations"]}
+
+    # The passage that answers the question is retrieved, by a question phrased as a sentence.
+    assert answers.id in cited
+    # ...and the ranking puts it first: the control material shares the course but not the subject.
+    assert body["citations"][0]["material_id"] == answers.id
+    assert control.id not in cited
+
+    # The query terms include CJK n-grams, which is what makes the match possible at all.
+    import rag
+    tokens = rag.tokenize_query("红杉算法的冻结窗口是多少分钟？")
+    assert "红杉" in tokens and "冻结" in tokens and "窗口" in tokens
+
+
 def test_exam_space_runs_in_its_own_context(client, db_session, monkeypatch):
     register_and_login(client, "p3a_ds_exam")
     grant_unified_tier(db_session, "p3a_ds_exam", "advanced")

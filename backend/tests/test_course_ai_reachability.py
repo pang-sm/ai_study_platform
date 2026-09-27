@@ -193,27 +193,91 @@ def test_course_endpoints_request_only_course_capabilities(index):
             assert proxies.get(capability, capability) in ALL_CAPABILITIES, capability
 
 
-def test_legacy_provider_client_is_confined_to_declared_modules():
-    """Only provider adapters may construct a raw provider client."""
-    allowed = {
-        Path("ai/providers/deepseek.py"), Path("ai/providers/qwen.py"),
-        Path("ai/providers/ark.py"), Path("ai/providers/moonshot.py"),
-        Path("ai/providers/zhipu.py"), Path("ai/providers/minimax.py"),
-        Path("ai/discovery.py"),            # account discovery tooling, not a request path
-        Path("qwen_parser.py"),             # visual OCR infrastructure
-        Path("exam_paper_parser.py"),       # exam_11408 parsing path
-        Path("membership.py"),              # legacy onboarding plan recommendation (OTHER)
-        Path("main.py"),                    # legacy client; see NON_COURSE_DIRECT_CALLS
-    }
-    offenders = []
-    for path in BACKEND_DIR.rglob("*.py"):
-        rel = path.relative_to(BACKEND_DIR)
-        if rel.parts[0] in {"tests", ".venv", "__pycache__"} or rel in allowed:
+# The ONE boundary allowed to construct or call a raw provider client: the provider
+# infrastructure package. Its adapters own their SDK clients, and they share ``common.py``
+# for the streaming driver — a helper that RECEIVES a client is part of the same layer, so the
+# rule is expressed as a package rather than as a list of adapter filenames (a hand-written
+# file list silently rejects a new module in an already-permitted layer).
+PROVIDER_INFRASTRUCTURE_PACKAGE = ("ai", "providers")
+
+# Constructing a raw client and CALLING one are different operations — only the first creates
+# a client; the second borrows one it was handed. Both are forbidden outside the boundary,
+# because business code that was handed a raw client bypasses the unified AI boundary exactly
+# as effectively as business code that builds one. They are reported separately so the
+# failure says which happened.
+RAW_CLIENT_CONSTRUCTION_PATTERNS = ("OpenAI(", "AsyncOpenAI(")
+RAW_CLIENT_CALL_PATTERNS = ("chat.completions.create",)
+
+# Files with their own, already-reviewed reason to touch a provider outside that package.
+# Deliberately NOT extended: a new entry would need the same kind of justification as these.
+RAW_CLIENT_ALLOWED_FILES = (
+    Path("ai/discovery.py"),            # account discovery tooling, not a request path
+    Path("qwen_parser.py"),             # visual OCR infrastructure
+    Path("exam_paper_parser.py"),       # exam_11408 parsing path
+    Path("membership.py"),              # legacy onboarding plan recommendation (OTHER)
+    Path("main.py"),                    # legacy client; see NON_COURSE_DIRECT_CALLS
+)
+
+
+def _raw_provider_offenders(sources: dict[Path, str]) -> dict[str, str]:
+    """``{relative path: "constructs" | "calls"}`` for every raw provider use outside the boundary.
+
+    A pure function of ``{relative path: source}``: the caller decides what to read, so the rule
+    is exercised against the real tree and against synthetic sources by the same code.
+    """
+    offenders: dict[str, str] = {}
+    for rel, text in sources.items():
+        if rel.parts[0] in {"tests", ".venv", "__pycache__"}:
             continue
-        text = path.read_text(encoding="utf-8", errors="ignore")
-        if "OpenAI(" in text or "chat.completions.create" in text:
-            offenders.append(str(rel))
-    assert not offenders, f"raw provider clients outside adapters: {offenders}"
+        if rel.parts[:2] == PROVIDER_INFRASTRUCTURE_PACKAGE or rel in RAW_CLIENT_ALLOWED_FILES:
+            continue
+        if any(pattern in text for pattern in RAW_CLIENT_CONSTRUCTION_PATTERNS):
+            offenders[rel.as_posix()] = "constructs"
+        elif any(pattern in text for pattern in RAW_CLIENT_CALL_PATTERNS):
+            offenders[rel.as_posix()] = "calls"
+    return offenders
+
+
+def test_legacy_provider_client_is_confined_to_declared_modules():
+    """Only the provider infrastructure layer may construct or call a raw provider client.
+
+    Business / domain / application code reaches a provider through the unified boundary
+    (orchestrator → capability permission → router → reserve → adapter), never by holding an
+    SDK client of its own.
+    """
+    sources = {path.relative_to(BACKEND_DIR): path.read_text(encoding="utf-8", errors="ignore")
+               for path in BACKEND_DIR.rglob("*.py")}
+    offenders = _raw_provider_offenders(sources)
+    assert not offenders, f"raw provider clients outside the boundary: {offenders}"
+
+
+def test_the_raw_provider_scanner_still_flags_business_layer_usage():
+    """Negative coverage for the rule above.
+
+    Exempting the provider package is only safe while the scanner still rejects the layer it
+    is protecting. These are synthetic sources, so this cannot depend on the tree's contents.
+    """
+    sources = {
+        Path("learning/practice/service.py"): "from openai import OpenAI\nc = OpenAI(api_key=k)\n",
+        Path("routers/course_learning.py"): "r = client.chat.completions.create(model='m')\n",
+        Path("ai/providers/common.py"): "stream = client.chat.completions.create(model='m')\n",
+        Path("ai/providers/deepseek.py"): "self._client = OpenAI(api_key=key)\n",
+        Path("ai/discovery.py"): "return OpenAI(api_key=key, base_url=url), spec\n",
+        Path("tests/test_something.py"): "OpenAI(\n",
+    }
+
+    offenders = _raw_provider_offenders(sources)
+
+    assert set(offenders) == {"learning/practice/service.py",
+                             "routers/course_learning.py"}, offenders
+    assert offenders["learning/practice/service.py"] == "constructs"
+    assert offenders["routers/course_learning.py"] == "calls"
+    # the provider layer and the declared exceptions stay permitted
+    assert "ai/providers/common.py" not in offenders
+    assert "ai/providers/deepseek.py" not in offenders
+    assert "ai/discovery.py" not in offenders
+    # and the tests tree is never scanned
+    assert "tests/test_something.py" not in offenders
 
 
 # ══════════════════════════════════════════════════════════════════════════════

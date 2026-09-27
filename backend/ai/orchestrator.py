@@ -15,7 +15,7 @@ import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Callable
+from typing import Callable, Iterator
 
 from sqlalchemy.orm import Session
 
@@ -26,7 +26,8 @@ from usage.capabilities import check_capability_permission
 from usage.models import AIRequest
 
 from . import cost
-from .gateway import AIRequestSpec, ChatMessage, GatewayError, GatewayErrorCategory, GatewayProvider
+from .gateway import (AIRequestSpec, ChatMessage, GatewayError, GatewayErrorCategory,
+                      GatewayProvider, GatewayResponse, StreamEvent)
 from .providers import (
     ArkProvider, DeepSeekProvider, FakeProvider, MiniMaxProvider,
     MoonshotProvider, QwenProvider, ZhipuProvider,
@@ -38,6 +39,17 @@ logger = logging.getLogger("ai.orchestrator")
 
 DEFAULT_MAX_TOKENS = 2000
 MAX_FALLBACK_ATTEMPTS = 3
+
+
+def is_empty_answer(content) -> bool:
+    """Is this provider content NOT an answer?
+
+    The ONE definition: missing, or nothing but whitespace. A provider that returns no text did
+    not answer, whatever it reports about the call. Deliberately NOT a length heuristic — ``"0"``,
+    ``"是"`` and any other short answer are answers, and treating them as failures would reject
+    correct output.
+    """
+    return not (content or "").strip()
 
 # Orchestrator terminal status → the coarse status carried by an `ai_called` event.
 # `already_exists` is absent on purpose: a replayed request_id is not a new call.
@@ -113,6 +125,28 @@ class OrchestratorResult:
         }
 
 
+@dataclass
+class _Attempt:
+    """One prepared request: authorised, budgeted, routed and reserved, waiting for a call.
+
+    Shared by the non-streaming and the streaming path — the difference between them is how the
+    model's answer is read, never whether the request may run or what it costs.
+    """
+
+    request_id: str
+    user_id: int
+    capability: str
+    tier: str
+    gate_tier: str
+    grant: dict | None
+    chat_messages: list
+    expected_output: int
+    candidates: list
+    primary_entry: object
+    primary_estimate: dict
+    learning_context: LearningContext | None
+
+
 class AIOrchestrator:
     def __init__(self, provider_factory: Callable[[str], GatewayProvider] | None = None):
         self._provider_factory = provider_factory or default_provider_factory
@@ -123,20 +157,26 @@ class AIOrchestrator:
                 temperature: float | None = None,
                 max_tokens: int | None = None,
                 request_id: str | None = None,
-                learning_context: LearningContext | None = None) -> OrchestratorResult:
+                learning_context: LearningContext | None = None,
+                model_preference: str | None = None,
+                thinking: bool | None = None) -> OrchestratorResult:
         """Public boundary: run the lifecycle, then record the terminal fact.
 
         The `ai_called` event is emitted here rather than at each of the six return
         paths so that every outcome — settled, failed, denied, pending — is recorded by
         one rule (§16). Emission is failure-isolated and happens strictly after the
         AIRequest row has committed.
+
+        ``model_preference`` is a learner-safe CLASS (never a model name). It narrows
+        selection; it never widens entitlement or changes billing.
         """
         if learning_context is not None and learning_context.user_id != user_id:
             raise ValueError("LearningContext user_id must match orchestrator user_id")
         result = self._execute(db, user_id, capability, messages,
                                explicit_model=explicit_model, temperature=temperature,
                                max_tokens=max_tokens, request_id=request_id,
-                               learning_context=learning_context)
+                               learning_context=learning_context,
+                               model_preference=model_preference, thinking=thinking)
         self._emit_ai_called(db, user_id, result, learning_context=learning_context)
         return result
 
@@ -176,13 +216,23 @@ class AIOrchestrator:
         except Exception as exc:  # noqa: BLE001 — never fail the AI request
             logger.warning("records ai_called hook failed: %s", type(exc).__name__)
 
-    def _execute(self, db: Session, user_id: int, capability: str,
-                messages: list[ChatMessage] | list[dict],
-                explicit_model: str | None = None,
-                temperature: float | None = None,
-                max_tokens: int | None = None,
-                request_id: str | None = None,
-                learning_context: LearningContext | None = None) -> OrchestratorResult:
+    def _prepare(self, db: Session, user_id: int, capability: str,
+                 messages: list[ChatMessage] | list[dict],
+                 explicit_model: str | None = None,
+                 max_tokens: int | None = None,
+                 request_id: str | None = None,
+                 learning_context: LearningContext | None = None,
+                 model_preference: str | None = None):
+        """Everything one request needs BEFORE a provider is asked.
+
+        Permission, capability/budget gate, the router's ordered candidates and the single
+        reservation — one implementation, because the non-streaming call and the streaming one
+        must decide identically: the caller's shape changes how the model's answer is READ, never
+        whether the request may run or what it costs.
+
+        Returns ``(attempt, None)`` to proceed, or ``(None, refusal)`` for the denial, duplicate
+        and budget answers, which both callers return to their own caller unchanged.
+        """
         request_id = request_id or uuid.uuid4().hex
         tier = usage_service.effective_subscription(db, user_id)
 
@@ -199,10 +249,10 @@ class AIOrchestrator:
             # for the flag lookup.
             grant = self._feature_flag_grant(db, user_id, capability)
             if not grant["granted"]:
-                return OrchestratorResult(ok=False, request_id=request_id,
-                                          capability=capability, tier=tier, status="denied",
-                                          error_category="permission_denied",
-                                          error_message=perm["reason"])
+                return None, OrchestratorResult(ok=False, request_id=request_id,
+                                                capability=capability, tier=tier, status="denied",
+                                                error_category="permission_denied",
+                                                error_message=perm["reason"])
             gate_tier = grant.get("gate_tier") or tier
 
         chat_messages = [m if isinstance(m, ChatMessage)
@@ -218,13 +268,15 @@ class AIOrchestrator:
         candidates = ordered_candidates(gate_tier, capability, explicit_model=explicit_model,
                                         input_tokens=input_tokens,
                                         expected_output_tokens=expected_output,
-                                        available_budget=available)
+                                        available_budget=available,
+                                        preference=model_preference)
         if not candidates:
             decision = select_model(gate_tier, capability, explicit_model=explicit_model,
                                     input_tokens=input_tokens,
                                     expected_output_tokens=expected_output,
-                                    available_budget=available)
-            return OrchestratorResult(
+                                    available_budget=available,
+                                    preference=model_preference)
+            return None, OrchestratorResult(
                 ok=False, request_id=request_id, capability=capability, tier=tier,
                 status="denied",
                 error_category=decision.reason if decision else "no_qualified_model_available",
@@ -242,7 +294,7 @@ class AIOrchestrator:
             context_json=(learning_context.to_dict() if learning_context is not None else None),
             permission_tier=gate_tier)
         if reservation.get("reason") == "already_exists":
-            return OrchestratorResult(
+            return None, OrchestratorResult(
                 ok=False, request_id=request_id, capability=capability, tier=tier,
                 status="already_exists", error_category="already_exists",
                 error_message="request already processed",
@@ -250,7 +302,7 @@ class AIOrchestrator:
                 entitlement_grant=grant,
                 router=self._decision_dict(primary_entry))
         if not reservation["reserved"]:
-            return OrchestratorResult(
+            return None, OrchestratorResult(
                 ok=False, request_id=request_id, capability=capability, tier=tier,
                 status="denied", error_category="budget_reserve_failed",
                 error_message=reservation["reason"],
@@ -259,29 +311,82 @@ class AIOrchestrator:
                 router=self._decision_dict(primary_entry))
 
         self._mark_executing(db, request_id)
+        return _Attempt(request_id=request_id, user_id=user_id,
+                        capability=capability, tier=tier,
+                        gate_tier=gate_tier, grant=grant, chat_messages=chat_messages,
+                        expected_output=expected_output, candidates=candidates,
+                        primary_entry=primary_entry, primary_estimate=primary_estimate,
+                        learning_context=learning_context), None
+
+    def _execute(self, db: Session, user_id: int, capability: str,
+                messages: list[ChatMessage] | list[dict],
+                explicit_model: str | None = None,
+                temperature: float | None = None,
+                max_tokens: int | None = None,
+                request_id: str | None = None,
+                learning_context: LearningContext | None = None,
+                model_preference: str | None = None,
+                thinking: bool | None = None) -> OrchestratorResult:
+        attempt, refusal = self._prepare(
+            db, user_id, capability, messages, explicit_model=explicit_model,
+            max_tokens=max_tokens, request_id=request_id, learning_context=learning_context,
+            model_preference=model_preference)
+        if refusal is not None:
+            return refusal
+        request_id = attempt.request_id
+        tier, gate_tier = attempt.tier, attempt.gate_tier
+        grant = attempt.grant
+        chat_messages = attempt.chat_messages
+        expected_output = attempt.expected_output
+        candidates = attempt.candidates
+        primary_entry, primary_estimate = attempt.primary_entry, attempt.primary_estimate
 
         # 4. external provider call with cross-provider fallback (outside transaction)
         last_entry, last_error = primary_entry, None
         failed_primary: str | None = None
+        # The newest attempt that reached a provider and answered with nothing, if any: the chain
+        # keeps going past it, but a request whose every attempt was empty has no answer to show.
+        last_empty_response = None
         for index, (entry, estimate) in enumerate(candidates[:MAX_FALLBACK_ATTEMPTS]):
             last_entry = entry
             # The reservation already priced this model's thinking behaviour; the same
             # policy decides the switch actually sent, so reserved and billed output
             # are governed by one rule.
-            thinking = cost.cost_policy_for(entry.provider, entry.model).request_thinking(
-                capability)
+            provider_thinking = thinking if thinking is not None else cost.cost_policy_for(
+                entry.provider, entry.model).request_thinking(capability)
             spec = AIRequestSpec(messages=tuple(chat_messages), model=entry.model,
                                  capability=capability, temperature=temperature,
-                                 max_tokens=max_tokens, stream=False, thinking=thinking)
+                                 # The SAME ceiling `expected_output` was reserved from, resolved
+                                 # (never None). Sending no max_tokens left the provider free to
+                                 # produce more output than the reservation covered, and the
+                                 # ledger then refused the call as an overage — the learner losing
+                                 # an answer the product had already paid for. A reservation is
+                                 # only an upper bound if the request it authorises carries it.
+                                 max_tokens=expected_output, stream=False, thinking=provider_thinking)
             try:
                 provider = self._provider_factory(entry.provider)
                 response = provider.complete(spec)
-                return self._settle_success(
-                    db, request_id, entry, primary_estimate, response, tier, capability,
-                    candidate_count=len(candidates), fallback_from=failed_primary,
-                    entitlement_grant=grant)
+                failure = None
             except GatewayError as exc:
-                last_error = exc
+                failure = exc
+            except Exception as exc:  # noqa: BLE001 — the provider BOUNDARY only
+                # A provider that cannot even be built (a missing credential is the live case) is
+                # an unavailable candidate, not a failed request. It used to escape this loop —
+                # the catch was narrower than the boundary — and turn the learner's question into
+                # a 500 the moment a fallback reached it. The real exception is logged; what
+                # travels on is a category, and nothing provider-specific ever reaches a learner.
+                logger.exception("provider %s could not answer request %s", entry.provider,
+                                 request_id)
+                # The message stays category-level: the real exception (which names environment
+                # variables and a vendor) belongs in the log above, never in anything a result or
+                # an error body carries forward.
+                failure = GatewayError(GatewayErrorCategory.provider_unavailable,
+                                       f"{entry.provider} adapter unavailable",
+                                       entry.provider, retriable=True)
+
+            if failure is not None:
+                last_error = failure
+                last_empty_response = None
                 if index == 0:
                     # Router V1: the failure of the selected model is recorded as such, so a
                     # fallback is never silently reported as if it were the first choice.
@@ -292,13 +397,44 @@ class AIOrchestrator:
                 # (invalid request / content policy) says nothing about the provider.
                 try:
                     from .health import registry as health_registry
-                    if exc.category.value not in ("invalid_request", "content_policy"):
+                    if failure.category.value not in ("invalid_request", "content_policy"):
                         health_registry().record_failure(entry.provider, entry.model,
-                                                         exc.category.value)
+                                                         failure.category.value)
                 except Exception:  # noqa: BLE001 — health never blocks a request
                     pass
-                if not exc.retriable:
+                if not failure.retriable:
                     break  # permanent error → no fallback
+                continue
+
+            if is_empty_answer(response.content):
+                # The provider call SUCCEEDED but answered with nothing. That is not a completion:
+                # this candidate failed to answer, so the chain moves on to the next qualified
+                # one. It must never be returned as an empty success (the caller would then have
+                # to invent a failure for a request the ledger already settled), and it must not
+                # stop the chain — the learner asked a question, not for a specific model.
+                # The call itself was billed, so its cost is recorded before moving on.
+                last_error = None
+                last_empty_response = response
+                if index == 0:
+                    failed_primary = f"{entry.provider}/{entry.model}"
+                self._record_empty_answer(db, request_id, entry, response)
+                continue
+
+            return self._settle_success(
+                db, request_id, entry, primary_estimate, response, tier, capability,
+                candidate_count=len(candidates), fallback_from=failed_primary,
+                entitlement_grant=grant)
+
+        if last_empty_response is not None:
+            # Every candidate that reached a provider answered with nothing. The request has no
+            # answer to show, so it is NOT settled as a success — the distinction between "the
+            # ledger settled this call" and "the learner got an answer" is the whole point here.
+            return self._settle_failure(db, request_id, last_entry, primary_estimate,
+                                        None, tier, capability,
+                                        candidate_count=len(candidates),
+                                        entitlement_grant=grant,
+                                        error_category="empty_completion",
+                                        error_message="every candidate returned an empty completion")
 
         return self._settle_failure(db, request_id, last_entry, primary_estimate,
                                     last_error, tier, capability,
@@ -329,8 +465,14 @@ class AIOrchestrator:
                                        candidate_count=candidate_count,
                                        fallback_from=fallback_from))
         if response.usage.usage_source != "PROVIDER_REPORTED" or not actual["ok"]:
+            # The provider answered, but what the call COSTS is not known yet: it reported no
+            # usage, or this model has no price on file. The reservation stays HELD (never
+            # released, never zeroed — see mark_reconciliation_pending) and the request keeps its
+            # reconciliation record, so nothing is written off; the learner is given the answer
+            # that was produced rather than losing it to an accounting state.
             usage_service.mark_reconciliation_pending(db, request_id)
             base.status = "reconciliation_pending"
+            base.content = response.content
             base.usage = {"usage_source": response.usage.usage_source}
             return base
 
@@ -345,13 +487,18 @@ class AIOrchestrator:
             base.content = response.content
             base.actual_credits = settle.get("settled_credits")
         elif settle["reason"] == "overage_not_permitted":
-            # Real cost exceeded the conservative reservation. Never silently absorbed:
-            # flagged with its own category so it is measurable as an anomaly.
+            # FAIL CLOSED, deliberately and with its own category. The provider billed beyond the
+            # reservation this request authorized: that is the one reconciliation outcome the
+            # product refuses to serve, so no answer is handed out and the request stays flagged
+            # as an anomaly.
             usage_service.mark_reconciliation_pending(
                 db, request_id, error_category="reservation_overage")
             base.status = "reconciliation_pending"
             base.error_category = "reservation_overage"
         else:
+            # The ledger says this request is not charged (already released, or it has no
+            # reservation at all). Serving it would hand out an unbilled answer, so it is not
+            # served — the same fail-closed reading as an overage.
             base.status = "released"
         base.usage = {
             "input_tokens": actual["input_tokens"],
@@ -363,10 +510,72 @@ class AIOrchestrator:
         }
         return base
 
+    def _thinking_for(self, entry, capability: str) -> bool | None:
+        """The thinking switch for one candidate — the same rule the non-streaming call uses."""
+        return cost.cost_policy_for(entry.provider, entry.model).request_thinking(capability)
+
+    def _record_provider_failure(self, entry, exc: GatewayError) -> None:
+        """Router V1: every provider failure is an availability signal, including one a fallback
+        then rescued. A failure that was really the REQUEST's fault (invalid request / content
+        policy) says nothing about the provider."""
+        try:
+            from .health import registry as health_registry
+            if exc.category.value not in ("invalid_request", "content_policy"):
+                health_registry().record_failure(entry.provider, entry.model, exc.category.value)
+        except Exception:  # noqa: BLE001 — health never blocks a request
+            pass
+
+    def stream(self, db: Session, user_id: int, capability: str,
+               messages: list[ChatMessage] | list[dict],
+               explicit_model: str | None = None,
+               max_tokens: int | None = None,
+               request_id: str | None = None,
+               learning_context: LearningContext | None = None,
+               model_preference: str | None = None,
+               thinking: bool | None = None) -> "StreamRun":
+        """Public boundary for a streamed turn: same authorisation, same billing, read live."""
+        if learning_context is not None and learning_context.user_id != user_id:
+            raise ValueError("LearningContext user_id must match orchestrator user_id")
+        attempt, refusal = self._prepare(
+            db, user_id, capability, messages, explicit_model=explicit_model,
+            max_tokens=max_tokens, request_id=request_id, learning_context=learning_context,
+            model_preference=model_preference)
+        if refusal is not None:
+            return _RefusedStreamRun(refusal)
+        return StreamRun(self, db, attempt, thinking=thinking)
+
+    def _record_empty_answer(self, db, request_id: str, entry, response) -> None:
+        """Record a candidate that answered with nothing — cost, log, availability signal.
+
+        The provider ran and billed for it, so its usage goes to the ledger rather than being
+        dropped with the empty answer. A model that answers with nothing is also an availability
+        signal like any other failure, so repeated empties deprioritise it in later selections.
+        """
+        actual = cost.actual_credits_from_usage(response.provider, response.model, response.usage)
+        # Only a call the provider actually reported usage for has a cost to record; an unreported
+        # one is exactly what `reconciliation_pending` exists for, and writing a zero row for it
+        # would claim it was free rather than unknown.
+        if actual["ok"] and response.usage.usage_source == "PROVIDER_REPORTED":
+            usage_service.record_attempt_cost(
+                db, request_id, provider=response.provider, model=response.model,
+                input_tokens=actual["input_tokens"], output_tokens=actual["output_tokens"],
+                provider_cost=actual["cost_cny"], pricing_version=actual["pricing_version"],
+                credits=actual["credits"])
+        logger.warning("empty completion from %s/%s on request %s (usage_source=%s, tokens=%s)",
+                       response.provider, response.model, request_id,
+                       response.usage.usage_source, response.usage.output_tokens)
+        try:
+            from .health import registry as health_registry
+            health_registry().record_failure(entry.provider, entry.model, "empty_completion")
+        except Exception:  # noqa: BLE001 — health never blocks a request
+            pass
+
     def _settle_failure(self, db, request_id, entry, reserve_estimate: dict,
                         exc: GatewayError | None, tier: str, capability: str, *,
                         candidate_count: int | None = None,
-                        entitlement_grant: dict | None = None) -> OrchestratorResult:
+                        entitlement_grant: dict | None = None,
+                        error_category: str | None = None,
+                        error_message: str | None = None) -> OrchestratorResult:
         # NOTE: the availability signal for a failed attempt is recorded where the attempt
         # fails (the fallback loop), so an attempt the fallback rescued is counted too.
         base = OrchestratorResult(
@@ -374,15 +583,19 @@ class AIOrchestrator:
             provider=entry.provider, model=entry.model,
             estimated_credits=reserve_estimate["credits"],
             entitlement_grant=entitlement_grant,
-            error_category=(exc.category.value if exc else "provider_error"),
-            error_message=(exc.message if exc else "provider call failed"),
+            error_category=(error_category or (exc.category.value if exc else "provider_error")),
+            error_message=(error_message or (exc.message if exc else "provider call failed")),
             router=self._decision_dict(entry, estimate=reserve_estimate,
                                        candidate_count=candidate_count))
         if exc is not None and exc.category.value in _NO_USAGE_CATEGORIES:
             usage_service.release_credits(db, request_id)
             base.status = "released"
         else:
-            usage_service.mark_reconciliation_pending(db, request_id)
+            # `error_category` is carried onto the HELD row only when the caller named one: the
+            # default stays the ledger's own `cost_reconciliation_pending`, so an existing
+            # failure's recorded cause does not change shape.
+            usage_service.mark_reconciliation_pending(
+                db, request_id, **({"error_category": error_category} if error_category else {}))
             base.status = "reconciliation_pending"
         return base
 
@@ -451,3 +664,240 @@ class AIOrchestrator:
             req.status = "executing"
             req.started_at = datetime.utcnow()
             db.commit()
+
+class StreamRun:
+    """One streaming turn: iterate ``events()``, then read ``result``.
+
+    The streaming half of the lifecycle. It shares EVERYTHING that decides a request — permission,
+    capability/budget gate, router, the single reservation (`AIOrchestrator._prepare`) and the
+    settlement helpers — and differs only in how the model's answer is read: from a live provider
+    stream, in pieces, instead of from one response.
+
+    THREE RULES THIS CLASS EXISTS TO KEEP
+    1. A candidate is COMMITTED the moment its first non-empty text reached the caller. After
+       that, a provider failure ends the turn with what was already shown — it never silently
+       continues from a second model, which would splice two different answers together.
+    2. Before that moment the chain behaves exactly like the non-streaming path: a retriable
+       failure or an empty completion moves on to the next qualified candidate.
+    3. The ledger is never bypassed: every attempt that reached a provider is settled from its own
+       real usage — or held as pending when the provider never reported any.
+    """
+
+    def __init__(self, orchestrator: "AIOrchestrator", db: Session, attempt: "_Attempt",
+                 thinking: bool | None = None):
+        self._orchestrator = orchestrator
+        self._thinking = thinking
+        self._db = db
+        self._attempt = attempt
+        self._generator = None
+        self._settled = False
+        self._recorded = False
+        #: The request id this turn was authorised under — known before the first byte streams.
+        self.request_id = attempt.request_id
+        self._failed_primary: str | None = None
+        self._last_entry = None
+        self._last_usage = None
+        self.result: OrchestratorResult | None = None
+        #: The answer text the caller has actually been given, in order.
+        self.text = ""
+        #: "stop" / "length" / "interrupted" / "stopped" / "error" — how the turn ended.
+        self.finish_reason: str | None = None
+
+    # ---- driving ----
+
+    def events(self) -> Iterator["StreamEvent"]:
+        """Provider answer deltas as they arrive, then exactly one terminal event.
+
+        Only a provider's ANSWER channel is representable here: reasoning/hidden text is dropped
+        in the adapter, so it cannot reach a caller by accident.
+        """
+        if self._generator is None:
+            self._generator = self._run()
+        return self._generator
+
+    def close(self) -> None:
+        """Stop the live provider stream (if any) and settle this turn exactly once.
+
+        Called when the caller stops reading — a user pressing stop, a client disconnecting, a
+        page navigating away. Safe to call again after a normal finish.
+        """
+        generator = self._generator
+        if generator is not None:
+            try:
+                generator.close()          # GeneratorExit at the yield point
+            except Exception:  # noqa: BLE001 — closing must never raise at a caller
+                logger.warning("stream close failed", exc_info=True)
+        self._settle_once(self._last_entry, self._last_usage, cancelled=True)
+
+    # ---- the lifecycle ----
+
+    def _run(self) -> Iterator["StreamEvent"]:
+        attempt = self._attempt
+        db = self._db
+        request_id = attempt.request_id
+        tier, capability = attempt.tier, attempt.capability
+        last_entry, last_error = attempt.primary_entry, None
+        last_empty_response = None
+        committed = False
+        self._last_entry = attempt.primary_entry
+        self._last_usage = None
+        self._failed_primary = None
+
+        for index, (entry, _estimate) in enumerate(attempt.candidates[:MAX_FALLBACK_ATTEMPTS]):
+            last_entry = entry
+            self._last_entry = entry
+            spec = AIRequestSpec(messages=tuple(attempt.chat_messages), model=entry.model,
+                                 capability=capability, temperature=None,
+                                 max_tokens=attempt.expected_output, stream=True,
+                                 thinking=(self._thinking if self._thinking is not None
+                                           else self._orchestrator._thinking_for(entry, capability)))
+            usage = None
+            finish_reason = None
+            produced = False
+            try:
+                provider = self._orchestrator._provider_factory(entry.provider)
+                with provider.stream(spec) as stream_events:
+                    for event in stream_events:
+                        if event.type == "usage" and event.usage is not None:
+                            usage = event.usage
+                            self._last_usage = usage
+                        elif event.type == "finish":
+                            finish_reason = event.finish_reason
+                        elif event.type == "text_delta" and event.text:
+                            committed = True
+                            produced = True
+                            self.text += event.text
+                            yield event
+            except GatewayError as exc:
+                if committed:
+                    # The learner has already read part of THIS model's answer; completing it from
+                    # another model would produce one text out of two. The turn ends here, with
+                    # what was really produced, and the settlement keeps the real usage.
+                    self._settle_once(entry, usage, finish_reason="interrupted",
+                                      error_category=exc.category.value)
+                    self.finish_reason = "interrupted"
+                    yield StreamEvent(type="error", error_category=exc.category.value,
+                                      error_message="answer interrupted")
+                    return
+                last_error = exc
+                last_empty_response = None
+                if index == 0:
+                    self._failed_primary = f"{entry.provider}/{entry.model}"
+                self._orchestrator._record_provider_failure(entry, exc)
+                if not exc.retriable:
+                    break
+                continue
+
+            if not produced:
+                # A stream that ended with no visible text is an empty completion, exactly as in
+                # the non-streaming path: the attempt is recorded, and the chain moves on.
+                last_empty_response = self._synthetic_response(entry, "", usage, finish_reason)
+                last_error = None
+                if index == 0:
+                    self._failed_primary = f"{entry.provider}/{entry.model}"
+                self._orchestrator._record_empty_answer(db, request_id, entry,
+                                                        last_empty_response)
+                continue
+
+            self._settle_once(entry, usage, finish_reason=finish_reason or "stop")
+            self.finish_reason = finish_reason or "stop"
+            yield StreamEvent(type="finish", finish_reason=self.finish_reason)
+            return
+
+        # No candidate produced an answer at all.
+        self._settled = True
+        if last_empty_response is not None:
+            self.result = self._orchestrator._settle_failure(
+                db, request_id, last_entry, attempt.primary_estimate, None, tier, capability,
+                candidate_count=len(attempt.candidates), entitlement_grant=attempt.grant,
+                error_category="empty_completion",
+                error_message="every candidate returned an empty completion")
+        else:
+            self.result = self._orchestrator._settle_failure(
+                db, request_id, last_entry, attempt.primary_estimate, last_error, tier, capability,
+                candidate_count=len(attempt.candidates), entitlement_grant=attempt.grant)
+        self._record_called()
+        self.finish_reason = "error"
+        yield StreamEvent(type="error",
+                          error_category=self.result.error_category or "provider_error",
+                          error_message="AI could not answer")
+
+    # ---- settlement ----
+
+    def _settle_once(self, entry, usage, *, finish_reason: str | None = None,
+                     error_category: str | None = None, cancelled: bool = False) -> None:
+        """Write this turn's terminal ledger fact exactly once, from what really happened.
+
+        A cancelled turn — or one whose provider stopped mid-answer — still SETTLES: the call
+        happened and was billed, and the learner keeps the text they saw. When the provider never
+        reported usage the request is held for reconciliation instead; it is never settled to zero.
+        """
+        if self._settled:
+            return
+        self._settled = True
+        attempt = self._attempt
+        entry = entry or attempt.primary_entry
+        if cancelled and not self.text:
+            # Nothing was shown and the caller walked away: this is the empty-completion shape —
+            # the attempt still gets recorded, and the request keeps its held/pending state.
+            self.result = self._orchestrator._settle_failure(
+                self._db, attempt.request_id, entry, attempt.primary_estimate, None,
+                attempt.tier, attempt.capability, candidate_count=len(attempt.candidates),
+                entitlement_grant=attempt.grant, error_category="stream_cancelled",
+                error_message="stream cancelled before any answer")
+            self._record_called()
+            return
+        response = self._synthetic_response(entry, self.text, usage,
+                                            finish_reason or ("stopped" if cancelled else None))
+        result = self._orchestrator._settle_success(
+            self._db, attempt.request_id, entry, attempt.primary_estimate, response,
+            attempt.tier, attempt.capability, candidate_count=len(attempt.candidates),
+            fallback_from=self._failed_primary, entitlement_grant=attempt.grant)
+        if error_category:
+            # The ledger's state stays whatever settlement decided (settled / held); this only
+            # tells the CALLER how the stream ended. Nothing about billing is rewritten.
+            result.error_category = error_category
+        self.result = result
+        self._record_called()
+
+    def _record_called(self) -> None:
+        if self._recorded:
+            return
+        self._recorded = True
+        if self.result is None:
+            return
+        try:
+            self._orchestrator._emit_ai_called(self._db, self._attempt.user_id, self.result,
+                                               learning_context=self._attempt.learning_context)
+        except Exception:  # noqa: BLE001 — the record hook never fails a request
+            logger.warning("ai_called hook failed for streamed request", exc_info=True)
+
+    @staticmethod
+    def _synthetic_response(entry, content: str, usage, finish_reason: str | None):
+        """The response shape the settlement helpers already understand, built from a stream."""
+        from .gateway import ProviderUsage
+        return GatewayResponse(
+            content=content, provider=entry.provider, model=entry.model,
+            usage=usage or ProviderUsage(usage_source="UNKNOWN"),
+            finish_reason=finish_reason)
+
+
+class _RefusedStreamRun:
+    """A streamed turn that never reached a provider: the refusal is the whole answer.
+
+    Same shape as StreamRun so an endpoint does not branch on which one it got.
+    """
+
+    def __init__(self, refusal: OrchestratorResult):
+        self.result = refusal
+        self.request_id = refusal.request_id
+        self.text = ""
+        self.finish_reason: str | None = "error"
+        self._refusal = refusal
+
+    def events(self) -> Iterator["StreamEvent"]:
+        yield StreamEvent(type="error", error_category=self._refusal.error_category or "denied",
+                          error_message="AI unavailable")
+
+    def close(self) -> None:
+        return None

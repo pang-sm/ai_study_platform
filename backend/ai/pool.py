@@ -209,10 +209,85 @@ QUALIFIED_POOL: tuple[ModelPoolEntry, ...] = (
 )
 
 
+# --- Learner-safe model preference vocabulary (CONFIG) -------------------------------
+# A learner never picks a MODEL; they pick a CLASS, and the Router still decides which
+# qualified model inside that class serves the request — entitlement, cost, availability
+# and fallback all stay with the Router. These keys are the ONLY preference vocabulary
+# that may ever reach a client: never a provider name, a model id, a price or a tier.
+PREFERENCE_AUTO = "auto"
+PREFERENCE_CLASSES = ("basic", "standard", "premium", "reasoning")
+PREFERENCE_LABELS: dict[str, str] = {
+    "basic": "快速",
+    "standard": "均衡",
+    "premium": "强力",
+    "reasoning": "深度推理",
+}
+AUTO_LABEL = "自动推荐"
+
+# Learner-facing names are model metadata owned by the qualified pool, never a UI mapping.
+MODEL_DISPLAY_NAMES = {
+    "qwen3.8-flash": "Qwen 3.8 Flash",
+    "glm-5.3-flash": "GLM 5.3 Flash",
+    "deepseek-flash": "DeepSeek V4",
+    "qwen3.8-max": "Qwen 3.8 Max",
+    "MiniMax-M2.7-highspeed": "MiniMax M2.7",
+    "deepseek-v4-pro": "DeepSeek V4 Pro",
+    "MiniMax-M3": "MiniMax M3",
+    "glm-5": "GLM-5",
+    "kimi-k2.6": "Kimi K2.6",
+    "doubao-general": "豆包通用",
+}
+
+
+def display_name_for_model(model: str) -> str:
+    return MODEL_DISPLAY_NAMES.get(model, model)
+
+
+def preference_class(entry: ModelPoolEntry) -> str:
+    """The learner-facing class of a pool entry.
+
+    ``reasoning`` is a class of its own (thinking models), not a quality level: a learner
+    who asks for it is asking for depth, not for "the best". Everything else is the
+    entry's ``quality_class``.
+    """
+    if entry.thinking:
+        return "reasoning"
+    return entry.quality_class
+
+
+def normalize_preference(value) -> str:
+    """Free-form client value → a known preference key, or ``""`` (= auto).
+
+    Anything that is not a known class (including ``None``, ``""``, ``"auto"`` and any
+    junk string) collapses to auto, so a caller can never send a value that would only
+    ever fail a class comparison inside the router.
+    """
+    key = value.strip().lower() if isinstance(value, str) else ""
+    if key in ("", PREFERENCE_AUTO):
+        return ""
+    return key if key in PREFERENCE_LABELS else ""
+
+
+def preference_options(tier: str, capability: str) -> list[dict]:
+    """Auto + one entry per class PRESENT in the qualified pool for (tier, capability).
+
+    Stable order: auto, basic, standard, premium, reasoning. A class with several
+    qualified models appears ONCE — the Router (not the learner) picks among them. Each
+    entry carries ``key`` and ``label`` only: no provider, no model id, no price, no tier.
+    """
+    present = {preference_class(e) for e in qualified_models_for(tier, capability)}
+    options = [{"key": PREFERENCE_AUTO, "label": AUTO_LABEL}]
+    for key in PREFERENCE_CLASSES:
+        if key in present:
+            options.append({"key": key, "label": PREFERENCE_LABELS[key]})
+    return options
+
+
 def _entry_dict(entry: ModelPoolEntry) -> dict:
     return {
         "provider": entry.provider,
         "model": entry.model,
+        "display_name": display_name_for_model(entry.model),
         "eligible_tiers": list(entry.eligible_tiers),
         "capabilities": list(entry.capabilities),
         "cost_profile": entry.cost_profile,
@@ -223,6 +298,9 @@ def _entry_dict(entry: ModelPoolEntry) -> dict:
         "thinking": entry.thinking,
         "deployment_eligibility": entry.deployment_eligibility,
         "pricing_verified": entry.pricing_verified(),
+        # Learner-safe class of this entry (additive): lets a detailed list carry the same
+        # vocabulary the preference picker speaks, without ever naming a model.
+        "preference_key": preference_class(entry),
     }
 
 

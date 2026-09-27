@@ -71,6 +71,19 @@ def build_legacy_exam_scope_id(module_key) -> str:
     return f"{module}{LEGACY_SCOPE_SUFFIX}"
 
 
+def build_legacy_scope_subject_name(module_key) -> str:
+    """``<module>`` → ``11408 <display>``, the subject NAME rows in that scope carry.
+
+    Stored on ``study_materials.subject`` and validated by the upload pipeline against the
+    scope id, so both halves of an exam material's identity come from here rather than
+    from a literal spelled again at the call site.
+    """
+    module = str(module_key or "").strip()
+    if not is_known_module(module):
+        raise ExamScopeError(f"unknown CS408 module {module_key!r}")
+    return f"{_EXAM_PREFIX}{CS408_MODULE_DISPLAY[module]}"
+
+
 def resolve_cs408_module(*values) -> str | None:
     """Resolve the CS408 module from whichever legacy form a caller happens to hold.
 

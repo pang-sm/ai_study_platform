@@ -1,22 +1,28 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
+import { Download, ExternalLink, Search, Trash2 } from 'lucide-react';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Panel } from '@/components/ui/panel';
 import { SectionHeading } from '@/components/ui/section-heading';
 import { StatusNote } from '@/components/ui/status-note';
+import { MaterialFileIcon, isMaterialPreviewable, materialStatusLabel, materialTypeLabel } from '@/components/materials/material-file';
+import { deleteMaterialErrorMessage, useLibraryDelete, useLibraryMaterials, type LibraryMaterial } from '@/features/library/api/library';
 import { FactList } from '@/components/page/fact-list';
 import { LoadingState } from '@/components/page/loading-state';
 import { PageHeader } from '@/components/page/page-header';
 import { formatBytes, formatDateTime } from '@/lib/format';
+import { resolveApiResourceUrl } from '@/lib/api/client';
 import { serverMessage } from '@/lib/api/server-message';
+import { cn } from '@/lib/utils';
 import { ApiRequestError } from '@/features/exam/api/content-status';
 import { enumText } from '@/lib/learner-safe';
 import { eventTypeLabel, serviceNamespaceLabel } from '@/features/records/event-labels';
-import { useCourseChat, useCourseKnowledge, useCourseKnowledgeMap, useCourseMaterials, useCourseMaterialUpload, useCoursePractice, useCoursePracticeAction, useCoursePracticeHistory, useCourseRecords, useCourseRecordsSummary, useCourseState, useCourseTodayPlan, useCourseWrongAnswers } from '@/features/course/api/course';
+import { MATERIAL_UPLOAD_ACCEPT, materialUploadErrorMessage, useCourseKnowledge, useCourseKnowledgeMap, useCourseMaterials, useCourseMaterialUpload, useCoursePractice, useCoursePracticeAction, useCoursePracticeHistory, useCourseRecords, useCourseRecordsSummary, useCourseState, useCourseTodayPlan, useCourseWrongAnswers } from '@/features/course/api/course';
 import { CoursePageShell } from './course-page-shell';
+import { ScopedAiChatWorkspace } from '@/features/ai/components/ai-chat-page';
 import { StrongReasoningSurface } from '@/components/learning/advanced-learning-surfaces';
 import { DynamicPlanSurface, WrongAnalysisSurface } from '@/features/learning-intelligence/learning-intelligence-surfaces';
-import { AiFeedback } from '@/components/learning/ai-feedback';
 
 /* ------------------------------------------------------------------ shared local grammar */
 
@@ -99,100 +105,288 @@ function Failure({ title, error, retry }: { title: string; error: unknown; retry
 
 /* ------------------------------------------------------------------ materials */
 
-function MaterialRow({ material }: { material: unknown }) {
-  const name = text(material, 'original_filename');
-  const size = number(material, 'file_size');
-  const chunks = number(material, 'chunk_count');
-  const progress = number(material, 'parse_progress');
-  const status = text(material, 'parse_status');
-  const created = text(material, 'created_at');
+/**
+ * The five columns, declared ONCE and used by the header row and every data row.
+ *
+ * One template, not two layouts that happen to agree: a header built from flex and a row built
+ * from something else drift the first time a label changes length, and the misalignment is what a
+ * reader sees before they read anything.
+ *
+ * 名称 takes the remaining width (long filenames are the only unbounded content here). The rest
+ * are fixed, sized to their longest honest value — a course name, a type and size, a state word,
+ * and three actions — so a row with fewer buttons keeps its last column in the same place instead
+ * of the actions sliding left.
+ */
+const MATERIAL_GRID = 'sm:grid sm:grid-cols-[minmax(0,1fr)_9rem_11rem_5rem_15rem] sm:items-center sm:gap-4';
+
+const MATERIAL_FILTERS = [
+  { id: 'all', label: '全部' },
+  { id: 'pdf', label: 'PDF' },
+  { id: 'doc', label: '文档' },
+  { id: 'image', label: '图片' },
+] as const;
+
+type MaterialFilter = (typeof MATERIAL_FILTERS)[number]['id'];
+
+/** The coarse buckets the filter offers; the exact type is still shown on the row. */
+function matchesFilter(fileType: string, filter: MaterialFilter): boolean {
+  if (filter === 'all') return true;
+  const code = fileType.trim().toLowerCase();
+  if (filter === 'pdf') return code === 'pdf';
+  if (filter === 'image') return code === 'image';
+  return code === 'docx' || code === 'pptx' || code === 'text' || code === 'code';
+}
+
+/**
+ * ONE asset in the learner's library.
+ *
+ * The name is a LABEL, not a control. Opening a preview is what the 查看 action is for, and a
+ * name that also opens a tab is a second, invisible way to do the same thing — one the learner
+ * cannot see, cannot aim at and never asked for. So the name is plain text, and previewing has
+ * exactly one door.
+ *
+ * 查看 is offered only where a browser can actually render the file: `isMaterialPreviewable` is
+ * the shared statement of that rule, and the server's own `can_preview` adds whether this
+ * particular file can still be served. A type that cannot be previewed gets no 查看 at all
+ * rather than one that explains its own uselessness.
+ */
+function MaterialRow({ material, onDelete }: { material: LibraryMaterial; onDelete: (material: LibraryMaterial) => void }) {
+  const canView = isMaterialPreviewable(material.fileType) && material.canPreview === true && material.previewUrl !== undefined;
+  const canDownload = material.canDownload === true && material.downloadUrl !== undefined;
+  const statusLabel = materialStatusLabel(material.parseStatus);
+  const sizeText = [
+    materialTypeLabel(material.fileType),
+    material.fileSize === undefined ? undefined : formatBytes(material.fileSize),
+  ].filter(Boolean).join(' · ');
+
   return (
-    <li className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 border-b border-border-default py-4">
-      <div className="min-w-0">
-        <p className="text-body font-medium text-text-primary">{name ?? '未命名资料'}</p>
-        <p className="mt-1 text-metadata text-text-secondary">
-          {[
-            text(material, 'file_type') ? enumText('file_type', text(material, 'file_type')) : undefined,
-            size !== undefined ? formatBytes(size) : undefined,
-            chunks !== undefined ? `${chunks} 个片段` : undefined,
-            `加入时间 ${formatDateTime(created)}`,
-          ]
-            .filter(Boolean)
-            .join(' · ')}
-        </p>
-      </div>
-      <div className="flex items-center gap-3">
-        {status ? (
-          <span className="text-metadata text-text-secondary">
-            {enumText('parse_status', status)}
-            {progress !== undefined && progress > 0 && progress < 100 ? ` ${progress}%` : ''}
-          </span>
-        ) : null}
+    <li className="border-b border-border-default">
+      {/* One element per column at every width; below `sm` the grid collapses to a single column
+          and the same nodes stack, so nothing is rendered twice. Every column is centred on the
+          row's own line, which is what keeps a two-line 类型 · 大小 block level with a one-line
+          status rather than hanging below it. */}
+      <div className={cn('py-4', MATERIAL_GRID)}>
+        <div className="flex min-w-0 items-center gap-3">
+          <MaterialFileIcon fileType={material.fileType} />
+          {/* The name is a label, and a long one is clipped rather than allowed to push the
+              columns after it around; the tooltip is where the whole name stays readable. */}
+          <span title={material.filename} className="truncate text-body font-medium text-text-primary">{material.filename}</span>
+        </div>
+        <p className="mt-2 truncate text-metadata text-text-secondary sm:mt-0">{material.sourceLabel}</p>
+        <div className="mt-1 sm:mt-0">
+          <p className="text-metadata text-text-secondary">{sizeText}</p>
+          {material.createdAt ? <p className="mt-0.5 text-metadata text-text-muted">{formatDateTime(material.createdAt)}</p> : null}
+        </div>
+        <p className="mt-1 text-metadata text-text-secondary sm:mt-0">{statusLabel}</p>
+        <div className="mt-3 flex items-center gap-2 sm:mt-0 sm:justify-end">
+          {canView ? (
+            <a
+              href={resolveApiResourceUrl(material.previewUrl!)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-9 items-center gap-1.5 rounded-control border border-border-default bg-surface px-3 text-metadata text-text-primary hover:bg-primary-soft"
+            >
+              <ExternalLink className="size-3.5" />
+              查看
+            </a>
+          ) : null}
+          {canDownload ? (
+            <a
+              href={resolveApiResourceUrl(material.downloadUrl!)}
+              className="inline-flex h-9 items-center gap-1.5 rounded-control border border-border-default bg-surface px-3 text-metadata text-text-primary hover:bg-primary-soft"
+            >
+              <Download className="size-3.5" />
+              下载
+            </a>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => onDelete(material)}
+            className="inline-flex h-9 items-center gap-1.5 rounded-control border border-border-default bg-surface px-3 text-metadata text-danger-ink hover:bg-danger-soft"
+          >
+            <Trash2 className="size-3.5" />
+            删除
+          </button>
+        </div>
       </div>
     </li>
   );
 }
 
-export function CourseMaterialsPage({ courseId }: { courseId: string }) {
-  const query = useCourseMaterials(courseId);
-  const upload = useCourseMaterialUpload(courseId);
-  const materials = list(query.data);
+/**
+ * What THIS course can cite — a different question from what the library holds.
+ *
+ * The study page's list is the material a question asked here is grounded in, so it stays
+ * scoped to this course rather than becoming the library view: a file from another course is
+ * the learner's, but it is not this course's grounding. Only the name, type, size and state
+ * belong here; the actions live on the 资料 page, where acting on a file is the point.
+ */
+function CourseCitationRow({ material }: { material: unknown }) {
+  const fileType = text(material, 'file_type');
+  const size = number(material, 'file_size');
+  const statusLabel = materialStatusLabel(text(material, 'parse_status'));
+  const sizeText = [
+    materialTypeLabel(fileType),
+    size === undefined ? undefined : formatBytes(size),
+  ].filter(Boolean).join(' · ');
 
   return (
-    <CoursePageShell
-      courseId={courseId}
-      active="materials"
-      facts={[
-        { label: '本课程资料', value: query.isPending ? '正在读取…' : `${materials.length} 项` },
-      ]}
-    >
-      <PageHeader
-        eyebrow="资料"
-        title="课程资料"
-        description="上传到这门课程的资料会成为 AI 问答与知识点学习的引用来源。"
-        actions={
-          <label className="inline-flex h-11 cursor-pointer items-center rounded-control border border-border-default bg-surface px-5 text-body font-medium text-text-primary hover:bg-primary-soft">
-            {upload.isPending ? '正在上传…' : '上传资料'}
+    <li className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 border-b border-border-default py-4">
+      <div className="flex min-w-0 items-center gap-3">
+        <MaterialFileIcon fileType={fileType} />
+        <span className="truncate text-body font-medium text-text-primary">{text(material, 'original_filename') ?? '未命名资料'}</span>
+      </div>
+      <span className="text-metadata text-text-secondary">{sizeText} · {statusLabel}</span>
+    </li>
+  );
+}
+
+/**
+ * The learner's whole material library, seen from inside a course.
+ *
+ * It lists every asset they own — this course's uploads, another course's, files sent to a chat,
+ * files uploaded from the library picker — because all of them are the same thing to the person
+ * who uploaded them. What stays course-specific is what RETRIEVAL uses: a question asked in this
+ * course is grounded in this course's own material, plus whatever the learner explicitly
+ * attaches, and never in everything this page happens to list. Those are deliberately different
+ * questions and this list answers only the first.
+ *
+ * Uploading still belongs to the course it is done from, so the button says so and the server
+ * files the file under this course — which is then what its 来源 column reads.
+ */
+export function CourseMaterialsPage({ courseId }: { courseId: string }) {
+  const library = useLibraryMaterials();
+  const remove = useLibraryDelete();
+  const upload = useCourseMaterialUpload(courseId);
+  const uploadRef = useRef<HTMLInputElement>(null);
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<MaterialFilter>('all');
+  const [pendingDelete, setPendingDelete] = useState<LibraryMaterial | null>(null);
+
+  const materials = library.data ?? [];
+  const needle = search.trim().toLowerCase();
+  const visible = materials.filter((material) => (
+    matchesFilter(material.fileType, filter) && material.filename.toLowerCase().includes(needle)
+  ));
+
+  const confirmDelete = () => {
+    if (!pendingDelete) return;
+    // The dialog closes either way: a failure is stated in the list's own error note, where the
+    // learner can see which row it was about, rather than as a modal that will not go away.
+    remove.mutate(pendingDelete.materialId, { onSettled: () => setPendingDelete(null) });
+  };
+
+  return (
+    <CoursePageShell courseId={courseId} active="materials" facts={[]}>
+      {/* No page-sized title: 资料 is what the tab strip already says, and the course is named by
+          the switcher above. The toolbar is what the page opens with. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+          <div className="relative min-w-56 flex-1 sm:max-w-sm">
+            <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
             <input
-              type="file"
-              className="sr-only"
-              disabled={upload.isPending}
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) upload.mutate(file);
-              }}
+              type="text"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              aria-label="搜索资料"
+              placeholder="搜索资料"
+              className="h-11 w-full rounded-control border border-border-default bg-surface pl-9 pr-3 text-body text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
             />
-          </label>
-        }
-      />
+          </div>
+          <div role="group" aria-label="按类型筛选资料" className="flex items-center gap-1">
+            {MATERIAL_FILTERS.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={filter === option.id}
+                onClick={() => setFilter(option.id)}
+                className={cn(
+                  'h-9 rounded-control px-3 text-body',
+                  filter === option.id ? 'bg-primary-soft font-medium text-primary-ink' : 'text-text-secondary hover:bg-page-background',
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <label className="inline-flex h-11 shrink-0 cursor-pointer items-center rounded-control bg-primary px-5 text-body font-medium text-white hover:bg-primary-hover focus-within:outline-none focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2">
+          {upload.isPending ? '正在上传…' : '上传资料'}
+          <input
+            ref={uploadRef}
+            type="file"
+            className="sr-only"
+            accept={MATERIAL_UPLOAD_ACCEPT}
+            disabled={upload.isPending}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              // Clearing the input lets the same file be chosen again after a failure; without
+              // it the second selection fires no change event and the retry looks ignored.
+              event.target.value = '';
+              if (file) upload.mutate(file);
+            }}
+          />
+        </label>
+      </div>
 
-      {upload.isError ? <StatusNote tone="danger" className="mt-6">上传未成功，后端没有接受这个文件。</StatusNote> : null}
-      {upload.isSuccess ? <StatusNote tone="success" className="mt-6">已提交上传；解析进度会显示在下方列表中。</StatusNote> : null}
+      {upload.isError ? (
+        <StatusNote tone="danger" className="mt-4">{materialUploadErrorMessage(upload.error)}</StatusNote>
+      ) : null}
+      {upload.isSuccess ? <StatusNote tone="success" className="mt-4">已上传到本课程</StatusNote> : null}
+      {remove.isError ? (
+        <StatusNote tone="danger" className="mt-4">{deleteMaterialErrorMessage(remove.error)}</StatusNote>
+      ) : null}
 
-      {query.isPending ? (
-        <LoadingState label="正在读取课程资料…" className="mt-8" rows={4} />
-      ) : query.isError ? (
-        <Failure title="课程资料暂时无法加载。" error={query.error} retry={() => void query.refetch()} />
-      ) : materials.length ? (
-        <ul className="mt-6 border-t border-border-default">
-          {materials.map((material, index) => (
-            <MaterialRow key={text(material, 'id') ?? index} material={material} />
-          ))}
-        </ul>
-      ) : (
+      {library.isPending ? (
+        <LoadingState label="正在读取资料…" className="mt-8" rows={4} />
+      ) : library.isError ? (
+        <Failure title="资料暂时无法加载。" error={library.error} retry={() => void library.refetch()} />
+      ) : materials.length === 0 ? (
         <EmptyState
           className="mt-8"
-          title="这门课程还没有资料。"
-          description="上传讲义、教材或课件后，知识点学习与课程问答才能引用它们。"
+          title="暂无资料"
+          description="上传课件、讲义或笔记，之后可在课程问答中直接使用。"
+          action={
+            <button
+              type="button"
+              onClick={() => uploadRef.current?.click()}
+              disabled={upload.isPending}
+              className="inline-flex h-11 items-center rounded-control bg-primary px-5 text-body font-medium text-white hover:bg-primary-hover disabled:opacity-50"
+            >
+              上传资料
+            </button>
+          }
         />
+      ) : (
+        <>
+          <div className={cn('mt-8 hidden border-b border-border-default pb-2 text-metadata font-medium text-text-muted', MATERIAL_GRID)}>
+            <span>名称</span>
+            <span>来源</span>
+            <span>类型 · 大小</span>
+            <span>状态</span>
+            <span className="text-right">操作</span>
+          </div>
+          {visible.length ? (
+            <ul className="border-t border-border-default sm:border-t-0">
+              {visible.map((material) => (
+                <MaterialRow key={material.materialId} material={material} onDelete={setPendingDelete} />
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-8 text-body text-text-secondary">没有找到相关资料</p>
+          )}
+        </>
       )}
 
-      <NextStep
-        label="进入知识结构"
-        description="资料解析完成后，知识点与脉络会作为学习的起点。"
-        to="/course/$courseId/knowledge"
-        params={{ courseId }}
-      />
+      {pendingDelete ? (
+        <ConfirmDialog
+          title={`删除“${pendingDelete.filename}”？`}
+          description="删除后，该资料将无法继续用于新的问答，但历史聊天中的文件记录会保留。"
+          pending={remove.isPending}
+          onConfirm={confirmDelete}
+          onCancel={() => setPendingDelete(null)}
+        />
+      ) : null}
     </CoursePageShell>
   );
 }
@@ -238,9 +432,8 @@ export function CourseKnowledgePage({ courseId }: { courseId: string }) {
       ]}
     >
       <PageHeader
-        eyebrow="知识结构"
         title="知识点与脉络"
-        description="知识点与图谱都只属于当前课程；顺序与依赖来自后端记录，不在前端重排。"
+        description="知识点与图谱都只属于当前课程；顺序与依赖按已记录的先后展示。"
       />
 
       {points.isPending ? (
@@ -289,7 +482,6 @@ export function CourseStudyPage({ courseId }: { courseId: string }) {
       ]}
     >
       <PageHeader
-        eyebrow="学习"
         title="知识点学习"
         description="先读知识点与关联资料；读完直接进入练习验证理解。"
       />
@@ -314,7 +506,7 @@ export function CourseStudyPage({ courseId }: { courseId: string }) {
             {materialIds.length ? (
               <ul className="border-t border-border-default">
                 {list(materials.data).map((material, index) => (
-                  <MaterialRow key={text(material, 'id') ?? index} material={material} />
+                  <CourseCitationRow key={text(material, 'id') ?? index} material={material} />
                 ))}
               </ul>
             ) : (
@@ -324,7 +516,7 @@ export function CourseStudyPage({ courseId }: { courseId: string }) {
         </>
       )}
 
-      <StrongReasoningSurface context="课程学习" courseId={courseId} materialIds={materialIds} />
+      <StrongReasoningSurface context="专业学习" courseId={courseId} materialIds={materialIds} />
 
       <NextStep
         label="做本课程练习"
@@ -374,7 +566,6 @@ export function CoursePracticePage({ courseId }: { courseId: string }) {
       ]}
     >
       <PageHeader
-        eyebrow="练习"
         title="课程练习本"
         description="生成、作答与提交都记录为真实练习事实；提交结果决定错题与复习。"
         actions={
@@ -486,7 +677,7 @@ export function CoursePracticePage({ courseId }: { courseId: string }) {
 
       <NextStep
         label="查看错题与复习"
-        description="做错的题目会进入错题与复习安排，这是课程学习的闭环。"
+        description="做错的题目会进入错题与复习安排，这是专业学习的闭环。"
         to="/course/$courseId/wrong"
         params={{ courseId }}
       />
@@ -505,7 +696,6 @@ export function CourseWrongPage({ courseId }: { courseId: string }) {
       facts={[{ label: '待复习条目', value: query.isPending ? '正在读取…' : `${items.length} 条` }]}
     >
       <PageHeader
-        eyebrow="错题与复习"
         title="待复习条目"
         description="题面、作答与参考答案都直接来自课程接口；这里不会用题目编号再去别处拼接内容。"
       />
@@ -554,7 +744,7 @@ export function CourseWrongPage({ courseId }: { courseId: string }) {
 
       <NextStep
         label="进入统一复习"
-        description="跨学习空间的待复习项目都集中在统一复习里。"
+        description="各个方向的待复习项目都集中在统一复习里。"
         to="/review"
       />
     </CoursePageShell>
@@ -604,9 +794,8 @@ export function CoursePlanPage({ courseId }: { courseId: string }) {
       facts={[{ label: '今日任务', value: plan.isPending ? '正在读取…' : `${count} 项` }]}
     >
       <PageHeader
-        eyebrow="计划"
         title="今日计划"
-        description="任务顺序与紧迫程度由后端给出；这里是课程层面的今天。"
+        description="按紧迫程度从上到下排；这里是这门课程层面的今天。"
       />
 
       {plan.isPending ? (
@@ -643,9 +832,8 @@ export function CourseRecordsPage({ courseId }: { courseId: string }) {
       facts={[{ label: '记录事件', value: records.isPending ? '正在读取…' : `${events.length} 条` }]}
     >
       <PageHeader
-        eyebrow="记录"
-        title="课程学习记录"
-        description="按时间记录的事件流，与服务端学习报告使用同一批事实。"
+        title="专业学习记录"
+        description="按时间记录的事件流，和学习报告是同一批记录。"
         actions={
           <Link
             to="/reports"
@@ -657,7 +845,7 @@ export function CourseRecordsPage({ courseId }: { courseId: string }) {
         }
       />
 
-      <Section title="汇总" description="统计窗口与口径由后端给出；缺失的指标显示为「—」，不当作 0。">
+      <Section title="汇总" description="缺失的指标显示为「—」，不当作 0。">
         {summary.isPending ? <LoadingState label="正在读取记录汇总…" rows={2} /> : null}
         {summary.isError ? <Failure title="记录汇总暂时无法加载。" error={summary.error} retry={() => void summary.refetch()} /> : null}
         {summary.data !== undefined ? <FactList value={summary.data} /> : null}
@@ -704,9 +892,8 @@ export function CourseStatePage({ courseId }: { courseId: string }) {
   return (
     <CoursePageShell courseId={courseId} active="state">
       <PageHeader
-        eyebrow="学习状态"
-        title="已记录的学习事实"
-        description="这里只呈现已记录的事实：知识点状态、练习、错题、复习与计划。不含掌握度、能力评分或模型输出。"
+        title="已记录的学习情况"
+        description="这里只呈现已经记录下来的内容：知识点状态、练习、错题、复习与计划。不含掌握度、能力评分或模型输出。"
       />
 
       {state.isPending ? (
@@ -746,7 +933,7 @@ export function CourseStatePage({ courseId }: { courseId: string }) {
           </Section>
         </>
       ) : (
-        <EmptyState className="mt-8" title="暂无状态数据。" description="还没有可以投影的学习事实。" />
+        <EmptyState className="mt-8" title="暂无状态数据。" description="还没有可以展示的记录。" />
       )}
 
       <NextStep
@@ -762,77 +949,9 @@ export function CourseStatePage({ courseId }: { courseId: string }) {
 /* ------------------------------------------------------------------ course Q&A */
 
 export function CourseAskPage({ courseId }: { courseId: string }) {
-  const chat = useCourseChat(courseId);
-  const [message, setMessage] = useState('');
-  const answer = isRecord(chat.data) && typeof chat.data.answer === 'string' ? chat.data.answer : undefined;
-  const requestId = isRecord(chat.data) && typeof chat.data.request_id === 'string' ? chat.data.request_id : undefined;
-
   return (
     <CoursePageShell courseId={courseId} active="ask">
-      <PageHeader
-        eyebrow="课程问答"
-        title="向这门课程提问"
-        description="问题带上当前课程上下文，回答只引用这门课程的资料。"
-      />
-
-      <form
-        className="mt-8"
-        onSubmit={(event: FormEvent) => {
-          event.preventDefault();
-          if (message.trim()) chat.mutate(message.trim());
-        }}
-      >
-        <label className="block text-body font-medium text-text-primary" htmlFor="course-question">
-          你的问题
-        </label>
-        <textarea
-          id="course-question"
-          value={message}
-          onChange={(event) => setMessage(event.target.value)}
-          required
-          className="mt-2 min-h-28 w-full rounded-card border border-border-default bg-surface p-4 text-body text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-          placeholder="例如：这一章的重点结论是什么？"
-        />
-        <button
-          type="submit"
-          className="mt-4 inline-flex h-11 items-center rounded-control bg-primary px-5 text-body font-medium text-white hover:bg-primary-hover disabled:opacity-50"
-          disabled={chat.isPending}
-        >
-          {chat.isPending ? '正在请求…' : '发送问题'}
-        </button>
-      </form>
-
-      {chat.isError ? (
-        <StatusNote tone="danger" className="mt-6">
-          问答暂时不可用，没有返回可显示的答案。
-          <button type="button" className="ml-3 underline" onClick={() => chat.reset()}>
-            重试
-          </button>
-        </StatusNote>
-      ) : null}
-
-      {chat.isSuccess && answer === undefined ? (
-        <StatusNote tone="warning" className="mt-6">
-          这次提问没有返回可显示的答案，可以重新提问或换个问法。
-        </StatusNote>
-      ) : null}
-
-      {answer !== undefined ? (
-        <Panel tone="ai" className="mt-8">
-          <p className="text-metadata font-medium tracking-eyebrow text-ai-ink">AI 回答 · 单次调用</p>
-          <p className="mt-3 whitespace-pre-wrap text-body text-text-primary">{answer}</p>
-          {requestId ? <AiFeedback requestId={requestId} workflowId="course_chat" /> : null}
-        </Panel>
-      ) : null}
-
-      <StrongReasoningSurface context="课程问答" courseId={courseId} />
-
-      <NextStep
-        label="回到课程概览"
-        description="回到概览，继续资料、学习、练习的下一步。"
-        to="/course/$courseId"
-        params={{ courseId }}
-      />
+      <ScopedAiChatWorkspace scope={{ kind: 'course', courseId, label: courseId }} embedded />
     </CoursePageShell>
   );
 }

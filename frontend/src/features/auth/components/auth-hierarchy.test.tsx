@@ -27,18 +27,19 @@ function precedes(first: Node, second: Node) {
 }
 
 describe('auth surface hierarchy', () => {
-  it('separates the product identity from the form, and shows the spaces as structure rather than dead links', async () => {
+  it('keeps the identity column to the brand alone, with the form beside it', async () => {
     renderApp('/login', { user: null });
     await screen.findByRole('heading', { name: '登录', level: 1 });
 
     const identity = screen.getByRole('complementary');
-    for (const space of ['考研学习', '课程学习', '编程学习']) {
-      expect(within(identity).getByText(space)).toBeInTheDocument();
+    expect(within(identity).getByText('智学平台')).toBeInTheDocument();
+    // The identity column used to list the three spaces and the shared tools. It no longer
+    // describes the product at all: the sign-in page's one job is signing in, and a signed-out
+    // visitor could not follow those entries anyway.
+    for (const gone of ['考研学习', '专业学习', '编程学习', '共享学习工具']) {
+      expect(within(identity).queryByText(gone)).not.toBeInTheDocument();
     }
-    // A signed-out visitor who followed one of these would be bounced straight back here, so the
-    // identity column describes the product instead of pretending to navigate it.
     expect(within(identity).queryAllByRole('link')).toHaveLength(0);
-    expect(within(identity).getByText(/共享学习工具/)).toBeInTheDocument();
 
     // The form is one task with one heading and one action. The only other button on the screen
     // is the password's reveal toggle, which acts on that same field rather than competing with
@@ -55,14 +56,21 @@ describe('auth surface hierarchy', () => {
     expect(precedes(identity, form as HTMLElement)).toBe(true);
   });
 
-  it('states that no legal documents are published instead of linking to a page that does not exist', async () => {
+  it('links to the published legal documents, and no longer says they are missing', async () => {
     renderApp('/login', { user: null });
     await screen.findByRole('heading', { name: '登录', level: 1 });
 
-    const legal = screen.getByText(/用户协议与隐私政策尚未发布/);
-    expect(legal).toBeInTheDocument();
-    expect(legal.tagName).toBe('P');
-    expect(screen.queryByRole('link', { name: /用户协议|隐私政策/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '用户协议' })).toHaveAttribute('href', '/terms');
+    expect(screen.getByRole('link', { name: '隐私政策' })).toHaveAttribute('href', '/privacy');
+    expect(screen.queryByText(/尚未发布/)).not.toBeInTheDocument();
+  });
+
+  it('offers the same legal links from the registration screen', async () => {
+    renderApp('/register', { user: null });
+    await screen.findByRole('heading', { name: '注册', level: 1 });
+
+    expect(screen.getByRole('link', { name: '用户协议' })).toHaveAttribute('href', '/terms');
+    expect(screen.getByRole('link', { name: '隐私政策' })).toHaveAttribute('href', '/privacy');
   });
 
   it('numbers the registration steps, keeps them in order, and offers one primary action per step', async () => {

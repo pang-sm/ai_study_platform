@@ -751,7 +751,7 @@ def seed_default_reference_materials(conn):
             text(
                 """
                 INSERT INTO study_materials (
-                    username, subject, file_type, original_filename, mime_type,
+                    username, subject, scope_type, file_type, original_filename, mime_type,
                     file_size, file_hash, file_path, extracted_text, summary,
                     source_message_id, source_type, study_mode, visibility, copyright_status,
                     allow_download, allow_public_rag, allow_private_rag,
@@ -760,7 +760,7 @@ def seed_default_reference_materials(conn):
                     parsed_pages, chunk_count, ocr_required, ocr_page_limit, parse_progress,
                     parse_started_at, parse_completed_at, is_deleted, created_at, updated_at
                 ) VALUES (
-                    :username, :subject, :file_type, :original_filename, :mime_type,
+                    :username, :subject, 'course', :file_type, :original_filename, :mime_type,
                     0, NULL, :file_path, :extracted_text, :summary,
                     NULL, 'reference_metadata', 'general', 'system_public_metadata', 'restricted_reference_only',
                     0, 0, 0,

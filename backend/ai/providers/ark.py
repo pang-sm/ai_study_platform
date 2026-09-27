@@ -44,9 +44,10 @@ class ArkProvider:
                 f"(set {ARK_ENDPOINT_ENV[model]})", self.name, retriable=True)
         return model
 
-    def complete(self, spec: AIRequestSpec) -> GatewayResponse:
-        started_at = time.perf_counter()
-        kwargs = {}
+    def _request_kwargs(self, spec: AIRequestSpec) -> dict:
+        """The provider-specific request kwargs, shared by complete() and stream() so a streamed
+        turn asks for exactly what a non-streamed one would."""
+        kwargs: dict = {}
         if spec.temperature is not None:
             kwargs["temperature"] = spec.temperature
         if spec.max_tokens is not None:
@@ -57,6 +58,19 @@ class ArkProvider:
             # token cap, so disabling thinking is the only way to bound billable output.
             kwargs["extra_body"] = {
                 "thinking": {"type": "enabled" if spec.thinking else "disabled"}}
+        return kwargs
+
+    def stream(self, spec: AIRequestSpec):
+        """Open a REAL provider stream (see the gateway contract). Leaving the block cancels it."""
+        from ai.providers.common import stream_openai_chat
+
+        return stream_openai_chat(self._client, spec, provider=self.name,
+                                  model=self._resolve_model(spec.model or ""),
+                                  extra_kwargs=self._request_kwargs(spec))
+
+    def complete(self, spec: AIRequestSpec) -> GatewayResponse:
+        started_at = time.perf_counter()
+        kwargs = self._request_kwargs(spec)
         model = self._resolve_model(spec.model or "")
         try:
             response = self._client.chat.completions.create(

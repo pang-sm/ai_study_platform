@@ -55,6 +55,17 @@ class CountingProvider(FakeProvider):
         return dataclasses.replace(response, content=self._content)
 
 
+def _declare(client, courses):
+    """Give the learner the course the way the product does — 学习设置 writes 我的课程, and a
+    course conversation is a surface of a course the learner has."""
+    reply = client.post("/course-learning/onboarding", json={
+        "major": "计算机科学与技术", "grade": "大二", "semester": "",
+        "selected_courses": list(courses), "recommended_courses": [],
+        "material_types": [], "course_goals": {}, "onboarding_completed": True,
+    })
+    assert reply.status_code == 200, reply.text
+
+
 def _factory(calls: list, content: str | None = None, behavior: str = "success"):
     def _make(name: str) -> FakeProvider:
         # Small fixed usage keeps actual credits inside the reservation, so the path
@@ -365,6 +376,7 @@ def test_course_chat_never_accepts_a_client_supplied_capability(client, provider
     assert "capability" not in ChatRequest.model_fields
 
     register_and_login(client, "cai-chat")
+    _declare(client, ["数据结构"])
     calls = provider()
     # /chat resolves its scope to the course DISPLAY name, so the material must match it.
     material_id = _add_material("cai-chat", subject="数据结构")
@@ -397,6 +409,7 @@ def _add_material(username, subject="data_structure", text="线性表是 n 个�
 
 def test_course_chat_request_context_is_course_learning(client, provider):
     register_and_login(client, "cai-chat-ctx")
+    _declare(client, ["数据结构"])
     provider()
     r = client.post("/chat", json={"message": "什么是线性表", "subject": "data_structure"})
     assert r.status_code == 200, r.text
@@ -529,3 +542,51 @@ def test_free_user_course_ai_e2e(db_session, provider):
              .filter(LearningEvent.user_id == u.id,
                      LearningEvent.event_type == "ai_called").all())
     assert len(audit) == 1, "the AI audit fact must be preserved, only hidden"
+
+
+# ---------------------------------------------------------------- refusal status class
+
+def test_a_technical_stop_is_not_reported_as_a_quota_denial(db_session, provider):
+    """429 means "your quota is used up". A model that could not answer is not that, and telling
+    a learner the second when the first happened is a false statement they cannot act on."""
+    u = _make_user(db_session, "cai-technical", tier="standard")
+    provider(behavior="raise_timeout")
+
+    with pytest.raises(HTTPException) as exc:
+        execute_course_ai(db_session, u, "tutor.chat", _messages(),
+                          learning_context=_context(u), max_tokens=200)
+
+    assert exc.value.status_code == 502
+
+
+def test_an_empty_completion_that_no_candidate_answers_is_a_technical_stop(db_session, provider):
+    """The all-empty case is a failure, never a 200 with nothing in it — and never a quota claim."""
+    u = _make_user(db_session, "cai-empty", tier="standard")
+    calls = provider(content="")
+
+    with pytest.raises(HTTPException) as exc:
+        execute_course_ai(db_session, u, "tutor.chat", _messages(),
+                          learning_context=_context(u), max_tokens=200)
+
+    assert exc.value.status_code == 502
+    assert len(calls) > 1, "an empty answer must not end the chain"
+    req = (db_session.query(AIRequest)
+           .filter(AIRequest.user_id == u.id).order_by(AIRequest.id.desc()).first())
+    assert req.status != "settled"
+    assert req.error_category == "empty_completion"
+
+
+def test_a_budget_refusal_is_still_a_quota_answer(db_session, provider):
+    """The one refusal that IS about the learner's quota keeps its own status."""
+    u = _make_user(db_session, "cai-budget-status", tier="standard")
+    calls = provider()
+    budget = usage_service.get_or_create_budget(db_session, u.id, "daily")
+    budget.settled_amount = budget.budget_amount
+    db_session.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        execute_course_ai(db_session, u, "tutor.chat", _messages(),
+                          learning_context=_context(u), max_tokens=200)
+
+    assert exc.value.status_code == 429
+    assert calls == []

@@ -8,11 +8,14 @@ properties carry that:
           discovering the problem inside a learner's request;
   PART C  ``create_all`` owns no production schema — migration ownership is Alembic's.
 
-PART D proves all of it on a byte-for-byte COPY of the real legacy database, driven through
-the real deployment sequence and then through the real CS408 product surfaces, in
-subprocesses, so the copy, its own ``DATABASE_URL`` and the runtime address are genuinely
-independent of this test process. The real ``backend/app.db`` is opened for READING only
-and its digest is asserted unchanged at the end.
+PART D proves all of it on a CONTROLLED database built in this test's own temp directory —
+the application's own bootstrap (``create_all`` + ``ensure_database_schema``) with no
+``alembic_version``, plus sentinel rows this module seeds — driven through the real deployment
+sequence and then through the real CS408 product surfaces, in subprocesses, so the database,
+its own ``DATABASE_URL`` and the runtime address are genuinely independent of this test
+process. ``backend/app.db`` is never read: it is a gitignored runtime database, not a fixture,
+and no historical table-count is reconstructed, so the rehearsal runs on a fresh clone and in
+CI.
 
 PART E is the other half of the migration story: there is no downgrade to rehearse, so what
 is tested is the recovery that actually exists — restore the pre-migration snapshot.
@@ -38,17 +41,17 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 BACKEND = REPO_ROOT / "backend"
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))  # so the tests can import ``migrations.guards``
-REAL_DB = BACKEND / "app.db"
-PYTHON = BACKEND / ".venv" / "Scripts" / "python.exe"
+# The interpreter that runs pytest, so subprocesses are portable (Linux, Windows, CI) instead
+# of hard-coding this machine's venv path.
+PYTHON = Path(sys.executable)
 RUNTIME_PYTHON = Path(r"D:\ZhixueAI\envs\runtime-service\Scripts\python.exe")
 RUNTIME_SERVICE_ROOT = REPO_ROOT / "scientific_runtime_service"
 
 DEPLOY_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "deploy.yml"
-EXPECTED_HEAD = "20260921_0013"
+EXPECTED_HEAD = "20260923_0015"
 
-# The legacy baseline the copy must still satisfy after migrating.
-PROTECTED_TABLES = ("exam_question_bank", "programming_exercises", "knowledge_points")
-LEGACY_TABLE_COUNT = 71  # excluding SQLite's own internal tables
+# Tables the rehearsal seeds with its own sentinel rows and requires to survive the upgrade.
+REHEARSAL_SEED_TABLES = ("exam_question_bank", "programming_exercises", "knowledge_points")
 
 
 # ======================================================== PART A — deployment sequence
@@ -470,27 +473,75 @@ def _start_runtime():
     return process, port
 
 
+def _app_bootstrap(database: Path) -> None:
+    """Build the schema the way the application builds it at import: create_all + ensure_*.
+
+    Imports ``models``/``database``/``database_schema`` rather than ``main``, because ``main``
+    runs the schema preflight and must REFUSE this not-yet-migrated database (asserted below).
+    """
+    script = (
+        "import os, sys; sys.path.insert(0, os.environ['S6_BACKEND']);"
+        "import models, usage.models, data_plane.models, learning.wrong_answers.models;"
+        "from database import Base, engine, init_user_profile_schema;"
+        "from database_schema import ensure_database_schema;"
+        # the SAME bootstrap order main.py uses at import, minus the schema preflight
+        "Base.metadata.create_all(bind=engine);"
+        "init_user_profile_schema();"
+        "ensure_database_schema(engine);"
+        "print('bootstrapped')")
+    completed = subprocess.run(
+        [str(PYTHON), "-c", script], cwd=str(BACKEND),
+        env={**os.environ, "DATABASE_URL": f"sqlite:///{database.as_posix()}",
+             "S6_BACKEND": str(BACKEND), "UPLOAD_ROOT": str(database.parent / "uploads")},
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
+    assert completed.returncode == 0, completed.stderr[-3000:]
+
+
+def _seed_rehearsal(database: Path) -> None:
+    """Sentinel rows this rehearsal owns — deterministic, small, and NEVER a copy of real data."""
+    script = (
+        "import os, sys; sys.path.insert(0, os.environ['S6_BACKEND']);"
+        "import models; from database import SessionLocal;"
+        "db = SessionLocal();"
+        "db.add(models.KnowledgePoint(username='s6seed', course_id='data_structure',"
+        " title='S6-SENTINEL-KP'));"
+        "db.add(models.ExamQuestionBank(subject_key='operating_system', source_type='chapter',"
+        " stem='S6-SENTINEL-QUESTION', standard_answer='A'));"
+        "db.add(models.ProgrammingExercise(slug='s6-sentinel', language='python',"
+        " title='S6-SENTINEL', difficulty='easy', description='sentinel', source_repo='seed',"
+        " source_path='seed', source_commit='0' * 40, license_text='MIT',"
+        " attribution='seed'));"
+        "db.commit(); db.close(); print('seeded')")
+    completed = subprocess.run(
+        [str(PYTHON), "-c", script], cwd=str(BACKEND),
+        env={**os.environ, "DATABASE_URL": f"sqlite:///{database.as_posix()}",
+             "S6_BACKEND": str(BACKEND), "UPLOAD_ROOT": str(database.parent / "uploads")},
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
+    assert completed.returncode == 0, completed.stderr[-3000:]
+
+
 @pytest.fixture(scope="module")
 def rehearsal():
-    """The complete deployment sequence on a byte-for-byte COPY of the real database.
+    """The complete deployment sequence on a CONTROLLED database built in this test's temp dir.
 
-    backup -> migration -> schema check -> application start -> product surfaces. The real
-    file is never opened for writing and is digest-checked at the end.
+    backup -> migration -> schema check -> application start -> product surfaces.
+
+    The database is the application's OWN bootstrap (create_all + ensure_database_schema) with no
+    ``alembic_version`` — the state every database of this product was in before Alembic — plus
+    sentinel rows this module seeds. Nothing is read from ``backend/app.db`` (a gitignored runtime
+    database, not a fixture) and no historical 71-table artifact is reconstructed, so the whole
+    rehearsal is reproducible on a fresh clone and in CI.
     """
-    if not REAL_DB.exists():
-        pytest.skip("real backend/app.db is not present on this machine")
-    if not PYTHON.exists():
-        pytest.skip("backend venv python is not present on this machine")
-
-    original = {"sha256": _sha256(REAL_DB), "size": REAL_DB.stat().st_size,
-                "mtime": REAL_DB.stat().st_mtime}
-
     workdir = Path(tempfile.mkdtemp(prefix="s6-rehearsal-"))
     backup = workdir / "pre-migration-backup.db"
     database = workdir / "app.db"
-    shutil.copy2(REAL_DB, backup)
-    shutil.copy2(REAL_DB, database)
-    assert _sha256(database) == original["sha256"], "the copy is not byte-for-byte"
+
+    _app_bootstrap(database)
+    _seed_rehearsal(database)
+
+    original = {"sha256": _sha256(database), "size": database.stat().st_size,
+                "mtime": database.stat().st_mtime}
+    shutil.copy2(database, backup)
 
     def tables(path: Path) -> set:
         import sqlite3
@@ -513,14 +564,16 @@ def rehearsal():
             connection.close()
 
     legacy_tables = tables(database)
-    legacy_rows = {t: rows(database, t) for t in PROTECTED_TABLES if t in legacy_tables}
+    legacy_rows = {t: rows(database, t) for t in REHEARSAL_SEED_TABLES if t in legacy_tables}
+    assert all(count > 0 for count in legacy_rows.values()), \
+        f"the rehearsal must seed every sentinel table: {legacy_rows}"
 
     env = {**os.environ, "DATABASE_URL": f"sqlite:///{database.as_posix()}"}
 
     # ---- the preflight must REFUSE this database before the migration ------------
     pre = subprocess.run(
         [str(PYTHON), "scripts/deploy/check_schema.py"],
-        cwd=str(REPO_ROOT), env=env, capture_output=True, text=True)
+        cwd=str(REPO_ROOT), env=env, capture_output=True, text=True, encoding="utf-8", errors="replace")
     assert pre.returncode == 1, (pre.returncode, pre.stdout[-2000:])
     assert "SCHEMA PREFLIGHT FAILED" in pre.stderr
 
@@ -532,12 +585,12 @@ def rehearsal():
     # ---- backup -> migrate -> verify ---------------------------------------------
     upgrade = subprocess.run(
         [str(PYTHON), "-m", "alembic", "-c", "alembic.ini", "upgrade", "head"],
-        cwd=str(REPO_ROOT), env=env, capture_output=True, text=True)
+        cwd=str(REPO_ROOT), env=env, capture_output=True, text=True, encoding="utf-8", errors="replace")
     assert upgrade.returncode == 0, upgrade.stderr[-3000:]
 
     check = subprocess.run(
         [str(PYTHON), "scripts/deploy/check_schema.py"],
-        cwd=str(REPO_ROOT), env=env, capture_output=True, text=True)
+        cwd=str(REPO_ROOT), env=env, capture_output=True, text=True, encoding="utf-8", errors="replace")
     assert check.returncode == 0, check.stderr[-2000:]
     assert '"state": "AT_HEAD"' in check.stdout
 
@@ -550,7 +603,7 @@ def rehearsal():
         probe_file = workdir / "probe.py"
         probe_file.write_text(PROBE, encoding="utf-8")
         probed = subprocess.run([str(PYTHON), str(probe_file)], env=probe_env,
-                                capture_output=True, text=True, cwd=str(BACKEND))
+                                capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=str(BACKEND))
         assert probed.returncode == 0, probed.stderr[-5000:]
         marker = [line for line in probed.stdout.splitlines()
                   if line.startswith("S6_PROBE_JSON:")]
@@ -578,7 +631,7 @@ def _attempt_app_import(database: Path) -> subprocess.CompletedProcess:
         cwd=str(BACKEND),
         env={**os.environ, "DATABASE_URL": f"sqlite:///{database.as_posix()}",
              "UPLOAD_ROOT": str(database.parent / "uploads")},
-        capture_output=True, text=True)
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
 
 
 # ---- PART D assertions -----------------------------------------------------------
@@ -667,7 +720,7 @@ def _create_all_database(path: Path) -> None:
         cwd=str(BACKEND),
         env={**os.environ, "DATABASE_URL": f"sqlite:///{path.as_posix()}",
              "S6_BACKEND": str(BACKEND), "UPLOAD_ROOT": str(path.parent / "uploads")},
-        capture_output=True, text=True)
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
     assert completed.returncode == 0, completed.stderr[-3000:]
 
 
@@ -680,19 +733,17 @@ def test_the_chain_adopts_tables_that_create_all_already_created(tmp_path):
     the backup and before the application starts, which is the worst possible moment. This
     test builds exactly that shape and requires the chain to reach head anyway.
     """
-    if not PYTHON.exists():
-        pytest.skip("backend venv python is not present on this machine")
     database = tmp_path / "create-all.db"
     _create_all_database(database)
 
     env = {**os.environ, "DATABASE_URL": f"sqlite:///{database.as_posix()}"}
     upgrade = subprocess.run(
         [str(PYTHON), "-m", "alembic", "-c", "alembic.ini", "upgrade", "head"],
-        cwd=str(REPO_ROOT), env=env, capture_output=True, text=True)
+        cwd=str(REPO_ROOT), env=env, capture_output=True, text=True, encoding="utf-8", errors="replace")
     assert upgrade.returncode == 0, upgrade.stderr[-4000:]
 
     check = subprocess.run([str(PYTHON), "scripts/deploy/check_schema.py"],
-                           cwd=str(REPO_ROOT), env=env, capture_output=True, text=True)
+                           cwd=str(REPO_ROOT), env=env, capture_output=True, text=True, encoding="utf-8", errors="replace")
     assert check.returncode == 0, check.stderr[-2000:]
     assert f'"current_revision": "{EXPECTED_HEAD}"' in check.stdout
 
@@ -764,10 +815,6 @@ def test_create_all_contributes_no_table_at_head(rehearsal):
     assert report["integrity_check"] == "ok"
 
 
-def test_the_legacy_table_count_is_what_the_migration_started_from(rehearsal):
-    assert len(rehearsal["legacy_tables"]) == LEGACY_TABLE_COUNT
-
-
 # ======================================================== PART E — recovery
 
 def test_the_pre_migration_backup_is_a_complete_restorable_database(rehearsal):
@@ -776,6 +823,9 @@ def test_the_pre_migration_backup_is_a_complete_restorable_database(rehearsal):
     There is no downgrade to rehearse — the ADD COLUMN is additive and the migrations raise
     on downgrade — so what has to hold is that the snapshot taken before the migration is a
     usable database, and that restoring it returns the system to a self-consistent state.
+
+    The snapshot is compared against ITS OWN source, never against a table-count literal: the
+    count described one machine's app.db and had no version-controlled source of truth.
     """
     import sqlite3
 
@@ -786,9 +836,14 @@ def test_the_pre_migration_backup_is_a_complete_restorable_database(rehearsal):
     connection = sqlite3.connect(f"file:{backup.as_posix()}?mode=ro", uri=True)
     try:
         assert connection.execute("pragma integrity_check").fetchone()[0] == "ok"
-        assert connection.execute(
-            "select count(*) from sqlite_master where type='table' "
-            "and name not like 'sqlite_%'").fetchone()[0] == LEGACY_TABLE_COUNT
+        backup_tables = {row[0] for row in connection.execute(
+            "select name from sqlite_master where type='table' "
+            "and name not like 'sqlite_%'")}
+        assert backup_tables == rehearsal["legacy_tables"], \
+            "the backup must be the pre-migration database, table for table"
+        for table, count in rehearsal["legacy_rows"].items():
+            assert connection.execute(
+                f'select count(*) from "{table}"').fetchone()[0] == count, table
     finally:
         connection.close()
 
@@ -837,25 +892,37 @@ def test_the_failure_before_start_names_the_migration_command(rehearsal):
 
 
 def test_the_migration_log_is_available_as_revision_evidence(rehearsal):
-    """PART E: the revision evidence is the migration's own output, not a claim about it."""
+    """PART E: the revision evidence is the migration's own output, not a claim about it.
+
+    It must show the chain being WALKED — the first revision of the chain and the head — rather
+    than one hand-picked middle edge. Mid-chain edges move whenever a sprint inserts a revision,
+    so pinning one (as this test used to) fails on a correct deploy; the chain's first revision
+    and its current head do not move.
+    """
+    from core import schema_preflight
+
     log = rehearsal["alembic_log"]
-    # The log must show the chain REACHING head, not one specific edge: a later sprint may
-    # legitimately insert a revision, and pinning an edge would fail on a correct deploy.
-    assert f"-> {EXPECTED_HEAD}, " in log
-    assert "20260919_0009 -> " in log
     assert "Running upgrade" in log
+    assert "-> 20260915_0001, " in log, "the log must show the chain starting from its base"
+    head = schema_preflight.script_head()  # read from the chain, never a literal
+    assert f"-> {head}, " in log, "the log must show the chain reaching the current head"
+    assert log.count("Running upgrade") > 1, "a full upgrade is more than one transition"
 
 
 # ======================================================== PART S — database safety
 
-def test_the_real_database_was_never_modified(rehearsal):
-    original = rehearsal["original"]
-    assert _sha256(REAL_DB) == original["sha256"], "REAL app.db CONTENT CHANGED"
-    assert REAL_DB.stat().st_size == original["size"]
-    assert REAL_DB.stat().st_mtime == original["mtime"]
+def test_the_rehearsal_writes_nothing_outside_its_own_directory(rehearsal):
+    """The rehearsal is side-effect-free on the repository.
 
-
-def test_the_real_database_still_has_its_legacy_shape(rehearsal):
-    tables = rehearsal["tables"](REAL_DB)
-    assert "alembic_version" not in tables
-    assert len(tables) == LEGACY_TABLE_COUNT
+    It must operate only on the database it built in its own temp directory, and every artifact
+    it exposes must live there — so running the suite cannot touch a developer's runtime
+    database or any path in the checkout.
+    """
+    workdir = rehearsal["database"].parent
+    assert workdir.name.startswith("s6-rehearsal-"), workdir
+    for key in ("database", "backup"):
+        artifact = rehearsal[key]
+        assert artifact.is_file()
+        assert artifact.parent == workdir
+    assert BACKEND not in rehearsal["database"].parents
+    assert REPO_ROOT not in rehearsal["database"].parents

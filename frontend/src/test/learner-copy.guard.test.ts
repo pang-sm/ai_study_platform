@@ -44,14 +44,18 @@ const GENERATED_OR_SCHEMA = [join('src', 'types', 'api.ts')];
  * `JSON.stringify` is allowed only where it is an implementation detail that no learner reads:
  * a URL query builder, a storage/transport serializer, or a test fixture. A component that
  * renders its result is what this guard is for.
+ *
+ * These are matched against `relative(SRC, path)`, which has NO leading `src/` — so each entry
+ * is written src-relative too, or it would never match the path it names.
  */
 const JSON_STRINGIFY_ALLOWED = [
-  join('src', 'lib', 'api'),
-  join('src', 'lib', 'utils.ts'),
-  join('src', 'features', 'auth'),
-  join('src', 'features', 'records', 'event-labels.ts'),
-  join('src', 'test'),
-  join('src', 'types'),
+  join('lib', 'api'),
+  join('lib', 'utils.ts'),
+  join('features', 'auth'),
+  join('features', 'ai', 'api', 'ai-chat-stream.ts'),
+  join('features', 'records', 'event-labels.ts'),
+  join('test'),
+  join('types'),
 ];
 
 function sourceFiles(directory = SRC): string[] {

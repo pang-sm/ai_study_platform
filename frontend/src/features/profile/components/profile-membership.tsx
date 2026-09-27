@@ -113,7 +113,7 @@ export function UsageSection() {
         </div>
       ))}
       <p className="text-metadata text-text-muted">
-        用量来自服务端账本，随每次真实 AI 调用结算后更新。
+        用量会在每次 AI 调用结算后更新。
       </p>
     </div>
   );

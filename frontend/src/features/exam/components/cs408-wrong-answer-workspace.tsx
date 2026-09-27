@@ -3,8 +3,9 @@ import type { components } from '@/types/api';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { resolveApiResourceUrl } from '@/lib/api/client';
-import { cs408Modules } from '@/features/exam/api/dashboard-summary';
 import { useWrongAnswers, type WrongAnswerStatusFilter } from '@/features/exam/api/wrong-answers';
+import { questionNeedsFigure } from '../view-models/question-figure';
+import { optionLabel } from '../view-models/option-label';
 import { ExamPageShell } from './exam-page-shell';
 import { WrongAnalysisSurface } from '@/features/learning-intelligence/learning-intelligence-surfaces';
 import './cs408-wrong-answer-workspace.css';
@@ -19,10 +20,14 @@ const emptyCopy = (status: WrongAnswerStatusFilter) => status === 'active' ? '�
 export function Cs408WrongAnswerWorkspace({ moduleKey, status = 'all', page = 0 }: { moduleKey?: string; status?: WrongAnswerStatusFilter; page?: number }) {
   const query = useWrongAnswers(moduleKey, status, page); const [expanded, setExpanded] = useState<number>();
   const totalPages = query.data ? Math.ceil(query.data.total / query.data.limit) : 0;
-  return <ExamPageShell activeItem="cs408" cs408Tab="wrong" moduleKey={moduleKey}><section className="wrong-answer" aria-labelledby="wrong-answer-title"><header className="wrong-answer__header"><p>CS408 / 错题</p><h1 id="wrong-answer-title">错题档案</h1><span>学习中的事实错题记录</span></header>
-    <nav className="wrong-answer__filters" aria-label="错题筛选"><div><span>模块</span><FilterLink label="全部" href={href(undefined, status, 0)} active={!moduleKey} />{cs408Modules.map((module) => <FilterLink key={module.key} label={module.name} href={href(module.key, status, 0)} active={moduleKey === module.key} />)}</div><div><span>状态</span>{statuses.map((item) => <FilterLink key={item.value} label={item.label} href={href(moduleKey, item.value, 0)} active={status === item.value} />)}</div></nav>
+  // 错题 is already named by the tab strip above, so the page opens on the ledger itself. The
+  // learner's own first question here is "which of them", and that is the filter below.
+  return <ExamPageShell cs408Tab="wrong" moduleKey={moduleKey}><section className="wrong-answer" aria-labelledby="wrong-answer-title"><h1 id="wrong-answer-title" className="sr-only">错题</h1>
+    {/* The paper is chosen in the strip above; what stays here is the filter that is
+        this page's own — whether the correction has been done. */}
+    <nav className="wrong-answer__filters" aria-label="错题筛选"><div><span>状态</span>{statuses.map((item) => <FilterLink key={item.value} label={item.label} href={href(moduleKey, item.value, 0)} active={status === item.value} />)}</div></nav>
     {query.isPending ? <div className="wrong-answer__loading"><Skeleton className="h-12 w-full" /><Skeleton className="h-32 w-full" /></div> : null}
-    {query.isError ? <section className="wrong-answer__state"><h2>错题档案暂时无法加载</h2><Button variant="secondary" onClick={() => void query.refetch()}>重试</Button></section> : null}
+    {query.isError ? <section className="wrong-answer__state"><h2>错题暂时无法加载</h2><Button variant="secondary" onClick={() => void query.refetch()}>重试</Button></section> : null}
     {query.data ? <><p className="wrong-answer__total">共 {query.data.total} 条错题记录</p>{query.data.items.length ? <ol className="wrong-answer__ledger">{query.data.items.map((record, index) => <LedgerRow key={record.wrong_record_id} record={record} number={query.data!.offset + index + 1} expanded={expanded === record.wrong_record_id} onToggle={() => setExpanded((current) => current === record.wrong_record_id ? undefined : record.wrong_record_id)} />)}</ol> : <section className="wrong-answer__state"><h2>{emptyCopy(status)}</h2></section>}{totalPages > 1 ? <nav className="wrong-answer__pager" aria-label="错题分页"><a aria-disabled={page === 0} href={href(moduleKey, status, Math.max(0, page - 1))}>上一页</a><span>第 {page + 1} / {totalPages} 页</span><a aria-disabled={page + 1 >= totalPages} href={href(moduleKey, status, Math.min(totalPages - 1, page + 1))}>下一页</a></nav> : null}</> : null}
   </section></ExamPageShell>;
 }
@@ -45,5 +50,9 @@ function RecordDetail({ record }: { record: Record }) {
   const params = new URLSearchParams({ module: record.module_key });
   if (record.year !== null) params.set('year', String(record.year));
   if (record.question_number !== null && record.question_number !== undefined) params.set('question', String(record.question_number));
-  return <section className="wrong-answer__detail" aria-label="错题详情"><h2>{record.stem}</h2>{Object.entries(record.options ?? {}).length ? <ol>{Object.entries(record.options ?? {}).map(([key, value]) => <li key={key}><b>{key}</b>{value}</li>)}</ol> : null}{record.resources?.map((resource, index) => <img key={resource.url} src={resolveApiResourceUrl(resource.url)} alt={`错题图示 ${index + 1}`} onError={(event) => { event.currentTarget.hidden = true; }} />)}{record.analysis?.trim() ? <section><h3>题目解析</h3><p>{record.analysis}</p></section> : null}<nav className="wrong-answer__sources" aria-label="原始学习上下文">{pastPaper ? <a href={`/exam/cs408/past-papers?${params.toString()}`}>{record.question_number === null || record.question_number === undefined ? '查看原真题' : `查看原真题第 ${record.question_number} 题`}</a> : null}{record.source_kind === 'chapter_practice' ? <a href={`/exam/cs408/practice?module=${record.module_key}`}>进入本模块章节练习</a> : null}</nav><WrongAnalysisSurface stateId={record.wrong_record_id} sourceProven={Boolean(record.stem.trim())} /></section>;
+  // Same rule as 真题: the record's own 题干 and 选项 are the question, so the scan they were read
+  // from would restate them. It is drawn only when the question is ABOUT a figure — a B 树, an
+  // AOE 网, a 拓扑, a 调度表 — where the picture is information the text cannot carry.
+  const figureRequired = questionNeedsFigure(record.stem);
+  return <section className="wrong-answer__detail" aria-label="错题详情"><h2>{record.stem}</h2>{Object.entries(record.options ?? {}).length ? <ol>{Object.entries(record.options ?? {}).map(([key, value]) => <li key={key}><b>{key}</b>{optionLabel(key, value)}</li>)}</ol> : null}{figureRequired ? record.resources?.map((resource, index) => <img key={resource.url} src={resolveApiResourceUrl(resource.url)} alt={`错题图示 ${index + 1}`} onError={(event) => { event.currentTarget.hidden = true; }} />) : null}{record.analysis?.trim() ? <section><h3>题目解析</h3><p>{record.analysis}</p></section> : null}<nav className="wrong-answer__sources" aria-label="原始学习上下文">{pastPaper ? <a href={`/exam/cs408/past-papers?${params.toString()}`}>{record.question_number === null || record.question_number === undefined ? '查看原真题' : `查看原真题第 ${record.question_number} 题`}</a> : null}{record.source_kind === 'chapter_practice' ? <a href={`/exam/cs408/practice?module=${record.module_key}`}>进入本模块章节练习</a> : null}</nav><WrongAnalysisSurface stateId={record.wrong_record_id} sourceProven={Boolean(record.stem.trim())} /></section>;
 }

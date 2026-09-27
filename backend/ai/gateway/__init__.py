@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, ContextManager, Iterator, Protocol, runtime_checkable
 
 
 @dataclass(frozen=True)
@@ -94,6 +94,29 @@ class ChatProvider(Protocol):
         ...
 
 
+@dataclass(frozen=True)
+class StreamEvent:
+    """One normalized thing a provider stream produced.
+
+    WHAT THIS IS
+    The vocabulary the rest of the product speaks about a live answer: text the learner may see,
+    the provider's usage report, the finish reason, a normalized failure. It is deliberately NOT
+    a provider chunk — a provider's own delta shape (including a thinking model's separate
+    reasoning channel) stops at the adapter, so nothing downstream has to know six SDKs and no
+    hidden reasoning can travel as "a field we forgot to drop".
+
+    ``text`` is only ever set on a ``text_delta``, and a ``text_delta`` is only ever produced from
+    a provider's ANSWER channel.
+    """
+
+    type: str                      # "text_delta" | "usage" | "finish" | "error"
+    text: str = ""
+    finish_reason: str | None = None
+    usage: ProviderUsage | None = None
+    error_category: str | None = None
+    error_message: str | None = None
+
+
 @runtime_checkable
 class GatewayProvider(Protocol):
     """Full gateway contract: returns a normalized GatewayResponse with usage."""
@@ -101,6 +124,15 @@ class GatewayProvider(Protocol):
     name: str
 
     def complete(self, spec: AIRequestSpec) -> GatewayResponse:
+        ...
+
+    def stream(self, spec: AIRequestSpec) -> ContextManager[Iterator[StreamEvent]]:
+        """Open a real provider stream for ``spec``.
+
+        A context manager on purpose: leaving it — normally, by an exception, or because the
+        reader was closed mid-flight — is what stops the provider from generating, so cancellation
+        cannot be forgotten at a call site.
+        """
         ...
 
 

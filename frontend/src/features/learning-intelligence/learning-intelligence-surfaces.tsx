@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -34,7 +34,7 @@ function FailureCopy({ error, unavailable = false }: { error: unknown; unavailab
   const status = error instanceof ApiRequestError ? error.status : undefined;
   const message =
     unavailable && status === 409
-      ? '题面内容未能由后端证明，深度分析不可用。'
+      ? '这一题的题面还没有核对过，深度分析暂时不可用。'
       : status === 403
         ? '该能力当前不可用，需要相应权限。'
         : status === 429
@@ -57,9 +57,8 @@ export function LearningReportSurface({ scope }: { scope: LearningScope }) {
   return (
     <div className="mx-auto w-full max-w-content px-5 py-10 sm:px-8 lg:px-12">
       <PageHeader
-        eyebrow="共享学习核心"
         title="学习报告"
-        description="结构化指标由已记录的学习事实计算，先于 AI 叙述；两部分分开呈现，不会混在一起。"
+        description="指标由已记录的学习情况算出，排在 AI 叙述前面；两部分分开呈现，不会混在一起。"
       />
 
       <div className="mt-6 flex flex-wrap items-center gap-5">
@@ -85,9 +84,9 @@ export function LearningReportSurface({ scope }: { scope: LearningScope }) {
         <ReportResult report={data} />
       ) : (
         <EmptyState
-          className="mt-8"
-          title="选择「生成学习报告」后查看当前上下文的学习事实。"
-          description="报告只读取当前学习空间里已经记录的事件、练习、复习与计划。"
+          className="mt-6"
+          title="还没有生成过报告"
+          description="选择「生成学习报告」后，这里会显示这段时间的学习情况；报告只读取这个方向里已经记录的事件、练习、复习与计划。"
         />
       )}
     </div>
@@ -106,10 +105,10 @@ function InsightList({ title, items }: { title: string; items: Array<Record<stri
             const href = safeActionHref(item);
             return (
               <li key={`${String(item.rule ?? 'item')}-${index}`} className="border-l-2 border-border-default pl-4">
-                <p className="text-body text-text-primary">{text ?? '后端未返回可显示的要点。'}</p>
+                <p className="text-body text-text-primary">{text ?? '这一项暂时没有可显示的要点。'}</p>
                 {origin ? (
                   <p className="mt-1 text-metadata text-text-secondary">
-                    来源：{originLabel(origin) ?? '后端规则'}
+                    来源：{originLabel(origin) ?? '平台规则'}
                   </p>
                 ) : null}
                 {href ? (
@@ -164,9 +163,9 @@ function ReportResult({ report }: { report: LearningReport }) {
 
       <section>
         <SectionHeading
-          title="结构化指标"
+          title="指标"
           as="h2"
-          description="每个数字都由后端按已记录的事实计算；本学习空间没有的数据块显示为「—」，不会写成 0。"
+          description="每个数字都按已记录的情况算出；这个方向没有的数据显示为「—」，不会写成 0。"
         />
         <div className="mt-5 space-y-6">
           {REPORT_BLOCKS.map((block) => {
@@ -176,7 +175,7 @@ function ReportResult({ report }: { report: LearningReport }) {
                 <h3 className="text-heading font-semibold text-text-primary">{block.label}</h3>
                 <p className="mt-1 text-metadata text-text-secondary">{block.note}</p>
                 {value === null || value === undefined ? (
-                  <p className="mt-3 text-body text-text-secondary">本学习空间没有这类数据。</p>
+                  <p className="mt-3 text-body text-text-secondary">这个方向没有这类数据。</p>
                 ) : (
                   <>
                     <FactList className="mt-3" value={value} />
@@ -246,7 +245,7 @@ function ReportResult({ report }: { report: LearningReport }) {
           ) : null}
           {unavailable.length ? (
             <div>
-              <p className="text-body text-text-secondary">本学习空间没有：</p>
+              <p className="text-body text-text-secondary">这个方向没有：</p>
               <ul className="mt-2 space-y-1">
                 {unavailable.map((entry, index) => (
                   <li key={index} className="text-body text-text-primary">
@@ -291,7 +290,7 @@ export function WrongAnalysisSurface({ stateId, sourceProven }: { stateId: numbe
     <section className="mt-5" aria-label="深度错因分析">
       <h3 className="text-metadata font-medium tracking-eyebrow text-text-muted">深度错因分析（AI，单次调用）</h3>
       <p className="mt-2 max-w-prose text-body text-text-secondary">
-        作答事实先于 AI 解释显示；AI 的解释不是对能力的确定性判断。
+        作答记录先于 AI 解释显示；AI 的解释不是对能力的确定性判断。
       </p>
       <div className="mt-3">
         <Button
@@ -318,10 +317,10 @@ function WrongAnalysisResultView({ result }: { result: WrongAnalysis }) {
     <div className="mt-5 space-y-5">
       <Panel tone="plain" labelledBy="wrong-facts-title">
         <p className="text-metadata font-medium tracking-eyebrow text-text-muted">
-          事实 · {originLabel(result.fact_origin) ?? '后端记录'}
+          记录 · {originLabel(result.fact_origin) ?? '平台记录'}
         </p>
         <h4 id="wrong-facts-title" className="mt-1 text-heading font-semibold text-text-primary">
-          作答事实
+          作答记录
         </h4>
         <FactList
           className="mt-3"
@@ -346,7 +345,7 @@ function WrongAnalysisResultView({ result }: { result: WrongAnalysis }) {
         </h4>
         <FactList className="mt-3" value={result.analysis} columns={1} />
         <p className="mt-3 text-metadata text-text-secondary">
-          AI 的解释不是对能力的确定性判断，也不写入学习事实。
+          AI 的解释不是对能力的确定性判断，也不会写进学习记录。
         </p>
         <AiFeedback requestId={result.request_id} workflowId={`wrong-analysis-${result.state_id}`} />
       </Panel>
@@ -358,12 +357,40 @@ function WrongAnalysisResultView({ result }: { result: WrongAnalysis }) {
 
 /* ------------------------------------------------------------------ plan adjustment */
 
-export function DynamicPlanSurface({ scope }: { scope: LearningScope }) {
+/**
+ * A choice of WHICH plan an adjustment is for, when a space holds more than one.
+ *
+ * 408 keeps one plan per paper, so "调整计划" is ambiguous until the learner says which paper —
+ * and the API enforces the same thing (`module_required`). A single-plan space (course,
+ * programming) passes nothing and the control is not drawn. The surface does not know what a
+ * 408 paper is, which is why the owner of that vocabulary — the exam page — supplies the list.
+ */
+export type PlanScopeSelect = {
+  label: string;
+  value: string;
+  options: ReadonlyArray<{ value: string; label: string }>;
+  onChange: (value: string) => void;
+};
+
+export function DynamicPlanSurface({ scope, scopeSelect }: { scope: LearningScope; scopeSelect?: PlanScopeSelect }) {
   const proposalMutation = usePlanProposal();
   const apply = useApplyPlanProposal(scope);
   const [goal, setGoal] = useState('');
   const [proposal, setProposal] = useState<PlanProposal>();
   const [stale, setStale] = useState(false);
+
+  // A proposal belongs to the plan it was generated from. Changing WHICH plan is open therefore
+  // discards it, rather than leaving a 数据结构 diff on screen under a 操作系统 selector — where
+  // "应用调整" would read as applying it to the paper now shown. The route refuses a mismatched
+  // `plan_identity` anyway; this is the frontend not offering the mistake in the first place.
+  const scopeKey = `${scope.service_key}|${scope.course_id}|${scope.exam_module_id}|${scope.language}`;
+  const knownScope = useRef(scopeKey);
+  useEffect(() => {
+    if (knownScope.current === scopeKey) return;
+    knownScope.current = scopeKey;
+    setProposal(undefined);
+    setStale(false);
+  }, [scopeKey]);
 
   const generate = () => {
     setStale(false);
@@ -380,15 +407,10 @@ export function DynamicPlanSurface({ scope }: { scope: LearningScope }) {
 
   return (
     <section className="mt-10 border-t border-border-default pt-8" aria-labelledby="dynamic-plan-title">
-      <SectionHeading
-        id="dynamic-plan-title"
-        eyebrow="计划"
-        title="调整计划"
-        description="先生成建议，看清差异后再决定是否应用；生成建议本身不会改动当前计划。"
-      />
+      <SectionHeading id="dynamic-plan-title" title="调整计划" />
 
       <label className="mt-5 block text-body font-medium text-text-primary" htmlFor="plan-adjustment-goal">
-        本次想达成的目标（可留空）
+        目标（可选）
       </label>
       <input
         id="plan-adjustment-goal"
@@ -396,16 +418,34 @@ export function DynamicPlanSurface({ scope }: { scope: LearningScope }) {
         onChange={(event) => setGoal(event.target.value)}
         maxLength={300}
         className="mt-2 h-11 w-full rounded-control border border-border-default bg-surface px-3 text-body text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-        placeholder="例如：这周把操作系统复习完"
+        placeholder="例如：这周完成操作系统复习"
       />
-      <div className="mt-4">
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        {scopeSelect ? (
+          <div>
+            <label className="block text-metadata font-medium text-text-secondary" htmlFor="plan-adjustment-scope">
+              {scopeSelect.label}
+            </label>
+            <select
+              id="plan-adjustment-scope"
+              value={scopeSelect.value}
+              onChange={(event) => scopeSelect.onChange(event.target.value)}
+              className="mt-1 h-11 rounded-control border border-border-default bg-surface px-3 text-body text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            >
+              {scopeSelect.options.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </div>
+        ) : null}
         <Button
           variant="secondary"
           disabled={proposalMutation.isPending || apply.isPending}
           onClick={generate}
         >
-          {proposalMutation.isPending ? '正在生成建议…' : '生成调整建议'}
+          {proposalMutation.isPending ? '正在生成建议…' : '生成建议'}
         </Button>
+        <p className="text-metadata text-text-secondary">生成后可确认是否应用</p>
       </div>
 
       {proposalMutation.isError ? <FailureCopy error={proposalMutation.error} /> : null}
@@ -417,52 +457,107 @@ export function DynamicPlanSurface({ scope }: { scope: LearningScope }) {
       {apply.isError && !stale ? <FailureCopy error={apply.error} /> : null}
       {apply.isSuccess ? (
         <StatusNote tone="success" className="mt-4">
-          已按你确认的建议应用 {apply.data.applied_count} 项调整；相关计划与学习事实正在刷新。
+          已按你确认的建议应用 {apply.data.applied_count} 项调整；相关计划正在刷新。
         </StatusNote>
       ) : null}
 
-      {proposal ? <ProposalView proposal={proposal} onApply={accept} applying={apply.isPending} /> : null}
+      {proposal ? (
+        <ProposalView
+          proposal={proposal}
+          onApply={accept}
+          onDismiss={() => setProposal(undefined)}
+          applying={apply.isPending}
+        />
+      ) : null}
     </section>
   );
 }
 
-function ProposalView({ proposal, onApply, applying }: { proposal: PlanProposal; onApply: () => void; applying: boolean }) {
+/** The plan's own tasks, read off the snapshot — used to name the task a change is about. */
+function snapshotTasks(snapshot: Record<string, unknown>): Map<number, Record<string, unknown>> {
+  const rows = Array.isArray(snapshot.tasks) ? snapshot.tasks : [];
+  const byId = new Map<number, Record<string, unknown>>();
+  for (const row of rows) {
+    if (isRecord(row) && typeof row.task_id === 'number') byId.set(row.task_id, row);
+  }
+  return byId;
+}
+
+const TASK_TYPE_TEXT: Record<string, string> = { knowledge: '知识学习', chapter_practice: '章节练习', review: '复习' };
+const STATUS_TEXT: Record<string, string> = { not_started: '未开始', in_progress: '进行中', completed: '已完成' };
+const text = (value: unknown) => (typeof value === 'string' && value.trim() ? value : undefined);
+
+/**
+ * One proposed change, in the learner's words.
+ *
+ * The route hands back a machine-shaped change (`op` / `task_id` / `due_date`). Printing those
+ * keys would ask a learner to read an API. What a plan change actually says is one of two
+ * things — a task is added, or a task's date/title/status moves — so it is written that way,
+ * and the task is named by its real title from the plan the proposal was built against.
+ */
+function ChangeRow({ change, tasks }: { change: Record<string, unknown>; tasks: Map<number, Record<string, unknown>> }) {
+  const taskId = typeof change.task_id === 'number' ? change.task_id : undefined;
+  const current = taskId === undefined ? undefined : tasks.get(taskId);
+  // `create_task` adds one; `update_task` moves one that already exists.
+  const added = change.op === 'create_task' || taskId === undefined;
+  const title = text(change.title) ?? text(current?.title) ?? '计划中的一项任务';
+  const moves: Array<{ label: string; from?: string; to: string }> = [];
+  if (!added) {
+    const due = 'due_date' in change ? text(change.due_date) ?? '未设定' : undefined;
+    if (due !== undefined && due !== text(current?.due_date)?.trim()) {
+      moves.push({ label: '计划日期', from: text(current?.due_date) ?? '未设定', to: due });
+    }
+    const status = text(change.status);
+    if (status !== undefined && status !== text(current?.status)) {
+      moves.push({ label: '状态', from: STATUS_TEXT[text(current?.status) as string] ?? '未开始', to: STATUS_TEXT[status] ?? status });
+    }
+    if (text(change.title) !== undefined) {
+      moves.push({ label: '标题', from: text(current?.title) ?? '', to: text(change.title) as string });
+    }
+  }
+  const kind = added ? '新增' : '调整';
+  const meta = added ? [TASK_TYPE_TEXT[text(change.task_type) ?? ''] ?? '知识学习', text(change.due_date) ? `计划日期 ${text(change.due_date)}` : undefined].filter(Boolean).join(' · ') : '';
+  return (
+    <li className="border-b border-border-default pb-3">
+      <p className="flex flex-wrap items-center gap-2 text-body text-text-primary">
+        <Badge tone={added ? 'brand' : 'neutral'}>{kind}</Badge>
+        {title}
+      </p>
+      {meta ? <p className="mt-1 text-metadata text-text-secondary">{meta}</p> : null}
+      {moves.map((move) => (
+        <p key={move.label} className="mt-1 text-metadata text-text-secondary">
+          {move.label}：{move.from ? `${move.from} → ` : ''}{move.to}
+        </p>
+      ))}
+    </li>
+  );
+}
+
+function ProposalView({ proposal, onApply, onDismiss, applying }: { proposal: PlanProposal; onApply: () => void; onDismiss: () => void; applying: boolean }) {
   const changes = proposal.proposed_changes ?? [];
+  const tasks = snapshotTasks(proposal.plan_snapshot ?? {});
   const usage = usageCreditsText(proposal.usage);
   return (
     <section className="mt-8" aria-label="计划调整建议">
-      <h3 className="text-heading font-semibold text-text-primary">这次建议</h3>
-      <p className="mt-2 max-w-prose text-body text-text-primary">{proposal.reason}</p>
-      <p className="mt-2 text-metadata text-text-secondary">
-        涉及任务：{proposal.affected_tasks?.length ? `${proposal.affected_tasks.length} 项` : '无'}
-      </p>
+      <h3 className="text-heading font-semibold text-text-primary">建议调整</h3>
+      {proposal.reason ? <p className="mt-2 max-w-prose text-body text-text-primary">{proposal.reason}</p> : null}
 
-      <div className="mt-5 grid gap-8 lg:grid-cols-2">
-        <section>
-          <h4 className="text-metadata font-medium tracking-eyebrow text-text-muted">当前计划</h4>
-          <FactList className="mt-3" value={proposal.plan_snapshot} />
-        </section>
-        <section>
-          <h4 className="text-metadata font-medium tracking-eyebrow text-text-muted">调整后（仅建议）</h4>
-          {changes.length ? (
-            <ol className="mt-3 space-y-4">
-              {changes.map((change, index) => (
-                <li key={`${String(change.op ?? 'change')}-${index}`} className="border-b border-border-default pb-3">
-                  <FactList value={change} columns={1} />
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p className="mt-3 text-body text-text-secondary">没有可应用的变更。</p>
-          )}
-        </section>
-      </div>
+      {changes.length ? (
+        <ol className="mt-5 space-y-4">
+          {changes.map((change, index) => (
+            <ChangeRow key={`${String(change.op ?? 'change')}-${index}`} change={change} tasks={tasks} />
+          ))}
+        </ol>
+      ) : (
+        <p className="mt-4 text-body text-text-secondary">当前计划无需调整</p>
+      )}
 
-      <p className="mt-4 text-metadata text-text-secondary">这份建议还没有成为当前的计划事实。</p>
-      <div className="mt-4 flex flex-wrap items-center gap-4">
+      <p className="mt-4 text-metadata text-text-secondary">这份建议还没有应用到你的计划。</p>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
         <Button disabled={applying || changes.length === 0} onClick={onApply}>
-          {applying ? '正在应用…' : '应用这次调整'}
+          {applying ? '正在应用…' : '应用调整'}
         </Button>
+        <Button variant="secondary" disabled={applying} onClick={onDismiss}>保留当前计划</Button>
         <AiFeedback requestId={proposal.request_id} workflowId={proposal.proposal_id} />
       </div>
       {usage ? <p className="mt-3 text-metadata text-text-secondary">{usage}</p> : null}

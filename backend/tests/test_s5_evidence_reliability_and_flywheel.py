@@ -1030,13 +1030,15 @@ def test_the_telemetry_migration_is_the_head_of_the_chain():
             revisions[str(values["revision"])] = values.get("down_revision")
 
     heads = set(revisions) - set(v for v in revisions.values() if v)
-    assert heads == {"20260921_0013"}, heads
+    assert heads == {"20260923_0015"}, heads
+    assert revisions["20260923_0015"] == "20260921_0014"
+    assert revisions["20260921_0014"] == "20260921_0013"
     assert revisions["20260921_0013"] == "20260919_0012"
     assert revisions["20260919_0012"] == "20260919_0011"
     assert revisions["20260919_0011"] == "20260919_0010"
     assert revisions["20260919_0010"] == "20260919_0009"
     # the chain is linear and complete back to the first revision
-    seen, cursor, depth = set(), "20260921_0013", 0
+    seen, cursor, depth = set(), "20260923_0015", 0
     while cursor:
         assert cursor not in seen, f"cycle at {cursor}"
         seen.add(cursor)

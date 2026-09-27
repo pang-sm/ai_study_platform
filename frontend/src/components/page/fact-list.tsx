@@ -1,3 +1,4 @@
+import { formatDateTime } from '@/lib/format';
 import { factLabel } from '@/lib/fact-labels';
 import { enumText } from '@/lib/learner-safe';
 import { cn } from '@/lib/utils';
@@ -33,11 +34,27 @@ function isPrimitive(value: unknown): value is Primitive {
   );
 }
 
+/**
+ * A timestamp the server sent in ISO-8601, with a time component.
+ *
+ * Matched on the value rather than on a list of field names: every datetime this API carries
+ * arrives in this shape, and no other kind of value does. Date-only strings (`2026-09-21`) are
+ * left alone — they are already what they mean, and running them through `Date` would let a
+ * negative-offset reader see the previous day.
+ */
+const ISO_DATETIME = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/;
+
 /** A primitive as the product reads it: a coded field through its label, anything else as itself. */
 function factText(key: string, value: Primitive): string {
   if (value === null || value === undefined || value === '') return '—';
   if (typeof value === 'boolean') return value ? '是' : '否';
-  if (typeof value === 'string') return enumText(key, value);
+  if (typeof value === 'string') {
+    // A timestamp is shown in the reader's own locale through the project's one formatter.
+    // Printed raw it is `2026-09-21T00:00:00+00:00` — the transport's spelling of a date, in
+    // front of a learner who asked when something is due.
+    if (ISO_DATETIME.test(value)) return formatDateTime(value);
+    return enumText(key, value);
+  }
   return String(value);
 }
 

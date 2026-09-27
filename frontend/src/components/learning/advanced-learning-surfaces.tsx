@@ -120,7 +120,7 @@ export function StrongReasoningSurface({
               ))}
             </ol>
           ) : (
-            <p className="mt-2 text-body text-text-secondary">后端未返回可引用资料。</p>
+            <p className="mt-2 text-body text-text-secondary">这次回答没有引用到资料。</p>
           )}
 
           {usage ? <p className="mt-3 text-metadata text-text-secondary">{usage}</p> : null}

@@ -5,7 +5,7 @@ test('course workspace keeps course context in responsive navigation and has no 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/course/cs101');
 
-  const navigation = page.getByRole('navigation', { name: '课程学习导航' });
+  const navigation = page.getByRole('navigation', { name: '专业学习导航' });
   await expect(navigation.getByRole('link', { name: '概览' })).toHaveAttribute('aria-current', 'page');
   await expect(navigation.getByRole('link', { name: '资料' })).toHaveAttribute('href', '/course/cs101/materials');
   await expect(page.getByRole('heading', { name: 'cs101' })).toBeVisible();

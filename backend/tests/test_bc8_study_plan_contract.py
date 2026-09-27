@@ -17,6 +17,7 @@ Gates this file exists to prove:
 
 Everything that touches a database builds a TEMP one. `backend/app.db` is opened read-only.
 """
+import hashlib
 import json
 import os
 import sqlite3
@@ -265,7 +266,10 @@ def test_sending_a_status_field_is_refused_loudly(client):
     """STATUS_UPDATE_SILENTLY_DROPS_FIELD = NO.
 
     A derived status is not writable, and the contract says so instead of returning 200 and
-    doing nothing — which is what it used to do.
+    doing nothing — which is what it used to do. The refusal is LOUD (422, never a silent 200)
+    and the public body is the learner-facing sentence only: the rejected field and Pydantic's
+    own vocabulary go to the server log, deliberately not to the response — the same boundary
+    ``test_error_detail_boundary.py`` pins for every endpoint.
     """
     username = entitled(client, "bc8_no_status")
     created = create_task(client, username, title="t")
@@ -281,7 +285,9 @@ def test_sending_a_status_field_is_refused_loudly(client):
         method = client.patch if "/tasks/" in url else client.post
         r = method(url, json=payload)
         assert r.status_code == 422, f"{url} accepted a status field: {r.status_code}"
-        assert "status" in r.text, r.text
+        assert "请求参数校验失败" in r.text, r.text
+        for leaked in ("status", "extra_forbidden", "Field required", "loc", "body"):
+            assert leaked not in r.text, f"the refusal body leaked {leaked!r}: {r.text}"
 
     # the task survived every refusal, unchanged
     listed = task_in(client.get(PLAN).json()["tasks"], created["id"])
@@ -664,18 +670,42 @@ def test_the_optional_summary_surfaces_are_typed_too(client):
 # ================================================================ J. real DB safety
 
 
-def test_real_app_db_is_never_mutated_by_this_suite():
+def _real_db_fingerprint():
+    """The runtime database AS THIS SUITE MUST LEAVE IT — compared against itself.
+
+    Self-relative on purpose (the convention ``test_bc5c`` already uses): the same file is
+    measured before and after, so the guard holds on any machine and at any schema revision and
+    needs no historical table count to keep in step. A single byte written to it shows up in the
+    digest; a plan task written to it shows up in the row count.
+    """
+    if not APP_DB.is_file():
+        return None
     con = sqlite3.connect(f"file:{APP_DB.as_posix()}?mode=ro", uri=True)
     try:
-        tables = con.execute(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type='table'").fetchone()[0]
         integrity = con.execute("PRAGMA integrity_check").fetchone()[0]
-        rows = con.execute("SELECT COUNT(*) FROM exam_study_plan_tasks").fetchone()[0]
+        plan_tasks = con.execute("SELECT COUNT(*) FROM exam_study_plan_tasks").fetchone()[0]
     finally:
         con.close()
-    assert integrity == "ok"
-    assert tables == 72, "the deployed baseline table count is unchanged"
-    assert rows == 0
+    return {"sha256": hashlib.sha256(APP_DB.read_bytes()).hexdigest(),
+            "mtime": APP_DB.stat().st_mtime,
+            "integrity": integrity,
+            "plan_task_rows": plan_tasks}
+
+
+_REAL_DB_BASELINE = _real_db_fingerprint()
+
+
+def test_real_app_db_is_never_mutated_by_this_suite():
+    """The runtime database is untouched: every write this suite makes lands in the temp DB.
+
+    Deliberately NOT an assertion about the schema's shape — a fixed table count described one
+    machine's database before Alembic and is not a product contract.
+    """
+    if _REAL_DB_BASELINE is None:
+        pytest.skip("no real app.db in this checkout")
+    assert _real_db_fingerprint() == _REAL_DB_BASELINE, \
+        "this suite modified the runtime database"
+    assert _REAL_DB_BASELINE["integrity"] == "ok"
 
 
 def test_no_schema_or_migration_was_needed():

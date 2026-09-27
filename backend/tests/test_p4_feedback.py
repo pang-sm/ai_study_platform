@@ -135,6 +135,35 @@ def test_the_reason_taxonomy_is_closed(client, db_session, monkeypatch):
     assert up.json()["reason"] is None
 
 
+def test_negative_feedback_preserves_multiple_reasons_and_optional_comment(
+        client, db_session, monkeypatch):
+    register_and_login(client, "p4_fb_detail")
+    grant_unified_tier(db_session, "p4_fb_detail", "standard")
+    request_id = _run_one_ai_call(client, monkeypatch, "p4_fb_detail")
+
+    response = client.post(FEEDBACK, json={
+        "request_id": request_id,
+        "rating": "down",
+        "reasons": ["incorrect", "unclear", "citation_issue"],
+        "comment": "术语解释不够清楚。",
+    })
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["reason"] == "incorrect"
+    assert body["reasons"] == ["incorrect", "unclear", "citation_issue"]
+    assert body["comment"] == "术语解释不够清楚。"
+
+    db_session.expire_all()
+    event = (db_session.query(LearningEvent)
+             .filter(LearningEvent.user_id == _user(db_session, "p4_fb_detail").id,
+                     LearningEvent.event_type == "ai_feedback_submitted").one())
+    payload = json.loads(event.item_snapshot_json)
+    assert payload["reason"] == "incorrect"
+    assert payload["reasons"] == ["incorrect", "unclear", "citation_issue"]
+    assert payload["comment"] == "术语解释不够清楚。"
+
+
 def test_feedback_never_changes_the_live_router(client, db_session, monkeypatch):
     """A dislike is stored; the selection rules and the health signal do not move."""
     from ai import router as router_module

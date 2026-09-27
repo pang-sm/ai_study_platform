@@ -17,6 +17,14 @@ def test_ai_models_free_basic_only(client):
     assert "deepseek-v4-pro" not in models  # premium hidden from Free
 
 
+def test_ai_models_auto_recommendation_is_a_real_router_candidate(client):
+    register_and_login(client, "aim_auto_preview")
+    body = client.get("/ai/models?capability=tutor.chat").json()
+    recommended = body["recommended_model_id"]
+    assert recommended in {option["model"] for option in body["options"]}
+    assert next(option for option in body["options"] if option["model"] == recommended)["display_name"]
+
+
 def test_ai_models_unknown_capability_400(client):
     register_and_login(client, "aim_2")
     r = client.get("/ai/models?capability=bogus.cap")

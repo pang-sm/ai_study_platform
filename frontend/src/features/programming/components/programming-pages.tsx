@@ -13,9 +13,9 @@ import { ContextNav, type ContextNavItem } from '@/components/page/context-nav';
 import { FactList } from '@/components/page/fact-list';
 import { LoadingState } from '@/components/page/loading-state';
 import { PageHeader } from '@/components/page/page-header';
-import { canonicalLanguage, programmingLanguages } from '../programming-language';
+import { canonicalLanguage, languageSlug, programmingLanguages } from '../programming-language';
 import { readProgrammingOnboarding } from '../programming-onboarding';
-import { useCodeAnalysis, useCodeDiagnose, useProgrammingAction, useProgrammingExercise, useProgrammingExercises, useProgrammingHome, useProgrammingOnboarding, useProgrammingPlan, useProgrammingRecords, useProgrammingRecordsSummary, useProgrammingState } from '../api/programming';
+import { useCodeAnalysis, useCodeDiagnose, useProgrammingAction, useProgrammingExercise, useProgrammingExercises, useProgrammingOnboarding, useProgrammingPlan, useProgrammingRecords, useProgrammingRecordsSummary, useProgrammingState, exerciseTotal, exerciseTotalPages } from '../api/programming';
 import { DebugAgentSurface } from '@/components/learning/advanced-learning-surfaces';
 import { executionEvidence } from '@/components/learning/workflow-adapters';
 import { DynamicPlanSurface } from '@/features/learning-intelligence/learning-intelligence-surfaces';
@@ -23,6 +23,7 @@ import { AiFeedback } from '@/components/learning/ai-feedback';
 import { eventTypeLabel } from '@/features/records/event-labels';
 import { usageCreditsText } from '@/lib/learner-safe';
 import { formatDateTime } from '@/lib/format';
+import { routePath } from '@/lib/router';
 
 function rows(value: unknown): Array<Record<string, unknown>> { if (Array.isArray(value)) return value.filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null); if (value && typeof value === 'object') { const record = value as Record<string, unknown>; return rows(record.items ?? record.data ?? record.exercises ?? record.tasks ?? []); } return []; }
 /** The exercise's own title. An exercise with no title is unnamed — its database id is not a name. */
@@ -57,7 +58,7 @@ function ProgrammingShell({ language, active, facts, children }: { language: str
   const tabs = programmingTabs(language);
   const tabLabel = tabs.find((tab) => tab.id === active)?.label;
   return (
-    <div className="mx-auto w-full max-w-content px-5 py-8 sm:px-8 lg:px-12">
+    <div className="space-accent space-accent--programming mx-auto w-full max-w-content px-5 py-8 sm:px-8 lg:px-12">
       <Breadcrumb
         items={[
           { label: '编程学习', to: '/programming' },
@@ -78,21 +79,60 @@ function ProgrammingShell({ language, active, facts, children }: { language: str
 
 /* ------------------------------------------------------------------ programming home */
 
-/** The loop a programming exercise goes through, named in the order it happens. */
-const PRACTICE_LOOP = [
-  ['选择练习', '从题库里挑一道当前语言的练习题'],
-  ['进入 Workbench', '读题面、写代码'],
-  ['运行与测试', '运行、跑题目自带的测试'],
-  ['提交', '提交会写进学习记录'],
-  ['需要时求助', '代码诊断来自编译器；AI Debug 是单次调用；Debug Agent 是多步工作流'],
-  ['修改并重试', '按反馈修改后重跑'],
-] as const;
+/** Where one exercise stands, read off the progress the exercise list carries. */
+function lastTouched(exercise: unknown): number {
+  if (!isRecord(exercise) || !isRecord(exercise.personal_progress)) return 0;
+  const progress = exercise.personal_progress;
+  for (const key of ['last_submit_at', 'last_test_at', 'last_run_at']) {
+    const value = progress[key];
+    if (typeof value === 'string') {
+      const time = new Date(value).getTime();
+      if (Number.isFinite(time)) return time;
+    }
+  }
+  return 0;
+}
+
+function exerciseTitle(exercise: unknown): string | undefined {
+  return isRecord(exercise) && typeof exercise.title === 'string' ? exercise.title : undefined;
+}
+
+/**
+ * The most recent practice worth returning to: the one touched last, and among those the most
+ * recent one that is not already passed. Nothing is invented — an exercise nobody has opened is
+ * not "in progress", so a learner who has run nothing gets no continuation card.
+ */
+function resumeTarget(
+  exercises: readonly unknown[],
+): { id: number; title: string } | undefined {
+  const touched = exercises
+    .map((exercise) => ({ exercise, at: lastTouched(exercise) }))
+    .filter((entry) => entry.at > 0)
+    .sort((left, right) => right.at - left.at);
+  const entry =
+    touched.find(({ exercise }) => {
+      const progress = isRecord(exercise) && isRecord(exercise.personal_progress) ? exercise.personal_progress : undefined;
+      return progress?.last_submit_passed !== true;
+    }) ?? touched[0];
+  if (!entry) return undefined;
+  const title = exerciseTitle(entry.exercise);
+  const id = isRecord(entry.exercise) && typeof entry.exercise.id === 'number' ? entry.exercise.id : undefined;
+  if (!title || id === undefined) return undefined;
+  return { id, title };
+}
 
 export function ProgrammingHomePage() {
-  const query = useProgrammingHome();
   const onboarding = useProgrammingOnboarding();
   const declared = readProgrammingOnboarding(onboarding.data);
   const unconfigured = !onboarding.isPending && !onboarding.isError && !declared.completed;
+
+  // The language the learner declared as their main one drives everything below; without one the
+  // page still offers the four languages and says nothing it cannot know.
+  const mainLanguage = declared.languages[0];
+  const slug = mainLanguage ? languageSlug(mainLanguage) : undefined;
+  const exercises = useProgrammingExercises(slug ?? '');
+  const items = isRecord(exercises.data) && Array.isArray(exercises.data.items) ? exercises.data.items : [];
+  const resume = resumeTarget(items);
 
   return (
     <div className="mx-auto w-full max-w-content px-5 py-8 sm:px-8 lg:px-12">
@@ -116,6 +156,75 @@ export function ProgrammingHomePage() {
         </StatusNote>
       ) : null}
 
+      {resume && slug ? (
+        <Panel tone="focus" labelledBy="resume-title" className="mt-8">
+          <p className="text-body font-medium text-primary-ink">继续最近练习</p>
+          <h2 id="resume-title" className="mt-2 text-card-title font-semibold text-text-primary">
+            {resume.title}
+          </h2>
+          <Button asChild size="lg" className="mt-5">
+            <Link
+              to="/programming/$language/exercises/$exerciseId"
+              params={{ language: slug, exerciseId: String(resume.id) }}
+            >
+              打开练习
+            </Link>
+          </Button>
+        </Panel>
+      ) : null}
+
+      {/* The three things a learner comes here to do, stated as actions rather than left to be
+          discovered. Without them this page was an index of places: it named the languages and
+          the record tabs but never offered the work itself, and a learner had to open a language
+          and then a题 to find the first thing they could actually do. */}
+      <section className="mt-8" aria-labelledby="programming-actions-title">
+        <SectionHeading id="programming-actions-title" eyebrow="现在可以做" title="开始做一件事" />
+        <ul className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {slug ? (
+            <li>
+              <Link
+                to="/programming/$language/exercises"
+                params={{ language: slug }}
+                className="flex h-full flex-col justify-between gap-2 rounded-card border border-border-default bg-surface px-5 py-4 hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              >
+                <span className="text-body font-medium text-text-primary">开始练习</span>
+                <span className="text-metadata text-text-secondary">
+                  {mainLanguage} 的练习题，从第一道开始。
+                </span>
+              </Link>
+            </li>
+          ) : null}
+          {resume && slug ? (
+            <li>
+              <Link
+                to="/programming/$language/projects/$projectId"
+                params={{ language: slug, projectId: String(resume.id) }}
+                className="flex h-full flex-col justify-between gap-2 rounded-card border border-border-default bg-surface px-5 py-4 hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              >
+                <span className="text-body font-medium text-text-primary">进入 Workbench</span>
+                <span className="text-metadata text-text-secondary">
+                  在 {resume.title} 上写代码、运行与诊断。
+                </span>
+              </Link>
+            </li>
+          ) : null}
+          {mainLanguage ? (
+            <li>
+              <Link
+                to="/ai"
+                search={{ context: `programming:${mainLanguage}` }}
+                className="flex h-full flex-col justify-between gap-2 rounded-card border border-border-default bg-surface px-5 py-4 hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              >
+                <span className="text-body font-medium text-text-primary">AI 编程问答</span>
+                <span className="text-metadata text-text-secondary">
+                  问 {mainLanguage} 的问题，可以带上你正在写的代码。
+                </span>
+              </Link>
+            </li>
+          ) : null}
+        </ul>
+      </section>
+
       <section className="mt-8" aria-labelledby="language-choice-title">
         <SectionHeading
           id="language-choice-title"
@@ -123,11 +232,11 @@ export function ProgrammingHomePage() {
           description="进入某个语言后，它的练习、记录与学习状态会一起出现。"
         />
         <ul className="mt-5 grid gap-3 sm:grid-cols-2">
-          {Object.entries(programmingLanguages).map(([slug, label]) => (
-            <li key={slug}>
+          {Object.entries(programmingLanguages).map(([languageSlugValue, label]) => (
+            <li key={languageSlugValue}>
               <Link
                 to="/programming/$language"
-                params={{ language: slug }}
+                params={{ language: languageSlugValue }}
                 className="flex items-center justify-between gap-4 rounded-card border border-border-default bg-surface px-5 py-4 hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
               >
                 <span className="text-body font-medium text-text-primary">{label}</span>
@@ -138,43 +247,34 @@ export function ProgrammingHomePage() {
         </ul>
       </section>
 
-      <section className="mt-10" aria-labelledby="practice-loop-title">
-        <SectionHeading
-          id="practice-loop-title"
-          title="一次练习是怎么走的"
-          description="运行、测试与提交是主流程；诊断与 AI 是围绕它的辅助层。"
-        />
-        <ol className="mt-5 border-t border-border-default">
-          {PRACTICE_LOOP.map(([step, detail], index) => (
-            <li key={step} className="flex gap-4 border-b border-border-default py-4">
-              <span className="w-6 text-metadata tabular-nums text-text-muted">
-                {String(index + 1).padStart(2, '0')}
-              </span>
-              <span>
-                <span className="block text-body font-medium text-text-primary">{step}</span>
-                <span className="mt-0.5 block text-body text-text-secondary">{detail}</span>
-              </span>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      <section className="mt-10">
-        <h2 className="text-metadata font-medium tracking-eyebrow text-text-muted">工作台数据</h2>
-        {query.isPending ? (
-          <LoadingState label="正在读取工作台…" className="mt-3" />
-        ) : query.isError ? (
-          <StatusNote tone="danger" className="mt-3">
-            工作台数据暂时无法加载；上面的语言入口仍然可用。
-          </StatusNote>
-        ) : (
-          <FactList
-            className="mt-3"
-            value={isRecord(query.data) ? query.data.stats : undefined}
-            allow={['streak_days', 'momentum', 'today_practice_count', 'today_submission_count', 'last_activity_date']}
+      {slug ? (
+        <section className="mt-10" aria-labelledby="language-tools-title">
+          <SectionHeading
+            id="language-tools-title"
+            title={`${mainLanguage} 的工具`}
+            description="当前语言的练习、错题、记录与学习状态。"
           />
-        )}
-      </section>
+          <ul className="mt-5 border-t border-border-default">
+            {[
+              { label: '练习', to: '/programming/$language/exercises', detail: '按语言列出的练习题与进度。' },
+              { label: '错题', to: '/programming/$language/errors', detail: '未通过的提交与它们的失败原因。' },
+              { label: '记录', to: '/programming/$language/records', detail: '运行、测试与提交的真实记录。' },
+              { label: '学习状态', to: '/programming/$language/state', detail: '这个语言下已经记下的学习状态。' },
+            ].map((tool) => (
+              <li key={tool.to} className="border-b border-border-default">
+                <Link
+                  to={routePath(tool.to)}
+                  params={{ language: slug }}
+                  className="flex min-h-12 flex-wrap items-baseline gap-x-3 gap-y-1 py-4 hover:text-primary-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                >
+                  <span className="text-body font-medium text-text-primary">{tool.label}</span>
+                  <span className="text-metadata text-text-secondary">{tool.detail}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -183,8 +283,11 @@ export function ProgrammingHomePage() {
 
 export function ExercisesPage({ language }: { language: string }) {
   const canonical = canonicalLanguage(language);
-  const query = useProgrammingExercises(canonical ?? language);
+  const [page, setPage] = useState(1);
+  const query = useProgrammingExercises(canonical ?? language, page);
   const items = rows(query.data);
+  const total = exerciseTotal(query.data);
+  const totalPages = exerciseTotalPages(query.data) ?? 1;
 
   if (!canonical) {
     return (
@@ -198,12 +301,15 @@ export function ExercisesPage({ language }: { language: string }) {
     <ProgrammingShell
       language={language}
       active="exercises"
-      facts={query.isSuccess ? `${items.length} 道练习题` : null}
+      // The bank's real size, not this page's length: a learner reading "12 道练习题" when the
+      // language has 60 concludes the bank is small, which is a statement about the product that
+      // happens to be false.
+      facts={query.isSuccess && total !== undefined ? `${total} 道练习题` : null}
     >
       <PageHeader
         eyebrow="练习"
         title={`${canonical} 练习`}
-        description="列表来自真实题库；难度与来源由后端给出，不在前端计算或补造。"
+        description="列表来自真实题库；难度与来源按题库自己的标注展示。"
       />
 
       {query.isPending ? (
@@ -213,25 +319,51 @@ export function ExercisesPage({ language }: { language: string }) {
           练习列表暂时无法加载。
         </StatusNote>
       ) : items.length ? (
-        <ol className="mt-8 border-t border-border-default">
-          {items.map((item, index) => (
-            <li key={String(item.id ?? index)} className="border-b border-border-default">
-              <Link
-                className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 py-4 hover:bg-primary-soft"
-                to="/programming/$language/exercises/$exerciseId"
-                params={{ language, exerciseId: String(item.id) }}
+        <>
+          <ol className="mt-8 border-t border-border-default">
+            {items.map((item, index) => (
+              <li key={String(item.id ?? index)} className="border-b border-border-default">
+                <Link
+                  className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 py-4 hover:bg-primary-soft"
+                  to="/programming/$language/exercises/$exerciseId"
+                  params={{ language, exerciseId: String(item.id) }}
+                >
+                  <span className="text-body font-medium text-text-primary">
+                    {display(item, `练习 ${index + 1}`)}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    {text(item.difficulty) ? <Badge>{text(item.difficulty)}</Badge> : null}
+                    {text(item.source_label) ? <Badge tone="neutral">{text(item.source_label)}</Badge> : null}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ol>
+
+          {totalPages > 1 ? (
+            <nav aria-label="练习分页" className="mt-6 flex items-center justify-between gap-4">
+              <Button
+                variant="secondary"
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
               >
-                <span className="text-body font-medium text-text-primary">
-                  {display(item, `练习 ${index + 1}`)}
-                </span>
-                <span className="flex items-center gap-2">
-                  {text(item.difficulty) ? <Badge>{text(item.difficulty)}</Badge> : null}
-                  {text(item.source_label) ? <Badge tone="neutral">{text(item.source_label)}</Badge> : null}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ol>
+                上一页
+              </Button>
+              <p className="text-metadata text-text-secondary">
+                第 {page} / {totalPages} 页{total !== undefined ? ` · 共 ${total} 道` : ''}
+              </p>
+              <Button
+                variant="secondary"
+                type="button"
+                disabled={page >= totalPages}
+                onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+              >
+                下一页
+              </Button>
+            </nav>
+          ) : null}
+        </>
       ) : (
         <EmptyState
           className="mt-8"
@@ -245,6 +377,7 @@ export function ExercisesPage({ language }: { language: string }) {
 
 export function ExerciseDetailPage({ language, exerciseId }: { language: string; exerciseId: number }) {
   const query = useProgrammingExercise(language, exerciseId);
+  const canonical = canonicalLanguage(language) ?? language;
   return (
     <ProgrammingShell language={language} active="exercises">
       <PageHeader eyebrow="练习" title="练习题面" />
@@ -281,11 +414,23 @@ export function ExerciseDetailPage({ language, exerciseId }: { language: string;
               </>
             }
           />
-          <Button asChild className="mt-6">
-            <Link to="/programming/$language/projects/$projectId" params={{ language, projectId: String(exerciseId) }}>
-              在 Workbench 中开始
-            </Link>
-          </Button>
+          {/* Two ways in, and they are different things: the Workbench is where the code is
+              written and run, and 问 AI is where the idea is talked through. The AI entry opens
+              the assistant already scoped to this language, so the learner does not have to
+              re-select it — but it does NOT claim to have read this exercise, because the chat
+              endpoint takes a language scope and no exercise scope. */}
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <Button asChild>
+              <Link to="/programming/$language/projects/$projectId" params={{ language, projectId: String(exerciseId) }}>
+                在 Workbench 中开始
+              </Link>
+            </Button>
+            <Button asChild variant="secondary">
+              <Link to="/ai" search={{ context: `programming:${canonical}` }}>
+                问 AI 这道题
+              </Link>
+            </Button>
+          </div>
         </>
       )}
     </ProgrammingShell>
@@ -332,6 +477,23 @@ function DiagnosticList({ title, items }: { title: string; items: DiagnosticItem
  * dumped as JSON. Hints and background stay folded: they are support a learner asks for, and
  * unfolding them by default would answer the exercise on arrival.
  */
+/**
+ * The first of several field names a backend sample actually carries, as a plain string.
+ *
+ * The catalogue has used more than one spelling for the same value across its versions, so the
+ * caller passes them in priority order. A value of `0` or `false` is text like any other — only
+ * `undefined`/`null` fall through, which is why this does not use a truthiness check.
+ */
+function sampleText(sample: Record<string, unknown>, keys: readonly string[]): string | undefined {
+  for (const key of keys) {
+    const value = sample[key];
+    if (value === undefined || value === null) continue;
+    const rendered = String(value);
+    if (rendered.trim()) return rendered.replace(/\n$/, '');
+  }
+  return undefined;
+}
+
 function ExerciseStatement({ payload, recovery }: { payload: unknown; recovery?: ReactNode }) {
   const root = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
   const exercise = (root.exercise && typeof root.exercise === 'object' ? root.exercise : root) as Record<string, unknown>;
@@ -395,13 +557,18 @@ function ExerciseStatement({ payload, recovery }: { payload: unknown; recovery?:
                   <div>
                     <p className="text-metadata text-text-muted">输入</p>
                     <pre className="mt-1 overflow-auto whitespace-pre-wrap font-mono text-metadata text-text-primary">
-                      {String(sample.input ?? sample.stdin ?? '—')}
+                      {/* `stdin_text` / `expected_stdout` are the fields the catalogue actually
+                          stores. The names this read before (`input`, `stdin`, `output`, `stdout`)
+                          match nothing the API sends, so EVERY sample rendered as a dash — a
+                          problem statement with three empty examples where the real content was
+                          a subtraction result the learner needed in order to answer. */}
+                      {sampleText(sample, ['stdin_text', 'stdin', 'input']) ?? '—'}
                     </pre>
                   </div>
                   <div>
                     <p className="text-metadata text-text-muted">期望输出</p>
                     <pre className="mt-1 overflow-auto whitespace-pre-wrap font-mono text-metadata text-text-primary">
-                      {String(sample.output ?? sample.expected_output ?? sample.stdout ?? '—')}
+                      {sampleText(sample, ['expected_stdout', 'expect_stdout', 'stdout', 'output', 'expected_output']) ?? '—'}
                     </pre>
                   </div>
                 </div>
@@ -479,7 +646,7 @@ export function WorkbenchPage({ language, exerciseId }: { language: string; exer
       <PageHeader
         eyebrow={`${canonical} · Workbench`}
         title={`练习 #${exerciseId}`}
-        description="沿开始、编写、运行、测试、提交、修复推进；每一步的结果都由后端返回。"
+        description="沿开始、编写、运行、测试、提交、修复推进；每一步的结果都来自真实执行。"
         className="mt-4"
       />
 
@@ -627,7 +794,7 @@ export function WorkbenchPage({ language, exerciseId }: { language: string; exer
                 ) : null}
                 {evidence.kind === 'submit' ? (
                   <p className="mt-3 text-body text-text-secondary">
-                    提交已收到后端响应；学习记录与状态正在刷新。
+                    提交已记录；学习记录与状态正在刷新。
                   </p>
                 ) : null}
               </>
@@ -746,7 +913,7 @@ export function RecordsPage({ language }: { language: string }) {
       />
 
       <section className="mt-8">
-        <SectionHeading title="记录统计" as="h2" description="统计窗口与口径由后端给出；缺失的指标显示为「—」。" />
+        <SectionHeading title="记录统计" as="h2" description="缺失的指标显示为「—」。" />
         {summary.isPending ? <LoadingState label="正在读取记录统计…" className="mt-3" rows={2} /> : null}
         {summary.isError ? (
           <StatusNote tone="danger" className="mt-3">
@@ -809,7 +976,7 @@ export function StatePage({ language }: { language: string }) {
       <PageHeader
         eyebrow="学习状态"
         title="已记录的学习事实"
-        description="只呈现后端存储的事实与计数；不含熟练度、能力评分或 readiness 判断。"
+        description="只呈现已经记录的事实与计数；不含熟练度或能力评分。"
         actions={
           <Link
             to="/reports"
@@ -843,7 +1010,7 @@ export function PlanPage({ language }: { language: string }) {
       <PageHeader
         eyebrow="计划"
         title="学习计划"
-        description="计划来自后端；调整建议需要你确认后才会生效。"
+        description="调整建议需要你确认后才会生效。"
       />
       {query.isPending ? (
         <LoadingState label="正在读取计划…" className="mt-8" />

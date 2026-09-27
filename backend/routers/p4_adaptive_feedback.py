@@ -87,15 +87,24 @@ def adaptive_practice(service_key: str = Query("course_learning"),
 # ---------------------------------------------------------------- AI feedback
 
 
+FeedbackReason = Literal[
+    "incorrect", "not_answered", "unclear", "too_shallow", "too_complex", "too_verbose",
+    "too_brief", "citation_issue", "bad_code", "slow", "poor_image", "other",
+]
+
+
 class AIFeedbackRequest(BaseModel):
-    """One rating. The request id is the identity; ``reason`` follows the frozen taxonomy."""
+    """One rating for one request, with an optional negative-feedback detail."""
 
     model_config = ConfigDict(extra="forbid")
 
     request_id: str = Field(min_length=6, max_length=64)
     rating: Literal["up", "down"]
-    reason: Literal["incorrect", "too_shallow", "too_complex", "too_verbose", "too_brief",
-                    "bad_code", "slow", "poor_image", "other"] | None = None
+    # ``reason`` remains the backwards-compatible primary reason. New clients submit
+    # ``reasons`` so a learner can describe more than one issue in one response.
+    reason: FeedbackReason | None = None
+    reasons: list[FeedbackReason] = Field(default_factory=list, max_length=7)
+    comment: str = Field(default="", max_length=1000)
     regenerated: bool = False
     switched_model: bool = False
     workflow_id: str = Field(default="", max_length=64)
@@ -107,6 +116,8 @@ class AIFeedbackResponse(BaseModel):
     request_id: str
     rating: str
     reason: str | None = None
+    reasons: list[str] = Field(default_factory=list)
+    comment: str = ""
     regenerated: bool = False
     switched_model: bool = False
     workflow_id: str | None = None
@@ -194,7 +205,8 @@ def submit_ai_feedback(payload: AIFeedbackRequest, db: Session = Depends(get_db)
     try:
         return feedback_service.submit_feedback(
             db, current_user, request_id=payload.request_id, rating=payload.rating,
-            reason=payload.reason, regenerated=payload.regenerated,
+            reason=payload.reason, reasons=payload.reasons, comment=payload.comment,
+            regenerated=payload.regenerated,
             switched_model=payload.switched_model,
             workflow_id=payload.workflow_id or None)
     except feedback_service.FeedbackRefusal as exc:

@@ -95,7 +95,9 @@ async function login(page: Page) {
 
 async function openDesk(page: Page) {
   await page.goto(PRACTICE);
-  await expect(page.getByRole('heading', { name: '数据结构' })).toBeVisible();
+  // The page names its tool; the open paper is named once, by the workspace header above it.
+  await expect(page.getByRole('heading', { name: '章节练习' })).toBeVisible();
+  await expect(page.getByText('408 · 数据结构')).toBeVisible();
   await expect(page.getByRole('radio', { name: CORRECT_OPTION })).toBeVisible();
 }
 

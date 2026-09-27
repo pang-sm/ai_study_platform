@@ -3,8 +3,8 @@
 // WHY IT IS OPT-IN
 // ----------------
 // This is the only place the real breakpoint behaviour can be checked: jsdom applies no media
-// queries, so the sidebar / drawer / bottom-bar switch and the phone layouts are invisible to the
-// unit suite. It needs the authenticated E2E harness, which `npm run test:e2e` does not start, so
+// queries, so the header-row / panel switch and the phone layouts are invisible to the unit
+// suite. It needs the authenticated E2E harness, which `npm run test:e2e` does not start, so
 // it skips unless all three of these are true:
 //
 //   1. the harness is up:            bash scripts/start-e2e-backend.sh --json
@@ -54,10 +54,10 @@ async function signIn(page: Page) {
   });
 }
 
-const sidebar = (page: Page) => page.getByRole('navigation', { name: '主导航', exact: true });
-const bottomBar = (page: Page) =>
-  page.getByRole('navigation', { name: '主导航（底部）', exact: true });
+const headerNav = (page: Page) => page.getByRole('navigation', { name: '主导航', exact: true });
 const drawer = (page: Page) => page.getByRole('navigation', { name: '主导航（移动）', exact: true });
+/** Every destination the header row carries on a wide screen. */
+const DESTINATIONS = ['/', '/exam', '/course', '/programming', '/review', '/reports', '/membership'];
 
 test.describe('P7-B responsive and accessibility acceptance', () => {
   test.skip(
@@ -65,7 +65,7 @@ test.describe('P7-B responsive and accessibility acceptance', () => {
     'needs the E2E harness and a fresh dev server — see the header of this file',
   );
 
-  test('the shell switches between sidebar, drawer and bottom bar at the documented widths', async ({ page }) => {
+  test('the shell keeps one row of destinations and folds it into the panel below the wide breakpoint', async ({ page }) => {
     test.setTimeout(180_000);
     await signIn(page);
 
@@ -75,16 +75,14 @@ test.describe('P7-B responsive and accessibility acceptance', () => {
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 
       const wide = size.width >= 1024;
-      const phone = size.width < 768;
 
       if (wide) {
-        await expect(sidebar(page), `${size.width}px sidebar`).toBeVisible();
-        await expect(bottomBar(page), `${size.width}px bottom bar`).toBeHidden();
+        await expect(headerNav(page), `${size.width}px header row`).toBeVisible();
         await expect(page.getByRole('button', { name: '打开导航菜单' })).toBeHidden();
       } else {
-        await expect(sidebar(page), `${size.width}px sidebar`).toBeHidden();
+        await expect(headerNav(page), `${size.width}px header row`).toBeHidden();
 
-        // The drawer is a real destination list, not a decorative panel.
+        // The panel is a real destination list, not a decorative disclosure.
         await page.getByRole('button', { name: '打开导航菜单' }).click();
         await expect(drawer(page)).toBeVisible();
         await expect(drawer(page).getByRole('link', { name: '编程学习' })).toBeVisible();
@@ -92,25 +90,28 @@ test.describe('P7-B responsive and accessibility acceptance', () => {
         await expect(drawer(page)).toBeHidden();
       }
 
-      if (phone) {
-        await expect(bottomBar(page), `${size.width}px bottom bar`).toBeVisible();
-      } else {
-        await expect(bottomBar(page), `${size.width}px bottom bar`).toBeHidden();
-      }
+      // No permanent column and no bottom bar at any width: the navigation is the header's.
+      await expect(
+        page.getByRole('navigation', { name: '学习空间导航' }),
+        `${size.width}px side column`,
+      ).toHaveCount(0);
+      await expect(
+        page.getByRole('navigation', { name: '主导航（底部）' }),
+        `${size.width}px bottom bar`,
+      ).toHaveCount(0);
     }
   });
 
-  test('a phone gets the bottom bar with its own destinations', async ({ page }) => {
+  test('the panel carries the same destinations the header row does', async ({ page }) => {
     await signIn(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
 
-    const bar = bottomBar(page);
-    await expect(bar).toBeVisible();
-    const hrefs = await bar
+    await page.getByRole('button', { name: '打开导航菜单' }).click();
+    const hrefs = await drawer(page)
       .getByRole('link')
       .evaluateAll((links) => links.map((link) => link.getAttribute('href')));
-    expect(hrefs).toEqual(['/', '/exam', '/course', '/programming', '/profile']);
+    expect(hrefs).toEqual(DESTINATIONS);
   });
 
   test('every surface lays out without horizontal overflow and is captured', async ({ page }) => {
@@ -164,8 +165,8 @@ test.describe('P7-B responsive and accessibility acceptance', () => {
       await page.setViewportSize(size);
       await page.goto('/');
 
-      const ranked = page.getByText('当前重点', { exact: true });
-      const setup = page.getByText('先完成设置', { exact: true });
+      const ranked = page.getByText('现在先做', { exact: true });
+      const setup = page.getByText('先设置一个学习方向', { exact: true });
       await expect(ranked.or(setup).first()).toBeVisible({ timeout: 20_000 });
       const variant = (await ranked.count()) ? 'ranked' : 'setup';
       test
@@ -173,18 +174,35 @@ test.describe('P7-B responsive and accessibility acceptance', () => {
         .annotations.push({ type: 'focus-slot', description: `${size.width}px: ${variant}` });
 
       const focus = (await ranked.or(setup).first().boundingBox())!;
-      const agenda = (await page.getByRole('heading', { name: '今天接下来学什么' }).boundingBox())!;
-      const recent = (await page.getByRole('heading', { name: '最近学习' }).boundingBox())!;
-      const spaces = (await page.getByRole('heading', { name: '选择你的学习方向' }).boundingBox())!;
-      const membership = (await page.getByRole('heading', { name: '会员档位与可用额度' }).boundingBox())!;
+      const spaces = (await page.getByRole('heading', { name: '我的学习方向' }).boundingBox())!;
 
-      expect(focus.y, `${size.width}px: focus slot above agenda`).toBeLessThan(agenda.y);
-      expect(agenda.y, `${size.width}px: agenda above recent`).toBeLessThan(recent.y);
-      expect(recent.y, `${size.width}px: recent above spaces`).toBeLessThan(spaces.y);
-      expect(spaces.y, `${size.width}px: spaces above membership`).toBeLessThan(membership.y);
+      expect(focus.y, `${size.width}px: the decision above the directions`).toBeLessThan(spaces.y);
+
+      // The rest of today's work sits between them — when there IS any. An agenda with one entry
+      // promotes that entry and has no list, which is a real state and not a missing section.
+      const restOfToday = page.getByRole('heading', { name: '今天接下来' });
+      if (await restOfToday.isVisible().catch(() => false)) {
+        const next = (await restOfToday.boundingBox())!;
+        expect(focus.y, `${size.width}px: the decision above the rest of today`).toBeLessThan(next.y);
+        expect(next.y, `${size.width}px: today's work above the directions`).toBeLessThan(spaces.y);
+      }
+
+      // The page used to also close with the eight most recent learning events, a second index of
+      // the three spaces, and the tier standing. All three restated what the header, 学习报告 and
+      // the membership page already hold, so the regression this guards is any of them creeping
+      // back in — and the log is the one that pushed today's work off the screen.
+      await expect(page.getByRole('heading', { name: '最近学习' })).toHaveCount(0);
+      await expect(page.getByRole('heading', { name: '去别的学习方向' })).toHaveCount(0);
+      await expect(page.getByRole('heading', { name: '会员档位与可用额度' })).toHaveCount(0);
+
+      // Nothing may scroll sideways at a width the product is actually read at.
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow, `${size.width}px: home must not scroll sideways`).toBeLessThanOrEqual(0);
 
       await page.screenshot({
-        path: `test-results/p7b/home-focus-${variant}-${size.width}.png`,
+        path: `test-results/p7b/home-${variant}-${size.width}.png`,
         fullPage: true,
       });
     }

@@ -25,13 +25,27 @@ class MoonshotProvider:
             base_url=base_url or os.getenv("MOONSHOT_BASE_URL", DEFAULT_BASE_URL),
         )
 
-    def complete(self, spec: AIRequestSpec) -> GatewayResponse:
-        started_at = time.perf_counter()
-        kwargs = {}
+    def _request_kwargs(self, spec: AIRequestSpec) -> dict:
+        """The provider-specific request kwargs, shared by complete() and stream() so a streamed
+        turn asks for exactly what a non-streamed one would."""
+        kwargs: dict = {}
         if spec.temperature is not None:
             kwargs["temperature"] = spec.temperature
         if spec.max_tokens is not None:
             kwargs["max_tokens"] = spec.max_tokens
+        return kwargs
+
+    def stream(self, spec: AIRequestSpec):
+        """Open a REAL provider stream (see the gateway contract). Leaving the block cancels it."""
+        from ai.providers.common import stream_openai_chat
+
+        return stream_openai_chat(self._client, spec, provider=self.name,
+                                  model=spec.model or self.model,
+                                  extra_kwargs=self._request_kwargs(spec))
+
+    def complete(self, spec: AIRequestSpec) -> GatewayResponse:
+        started_at = time.perf_counter()
+        kwargs = self._request_kwargs(spec)
         try:
             response = self._client.chat.completions.create(
                 model=spec.model,

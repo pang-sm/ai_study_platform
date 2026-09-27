@@ -48,7 +48,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 APP_DB = BACKEND_DIR / "app.db"
 
-EXPECTED_HEAD = "20260921_0013"
+EXPECTED_HEAD = "20260923_0015"
 
 # The Exam Prep / CS408 runtime schema this step baselines (migration 0008). Derived from
 # the exam route handlers, not from a name pattern.
@@ -275,7 +275,7 @@ def test_canonical_catalog_contract_is_stable(client):
 def test_canonical_profile_contract_is_stable(client):
     register_and_login(client, "h5_contract")
     empty = client.get("/exam/prep/profile").json()
-    assert set(empty) == {"configured", "exam_type", "selected_track",
+    assert set(empty) == {"configured", "exam_type", "selected_track", "custom_subjects",
                           "selected_subjects", "target_exam_year", "subjects"}
     assert empty["configured"] is False
 

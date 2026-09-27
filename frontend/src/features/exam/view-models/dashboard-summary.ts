@@ -19,6 +19,20 @@ export type Cs408ModuleViewModel = {
   isNew: boolean;
 };
 
+/**
+ * One of the three states a paper can be in, in the learner's words.
+ *
+ * It is a reading of two facts the summary actually reports — how many knowledge points are marked
+ * learned, and whether anything has been recorded at all — and nothing else. It is deliberately
+ * not a score: the label says what has been worked through, never how well, and a paper with no
+ * recorded work is 尚未开始 rather than 0%.
+ */
+export function toCs408ModuleStatus(summary: DashboardSummary): string {
+  const view = toCs408ModuleViewModel(summary);
+  if (view.isNew) return '尚未开始';
+  return view.learnedPercent >= 100 ? '已学习' : '学习中';
+}
+
 export function toCs408ModuleViewModel(summary: DashboardSummary): Cs408ModuleViewModel {
   const { overview, today_plan: todayPlan } = summary;
 

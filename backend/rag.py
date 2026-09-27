@@ -255,10 +255,32 @@ def replace_material_chunks(db: Session, material: models.StudyMaterial):
 
 
 def tokenize_query(question: str, subject: str | None = None):
+    """Query terms, with CJK n-grams so a Chinese SENTENCE can match a Chinese passage.
+
+    Why n-grams: FTS5's default `unicode61` tokenizer has no notion of a Chinese word. It indexes
+    a whole run of CJK as ONE token, so a passage is stored as terms like
+    `\u987a\u5e8f\u8868\u4e0e\u94fe\u8868\u7684\u533a\u522b` and no query shorter than that run can ever equal one of them \u2014 a plain
+    `\u7ebf\u6027\u8868` matches nothing. The substring fallback has the mirror problem: it looked for the
+    query's own long runs, which a passage does not contain verbatim. Between the two, an
+    ordinary question retrieved nothing at all from a course whose material was sitting right
+    there, parsed and indexed.
+
+    Sliding 2\u20134 character n-grams are the standard answer for CJK without a segmenter: `\u987a\u5e8f\u8868`
+    yields \u987a\u5e8f / \u5e8f\u8868 / \u987a\u5e8f\u8868, and at least one of them appears inside any passage that is
+    actually about sequence tables. Longer terms keep their position ahead of the n-grams, so
+    FTS still prefers an exact token when one exists, and the cap is raised because the n-grams
+    are only useful if they survive it.
+    """
     combined = f"{subject or ''} {question or ''}".lower()
     keywords = re.findall(r"[a-zA-Z_][a-zA-Z0-9_+#.-]{1,30}", combined)
     keywords += [item for item in re.findall(r"[\u4e00-\u9fff]{2,8}", combined) if len(item) >= 2]
-    return list(dict.fromkeys(keywords))[:12]
+
+    grams: list[str] = []
+    for run in re.findall(r"[\u4e00-\u9fff]{2,}", combined):
+        for size in (2, 3, 4):
+            grams.extend(run[start:start + size] for start in range(len(run) - size + 1))
+
+    return list(dict.fromkeys(keywords + grams))[:64]
 
 
 def build_fts_query(question: str, subject: str | None = None):

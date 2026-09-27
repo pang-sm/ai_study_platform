@@ -1,53 +1,20 @@
 import { render, screen } from '@testing-library/react';
-import { RouterProvider, createMemoryHistory, createRootRoute, createRouter } from '@tanstack/react-router';
 import { describe, expect, it } from 'vitest';
 import { SubjectAvailabilityBadge } from '@/features/exam/components/subject-availability-badge';
-import { ContentUnavailableState } from '@/features/exam/components/content-unavailable-state';
 import { normalizeApiError } from '@/features/exam/api/errors';
 import { knowledgeStatusLabel, wrongResolutionLabel } from '@/features/exam/view-models/status-labels';
 import { renderApp } from '@/test/render-app';
 
-function renderUnavailable(subjectName: string, selected = false) {
-  const router = createRouter({
-    routeTree: createRootRoute({ component: () => <ContentUnavailableState subjectName={subjectName} selected={selected} /> }),
-    history: createMemoryHistory(),
-  });
-  return render(<RouterProvider router={router} />);
-}
-
 describe('Exam foundation primitives', () => {
-  it('marks the active Exam context route accessibly', async () => {
-    renderApp('/exam/subjects');
-
-    expect(await screen.findByRole('navigation', { name: '考研学习导航' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '科目' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('link', { name: '我的备考' })).not.toHaveAttribute('aria-current');
-    expect(screen.getByText('考研学习', { selector: 'p' })).toBeInTheDocument();
-    expect(screen.queryByText(/EXAM PREPARATION/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/A BRIGHTER YOU TOMORROW/)).not.toBeInTheDocument();
-  });
-
   it('uses honest availability labels', () => {
+    // "内容已开放" says what the catalogue flag actually states — real content exists — and not
+    // "可学习", which would be this page claiming a study surface of its own.
     const { rerender } = render(<SubjectAvailabilityBadge availability="active" />);
-    expect(screen.getByText('可学习')).toBeInTheDocument();
-    expect(screen.getByText('可学习')).toHaveClass('text-emerald-800');
+    expect(screen.getByText('内容已开放')).toBeInTheDocument();
+    expect(screen.getByText('内容已开放')).toHaveClass('bg-success-soft');
 
     rerender(<SubjectAvailabilityBadge availability="framework_only" />);
     expect(screen.getByText('内容建设中')).toBeInTheDocument();
-  });
-
-  it('renders the dedicated unavailable-content state without fake learning data', async () => {
-    renderUnavailable('该科目');
-
-    expect(await screen.findByRole('heading', { name: '该科目内容建设中' })).toBeInTheDocument();
-    expect(screen.getByText('已开放加入我的备考，学习内容将后续开放。')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '返回科目' })).toHaveAttribute('href', '/exam/subjects');
-  });
-
-  it('states the subject relationship when framework-only content is already selected', async () => {
-    renderUnavailable('数学（一）', true);
-
-    expect(await screen.findByText('这门科目已加入你的备考范围。')).toBeInTheDocument();
   });
 
   it('normalizes structured and string backend details without leaking internals', () => {
@@ -78,11 +45,18 @@ describe('Exam foundation primitives', () => {
     expect(wrongResolutionLabel(true)).toBe('已解决');
   });
 
-  it('keeps the CS408 workspace route available while module summaries load independently', async () => {
+  it('keeps the CS408 chooser route available while the papers it names have no summary yet', async () => {
     renderApp('/exam/cs408');
 
-    expect(await screen.findByRole('heading', { name: '学习工作区' })).toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: 'CS408 工具导航' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '数据结构' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '选择学习科目' })).toBeInTheDocument();
+    // 408's front door asks one question and offers one strip of answers. The space-level
+    // 我的备考 / 科目 bar is gone, and so is the tool strip here: the tools belong to a paper,
+    // and no paper has been chosen yet.
+    expect(screen.queryByRole('navigation', { name: 'CS408 工具导航' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: '考研学习导航' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^数据结构/ })).toHaveAttribute(
+      'href',
+      '/exam/cs408/knowledge?module=data_structure',
+    );
   });
 });

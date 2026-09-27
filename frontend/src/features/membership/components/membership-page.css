@@ -115,7 +115,51 @@
 }
 @media (max-width: 40rem) {
   .membership__inner { padding-inline: 1.25rem; }
-  .membership-standing { font-size: clamp(2.25rem, 11vw, 3rem); }
+  /* The standing IS the page's heading: it is the one thing a learner opens this page to read,
+   and it carries the h1. Body-size would leave the page with no heading level at all. */
+.membership__header h1.membership-standing { margin: .35rem 0 0; font-size: var(--text-page-title); font-weight: 600; line-height: 1.2; letter-spacing: -.02em; }
+/* Section headings, at a size that distinguishes them from the rows they introduce. */
+.membership > .membership__inner > section { margin-top: 2.5rem; }
+.membership > .membership__inner > section h2 { margin: 0 0 .25rem; font-size: var(--text-heading); font-weight: 600; color: var(--color-text-primary); }
   .membership-rail__row { flex-wrap: wrap; }
   .membership-rail__row input { flex-basis: 100%; }
 }
+
+/* --- 档位对照：三列共用一套横线，逐行对齐 -------------------------------------
+   A price table is read ACROSS, so the three tiers have to share one grid — independent
+   cards would break the comparison the table exists for. The current tier is marked with a
+   rule down its column rather than by lifting it out of the row. */
+.membership-compare { margin-top: 1.25rem; overflow-x: auto; }
+.membership-compare table { width: 100%; min-width: 44rem; border-collapse: collapse; }
+.membership-compare__caption { padding-bottom: .9rem; color: var(--color-text-secondary); font-size: var(--text-metadata); text-align: left; line-height: 1.6; }
+.membership-compare thead th { border-bottom: 2px solid var(--color-lab-ink); padding: .6rem .9rem; color: var(--color-text-primary); font-size: var(--text-card-title); font-weight: 600; text-align: left; vertical-align: bottom; }
+.membership-compare thead th:first-child { width: 8rem; }
+.membership-compare tbody th { border-bottom: 1px solid var(--color-lab-grid-light); padding: .85rem .9rem; color: var(--color-text-secondary); font-size: var(--text-metadata); font-weight: 500; text-align: left; vertical-align: top; white-space: nowrap; }
+.membership-compare tbody td { border-bottom: 1px solid var(--color-lab-grid-light); padding: .85rem .9rem; color: var(--color-text-primary); font-size: var(--body, var(--text-body)); vertical-align: top; line-height: 1.7; }
+.membership-compare__price strong { font-size: var(--text-heading); font-weight: 700; font-variant-numeric: tabular-nums; }
+.membership-compare__price small { color: var(--color-text-secondary); font-size: var(--text-metadata); }
+.membership-compare__capabilities { display: grid; gap: .35rem; }
+.membership-compare__capabilities li { display: flex; align-items: flex-start; gap: .4rem; font-size: var(--text-metadata); line-height: 1.6; }
+.membership-compare thead th.is-current { box-shadow: inset 0 -2px var(--color-primary); }
+.membership-compare__current { display: inline-block; margin-left: .5rem; border-radius: var(--radius-pill); background: var(--color-primary-soft); padding: .1rem .5rem; color: var(--color-primary-ink); font-size: var(--text-metadata); font-weight: 500; vertical-align: middle; }
+.membership-compare__loading { margin-top: 1.25rem; }
+.membership__footnote { margin-top: 2.5rem; }
+
+/* --- 档位对照：横表 / 纵排 二选一，共用同一份数据与同一字段顺序 ----------------
+   Below the width where three columns fit, the table is replaced by stacked tier blocks. The
+   table needed 44rem; at 390 the third tier was off-screen behind a scroll nothing announced,
+   and the second tier's header was cut mid-word. Stacking keeps the comparison by keeping the
+   field order identical — compare down the page instead of across it. */
+.membership-compare__narrow { margin-top: .25rem; }
+.membership-stack { display: grid; }
+.membership-stack__tier { border-top: 2px solid var(--color-lab-ink); padding: 1.1rem 0 1.35rem; }
+.membership-stack__tier:last-child { border-bottom: 1px solid var(--color-lab-grid-light); }
+.membership-stack__name { display: flex; align-items: center; gap: .5rem; margin: 0 0 .75rem; font-size: var(--text-card-title); font-weight: 700; color: var(--color-text-primary); }
+.membership-stack__fields { display: grid; margin: 0; }
+.membership-stack__fields > div { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: .75rem; align-items: baseline; border-bottom: 1px solid var(--color-lab-grid-light); padding: .5rem 0; }
+.membership-stack__fields > div:last-child { border-bottom: 0; }
+.membership-stack__fields dt { color: var(--color-text-secondary); font-size: var(--text-metadata); }
+.membership-stack__fields dd { margin: 0; color: var(--color-text-primary); font-size: var(--text-body); }
+.membership-stack__action { padding-top: .85rem; }
+
+/* Which structure renders is decided in JS, so there is nothing to hide here. */

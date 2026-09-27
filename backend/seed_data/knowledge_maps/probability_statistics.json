@@ -1,0 +1,171 @@
+{
+  "course_id": "probability_statistics",
+  "course_name": "概率论与数理统计",
+  "source": "《概率论与数理统计》傅冬生/赵进/谢兆茹/刘荣丽 编，科学出版社",
+  "source_ids": ["probability_textbook"],
+  "inclusion_policy": "source_content_complete",
+  "inclusion_note": "本图收录该来源目录呈现的全部章节（第一章至第十章）。不以「某一考试卷是否考」为标准增删任何节点——那是 coverage 的职责，且 coverage 当前为空。",
+  "excluded_note": "未收录：习题答案、附录（附表 1–7 为概率分布表、泊松分布表、标准正态分布表、t 分布表、χ² 分布表、F 分布表、检验相关系数的临界值表）——它们是数值查询表，不是知识内容。",
+  "scope_note": "本图是 概率论与数理统计 这一 canonical 知识域的章节结构，不是某一考试卷的考试范围。考试范围由 exam_prep 数学 taxonomy 的 coverage 单独表达，当前为空。",
+  "chapters": [
+    {"code": "1", "title": "随机事件与概率", "children": [
+      {"code": "1.1", "title": "随机事件及其运算", "children": [
+        {"code": null, "title": "随机试验与随机事件", "children": []},
+        {"code": null, "title": "事件间的关系及运算", "children": []}
+      ]},
+      {"code": "1.2", "title": "事件的概率及性质", "children": [
+        {"code": null, "title": "频率与概率", "children": []},
+        {"code": null, "title": "概率的定义及性质", "children": []}
+      ]},
+      {"code": "1.3", "title": "等可能概型（古典概型）", "children": []},
+      {"code": "1.4", "title": "几何概率", "children": []},
+      {"code": "1.5", "title": "条件概率", "children": [
+        {"code": null, "title": "条件概率", "children": []},
+        {"code": null, "title": "乘法公式", "children": []},
+        {"code": null, "title": "全概率公式与贝叶斯公式", "children": []}
+      ]},
+      {"code": "1.6", "title": "独立性", "children": [
+        {"code": null, "title": "独立性定义", "children": []},
+        {"code": null, "title": "多个事件的独立性", "children": []},
+        {"code": null, "title": "可靠性分析", "children": []}
+      ]},
+      {"code": "1.7", "title": "独立重复试验概型", "children": []}
+    ]},
+    {"code": "2", "title": "随机变量及其概率分布", "children": [
+      {"code": "2.1", "title": "随机变量及其分布函数", "children": [
+        {"code": null, "title": "随机变量", "children": []},
+        {"code": null, "title": "随机变量的分布函数", "children": []}
+      ]},
+      {"code": "2.2", "title": "离散型随机变量及其分布", "children": [
+        {"code": null, "title": "离散型随机变量", "children": []},
+        {"code": null, "title": "常见离散型随机变量", "children": []}
+      ]},
+      {"code": "2.3", "title": "连续型随机变量及其分布", "children": [
+        {"code": null, "title": "连续型随机变量", "children": []},
+        {"code": null, "title": "常见连续型随机变量", "children": []}
+      ]},
+      {"code": "2.4", "title": "随机变量函数的分布", "children": [
+        {"code": null, "title": "离散型随机变量的函数", "children": []},
+        {"code": null, "title": "连续型随机变量的函数", "children": []}
+      ]}
+    ]},
+    {"code": "3", "title": "随机向量及其分布", "children": [
+      {"code": "3.1", "title": "二维随机向量及其分布函数", "children": [
+        {"code": null, "title": "二维离散型随机向量", "children": []},
+        {"code": null, "title": "二维连续型随机向量", "children": []},
+        {"code": null, "title": "n 维随机向量及其分布", "children": []}
+      ]},
+      {"code": "3.2", "title": "条件分布", "children": [
+        {"code": null, "title": "离散型随机向量的条件概率分布", "children": []},
+        {"code": null, "title": "连续型随机向量的条件概率", "children": []}
+      ]},
+      {"code": "3.3", "title": "随机变量的独立性", "children": []},
+      {"code": "3.4", "title": "二维随机向量函数的分布", "children": [
+        {"code": null, "title": "二维离散型随机向量函数的分布", "children": []},
+        {"code": null, "title": "二维连续型随机向量函数的分布", "children": []}
+      ]}
+    ]},
+    {"code": "4", "title": "随机变量的数字特征", "children": [
+      {"code": "4.1", "title": "数学期望", "children": [
+        {"code": null, "title": "数学期望的定义", "children": []},
+        {"code": null, "title": "常见分布的数学期望", "children": []},
+        {"code": null, "title": "随机变量函数的数学期望", "children": []},
+        {"code": null, "title": "数学期望的性质", "children": []}
+      ]},
+      {"code": "4.2", "title": "方差与矩", "children": [
+        {"code": null, "title": "方差的定义", "children": []},
+        {"code": null, "title": "常见分布的方差", "children": []},
+        {"code": null, "title": "方差的性质", "children": []},
+        {"code": null, "title": "矩", "children": []}
+      ]},
+      {"code": "4.3", "title": "协方差与相关系数", "children": [
+        {"code": null, "title": "协方差", "children": []},
+        {"code": null, "title": "相关系数", "children": []}
+      ]},
+      {"code": "4.4", "title": "条件数学期望简介", "children": []}
+    ]},
+    {"code": "5", "title": "极限理论", "children": [
+      {"code": "5.1", "title": "大数定律", "children": []},
+      {"code": "5.2", "title": "中心极限定理", "children": []}
+    ]},
+    {"code": "6", "title": "统计量与抽样分布", "children": [
+      {"code": "6.1", "title": "总体与样本", "children": [
+        {"code": null, "title": "总体与个体", "children": []},
+        {"code": null, "title": "样本", "children": []}
+      ]},
+      {"code": "6.2", "title": "统计量与抽样分布", "children": []},
+      {"code": "6.3", "title": "正态总体", "children": [
+        {"code": null, "title": "χ² 分布", "children": []},
+        {"code": null, "title": "t 分布", "children": []},
+        {"code": null, "title": "F 分布", "children": []},
+        {"code": null, "title": "上 α 分位点", "children": []},
+        {"code": null, "title": "正态总体的样本均值与样本方差的分布", "children": []}
+      ]}
+    ]},
+    {"code": "7", "title": "参数估计", "children": [
+      {"code": "7.1", "title": "矩估计", "children": []},
+      {"code": "7.2", "title": "极大似然估计", "children": []},
+      {"code": "7.3", "title": "估计量的评价标准", "children": [
+        {"code": null, "title": "无偏性", "children": []},
+        {"code": null, "title": "均方误差准则", "children": []},
+        {"code": null, "title": "一致性", "children": []}
+      ]},
+      {"code": "7.4", "title": "区间估计", "children": [
+        {"code": null, "title": "基本概念与枢轴变量法", "children": []},
+        {"code": null, "title": "正态总体 N(μ, σ²) 中均值 μ 的置信区间", "children": []},
+        {"code": null, "title": "正态总体 N(μ, σ²) 中方差 σ² 的置信区间", "children": []},
+        {"code": null, "title": "两个正态总体均值差 μ₁-μ₂ 的置信区间", "children": []},
+        {"code": null, "title": "两个正态总体方差比 σ₁²/σ₂² 的置信区间", "children": []},
+        {"code": null, "title": "非正态总体均值的区间估计（大样本法）", "children": []}
+      ]}
+    ]},
+    {"code": "8", "title": "假设检验", "children": [
+      {"code": "8.1", "title": "假设检验的基本概念", "children": [
+        {"code": null, "title": "假设检验问题的提出", "children": []},
+        {"code": null, "title": "假设检验的步骤", "children": []},
+        {"code": null, "title": "假设检验的两类错误", "children": []},
+        {"code": null, "title": "p 值检验法", "children": []}
+      ]},
+      {"code": "8.2", "title": "正态总体均值的假设检验", "children": [
+        {"code": null, "title": "单个正态总体 N(μ, σ²) 均值 μ 的假设检验", "children": []},
+        {"code": null, "title": "两个正态总体均值的均值差的检验", "children": []},
+        {"code": null, "title": "基于成对数据的假设检验", "children": []}
+      ]},
+      {"code": "8.3", "title": "正态总体方差的假设检验", "children": [
+        {"code": null, "title": "单个正态总体 N(μ, σ²) 方差 σ² 的假设检验", "children": []},
+        {"code": null, "title": "两个正态总体方差比 σ₁²/σ₂² 的假设检验", "children": []}
+      ]},
+      {"code": "8.4", "title": "拟合优度检验", "children": []},
+      {"code": "8.5", "title": "独立性检验", "children": []}
+    ]},
+    {"code": "9", "title": "方差分析", "children": [
+      {"code": "9.1", "title": "单因素实验的方差分析", "children": [
+        {"code": null, "title": "单因素试验", "children": []},
+        {"code": null, "title": "平方和分解", "children": []},
+        {"code": null, "title": "S_E、S_A 的统计特性", "children": []},
+        {"code": null, "title": "假设检验问题的拒绝域", "children": []},
+        {"code": null, "title": "未知参数的估计", "children": []}
+      ]},
+      {"code": "9.2", "title": "双因素试验的方差分析", "children": [
+        {"code": null, "title": "双因素等重复试验的方差分析", "children": []},
+        {"code": null, "title": "双因素无重复试验的方差分析", "children": []}
+      ]}
+    ]},
+    {"code": "10", "title": "回归分析", "children": [
+      {"code": "10.1", "title": "一元线性回归", "children": [
+        {"code": null, "title": "一元线性回归模型", "children": []},
+        {"code": null, "title": "a、b 的最小二乘（LS）估计", "children": []},
+        {"code": null, "title": "参数的极大似然估计", "children": []},
+        {"code": null, "title": "线性假设的显著性检验", "children": []},
+        {"code": null, "title": "系数 b 的置信区间", "children": []},
+        {"code": null, "title": "回归函数 μ(x) = a + bx 函数值的点估计和置信区间", "children": []},
+        {"code": null, "title": "Y 的观察值的点预测和区间预测", "children": []},
+        {"code": null, "title": "可化为一元线性回归的例子", "children": []}
+      ]},
+      {"code": "10.2", "title": "多元线性回归", "children": [
+        {"code": null, "title": "b₀、b₁、…、b_p 的最小二乘估计", "children": []},
+        {"code": null, "title": "对多元线性回归的各种统计分析", "children": []}
+      ]}
+    ]}
+  ]
+}

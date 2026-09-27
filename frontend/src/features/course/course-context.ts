@@ -10,12 +10,6 @@
 export type CourseSummary = {
   id: string;
   name: string;
-  /** `daily` | `exam` — the stored per-course mode, as the server states it. */
-  primaryMode: string;
-  /** The server's own label for that mode, so the page does not name it a second way. */
-  primaryModeLabel: string;
-  materialCount: number;
-  pendingTaskCount: number;
 };
 
 export type CourseOnboardingState = {
@@ -25,6 +19,8 @@ export type CourseOnboardingState = {
   selectedCourses: string[];
   /** course name → 平日学习 / 考前突击, the two values the save endpoint accepts. */
   courseGoals: Record<string, string>;
+  /** The subset taken from 智学AI推荐学习框架. Everything else was declared by the learner. */
+  recommendedCourses: string[];
 };
 
 function record(value: unknown): Record<string, unknown> {
@@ -35,10 +31,6 @@ function record(value: unknown): Record<string, unknown> {
 
 function text(value: unknown): string {
   return typeof value === 'string' ? value : '';
-}
-
-function count(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
 function stringList(value: unknown): string[] {
@@ -60,10 +52,6 @@ export function readCourseList(value: unknown): CourseSummary[] {
       {
         id,
         name: text(item.course_name) || text(item.display_name) || text(item.name) || id,
-        primaryMode: text(item.primary_mode) || 'daily',
-        primaryModeLabel: text(item.primary_mode_label) || '平日学习',
-        materialCount: count(item.material_count),
-        pendingTaskCount: count(item.pending_task_count),
       },
     ];
   });
@@ -83,6 +71,10 @@ export function readCourseOnboarding(value: unknown): CourseOnboardingState {
     grade: text(row.grade),
     semester: text(row.semester),
     selectedCourses: stringList(row.selected_courses),
+    // Which of those came from 智学AI推荐学习框架. Recorded at save time, because a recommendation
+    // cannot be recomputed into a past decision: it moves when the major, the grade or the
+    // catalogue does, and a course the learner typed was never a recommendation at all.
+    recommendedCourses: stringList(row.recommended_courses),
     courseGoals: Object.fromEntries(
       Object.entries(record(row.course_goals)).flatMap(([course, goal]) =>
         typeof goal === 'string' && goal ? [[course, goal] as const] : [],

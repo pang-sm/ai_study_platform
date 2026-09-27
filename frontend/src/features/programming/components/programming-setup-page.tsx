@@ -208,7 +208,7 @@ function ProgrammingSetupForm({
           <SectionHeading
             id="programming-setup-current"
             title="当前保存的设置"
-            description="这是服务端当前存储的编程学习上下文。"
+            description="这是当前的编程学习设置。"
           />
           <dl className="mt-5 max-w-2xl space-y-3">
             <div>

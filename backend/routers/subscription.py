@@ -81,13 +81,16 @@ class SubscriptionStateResponse(BaseModel):
 
 
 class PlanDefinition(BaseModel):
-    """One tier's factual limits. ``daily_budget`` is ``None`` when the tier has no daily
-    cap (Advanced); that is a real absence, not a zero."""
+    """One tier's factual limits and its price. ``daily_budget`` is ``None`` when the tier has no
+    daily cap (Advanced); that is a real absence, not a zero. ``price_cents`` is ``None`` for a
+    tier that cannot be ordered at all (Free), for the same reason."""
 
     label: str
     daily_budget: int | None
     weekly_budget: int | None
     capabilities: list[str]
+    price_cents: int | None = None
+    duration_days: int | None = None
 
 
 class PlanCatalogResponse(BaseModel):

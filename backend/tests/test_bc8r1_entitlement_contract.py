@@ -26,6 +26,8 @@ why a direction with no features at all would still validate.
 
 `backend/app.db` is never opened for write.
 """
+import hashlib
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -276,17 +278,40 @@ def test_no_schema_or_migration_was_needed_for_bc8r1():
     assert 'down_revision: Union[str, None] = "20260917_0008"' in bc7_head
 
 
+def _real_db_fingerprint():
+    """The runtime database AS THIS SUITE MUST LEAVE IT — compared against itself.
+
+    Self-relative, the same convention test_bc5c / test_bc8 use: measured once at import and once
+    when this test runs, so it holds on any machine and at any schema revision and never depends on
+    a historical table count.
+    """
+    if not APP_DB.is_file():
+        return None
+    con = sqlite3.connect(f"file:{APP_DB.as_posix()}?mode=ro", uri=True)
+    try:
+        integrity = con.execute("PRAGMA integrity_check").fetchone()[0]
+    finally:
+        con.close()
+    return {"sha256": hashlib.sha256(APP_DB.read_bytes()).hexdigest(),
+            "mtime": APP_DB.stat().st_mtime,
+            "integrity": integrity}
+
+
+_REAL_DB_BASELINE = _real_db_fingerprint()
+
+
 def test_real_app_db_is_never_mutated_by_this_suite():
+    if _REAL_DB_BASELINE is None:
+        pytest.skip("no real app.db in this checkout")
     import sqlite3
     con = sqlite3.connect(f"file:{APP_DB.as_posix()}?mode=ro", uri=True)
     try:
-        tables = con.execute(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type='table'").fetchone()[0]
-        integrity = con.execute("PRAGMA integrity_check").fetchone()[0]
         memberships = con.execute(
             "SELECT COUNT(*) FROM user_service_memberships").fetchone()[0]
     finally:
         con.close()
-    assert integrity == "ok"
-    assert tables == 72
+
+    assert _real_db_fingerprint() == _REAL_DB_BASELINE, \
+        "this suite modified the runtime database"
+    assert _REAL_DB_BASELINE["integrity"] == "ok"
     assert memberships == 0

@@ -14,6 +14,7 @@ import { useAuth } from '../auth-context';
 import { useEmailLogin, useLogin, useSendLoginCode } from '../api/auth';
 import { resolvePostAuthDestination } from '../return-to';
 import { AuthLayout } from './auth-layout';
+import { SendCodeButton, type SendCodeOutcome } from './send-code-button';
 
 const loginSchema = z.object({
   username: z.string().trim().min(1, '请输入账号或邮箱'),
@@ -197,15 +198,19 @@ function EmailCodeLoginForm({ destination }: { destination: string }) {
     defaultValues: { email: '', code: '' },
   });
 
-  const onSend = async () => {
+  const onSend = async (): Promise<SendCodeOutcome> => {
     setSendError(null);
     setNotice(null);
-    if (!(await trigger('email'))) return;
+    if (!(await trigger('email'))) return 'failed';
     try {
       await sendCode.mutateAsync({ email: getValues('email').trim() });
       setNotice('验证码已发送，请查收邮箱。');
+      return 'sent';
     } catch (error) {
       setSendError(messageOf(error, '验证码发送失败，请稍后重试。'));
+      // A refusal inside the resend window means a code IS already outstanding, so the button
+      // counts down the backend's own window instead of offering a send it knows will fail.
+      return error instanceof ApiRequestError && error.status === 429 ? 'rate-limited' : 'failed';
     }
   };
 
@@ -225,23 +230,11 @@ function EmailCodeLoginForm({ destination }: { destination: string }) {
         label="邮箱"
         type="email"
         autoComplete="email"
-        hint="验证码会发送到已在这台账号上验证过的邮箱。"
         error={errors.email?.message}
         {...register('email')}
       />
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={onSend}
-          disabled={sendCode.isPending}
-          className="shrink-0"
-        >
-          {sendCode.isPending ? '正在发送…' : '发送验证码'}
-        </Button>
-        <p className="text-metadata text-text-muted">没收到可以重新发送。</p>
-      </div>
+      <SendCodeButton onSend={onSend} pending={sendCode.isPending} />
 
       <TextField
         label="邮箱验证码"
@@ -291,7 +284,6 @@ export function LoginPage({ returnTo }: { returnTo?: string }) {
   return (
     <AuthLayout
       title="登录"
-      description="登录后继续你的学习进度、练习记录与复习安排。"
       footer={
         <p>
           还没有账号？{' '}

@@ -593,7 +593,6 @@ def test_the_real_app_db_is_never_mutated(client, bank):
         counts = {t: con.execute(f"select count(*) from {t}").fetchone()[0]
                   for t in ("exam_question_bank", "programming_exercises", "knowledge_points")}
         integrity = con.execute("PRAGMA integrity_check").fetchone()[0]
-        tables = con.execute("select count(*) from sqlite_master where type='table'").fetchone()[0]
     finally:
         con.close()
     assert counts == {"exam_question_bank": 9333, "programming_exercises": 1923, "knowledge_points": 32}
@@ -605,5 +604,7 @@ def test_the_real_app_db_is_never_mutated(client, bank):
     client.post(f"/exam/11408/data_structure/chapter-practice/attempts/{aid}/submit",
                 json={"answers": {str(ids[0]): "A"}})
 
+    # the guard is self-relative: the SAME file is hashed before and after this suite's own flow,
+    # so it holds on any machine and at any schema revision. It used to also assert a fixed
+    # table count (72), which was one machine's historical shape rather than a product contract.
     assert hashlib.sha256(APP_DB.read_bytes()).hexdigest() == before
-    assert tables == 72

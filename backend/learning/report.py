@@ -488,9 +488,12 @@ def generate_learning_report(db: DbSession, user, *, service_key: str,
             # THE REPORT IS THE DELIVERABLE; the narrative is an add-on. A narrative that
             # cannot be produced is ABSENT and STATED — never faked, and never a reason to
             # withhold the deterministic report the learner can already read for free.
-            # (403 = the tier does not hold the capability; 429 = the boundary's usage answer,
-            # which is also what a technical failure maps to on this path; other codes are
-            # reported as themselves.)
+            # (403 = the tier does not hold the capability -> reported as
+            # "capability_not_permitted"; 429 = a budget / rate-limit refusal; 502 = a technical
+            # or upstream failure. Each is reported as itself. A technical failure is never
+            # dressed up as a 429: that would tell the learner they hit a rate limit and leave
+            # them with nothing to act on. See spaces/course_learning/ai.py::_denial_status for
+            # the one mapping rule every space shares.)
             if exc.status_code == 403:
                 narrative_error = "capability_not_permitted"
             else:

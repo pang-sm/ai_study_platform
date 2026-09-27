@@ -233,6 +233,15 @@ def test_code_diagnose_makes_no_ai_request_and_returns_no_id(client, db_session)
 def test_chat_returns_the_real_request_id_of_its_answer(client, db_session, monkeypatch):
     register_and_login(client, "p61_chat")
     grant_unified_tier(db_session, "p61_chat", "standard")
+    # Course Q&A belongs to a course the learner HAS, so the course this test chats in has to be
+    # declared first — through the product's own onboarding route, exactly as every other
+    # course-chat test in this suite does.
+    onboarded = client.post("/course-learning/onboarding", json={
+        "major": "计算机科学与技术", "grade": "大二", "semester": "",
+        "selected_courses": ["数据结构"], "recommended_courses": [],
+        "material_types": [], "course_goals": {}, "onboarding_completed": True,
+    })
+    assert onboarded.status_code == 200, onboarded.text
     user = _user(db_session, "p61_chat")
     monkeypatch.setattr("ai.orchestrator.default_provider_factory", _provider)
 

@@ -1,17 +1,21 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
 import { Menu, X } from 'lucide-react';
-import { AccountMenu } from './account-menu';
-import { BottomNav, PrimaryNav } from './primary-nav';
+import { AccountLink } from './account-link';
+import { PrimaryNav } from './primary-nav';
 
 /**
- * The product shell: one identity, three learning spaces, and the capabilities they share.
+ * The product shell: one branded header, one row of destinations, and the page below it.
  *
- * Wide screens get a persistent grouped column beside the content — the navigation is part of
- * the page rather than a menu to open. Below that width the same groups arrive as a panel the
- * header's control opens, and a phone additionally gets a bottom bar for the five destinations
- * a learner moves between most. The panel is a real disclosure rendered into the document; the
- * icon-only button it replaced opened nothing, so a phone had no navigation at all.
+ * There is no column beside the content any more. A permanent sidebar spent a fifth of a wide
+ * screen restating seven links the header can hold in one line, and on a narrow one it either
+ * disappeared or had to be opened anyway — so the same navigation now lives in the header at
+ * both sizes, and the content owns the full width everywhere.
+ *
+ * Below the width where seven names fit, the header's control opens the panel. The panel is a
+ * real disclosure rendered into the document, not a modal: there is no backdrop and no focus
+ * trap, so Escape, the control and a click elsewhere all close it, and each returns focus to
+ * the control that opened it.
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -52,10 +56,6 @@ export function AppShell({ children }: { children: ReactNode }) {
       restoreFocus.current = true;
       setMenuOpen(false);
     };
-    // The panel is a disclosure, not a modal: content behind it stays reachable. That makes
-    // "the click landed somewhere else" a real way out, and without this the panel would sit
-    // open over the page it is no longer being used for.
-    //
     // The close is decided at click time rather than at press time because the browser moves
     // focus as part of the press, and that move lands after a pointerdown handler has run.
     // Deciding at click time means the decision is made on the focus the interaction actually
@@ -102,22 +102,29 @@ export function AppShell({ children }: { children: ReactNode }) {
       </a>
 
       <header className="sticky top-0 z-30 border-b border-lab-grid/60 bg-lab-ink text-lab-paper">
-        <div className="flex h-16 items-center gap-4 px-4 sm:px-6">
+        <div className="mx-auto flex h-20 w-full max-w-content items-center gap-4 px-5 sm:px-8 lg:px-12">
+          {/* The mark is set at brand scale rather than at the size that merely fits the bar:
+              it is the one piece of identity on every page, so it carries the header instead of
+              sitting in it as a control-sized thumbnail. */}
           <Link to="/" className="inline-flex shrink-0 items-center" aria-label="智学平台首页">
             <img
               src="/brand/zhixue-v2/08_智学平台_Desktop_Header_Lockup.png"
               alt="智学平台"
-              className="hidden h-[42px] w-auto object-contain sm:block"
+              className="hidden h-[54px] w-auto object-contain lg:block"
             />
             <img
               src="/brand/zhixue-v2/04_智学平台_图标标识_Icon_Only_transparent.png"
               alt="智学平台"
-              className="size-9 object-contain sm:hidden"
+              className="size-11 object-contain lg:hidden"
             />
           </Link>
 
-          <div className="ml-auto flex items-center gap-2">
-            <AccountMenu />
+          <div className="hidden min-w-0 flex-1 lg:block">
+            <PrimaryNav variant="header" />
+          </div>
+
+          <div className="ml-auto flex items-center gap-2 lg:ml-4">
+            <AccountLink />
             <button
               ref={triggerRef}
               type="button"
@@ -131,66 +138,35 @@ export function AppShell({ children }: { children: ReactNode }) {
             >
               <span className="sr-only">{menuOpen ? '关闭导航菜单' : '打开导航菜单'}</span>
               {menuOpen ? (
-                <X className="size-5" aria-hidden="true" />
+                <X className="size-6" aria-hidden="true" />
               ) : (
-                <Menu className="size-5" aria-hidden="true" />
+                <Menu className="size-6" aria-hidden="true" />
               )}
             </button>
           </div>
         </div>
       </header>
 
-      <div className="lg:flex">
-        {/* Named so it is distinguishable from any other complementary landmark a page adds —
-            `landmark-unique` is about the pair, and an unnamed one makes the whole set
-            ambiguous to a screen reader's landmark list. */}
-        <aside
-          aria-label="学习空间导航"
-          className="hidden shrink-0 border-r border-border-default bg-surface lg:block lg:w-sidebar"
+      {menuOpen ? (
+        <div
+          ref={panelRef}
+          id={panelId}
+          className="fixed bottom-0 left-0 right-0 top-20 z-20 overflow-y-auto border-b border-border-default bg-lab-ink pb-8 text-lab-paper lg:hidden"
         >
-          <div className="sticky top-16 max-h-[calc(100vh-4rem)] overflow-y-auto py-6">
-            <PrimaryNav variant="sidebar" />
-            <div className="mx-3 mt-6 border-t border-border-default px-3 pt-5">
-              <p className="text-metadata text-text-muted">
-                一个账号、一套额度，三个学习空间共用。
-              </p>
-            </div>
-          </div>
-        </aside>
-
-        <div className="min-w-0 flex-1">
-          {menuOpen ? (
-            // Still a disclosure rather than a modal: there is no backdrop and no focus trap, so
-            // it closes on Escape or on the destination it opens. On a tablet it is a sheet the
-            // width of the sidebar instead of a full takeover, because at that size the page
-            // beside it is still readable and worth leaving visible.
-            <div
-              ref={panelRef}
-              id={panelId}
-              className="fixed bottom-0 left-0 top-16 z-20 w-full overflow-y-auto border-b border-border-default bg-surface sm:w-80 sm:border-b-0 sm:border-r lg:hidden"
-            >
-              <PrimaryNav
-                variant="drawer"
-                ariaLabel="主导航（移动）"
-                onNavigate={() => {
-                  // Following a destination removes the panel and the link inside it, so without
-                  // this the browser would drop focus onto the document body.
-                  restoreFocus.current = true;
-                  setMenuOpen(false);
-                }}
-              />
-            </div>
-          ) : null}
-
-          {/* The bottom bar owns the last strip of a phone's screen, so the content is padded
-              clear of it rather than having its final line hidden underneath. */}
-          <main id="main-content" className="pb-16 md:pb-0">
-            {children}
-          </main>
+          <PrimaryNav
+            variant="drawer"
+            ariaLabel="主导航（移动）"
+            onNavigate={() => {
+              // Following a destination removes the panel and the link inside it, so without
+              // this the browser would drop focus onto the document body.
+              restoreFocus.current = true;
+              setMenuOpen(false);
+            }}
+          />
         </div>
-      </div>
+      ) : null}
 
-      <BottomNav />
+      <main id="main-content">{children}</main>
     </div>
   );
 }

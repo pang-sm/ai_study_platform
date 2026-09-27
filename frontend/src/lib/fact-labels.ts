@@ -13,7 +13,7 @@ export const FACT_LABELS: Record<string, string> = {
   start: '开始',
   end: '结束',
   available_blocks: '本次可用的数据块',
-  unavailable: '本学习空间没有的数据块',
+  unavailable: '这个方向没有的数据块',
   recent_events: '最近学习事件',
   // `notes`, `*_semantics` are deliberately NOT labelled: the backend writes those as English
   // sentences for engineers ("Not a mastery probability, not a readiness score…"). The learner
@@ -190,7 +190,7 @@ export const FACT_LABELS: Record<string, string> = {
 
 /** The three spaces' own names, for any payload that carries a namespace. */
 export const NAMESPACE_LABELS: Record<string, string> = {
-  course_learning: '课程学习',
+  course_learning: '专业学习',
   exam_prep: '考研学习',
   exam_11408: '考研学习',
   programming: '编程学习',
@@ -265,7 +265,7 @@ export const ORIGIN_LABELS: Record<string, string> = {
 
 /** `data_coverage.unavailable[].reason`. */
 export const REASON_LABELS: Record<string, string> = {
-  not_applicable_in_this_space: '该学习空间没有这类数据',
+  not_applicable_in_this_space: '这个方向没有这类数据',
   no_data_in_window: '本周期内没有数据',
   insufficient_data: '数据不足',
 };
@@ -278,7 +278,7 @@ export const SOURCE_LABELS: Record<string, string> = {
   plan_task: '计划任务',
   knowledge_point: '知识点',
   study_plan: '学习计划',
-  course_study_plan: '课程学习计划',
+  course_study_plan: '专业学习计划',
   learning_tasks: '学习任务',
 };
 

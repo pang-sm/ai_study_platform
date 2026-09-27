@@ -8,15 +8,21 @@ import { resolvePostAuthDestination } from '@/features/auth/return-to';
 
 declare module '@tanstack/react-router' {
   interface StaticDataRouteOption {
-    /** `bare` renders the route without the product shell — the sign-in screens. */
+    /** `bare` renders the route without the product shell — the sign-in screens and the legal documents. */
     layout?: 'shell' | 'bare';
   }
 }
 
-const PUBLIC_PATHS = ['/login', '/register'];
+// The published legal documents are reachable without a session for the same reason the sign-in
+// screens are: they have to be readable before anyone has an account to sign in with. They differ
+// from the sign-in screens in one way that matters — a signed-in reader is not sent away, because
+// nothing is wrong with reading the terms while signed in.
+const PUBLIC_PATHS = ['/login', '/register', '/terms', '/privacy'];
+/** Public screens a signed-in visitor has no reason to see, and is sent onward from. */
+const SIGNED_OUT_ONLY_PATHS = ['/login', '/register'];
 
-function isPublicPath(pathname: string): boolean {
-  return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+function matchesPath(paths: readonly string[], pathname: string): boolean {
+  return paths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
 
 function readReturnTo(search: unknown): unknown {
@@ -42,13 +48,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       retry: 0,
     } as const;
 
-    if (isPublicPath(location.pathname)) {
+    if (matchesPath(PUBLIC_PATHS, location.pathname)) {
       // A sign-in screen must paint immediately. Awaiting the probe here would hold the whole
       // page behind a network round trip — seconds of blank screen when the API cannot be
       // reached — so the cached answer decides now and the read continues in the background.
       // `LoginPage` sends an already-signed-in visitor onward the moment that read resolves.
       const cached = context.queryClient.getQueryData<AuthUser | null>(authKeys.session);
-      if (cached) {
+      if (cached && matchesPath(SIGNED_OUT_ONLY_PATHS, location.pathname)) {
         throw redirect({ href: resolvePostAuthDestination(readReturnTo(location.search)) });
       }
       void context.queryClient.prefetchQuery(sessionQuery);

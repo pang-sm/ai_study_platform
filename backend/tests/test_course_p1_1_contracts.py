@@ -790,3 +790,34 @@ def test_the_same_file_cannot_be_uploaded_twice_into_one_course(client, db_sessi
     assert again.status_code == 409, again.text
     assert again.json()["detail"]["code"] == "MATERIAL_DUPLICATE"
     assert again.json()["detail"]["existing_material_id"] == first.json()["material_id"]
+
+
+def test_the_course_upload_caller_matches_the_ingestion_pipeline_signature():
+    """The course upload route may pass ONLY arguments the pipeline actually declares.
+
+    ``upload_course_material`` calls ``main.upload_material`` as an ordinary function, so a
+    parameter the pipeline drops would not fail at import — it would surface as a 500 on a real
+    upload. This asserts the junction statically: the caller's keyword arguments are a subset of
+    the callee's parameters. It caught exactly that drift, where the caller still passed
+    ``question`` / ``conversation_id`` / ``save_to_materials`` / ``authorization`` after the
+    pipeline had stopped accepting them.
+    """
+    import ast
+    import inspect
+    from pathlib import Path
+
+    import main
+
+    router_source = (Path(__file__).resolve().parents[1] / "routers"
+                     / "course_learning.py").read_text(encoding="utf-8")
+    calls = [node for node in ast.walk(ast.parse(router_source))
+             if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+             and node.func.id == "upload_material"]
+    assert len(calls) == 1, f"expected exactly one upload_material call, found {len(calls)}"
+
+    passed = {keyword.arg for keyword in calls[0].keywords if keyword.arg}
+    accepted = set(inspect.signature(main.upload_material).parameters)
+    assert passed <= accepted, \
+        f"the caller passes arguments the pipeline does not declare: {sorted(passed - accepted)}"
+    # the fields this route exists to decide itself are still passed explicitly
+    assert {"username", "course_id", "subject_key", "subject", "track"} <= passed

@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { ExamSetupPage } from '@/features/exam/components/exam-product-pages';
+import { ExamSetupPage } from '@/features/exam/components/exam-setup-page';
 import { sanitizeReturnTo } from '@/features/auth/return-to';
 
 export const Route = createFileRoute('/exam/setup')({

@@ -351,8 +351,10 @@ def test_a_narrative_failure_keeps_the_deterministic_report(client, db_session, 
 
     body = _report(client, include_narrative=True)
     assert body["narrative"] is None
-    # the boundary's refusal code is reported as itself (429: the usage answer, which is also
-    # what this boundary maps a technical failure to), and NOT simulated with text
-    assert body["narrative_error"] == "http_429"
+    # The boundary's status is reported as ITSELF, never simulated with text: a technical /
+    # upstream failure is 502 (see learning/spaces/course_learning/ai.py::_denial_status — a 429
+    # here would tell the learner they hit a rate limit and leave them nothing to act on),
+    # 403 becomes "capability_not_permitted", and a budget refusal is the only 429.
+    assert body["narrative_error"] == "http_502"
     # the metrics are still there — a failed add-on never discards the deliverable
     assert body["structured_metrics"]["practice"]["attempts"] == 1

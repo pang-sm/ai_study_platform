@@ -1,4 +1,3 @@
-import { Link } from '@tanstack/react-router';
 import type { components } from '@/types/api';
 import { cs408Modules } from '@/features/exam/api/dashboard-summary';
 import { useCs408LearningRecords } from '@/features/exam/api/learning-records';
@@ -36,13 +35,13 @@ function groupByBrowserDate(records: LearningRecord[]) {
   return groups;
 }
 
-function FilterNav({ moduleKey }: { moduleKey?: string }) {
-  return <nav className="learning-records__filters" aria-label="学习记录模块筛选"><span>模块</span>
-    <Link to="/exam/cs408/records" search={{ module: undefined }} aria-current={moduleKey ? undefined : 'page'}>全部</Link>
-    {cs408Modules.map((module) => <Link key={module.key} to="/exam/cs408/records" search={{ module: module.key }} aria-current={moduleKey === module.key ? 'page' : undefined}>{module.name}</Link>)}
-  </nav>;
-}
-
+/**
+ * The module is chosen in the workspace header above, not here.
+ *
+ * This page used to draw its own 全部 / 数据结构 / 计算机组成原理 / … row directly under a header
+ * that already said which paper was open, so a learner met the same four choices twice on one
+ * screen — once as a switcher and once as a filter that did the same thing.
+ */
 // A record points back at what produced it — but only along an identity the fact actually
 // carries. `source.id` is the source attempt's own id and `context.exam_module_id` is the
 // module it happened in, so both are asserted together: with either missing there is no
@@ -73,12 +72,14 @@ export function Cs408LearningRecordsWorkspace({ moduleKey }: { moduleKey?: strin
   const records = useCs408LearningRecords(moduleKey);
   const flatRecords = records.data?.pages.flatMap((page) => page.records) ?? [];
   const groups = groupByBrowserDate(flatRecords);
-  return <ExamPageShell activeItem="cs408" cs408Tab="records" moduleKey={moduleKey}><section className="learning-records" aria-labelledby="learning-records-title">
-    <header className="learning-records__header"><p>CS408 / Learning Activity Ledger</p><h1 id="learning-records-title">学习记录档案</h1><span>按真实学习事件编排</span></header>
-    <FilterNav moduleKey={moduleKey} /><a className="learning-records__source" href={`/reports?space=exam_11408${moduleKey ? `&module=${encodeURIComponent(moduleKey)}` : ''}`}>查看当前范围学习报告</a>
+  // 学习记录 is already named by the tab above, so the body opens on the records themselves.
+  // A page name survives only as the region's accessible name.
+  return <ExamPageShell cs408Tab="records" moduleKey={moduleKey}><section className="learning-records" aria-labelledby="learning-records-title">
+    <h1 id="learning-records-title" className="sr-only">学习记录</h1>
+    <a className="learning-records__source" href={`/reports?space=exam_11408${moduleKey ? `&module=${encodeURIComponent(moduleKey)}` : ''}`}>查看当前范围学习报告</a>
     {records.isPending ? <p className="learning-records__state">正在读取学习记录…</p> : null}
     {records.isError ? <section className="learning-records__state"><h2>学习记录暂时无法加载</h2><button type="button" onClick={() => void records.refetch()}>重试</button></section> : null}
-    {!records.isPending && !records.isError && flatRecords.length === 0 ? <p className="learning-records__state">暂无学习记录</p> : null}
+    {!records.isPending && !records.isError && flatRecords.length === 0 ? <p className="learning-records__state">还没有学习记录</p> : null}
     {!records.isPending && !records.isError && groups.map((group) => <section className="learning-records__day" key={group.day} aria-label={group.day}><h2>{group.day}</h2><ol>{group.records.map((record) => <TimelineRow key={record.event_id} record={record} />)}</ol></section>)}
     {records.hasNextPage ? <div className="learning-records__more"><button type="button" onClick={() => void records.fetchNextPage()} disabled={records.isFetchingNextPage}>{records.isFetchingNextPage ? '正在加载…' : '加载更多'}</button></div> : null}
   </section></ExamPageShell>;

@@ -41,12 +41,14 @@ beforeEach(() => {
     if (url === '/learning/agenda' || url === '/learning/agenda/explain') return ok({ items: [], total_items: 0 });
     if (url === '/learning-records') return ok({ records: [], has_more: false, next_cursor: null });
     if (url === '/review/summary') return ok({ total: 0, has_stored_due_dates: false });
+    if (url === '/membership/recommendation') return ok({ suggested_courses: ['数据结构', '操作系统'] });
     throw new Error(`unexpected GET ${url}`);
   });
   post.mockImplementation(async (url: string) => {
     if (url !== '/course-learning/onboarding') throw new Error(`unexpected POST ${url}`);
     return ok({ message: 'course learning onboarding saved', onboarding: declared });
   });
+  put.mockImplementation(async () => ok({ message: 'profile updated' }));
 });
 
 describe('course setup', () => {
@@ -57,14 +59,76 @@ describe('course setup', () => {
     held = [{ course_id: 'data_structure', course_name: '数据结构' }];
     renderApp('/course/setup');
 
-    // It is in the editor's own list, not only in the read-only section below it. The page waits
-    // for two reads before it can draw the editor, so this one is given room to settle.
+    // The page waits for two reads before it can draw the editor, so this one is given room to
+    // settle.
     expect(
       await screen.findByRole('button', { name: '移除课程 数据结构' }, { timeout: 5000 }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(/下面的课程来自课程学习空间当前已有的课程/),
-    ).toBeInTheDocument();
+  });
+
+  it('is the one screen for the three settings areas, with no fourth', async () => {
+    declared = { ...declared, major: '计算机科学与技术', grade: '大三', selected_courses: ['数据结构'] };
+    renderApp('/course/setup');
+
+    expect(await screen.findByRole('heading', { level: 1, name: '学习设置' })).toBeInTheDocument();
+    for (const title of ['专业与年级', '我的课程', '学习框架']) {
+      expect(screen.getByRole('heading', { level: 2, name: title })).toBeInTheDocument();
+    }
+    // The read-only copy of the space's courses is gone, and with it its counters.
+    expect(screen.queryByRole('region', { name: '课程空间中已建立的课程' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/资料 \d/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/待办/)).not.toBeInTheDocument();
+  });
+
+  it('edits major, grade and semester through the same save', async () => {
+    declared = { ...declared, major: '计算机科学与技术', grade: '大三', selected_courses: ['数据结构'] };
+    renderApp('/course/setup');
+    await screen.findByLabelText('学期');
+
+    await userEvent.selectOptions(screen.getByLabelText('年级'), '大四');
+    await userEvent.selectOptions(screen.getByLabelText('学期'), '下学期');
+    await userEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith(
+        '/course-learning/onboarding',
+        expect.objectContaining({ body: expect.objectContaining({ grade: '大四', semester: '下学期' }) }),
+      ),
+    );
+  });
+
+  it('bands what the learner holds, and adds the recommendation to the same save', async () => {
+    declared = { ...declared, major: '计算机科学与技术', grade: '大三', selected_courses: ['数据结构'] };
+    renderApp('/course/setup');
+    await screen.findByRole('heading', { level: 2, name: '学习框架' });
+
+    // The declared course is in the framework already, banded by name, and its box is the one
+    // already ticked — no second label says so.
+    const framework = screen.getByRole('region', { name: '学习框架' });
+    expect(within(framework).getByRole('checkbox', { name: '数据结构' })).toBeChecked();
+    expect(within(framework).getByRole('checkbox', { name: '数据结构' })).toBeDisabled();
+    expect(within(framework).getByText('专业核心')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /生成推荐学习框架/ }));
+    expect(await within(framework).findByRole('checkbox', { name: '操作系统' })).toBeChecked();
+    expect(put).toHaveBeenCalledWith('/me/profile', {
+      body: { major: '计算机科学与技术', grade: '大三' },
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: '加入我的课程' }));
+    await userEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith(
+        '/course-learning/onboarding',
+        expect.objectContaining({
+          body: expect.objectContaining({
+            selected_courses: ['数据结构', '操作系统'],
+            recommended_courses: ['操作系统'],
+          }),
+        }),
+      ),
+    );
   });
 
   it('saves the declared courses through the real endpoint', async () => {
@@ -74,7 +138,7 @@ describe('course setup', () => {
 
     await userEvent.type(screen.getByLabelText('添加课程'), '数据结构');
     await userEvent.click(screen.getByRole('button', { name: '添加到课程' }));
-    await userEvent.click(screen.getByRole('button', { name: '保存并开始' }));
+    await userEvent.click(screen.getByRole('button', { name: '保存' }));
 
     await waitFor(() =>
       expect(post).toHaveBeenCalledWith('/course-learning/onboarding', {
@@ -85,6 +149,9 @@ describe('course setup', () => {
           selected_courses: ['数据结构'],
           material_types: [],
           course_goals: { 数据结构: '平日学习' },
+          // A course typed by hand carries NO recommendation provenance — this is what keeps the
+          // landing page from labelling the learner's own choice as something the framework gave them.
+          recommended_courses: [],
           onboarding_completed: true,
         },
       }),
@@ -99,7 +166,7 @@ describe('course setup', () => {
     await userEvent.type(screen.getByLabelText('添加课程'), '数据结构');
     await userEvent.click(screen.getByRole('button', { name: '添加到课程' }));
     await userEvent.selectOptions(screen.getByLabelText('学习方式'), '考前突击');
-    await userEvent.click(screen.getByRole('button', { name: '保存并开始' }));
+    await userEvent.click(screen.getByRole('button', { name: '保存' }));
 
     await waitFor(() =>
       expect(post).toHaveBeenCalledWith(
@@ -113,17 +180,17 @@ describe('course setup', () => {
     renderApp('/course/setup');
     await screen.findByLabelText('添加课程');
 
-    await userEvent.click(screen.getByRole('button', { name: '保存并开始' }));
+    await userEvent.click(screen.getByRole('button', { name: '保存' }));
     expect(await screen.findByText('请选择至少一门想学习的课程')).toBeInTheDocument();
     expect(post).not.toHaveBeenCalled();
 
     await userEvent.type(screen.getByLabelText('添加课程'), '数据结构');
     await userEvent.click(screen.getByRole('button', { name: '添加到课程' }));
-    await userEvent.click(screen.getByRole('button', { name: '保存并开始' }));
+    await userEvent.click(screen.getByRole('button', { name: '保存' }));
     expect(await screen.findByText('请选择专业')).toBeInTheDocument();
 
     await userEvent.type(screen.getByLabelText('专业'), '计算机科学与技术');
-    await userEvent.click(screen.getByRole('button', { name: '保存并开始' }));
+    await userEvent.click(screen.getByRole('button', { name: '保存' }));
     expect(await screen.findByText('请选择年级')).toBeInTheDocument();
     expect(post).not.toHaveBeenCalled();
   });
@@ -136,7 +203,7 @@ describe('course setup', () => {
 
     await userEvent.type(screen.getByLabelText('添加课程'), '数据结构');
     await userEvent.click(screen.getByRole('button', { name: '添加到课程' }));
-    await userEvent.click(screen.getByRole('button', { name: '保存并开始' }));
+    await userEvent.click(screen.getByRole('button', { name: '保存' }));
 
     expect(await screen.findByText('课程学习套餐不支持降级，请保持当前套餐或升级')).toBeInTheDocument();
   });
@@ -151,10 +218,13 @@ describe('course setup', () => {
       course_goals: {},
     };
     renderApp('/course/setup');
-    await screen.findByText('操作系统');
+    // Scoped to the editor: the same course is also banded in 学习框架, which is what the framework
+    // shows rather than a second editor.
+    const mine = await screen.findByRole('region', { name: '我的课程' });
+    expect(within(mine).getByText('操作系统')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: '移除课程 数据结构' }));
-    await userEvent.click(screen.getByRole('button', { name: '保存课程设置' }));
+    await userEvent.click(screen.getByRole('button', { name: '保存' }));
 
     await waitFor(() =>
       expect(post).toHaveBeenCalledWith(
@@ -167,9 +237,9 @@ describe('course setup', () => {
   it('returns to the requested destination, which is the space it came from', async () => {
     declared = { ...declared, major: '计算机科学与技术', grade: '大三', selected_courses: ['数据结构'] };
     const { router } = renderApp('/course/setup?returnTo=%2Fprofile');
-    await screen.findByRole('button', { name: '保存课程设置' });
+    await screen.findByRole('button', { name: '保存' });
 
-    await userEvent.click(screen.getByRole('button', { name: '保存课程设置' }));
+    await userEvent.click(screen.getByRole('button', { name: '保存' }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/profile'));
   });
@@ -178,34 +248,13 @@ describe('course setup', () => {
     declared = { ...declared, major: '计算机科学与技术', grade: '大三', selected_courses: ['数据结构'] };
     // The route's own validator drops a protocol-relative target before the page ever sees it.
     const { router } = renderApp('/course/setup?returnTo=%2F%2Fevil.example');
-    await screen.findByRole('button', { name: '保存课程设置' });
+    await screen.findByRole('button', { name: '保存' });
 
-    await userEvent.click(screen.getByRole('button', { name: '保存课程设置' }));
+    await userEvent.click(screen.getByRole('button', { name: '保存' }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/course'));
   });
 
-  it('shows what the space holds once it has been saved, and links into it', async () => {
-    declared = { ...declared, major: '计算机科学与技术', grade: '大三', selected_courses: ['数据结构'] };
-    held = [
-      {
-        course_id: 'data_structure',
-        course_name: '数据结构',
-        primary_mode: 'exam',
-        primary_mode_label: '考前突击',
-        material_count: 3,
-        pending_task_count: 1,
-      },
-    ];
-    renderApp('/course/setup');
-
-    const section = await screen.findByRole('region', { name: '课程空间中已建立的课程' });
-    expect(within(section).getByRole('link', { name: '数据结构' })).toHaveAttribute(
-      'href',
-      '/course/data_structure',
-    );
-    expect(within(section).getByText('考前突击 · 资料 3 · 待办任务 1')).toBeInTheDocument();
-  });
 });
 
 describe('course switcher', () => {
@@ -223,16 +272,18 @@ describe('course switcher', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/course/operating_system/practice'));
   });
 
-  it('is not offered when the learner has only the one course open', async () => {
+  it('stays as the course identity when there is nothing to switch to', async () => {
     held = [{ course_id: 'data_structure', course_name: '数据结构' }];
     renderApp('/course/data_structure/practice');
 
-    await screen.findByLabelText('切换课程').catch(() => undefined);
-    expect(screen.queryByLabelText('切换课程')).not.toBeInTheDocument();
-    // The way to change the set is still there.
-    expect(await screen.findByRole('link', { name: '管理课程' })).toHaveAttribute(
-      'href',
-      '/course/setup?returnTo=%2Fcourse%2Fdata_structure%2Fpractice',
-    );
+    // The selector is how the page names the course, so it is present with a single course too.
+    const switcher = await screen.findByLabelText('切换课程');
+    await waitFor(() => expect(switcher).toHaveValue('data_structure'));
+    expect(within(switcher).getAllByRole('option')).toHaveLength(1);
+    // Switching courses is not a way into the settings, so the course space offers none here:
+    // changing the set happens in 学习设置, which the home page links to once.
+    for (const label of ['管理课程', '调整课程', '学习设置']) {
+      expect(screen.queryByRole('link', { name: label })).not.toBeInTheDocument();
+    }
   });
 });

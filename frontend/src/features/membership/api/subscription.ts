@@ -16,10 +16,14 @@ export const subscriptionPlansKey = ['membership', 'plans'] as const;
 export const usageSummaryKey = ['membership', 'usage'] as const;
 export const membershipEntitlementKey = (serviceKey: string) => ['membership', 'entitlements', serviceKey] as const;
 
-async function request<T>(run: () => Promise<{ data?: T; error?: unknown; response: Response }>): Promise<T> {
+// The endpoints behind these hooks are typed `unknown` by the OpenAPI document (they return
+// plain dicts), so the response is narrowed by the caller's own declared `T` rather than by the
+// generated contract. The rejection rule is unchanged: a non-2xx, or a body the server did not
+// send, is an error rather than an empty success.
+async function request<T>(run: () => Promise<{ data?: unknown; error?: unknown; response: Response }>): Promise<T> {
   const { data, error, response } = await run();
   if (!response.ok || data === undefined) throw new ApiRequestError(response.status, error);
-  return data;
+  return data as T;
 }
 
 export function useSubscriptionState() {
@@ -60,32 +64,56 @@ export function useExamEntitlements(serviceKey = 'exam_11408') {
   });
 }
 
-// ---------------------------------------------------------------------------- activation
+// ---------------------------------------------------------------------------- orders
 //
-// ONE REDEEM FLOW. `POST /subscription/redeem` consumes a real code and activates the
-// unified subscription; every capability gate resolves from that tier, so a success here
-// leaves the features it grants open by the time the response is written. There is no
-// second membership to move, and therefore no "tier changed but feature still locked" state
-// for the UI to explain away.
+// The learner-facing upgrade path is an ORDER, and an order is not an activation.
 //
-// `POST /membership/redeem` still exists for old clients and performs the same activation,
-// but this surface does not use it — offering two activation buttons is what made the
-// membership page read as two parallel memberships.
+// `POST /subscription/orders` writes a PENDING row and changes nothing about the learner's
+// tier — the response says so itself (`activated: false`). Activation happens only after a
+// verified payment callback. That distinction is the whole reason this surface can exist
+// honestly: it can show a real order, a real amount and a real status without ever printing
+// "支付成功" for a payment that did not happen.
 //
-// Online payment is still NOT offered: `POST /subscription/orders` creates a PENDING order
-// whose only payment method is a mock that production refuses (403), so an order created
-// here could never be settled.
+// Payment is not open: the only provider adapter is a mock, and production refuses it. So the
+// confirmation page attempts the real pay call and reports whatever the server answers —
+// including the 403 — rather than faking a success. There is no code path here that marks an
+// order paid on the client.
 
-export function usePreviewRedemption() {
+export type PendingOrder = {
+  order_no?: string;
+  status?: string;
+  amount_cents?: number;
+  currency?: string;
+  target_plan?: string;
+  duration_days?: number;
+  created_at?: string;
+  order_expires_at?: string;
+};
+
+export type OrderResponse = { order: PendingOrder; activated: boolean };
+
+/** The paid tiers a learner can order. Free is not purchasable, so it is not offered. */
+export const ORDERABLE_TIERS = ['standard', 'advanced'] as const;
+export type OrderableTier = (typeof ORDERABLE_TIERS)[number];
+
+export function isOrderableTier(value: unknown): value is OrderableTier {
+  return typeof value === 'string' && (ORDERABLE_TIERS as readonly string[]).includes(value);
+}
+
+export function useCreateSubscriptionOrder() {
   return useMutation({
-    mutationFn: (code: string) => request<RedeemPreview>(
-      () => apiClient.POST('/subscription/redeem/preview', { body: { code } })),
+    mutationFn: (tier: OrderableTier) =>
+      request<OrderResponse>(() =>
+        apiClient.POST('/subscription/orders', { body: { tier, duration_days: null } })),
   });
 }
 
-export function useRedeem() {
+export function usePaySubscriptionOrder() {
   return useMutation({
-    mutationFn: (code: string) => request<RedeemResult>(
-      () => apiClient.POST('/subscription/redeem', { body: { code } })),
+    mutationFn: (orderId: number) =>
+      request<{ order: PendingOrder; idempotent?: boolean; subscription?: { tier: string } }>(() =>
+        apiClient.POST('/subscription/orders/{order_id}/pay', {
+          params: { path: { order_id: orderId } },
+        })),
   });
 }

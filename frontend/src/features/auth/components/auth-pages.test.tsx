@@ -131,6 +131,8 @@ describe('register page', () => {
     await userEvent.type(screen.getByLabelText('邮箱'), 'learner@example.com');
     await userEvent.click(screen.getByRole('button', { name: '发送验证码' }));
     expect(await screen.findByRole('status')).toHaveTextContent('验证码已发送');
+    // Registration counts the same window as sign-in, from the same shared control.
+    expect(await screen.findByRole('button', { name: /^重新发送（\d+s）$/ })).toBeDisabled();
 
     await userEvent.type(screen.getByLabelText('邮箱验证码'), '123456');
     await userEvent.click(screen.getByRole('button', { name: '验证邮箱' }));

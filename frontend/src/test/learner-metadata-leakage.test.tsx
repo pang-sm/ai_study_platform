@@ -56,9 +56,19 @@ const LEAKED = [LEAK_OBJECT, LEAK_ENUM, LEAK_REF, LEAK_REQUEST, LEAK_PROVIDER];
 /** The structural shapes of a backend payload, which must not appear either. */
 const STRUCTURAL = ['后端原文', '原始返回数据', '接口原文', 'request_id', 'agent_run_id', 'service_key', '{"', '":', '['];
 
+/**
+ * How the machinery is built — never how a learner reads their own state.
+ *
+ * The learning-state page used to introduce itself as an experiment running a self-developed
+ * deterministic engine. That is the team's vocabulary, not a student's: the page shows a state
+ * and the records it came from, and the words below belong in the code and the design docs
+ * rather than on the screen. Guarded here so they cannot drift back in one page at a time.
+ */
+const INTERNAL_VOCABULARY = ['实验', '自研', 'student_twin', 'Student Twin', 'scientific runtime', '状态引擎'];
+
 function expectNothingLeaked(container: HTMLElement) {
   const text = container.textContent ?? '';
-  for (const marker of [...LEAKED, ...STRUCTURAL]) {
+  for (const marker of [...LEAKED, ...STRUCTURAL, ...INTERNAL_VOCABULARY]) {
     expect(text, `leaked into the learner's reading surface: ${marker}`).not.toContain(marker);
   }
   // A JSON body is the shape of the transport, not a fact: no rendered node may be a payload.
@@ -122,6 +132,25 @@ beforeEach(() => {
             file_type: LEAK_ENUM,
             parse_status: LEAK_ENUM,
             chunk_count: 12,
+            [LEAK_OBJECT]: LEAK_OBJECT,
+          },
+        ],
+      });
+    }
+    // 资料 reads the learner's whole library; the same unmapped codes arrive through it. The id
+    // is a real material id: an unparseable one is dropped rather than rendered, which is why
+    // this fixture cannot borrow LEAK_REF for it.
+    if (url === '/library/materials') {
+      return ok({
+        materials: [
+          {
+            id: 7,
+            filename: '线性表.pdf',
+            file_type: LEAK_ENUM,
+            size: 2048,
+            parse_status: LEAK_ENUM,
+            scope_type: LEAK_ENUM,
+            source_label: '数据结构',
             [LEAK_OBJECT]: LEAK_OBJECT,
           },
         ],
@@ -258,19 +287,24 @@ beforeEach(() => {
 });
 
 describe('LEARNER_METADATA_LEAKAGE_GUARD · Home', () => {
-  it('states an unmapped agenda reason as unavailable instead of printing the code', async () => {
+  it('never prints an unmapped agenda reason code', async () => {
     const { container } = renderApp('/');
 
     await settle(() => expect(screen.getByText('先订正线性表的错题')).toBeInTheDocument());
-    expect(screen.getByText('推荐依据暂不可显示')).toBeInTheDocument();
+    // The card says why in one sentence built from the item's own facts; a reason this build has
+    // no words for is simply not offered, and its code is never rendered.
+    expect(container.textContent).not.toContain(LEAK_ENUM);
     expectNothingLeaked(container);
   });
 
-  it('shows the agenda facts it can name and drops the rest', async () => {
+  it('says the agenda facts it can name, and neither the field names nor the rest', async () => {
     const { container } = renderApp('/');
 
     await settle(() => expect(screen.getByText('先订正线性表的错题')).toBeInTheDocument());
-    expect(within(container).getByText('错误次数')).toBeInTheDocument();
+    // The count is real, so it is said — as a sentence about the learner's work. The payload's
+    // name for that count is an internal field, and it is not shown as a labelled row.
+    expect(within(container).getByText(/已经做错 3 次/)).toBeInTheDocument();
+    expect(within(container).queryByText('错误次数')).not.toBeInTheDocument();
     expectNothingLeaked(container);
   });
 });
@@ -293,7 +327,7 @@ describe('LEARNER_METADATA_LEAKAGE_GUARD · Course', () => {
   it('renders the course state without dumping its nested objects', async () => {
     const { container } = renderApp('/course/cs101/state');
 
-    expect(await screen.findByRole('heading', { name: '已记录的学习事实' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '已记录的学习情况' })).toBeInTheDocument();
     expectNothingLeaked(container);
   });
 });
@@ -302,8 +336,9 @@ describe('LEARNER_METADATA_LEAKAGE_GUARD · 11408', () => {
   it('renders the state preview without the runtime’s internal fields', async () => {
     const { container } = renderApp('/exam/cs408/state');
 
-    expect(await screen.findByRole('heading', { name: '学习状态实验视图' })).toBeInTheDocument();
-    expect(await screen.findByText('本次计算使用的事件数')).toBeInTheDocument();
+    // 学习状态 is the tab above; the page body is the learner's own state and its evidence.
+    expect(await screen.findByRole('heading', { name: '学习状态' })).toBeInTheDocument();
+    expect(await screen.findByText('涉及知识点')).toBeInTheDocument();
     // The internal quantity and the learner's reference are absent even though the payload had them.
     expect(container.textContent).not.toContain('0.8125');
     expectNothingLeaked(container);

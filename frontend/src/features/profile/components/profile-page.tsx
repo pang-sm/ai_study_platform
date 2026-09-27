@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Link, useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -12,67 +12,15 @@ import { LearningSpacesSection } from './profile-learning-spaces';
 import { SubscriptionSection, UsageSection } from './profile-membership';
 import { cn } from '@/lib/utils';
 import { EmailSection, PasswordForm, PhoneSection } from './profile-security';
+import { groupLabel, SECTION_GROUPS, SECTION_IDS, SECTION_LIST } from './profile-sections';
 
 const LEARNING_DATA_ENTRIES = [
-  { to: '/reports', label: '学习报告', description: '按学习空间查看已完成的学习与练习记录。' },
-  { to: '/review', label: '统一复习', description: '跨学习空间的待复习与待处理项目。' },
+  { to: '/reports', label: '学习报告', description: '按方向查看已完成的学习与练习记录。' },
+  { to: '/review', label: '统一复习', description: '各个方向汇总在一起的待复习与待处理项目。' },
   { to: '/exam', label: '考研学习记录', description: '练习、真题、错题与计划完成情况。' },
-  { to: '/course', label: '课程学习记录', description: '已学内容与课程练习记录。' },
+  { to: '/course', label: '专业学习记录', description: '已学内容与课程练习记录。' },
   { to: '/programming', label: '编程学习记录', description: '练习提交、运行与测试结果。' },
 ] as const;
-
-/**
- * The档案's sections, grouped, as one page.
- *
- * The groups mirror how a learner thinks about the page — who I am, what I have, how to get back
- * in — and the section list on the left is generated from this same declaration, so a section
- * that exists is always listed and a listed section always exists. Groups are typed the same way
- * the rest of the product types structure: a small letter-spaced label above the content, not a
- * card around it.
- */
-type ProfileSection = { id: string; label: string };
-type ProfileSectionGroup = { id: string; label: string; sections: readonly ProfileSection[] };
-
-const SECTION_GROUPS: readonly ProfileSectionGroup[] = [
-  {
-    id: 'identity',
-    label: '身份与学习设置',
-    sections: [
-      { id: 'profile-personal', label: '个人信息' },
-      { id: 'profile-learning', label: '学习设置' },
-    ],
-  },
-  {
-    id: 'entitlement',
-    label: '会员与额度',
-    sections: [
-      { id: 'profile-membership', label: '会员' },
-      { id: 'profile-usage', label: '用量' },
-    ],
-  },
-  {
-    id: 'records',
-    label: '学习记录',
-    sections: [{ id: 'profile-data', label: '学习数据' }],
-  },
-  {
-    id: 'account',
-    label: '账号',
-    sections: [
-      { id: 'profile-security', label: '账号与安全' },
-      { id: 'profile-legal', label: '法务' },
-    ],
-  },
-];
-
-const SECTION_LIST: readonly ProfileSection[] = SECTION_GROUPS.flatMap((group) => group.sections);
-/** The same declaration as a stable list of ids, which is what the scroll observer keys on. */
-const SECTION_IDS: readonly string[] = SECTION_LIST.map((section) => section.id);
-
-/** Read the heading off the declaration, so a group cannot be listed under one name and titled another. */
-function groupLabel(id: string): string {
-  return SECTION_GROUPS.find((group) => group.id === id)?.label ?? id;
-}
 
 function SectionGroup({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -101,37 +49,33 @@ function Section({ id, title, description, children }: { id: string; title: stri
 }
 
 /**
- * The same sections, reachable from a control narrow enough for a phone. A native select is the
- * one selector every device already knows how to operate, including with a screen reader, and it
- * names every section without a horizontally scrolling strip. Scrolling is best-effort: where the
- * environment does not implement it, the sections are still stacked in the same order below.
+ * The same sections, reachable from a control narrow enough for a phone.
+ *
+ * It is a native select because that is the one selector every device already knows how to
+ * operate, including with a screen reader. Choosing a section navigates, exactly as the wide
+ * screen's list does, so the address bar says which section is open on both layouts.
  */
 function SectionSelector() {
-  const [selected, setSelected] = useState('');
-
-  const jumpTo = (id: string) => {
-    setSelected(id);
-    const target = document.getElementById(id);
-    if (target && typeof target.scrollIntoView === 'function') {
-      target.scrollIntoView({ block: 'start' });
-    }
-  };
+  const navigate = useNavigate();
+  const { section } = useSearch({ from: '/profile' });
 
   return (
     <div className="lg:hidden">
-      <label htmlFor="profile-section-selector" className="block text-metadata font-medium text-text-secondary">
-        跳转到分区
+      <label htmlFor="profile-section-selector" className="block text-body font-medium text-text-primary">
+        跳转到
       </label>
       <select
         id="profile-section-selector"
-        value={selected}
-        onChange={(event) => jumpTo(event.target.value)}
+        value={section ?? ''}
+        onChange={(event) => {
+          void navigate({ to: '/profile', search: { section: event.target.value || undefined } });
+        }}
         className="mt-2 h-11 w-full rounded-control border border-border-default bg-surface px-3 text-body text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
       >
         <option value="">选择要查看的分区…</option>
-        {SECTION_LIST.map((section) => (
-          <option key={section.id} value={section.id}>
-            {section.label}
+        {SECTION_LIST.map((item) => (
+          <option key={item.id} value={item.id}>
+            {item.label}
           </option>
         ))}
       </select>
@@ -158,8 +102,8 @@ function ProfileSkeleton() {
  * next one does — measured against the sticky nav's own height, so a section is marked while the
  * reader is actually inside it rather than one section late.
  */
-function useCurrentSection(ids: readonly string[]): string | undefined {
-  const [current, setCurrent] = useState<string | undefined>(ids[0]);
+function useCurrentSection(ids: readonly string[], requested?: string): string | undefined {
+  const [current, setCurrent] = useState<string | undefined>(requested ?? ids[0]);
 
   useEffect(() => {
     if (typeof IntersectionObserver === 'undefined') return;
@@ -192,7 +136,8 @@ export function ProfilePage() {
   const auth = useAuth();
   const logout = useLogout();
   const navigate = useNavigate();
-  const current = useCurrentSection(SECTION_IDS);
+  const { section } = useSearch({ from: '/profile' });
+  const current = useCurrentSection(SECTION_IDS, section);
 
   /**
    * The editable sections wait for the stored profile rather than starting from the session's
@@ -200,6 +145,21 @@ export function ProfilePage() {
    * value would leave every field showing a stale value after the real one arrived.
    */
   const user = profile.data;
+
+  /**
+   * A `section` in the address bar is a learner who asked for that section, not for the top of
+   * the page — so arriving here from a setup flow's 返回 lands on 学习设置 rather than on 个人信息.
+   *
+   * It waits on the profile because the sections do not exist until it has loaded; scrolling in
+   * the same tick as the navigation would find nothing and silently leave the reader at the top,
+   * which is exactly the bug this replaces.
+   */
+  useEffect(() => {
+    if (!section || !user) return;
+    const target = document.getElementById(section);
+    if (!target || typeof target.scrollIntoView !== 'function') return;
+    target.scrollIntoView({ block: 'start' });
+  }, [section, user]);
 
   const onLogout = async () => {
     try {
@@ -243,20 +203,21 @@ export function ProfilePage() {
                     {group.label}
                   </p>
                   <ul className="mt-2 space-y-0.5">
-                    {group.sections.map((section) => (
-                      <li key={section.id}>
-                        <a
-                          href={`#${section.id}`}
-                          aria-current={current === section.id ? 'true' : undefined}
+                    {group.sections.map((item) => (
+                      <li key={item.id}>
+                        <Link
+                          to="/profile"
+                          search={{ section: item.id }}
+                          aria-current={current === item.id ? 'true' : undefined}
                           className={cn(
                             'block rounded-control border-l-2 px-2 py-1.5 text-body hover:bg-primary-soft hover:text-text-primary',
-                            current === section.id
+                            current === item.id
                               ? 'border-primary bg-primary-soft font-medium text-primary-ink'
                               : 'border-transparent text-text-secondary',
                           )}
                         >
-                          {section.label}
-                        </a>
+                          {item.label}
+                        </Link>
                       </li>
                     ))}
                   </ul>
@@ -290,7 +251,7 @@ export function ProfilePage() {
                   <Section
                     id="profile-learning"
                     title="学习设置"
-                    description="三个学习空间的当前设置，直接读自各学习空间；要修改就进入对应空间的设置流程。备考计划的每日时长与复习策略由学习计划页面管理。"
+                    description="三个方向的当前设置；要修改就进入各自的方向设置。备考计划的每日时长与复习策略在学习计划页面里管理。"
                   >
                     <LearningSpacesSection />
                     <div className="mt-8 border-t border-border-default pt-6">
@@ -322,7 +283,7 @@ export function ProfilePage() {
                     <SubscriptionSection />
                   </Section>
 
-                  <Section id="profile-usage" title="用量" description="来自服务端账本的真实额度使用情况。">
+                  <Section id="profile-usage" title="用量" description="你的额度使用情况。">
                     <UsageSection />
                   </Section>
                 </SectionGroup>
@@ -367,9 +328,20 @@ export function ProfilePage() {
                   </Section>
 
                   <Section id="profile-legal" title="法务">
-                    <p className="text-body text-text-secondary">
-                      当前版本尚未发布用户协议与隐私政策，因此这里不提供对应入口。
-                    </p>
+                    <ul className="space-y-4">
+                      <li>
+                        <Link to="/terms" className="text-body text-primary-ink hover:text-primary-hover">
+                          用户协议
+                        </Link>
+                        <p className="mt-1 text-body text-text-secondary">使用本服务的约定与双方责任。</p>
+                      </li>
+                      <li>
+                        <Link to="/privacy" className="text-body text-primary-ink hover:text-primary-hover">
+                          隐私政策
+                        </Link>
+                        <p className="mt-1 text-body text-text-secondary">收集哪些信息、如何使用与保存。</p>
+                      </li>
+                    </ul>
                   </Section>
                 </SectionGroup>
 

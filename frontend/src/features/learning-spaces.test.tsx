@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderApp } from '@/test/render-app';
 
@@ -30,7 +30,15 @@ beforeEach(() => {
     // Course space
     if (url === '/course-dashboard') return ok({ course_name: '数据结构', next_action: '继续线性表练习' });
     if (url === '/course-learning/courses/{course_id}/materials') {
-      return ok({ course_id: 'data-structure', total: 1, items: [{ original_filename: '线性表.pdf', file_size: 2048, chunk_count: 12, parse_status: 'parsed', created_at: '2026-09-20T08:00:00Z' }] });
+      return ok({ course_id: 'data-structure', total: 1, items: [{ original_filename: '线性表.pdf', file_type: 'pdf', file_size: 2048, chunk_count: 12, parse_status: 'success', created_at: '2026-09-20T08:00:00Z' }] });
+    }
+    // 资料 reads the learner's whole library, not this course's own list.
+    if (url === '/library/materials') {
+      return ok({ materials: [{
+        id: 22, filename: '线性表.pdf', file_type: 'pdf', size: 2048, parse_status: 'success',
+        created_at: '2026-09-20T08:00:00Z', scope_type: 'course', source_label: '数据结构',
+        can_preview: true, preview_url: '/materials/22/preview', can_download: true, download_url: '/materials/22/download',
+      }] });
     }
     if (url === '/course-learning/courses/{course_id}/wrong-answers') {
       return ok({ total: 1, limit: 20, offset: 0, items: [{ wrong_record_id: 9, status: 'active', stem: '顺序表的插入复杂度？', user_answer: 'O(n)', reference_answer: 'O(n)' }] });
@@ -61,22 +69,28 @@ function assertNoRawPayloadInProse(container: HTMLElement) {
 
 describe('course space context', () => {
   it('names the course it is in and keeps its tabs on the current page', async () => {
-    renderApp('/course/cs101/materials');
+    renderApp('/course/data-structure/materials');
 
-    expect(await screen.findByRole('heading', { level: 1, name: '课程资料' })).toBeInTheDocument();
-    // The course is named by the context strip, from the dashboard the backend scopes to this id.
-    const context = screen.getByText('当前课程').closest('div') as HTMLElement;
-    expect(await within(context).findByText('数据结构')).toBeInTheDocument();
+    // The library IS what the tab named 资料 opens on. 资料 is stated by the tab strip, so a
+    // second page-sized heading saying it again would be naming the page twice.
+    expect(await screen.findByRole('textbox', { name: '搜索资料' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 1, name: '资料' })).not.toBeInTheDocument();
+    // The course is named by the selector the learner can change it from. The name is not
+    // repeated beside it.
+    const switcher = await screen.findByRole('combobox', { name: '切换课程' });
+    await waitFor(() => expect(switcher).toHaveValue('data-structure'));
+    expect(within(switcher).getByRole('option', { name: '数据结构' })).toBeInTheDocument();
+    // The switcher is what names the page's own course. A 资料 row states 来源 per file — a
+    // statement about where that file came from, not a second title for the page.
+    expect(screen.queryByRole('heading', { level: 1, name: '数据结构' })).not.toBeInTheDocument();
 
-    const nav = screen.getByRole('navigation', { name: '课程学习导航' });
+    const nav = screen.getByRole('navigation', { name: '专业学习导航' });
     expect(within(nav).getByRole('link', { name: '资料' })).toHaveAttribute('aria-current', 'page');
-    for (const label of ['概览', '知识结构', '学习', '练习', '错题与复习', '计划', '记录', '学习状态']) {
+    // No 概览: the course's surfaces are the work, and 课程问答 leads them.
+    expect(within(nav).queryByRole('link', { name: '概览' })).not.toBeInTheDocument();
+    for (const label of ['课程问答', '知识结构', '学习', '练习', '错题与复习', '计划', '记录', '学习状态']) {
       expect(within(nav).getByRole('link', { name: label })).toBeInTheDocument();
     }
-
-    const crumbs = screen.getByRole('navigation', { name: '面包屑' });
-    expect(crumbs.textContent).toContain('课程学习');
-    expect(crumbs.textContent).toContain('资料');
   });
 
   it('renders materials as the fields the backend sends, not as a payload', async () => {
@@ -84,7 +98,8 @@ describe('course space context', () => {
 
     expect(await screen.findByText('线性表.pdf')).toBeInTheDocument();
     expect(screen.getByText(/2\.0 KB/)).toBeInTheDocument();
-    expect(screen.getByText(/12 个片段/)).toBeInTheDocument();
+    expect(screen.getByText('可用')).toBeInTheDocument();
+    expect(screen.queryByText(/个片段/)).not.toBeInTheDocument();
     assertNoRawPayloadInProse(document.body);
   });
 
@@ -99,20 +114,28 @@ describe('course space context', () => {
 
 describe('exam space context', () => {
   it('keeps the CS408 tools visible with the current one marked, and names the space', async () => {
-    renderApp('/exam/cs408');
+    // Inside a paper, which is where the tools exist: 408 is four papers, and a tool belongs to
+    // one of them.
+    renderApp('/exam/cs408/knowledge?module=data_structure');
 
-    expect(await screen.findByRole('heading', { name: '学习工作区' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '知识脉络' })).toBeInTheDocument();
     const tabs = screen.getByRole('navigation', { name: 'CS408 工具导航' });
-    expect(within(tabs).getByRole('link', { name: '概览' })).toHaveAttribute('aria-current', 'page');
-    expect(within(tabs).getByRole('link', { name: '真题' })).toHaveAttribute('href', '/exam/cs408/past-papers');
+    expect(within(tabs).getByRole('link', { name: '知识脉络' })).toHaveAttribute('aria-current', 'page');
+    expect(within(tabs).getByRole('link', { name: '真题' })).toHaveAttribute(
+      'href',
+      '/exam/cs408/past-papers?module=data_structure',
+    );
 
-    const crumbs = screen.getByRole('navigation', { name: '面包屑' });
-    expect(crumbs.textContent).toContain('考研学习');
-    expect(crumbs.textContent).toContain('CS408');
+    // Which paper is open, and the way out — stated once each, beside the strip. The exam space
+    // carries no breadcrumb: a trail, a back link and a tab strip are three navigations for one
+    // workspace, and the trail said nothing the header does not.
+    expect(screen.getByText('408 · 数据结构')).toBeInTheDocument();
+    expect(screen.getByLabelText('切换 408 学习科目')).toHaveValue('data_structure');
+    expect(screen.getByRole('link', { name: '返回 408' })).toHaveAttribute('href', '/exam/cs408');
+    expect(screen.queryByRole('navigation', { name: '面包屑' })).not.toBeInTheDocument();
 
     // Exam semantics stay exam semantics: modules, not courses, and no course tab strip.
-    expect(screen.getByRole('heading', { name: '数据结构' })).toBeInTheDocument();
-    expect(screen.queryByRole('navigation', { name: '课程学习导航' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: '专业学习导航' })).not.toBeInTheDocument();
   });
 });
 

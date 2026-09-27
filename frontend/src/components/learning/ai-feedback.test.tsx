@@ -1,21 +1,63 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AiFeedback } from './ai-feedback';
 
-const mutate = vi.fn();
+const mutate = vi.fn((_body, options?: { onSuccess?: () => void }) => options?.onSuccess?.());
 vi.mock('@/components/learning/p4-api', () => ({ useAiFeedback: () => ({ mutate, isPending: false, isError: false, isSuccess: false }) }));
 
 describe('AiFeedback', () => {
-  it('only appears for a real request id and requires a frozen reason for negative feedback', async () => {
+  beforeEach(() => {
+    mutate.mockClear();
+  });
+
+  it('uses compact message actions rather than the old large feedback buttons', async () => {
     const user = userEvent.setup();
     const { rerender } = render(<AiFeedback requestId="" />);
+    expect(screen.queryByLabelText('有帮助')).not.toBeInTheDocument();
+    rerender(<AiFeedback requestId="req_123" answerText="回答内容" />);
     expect(screen.queryByText('有帮助')).not.toBeInTheDocument();
-    rerender(<AiFeedback requestId="req_123" />);
+    expect(screen.queryByText('需要改进')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '复制回答' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '有帮助' }));
+    expect(mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ request_id: 'req_123', rating: 'up' }),
+      expect.anything(),
+    );
+  });
+
+  it('collects multiple stable negative reasons and an optional comment', async () => {
+    const user = userEvent.setup();
+    render(<AiFeedback requestId="req_456" answerText="回答内容" />);
+
     await user.click(screen.getByRole('button', { name: '需要改进' }));
-    expect(screen.getByText('请选择需要改进的原因')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '不正确' }));
-    expect(mutate).toHaveBeenCalledWith(expect.objectContaining({ request_id: 'req_123', rating: 'down', reason: 'incorrect' }));
-    expect(screen.getByText(/用于后续质量改进/)).toBeInTheDocument();
+    expect(screen.getByText('哪里需要改进？')).toBeInTheDocument();
+    await user.click(screen.getByRole('checkbox', { name: '回答不正确' }));
+    await user.click(screen.getByRole('checkbox', { name: '解释不清楚' }));
+    await user.type(screen.getByLabelText('补充说明（可选）'), '请说明复杂度。');
+    await user.click(screen.getByRole('button', { name: '提交' }));
+
+    expect(mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        request_id: 'req_456',
+        rating: 'down',
+        reasons: ['incorrect', 'unclear'],
+        comment: '请说明复杂度。',
+      }),
+      expect.anything(),
+    );
+  });
+
+  it('keeps positive and negative selected states mutually exclusive', async () => {
+    const user = userEvent.setup();
+    render(<AiFeedback requestId="req_789" answerText="回答内容" />);
+
+    await user.click(screen.getByRole('button', { name: '有帮助' }));
+    expect(screen.getByRole('button', { name: '有帮助' })).toHaveAttribute('aria-pressed', 'true');
+    await user.click(screen.getByRole('button', { name: '需要改进' }));
+    await user.click(screen.getByRole('checkbox', { name: '回答不正确' }));
+    await user.click(screen.getByRole('button', { name: '提交' }));
+    expect(screen.getByRole('button', { name: '需要改进' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: '有帮助' })).toHaveAttribute('aria-pressed', 'false');
   });
 });

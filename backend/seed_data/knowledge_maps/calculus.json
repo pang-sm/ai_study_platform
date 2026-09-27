@@ -1,0 +1,242 @@
+{
+  "course_id": "calculus",
+  "course_name": "高等数学",
+  "source": "《微积分 I》《微积分 II》(第三版) 张运清/廖良文/周国飞/邓卫兵/孔敏/黄卫华 编，南京大学·大学数学系列，科学出版社",
+  "source_ids": ["calculus_textbook_1_sciencep_listing", "calculus_textbook_1_dushu_listing", "calculus_textbook_2"],
+  "source_reference": "第 1–4 章标题取自科学出版社旗舰店公布的书目目录，并与读书网同一书目的目录逐条复核；第 5–10 章标题逐条取自本地《微积分 II(第三版)》目录。",
+  "corroborated_by": ["calculus_textbook_1_answer_book_local"],
+  "inclusion_policy": "source_content_complete",
+  "inclusion_note": "本图收录两份来源作为微积分课程内容呈现的全部章节（第 1–10 章），包括来源以 * 标注的选学小节。不以「某一考试卷是否考」为标准增删任何节点——那是 coverage 的职责，且 coverage 当前为空。",
+  "source_marks": "来源以 * 标注为选学的小节：5.4、5.5、10.5、10.7。收录，不因选学或考试范围而删除。",
+  "excluded_note": "未收录：参考文献、附录（行列式与矩阵、部分习题参考答案）——它们不是本知识域的主体内容。",
+  "scope_note": "本图是 高等数学 这一 canonical 知识域的章节结构，不是某一考试卷的考试范围。考试范围由 exam_prep 数学 taxonomy 的 coverage 单独表达，当前为空。",
+  "chapters": [
+    {"code": "1", "title": "极限与连续性", "source_ref": "calculus_textbook_1_sciencep_listing", "children": [
+      {"code": "1.1", "title": "预备知识", "children": [
+        {"code": null, "title": "集合", "children": []},
+        {"code": null, "title": "数学归纳法、不等式、极坐标系、复数", "children": []},
+        {"code": null, "title": "区间、邻域、数集的界", "children": []},
+        {"code": null, "title": "一元函数", "children": []}
+      ]},
+      {"code": "1.2", "title": "极限", "children": [
+        {"code": null, "title": "数列的极限", "children": []},
+        {"code": null, "title": "函数的极限", "children": []},
+        {"code": null, "title": "无穷小量与无穷大量", "children": []},
+        {"code": null, "title": "极限的四则运算法则", "children": []},
+        {"code": null, "title": "极限的存在准则", "children": []},
+        {"code": null, "title": "无穷小量阶的比较", "children": []}
+      ]},
+      {"code": "1.3", "title": "连续函数", "children": [
+        {"code": null, "title": "连续函数的定义", "children": []},
+        {"code": null, "title": "连续函数的运算法则", "children": []},
+        {"code": null, "title": "函数的间断", "children": []},
+        {"code": null, "title": "闭区间上连续函数的性质", "children": []}
+      ]}
+    ]},
+    {"code": "2", "title": "导数与微分", "source_ref": "calculus_textbook_1_sciencep_listing", "children": [
+      {"code": "2.1", "title": "导数", "children": [
+        {"code": null, "title": "切线斜率与速度问题", "children": []},
+        {"code": null, "title": "导数的概念", "children": []},
+        {"code": null, "title": "导数的运算法则", "children": []},
+        {"code": null, "title": "高阶导数", "children": []}
+      ]},
+      {"code": "2.2", "title": "微分", "children": [
+        {"code": null, "title": "微分的概念", "children": []},
+        {"code": null, "title": "微分的应用", "children": []},
+        {"code": null, "title": "高阶微分", "children": []}
+      ]},
+      {"code": "2.3", "title": "微分学中值定理", "children": [
+        {"code": null, "title": "中值定理", "children": []},
+        {"code": null, "title": "洛必达法则", "children": []},
+        {"code": null, "title": "泰勒公式", "children": []}
+      ]},
+      {"code": "2.4", "title": "导数的应用", "children": [
+        {"code": null, "title": "函数的单调性与极值", "children": []},
+        {"code": null, "title": "最大值与最小值", "children": []},
+        {"code": null, "title": "函数图形的凹向与拐点", "children": []},
+        {"code": null, "title": "曲线的渐近线", "children": []},
+        {"code": null, "title": "函数作图", "children": []},
+        {"code": null, "title": "导数在经济学中的应用", "children": []},
+        {"code": null, "title": "方程的近似解", "children": []}
+      ]}
+    ]},
+    {"code": "3", "title": "一元函数积分学", "source_ref": "calculus_textbook_1_sciencep_listing", "children": [
+      {"code": "3.1", "title": "不定积分", "children": [
+        {"code": null, "title": "不定积分的定义与性质", "children": []},
+        {"code": null, "title": "积分基本公式", "children": []},
+        {"code": null, "title": "不定积分的基本积分方法", "children": []},
+        {"code": null, "title": "有理函数及某些简单可积函数的积分", "children": []}
+      ]},
+      {"code": "3.2", "title": "定积分", "children": [
+        {"code": null, "title": "定积分的定义与性质", "children": []},
+        {"code": null, "title": "牛顿-莱布尼兹公式", "children": []},
+        {"code": null, "title": "定积分的计算", "children": []},
+        {"code": null, "title": "数值积分方法", "children": []}
+      ]},
+      {"code": "3.3", "title": "定积分的应用", "children": [
+        {"code": null, "title": "定积分的微元法", "children": []},
+        {"code": null, "title": "定积分在几何学中的应用", "children": []},
+        {"code": null, "title": "定积分在物理学中的应用", "children": []},
+        {"code": null, "title": "定积分在经济学中的应用", "children": []}
+      ]},
+      {"code": "3.4", "title": "广义积分", "children": [
+        {"code": null, "title": "无穷区间上的积分", "children": []},
+        {"code": null, "title": "无界函数的积分", "children": []}
+      ]}
+    ]},
+    {"code": "4", "title": "向量代数与空间解析几何", "source_ref": "calculus_textbook_1_sciencep_listing", "children": [
+      {"code": "4.1", "title": "向量代数", "children": [
+        {"code": null, "title": "空间直角坐标系", "children": []},
+        {"code": null, "title": "向量代数", "children": []}
+      ]},
+      {"code": "4.2", "title": "平面与直线", "children": [
+        {"code": null, "title": "平面的方程", "children": []},
+        {"code": null, "title": "直线的方程", "children": []},
+        {"code": null, "title": "直线与平面的关系", "children": []},
+        {"code": null, "title": "平面束", "children": []}
+      ]},
+      {"code": "4.3", "title": "空间曲面与空间曲线", "children": [
+        {"code": null, "title": "空间曲面与空间曲线的方程", "children": []},
+        {"code": null, "title": "柱面", "children": []},
+        {"code": null, "title": "旋转曲面", "children": []},
+        {"code": null, "title": "锥面", "children": []},
+        {"code": null, "title": "空间曲面和空间曲线的参数方程", "children": []},
+        {"code": null, "title": "二次曲面", "children": []}
+      ]}
+    ]},
+    {"code": "5", "title": "多元函数微分学", "source_ref": "calculus_textbook_2", "children": [
+      {"code": "5.1", "title": "多元函数的极限与连续性", "children": [
+        {"code": null, "title": "点集基本知识", "children": []},
+        {"code": null, "title": "多元函数的概念", "children": []},
+        {"code": null, "title": "多元函数的极限", "children": []},
+        {"code": null, "title": "多元函数的连续性", "children": []}
+      ]},
+      {"code": "5.2", "title": "偏导数与全微分", "children": [
+        {"code": null, "title": "偏导数", "children": []},
+        {"code": null, "title": "高阶偏导数", "children": []},
+        {"code": null, "title": "全微分", "children": []},
+        {"code": null, "title": "高阶微分", "children": []}
+      ]},
+      {"code": "5.3", "title": "复合函数与隐函数的偏导数", "children": [
+        {"code": null, "title": "复合函数的偏导数", "children": []},
+        {"code": null, "title": "隐函数的偏导数", "children": []}
+      ]},
+      {"code": "5.4", "title": "三元函数的泰勒公式", "children": []},
+      {"code": "5.5", "title": "多元向量函数", "children": []},
+      {"code": "5.6", "title": "偏导数在几何上的应用", "children": [
+        {"code": null, "title": "空间曲线的切线与法平面", "children": []},
+        {"code": null, "title": "空间曲面的切平面与法线", "children": []}
+      ]},
+      {"code": "5.7", "title": "极值与条件极值", "children": [
+        {"code": null, "title": "二元函数的极值", "children": []},
+        {"code": null, "title": "最大值与最小值", "children": []},
+        {"code": null, "title": "条件极值", "children": []}
+      ]},
+      {"code": "5.8", "title": "方向导数", "children": []}
+    ]},
+    {"code": "6", "title": "重积分", "source_ref": "calculus_textbook_2", "children": [
+      {"code": "6.1", "title": "二重积分的概念与性质", "children": [
+        {"code": null, "title": "二重积分的概念", "children": []},
+        {"code": null, "title": "二重积分的性质", "children": []}
+      ]},
+      {"code": "6.2", "title": "二重积分的计算", "children": [
+        {"code": null, "title": "累次积分法", "children": []},
+        {"code": null, "title": "换元积分法", "children": []}
+      ]},
+      {"code": "6.3", "title": "三重积分", "children": [
+        {"code": null, "title": "三重积分的概念与性质", "children": []},
+        {"code": null, "title": "累次积分法", "children": []},
+        {"code": null, "title": "换元积分法", "children": []}
+      ]},
+      {"code": "6.4", "title": "重积分的应用", "children": [
+        {"code": null, "title": "重积分在几何上的应用", "children": []},
+        {"code": null, "title": "重积分在物理上的应用", "children": []}
+      ]},
+      {"code": "6.5", "title": "广义重积分简介", "children": []}
+    ]},
+    {"code": "7", "title": "曲线积分·曲面积分与场论", "source_ref": "calculus_textbook_2", "children": [
+      {"code": "7.1", "title": "第一类曲线积分", "children": [
+        {"code": null, "title": "第一类曲线积分的概念与性质", "children": []},
+        {"code": null, "title": "第一类曲线积分的计算", "children": []}
+      ]},
+      {"code": "7.2", "title": "第二类曲线积分", "children": [
+        {"code": null, "title": "第二类曲线积分的概念与性质", "children": []},
+        {"code": null, "title": "第二类曲线积分的计算", "children": []},
+        {"code": null, "title": "两类曲线积分之间的联系", "children": []}
+      ]},
+      {"code": "7.3", "title": "格林公式及其应用", "children": [
+        {"code": null, "title": "格林（Green）公式", "children": []},
+        {"code": null, "title": "平面上第二类曲线积分与路程无关的条件", "children": []}
+      ]},
+      {"code": "7.4", "title": "第一类曲面积分", "children": [
+        {"code": null, "title": "第一类曲面积分的概念与性质", "children": []},
+        {"code": null, "title": "第一类曲面积分的计算", "children": []}
+      ]},
+      {"code": "7.5", "title": "第二类曲面积分", "children": [
+        {"code": null, "title": "第二类曲面积分的概念与性质", "children": []},
+        {"code": null, "title": "第二类曲面积分的计算", "children": []}
+      ]},
+      {"code": "7.6", "title": "高斯公式与斯托克斯公式", "children": [
+        {"code": null, "title": "高斯（Gauss）公式", "children": []},
+        {"code": null, "title": "斯托克斯（Stokes）公式", "children": []}
+      ]},
+      {"code": "7.7", "title": "场论初步", "children": [
+        {"code": null, "title": "场的概念", "children": []},
+        {"code": null, "title": "数量场·等值面·梯度", "children": []},
+        {"code": null, "title": "向量场的流量与散度", "children": []},
+        {"code": null, "title": "向量场的环流量与旋度", "children": []},
+        {"code": null, "title": "有势场", "children": []}
+      ]}
+    ]},
+    {"code": "8", "title": "无穷级数", "source_ref": "calculus_textbook_2", "children": [
+      {"code": "8.1", "title": "常数项级数", "children": [
+        {"code": null, "title": "常数项级数的概念", "children": []},
+        {"code": null, "title": "收敛级数的基本性质", "children": []}
+      ]},
+      {"code": "8.2", "title": "正项级数", "children": []},
+      {"code": "8.3", "title": "任意项级数", "children": [
+        {"code": null, "title": "交错级数", "children": []},
+        {"code": null, "title": "绝对收敛与条件收敛", "children": []}
+      ]},
+      {"code": "8.4", "title": "函数项级数", "children": [
+        {"code": null, "title": "函数项级数的收敛与一致收敛", "children": []},
+        {"code": null, "title": "一致收敛级数的性质", "children": []}
+      ]},
+      {"code": "8.5", "title": "幂级数", "children": [
+        {"code": null, "title": "幂级数的收敛半径", "children": []},
+        {"code": null, "title": "幂级数的性质", "children": []}
+      ]},
+      {"code": "8.6", "title": "泰勒级数", "children": []},
+      {"code": "8.7", "title": "广义积分的敛散性", "children": [
+        {"code": null, "title": "无穷限广义积分敛散性判别法", "children": []},
+        {"code": null, "title": "无界函数广义积分的敛散性判别法", "children": []},
+        {"code": null, "title": "Γ 函数与 B 函数", "children": []}
+      ]}
+    ]},
+    {"code": "9", "title": "傅里叶级数", "source_ref": "calculus_textbook_2", "children": [
+      {"code": "9.1", "title": "三角级数·三角函数系的正交性", "children": []},
+      {"code": "9.2", "title": "函数展开成傅里叶级数", "children": []},
+      {"code": "9.3", "title": "任意周期的周期函数的傅里叶级数", "children": []}
+    ]},
+    {"code": "10", "title": "常微分方程初步", "source_ref": "calculus_textbook_2", "children": [
+      {"code": "10.1", "title": "微分方程的基本概念", "children": []},
+      {"code": "10.2", "title": "一阶微分方程的初等解法", "children": [
+        {"code": null, "title": "变量分离方程", "children": []},
+        {"code": null, "title": "可化为变量分离方程的类型", "children": []}
+      ]},
+      {"code": "10.3", "title": "一阶线性微分方程", "children": []},
+      {"code": "10.4", "title": "全微分方程与积分因子", "children": [
+        {"code": null, "title": "全微分方程", "children": []},
+        {"code": null, "title": "积分因子", "children": []}
+      ]},
+      {"code": "10.5", "title": "解的存在唯一性定理", "children": []},
+      {"code": "10.6", "title": "高阶微分方程", "children": [
+        {"code": null, "title": "可降阶的高阶微分方程", "children": []},
+        {"code": null, "title": "二阶线性微分方程", "children": []},
+        {"code": null, "title": "二阶线性常系数微分方程", "children": []},
+        {"code": null, "title": "欧拉方程", "children": []}
+      ]},
+      {"code": "10.7", "title": "微分方程应用举例", "children": []}
+    ]}
+  ]
+}

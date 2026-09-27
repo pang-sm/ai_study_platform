@@ -31,10 +31,12 @@ test('F1C2B chapter practice VQA', async ({ page }) => {
   await mockPractice(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/exam/cs408/practice');
-  await expect(page.getByRole('heading', { name: '选择学习模块' })).toBeVisible();
+  // Chapter practice belongs to one of the four papers, so with none chosen the page asks which.
+  await expect(page.getByRole('heading', { name: '选择学习科目' })).toBeVisible();
   await page.screenshot({ path: path.join(screenshots, 'desktop-practice-module-select.png') });
   await page.getByRole('link', { name: /数据结构/ }).click();
-  await expect(page.getByRole('heading', { name: '数据结构' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '章节练习' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '章节目录' })).toBeVisible();
   await page.screenshot({ path: path.join(screenshots, 'desktop-practice-chapter-select.png') });
   await page.goto('/exam/cs408/practice?module=data_structure&chapter=1');
   await expect(page.getByRole('group', { name: questions[0]!.stem })).toBeVisible();
@@ -69,7 +71,7 @@ test('F1C2B mobile chapter practice VQA', async ({ page }) => {
   await mockPractice(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/exam/cs408/practice');
-  await expect(page.getByRole('heading', { name: '选择学习模块' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '选择学习科目' })).toBeVisible();
   await page.screenshot({ path: path.join(screenshots, 'mobile-practice-module-select.png') });
   await page.goto('/exam/cs408/practice?module=data_structure&chapter=1');
   await page.getByRole('radio', { name: /元素之间的前后关系/ }).check();

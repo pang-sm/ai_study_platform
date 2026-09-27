@@ -12,6 +12,7 @@ import { ApiRequestError } from '@/features/exam/api/content-status';
 import { useRegister, useSendRegisterCode, useVerifyRegisterCode } from '../api/auth';
 import { resolvePostAuthDestination } from '../return-to';
 import { AuthLayout } from './auth-layout';
+import { SendCodeButton, type SendCodeOutcome } from './send-code-button';
 
 /**
  * Mirrors the backend's own check (`"@" in email and "." in the domain part`) rather than
@@ -113,15 +114,18 @@ function EmailStep({ onVerified }: { onVerified: (email: string) => void }) {
     defaultValues: { email: '', code: '' },
   });
 
-  const onSend = async () => {
+  const onSend = async (): Promise<SendCodeOutcome> => {
     setErrorText(null);
     setNotice(null);
-    if (!(await trigger('email'))) return;
+    if (!(await trigger('email'))) return 'failed';
     try {
       await sendCode.mutateAsync({ email: getValues('email').trim() });
       setNotice('验证码已发送，请查收邮箱。');
+      return 'sent';
     } catch (error) {
       setErrorText(messageOf(error, '验证码发送失败，请稍后重试。'));
+      // Same rule as sign-in: the server's resend window is the one the button counts down.
+      return error instanceof ApiRequestError && error.status === 429 ? 'rate-limited' : 'failed';
     }
   };
 
@@ -143,23 +147,11 @@ function EmailStep({ onVerified }: { onVerified: (email: string) => void }) {
         label="邮箱"
         type="email"
         autoComplete="email"
-        hint="注册需要先验证邮箱；验证完成后才能创建账号。"
         error={errors.email?.message}
         {...register('email')}
       />
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={onSend}
-          disabled={sendCode.isPending}
-          className="shrink-0"
-        >
-          {sendCode.isPending ? '正在发送…' : '发送验证码'}
-        </Button>
-        <p className="text-metadata text-text-muted">发送到上面填写的邮箱；没收到可以重新发送。</p>
-      </div>
+      <SendCodeButton onSend={onSend} pending={sendCode.isPending} />
 
       <TextField
         label="邮箱验证码"
@@ -256,11 +248,6 @@ export function RegisterPage({ returnTo }: { returnTo?: string }) {
   return (
     <AuthLayout
       title="注册"
-      description={
-        verifiedEmail
-          ? '邮箱已验证。设置账号和密码即可开始。'
-          : '注册需要先验证邮箱，验证后即可设置账号密码。'
-      }
       footer={
         <p>
           已有账号？{' '}

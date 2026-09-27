@@ -26,8 +26,11 @@ describe('Cs408LearningRecordsWorkspace', () => {
     hooks.useCs408LearningRecords.mockReturnValue({ isPending: false, isError: false, data: { pages: [
       { records: [record('new', '2026-09-19T14:32:00+00:00', 'question_answered', { correct: true, score: 9 }), record('wrong', '2026-09-19T13:48:00+00:00', 'question_answered', { correct: false, score: null }), record('unknown', '2026-09-18T12:00:00+00:00', 'question_answered', { correct: null, score: null }), record('knowledge', '2026-09-18T11:00:00+00:00', 'knowledge_status_changed', { new_status: 'learning' })], next_cursor: 'opaque-cursor', has_more: true },
     ] }, hasNextPage: true, isFetchingNextPage: false, fetchNextPage, refetch: vi.fn() });
-    render(<Cs408LearningRecordsWorkspace />);
-    expect(screen.getByRole('heading', { name: '学习记录档案' })).toBeInTheDocument();
+    const { container } = render(<Cs408LearningRecordsWorkspace />);
+    // 学习记录 is the tab above, so the page name survives only as the region's accessible name
+    // and the body opens on the records themselves.
+    expect(screen.getByRole('heading', { name: '学习记录' })).toHaveClass('sr-only');
+    expect(container.textContent).not.toMatch(/Ledger|档案|编排|事件模型/);
     expect(screen.getByText(/回答正确/)).toBeInTheDocument();
     expect(screen.getByText(/回答错误/)).toBeInTheDocument();
     expect(screen.getByText(/未作答 \/ 未判定/)).toBeInTheDocument();
@@ -39,11 +42,14 @@ describe('Cs408LearningRecordsWorkspace', () => {
     expect(fetchNextPage).toHaveBeenCalledOnce();
   });
 
-  it('keeps module filtering server-side through the selected route search and has a restrained empty state', () => {
+  it('scopes the records server-side to the chosen paper and has a restrained empty state', () => {
     hooks.useCs408LearningRecords.mockReturnValue({ isPending: false, isError: false, data: { pages: [{ records: [], next_cursor: null, has_more: false }] }, hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch: vi.fn() });
     render(<Cs408LearningRecordsWorkspace moduleKey="data_structure" />);
     expect(hooks.useCs408LearningRecords).toHaveBeenCalledWith('data_structure');
-    expect(screen.getByRole('link', { name: '操作系统' })).toHaveAttribute('href', '/exam/cs408/records?module=operating_system');
-    expect(screen.getByText('暂无学习记录')).toBeInTheDocument();
+    expect(screen.getByText('还没有学习记录')).toBeInTheDocument();
+    // The scope is chosen in the workspace header now, and this page must not draw a second
+    // switcher for it: one page, one place to change the paper.
+    expect(screen.queryByRole('navigation', { name: '学习记录模块筛选' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '操作系统' })).not.toBeInTheDocument();
   });
 });

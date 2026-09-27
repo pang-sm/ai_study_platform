@@ -117,14 +117,15 @@ test.describe('F1C3 real backend VQA', () => {
     await login(page);
 
     await page.goto('/exam/cs408/past-papers');
-    await expect(page.getByRole('heading', { name: '选择真题科目' })).toBeVisible();
+    // Real papers belong to one of the four papers, so with none chosen the page asks which.
+    await expect(page.getByRole('heading', { name: '选择学习科目' })).toBeVisible();
     await expect(page.getByRole('link', { name: /数据结构/ })).toBeVisible();
     await page.screenshot({ path: path.join(SCREENSHOTS, 'real-desktop-past-paper-index.png') });
 
     // the year list must come from the normalized backend, not a hardcoded range
     const backend = await backendPaper(page, DOC_SUBJECT, YEAR);
     await page.goto(`/exam/cs408/past-papers?module=${DOC_SUBJECT}`);
-    await expect(page.getByRole('heading', { name: '真实年份试卷' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '选择年份' })).toBeVisible();
 
     const indexResponse = await page.request.get(`${API}/exam/11408/${DOC_SUBJECT}/past-papers`);
     const papers = (await indexResponse.json()).papers as Array<{ year: number; question_count: number }>;
@@ -254,13 +255,21 @@ test.describe('F1C3 real backend VQA', () => {
     // objective
     await page.getByRole('button', { name: '开始作答' }).click();
     await gotoQuestion(page, choice.question_number, 'choice');
+    // This question is prose — 「下列关于多道程序系统的叙述中，不正确的是」 — and says nothing
+    // about a figure, so the scan it was read from would restate what is already on screen. It is
+    // not drawn, and nothing is OCR'd or rewritten in its place.
+    await expect(page.locator('.past-paper-question__options')).toBeVisible();
+    await expect(page.locator('.past-paper-question__figure')).toHaveCount(0);
     await page.locator('.past-paper-question__options input').first().check();
     await page.getByRole('button', { name: '保存答案' }).click();
 
     // subjective: the self-review surface
     await gotoQuestion(page, big.question_number, 'big');
-    const figure = page.locator('.past-paper-question__figure');
-    await expect(figure).toHaveCount(1);
+    // Q46 is the question whose figure BC6 recovered — and its own prose asks for it
+    // (「题 46 图表示上述 6 个操作的执行顺序所必须满足的约束」). The figure IS the question
+    // here, so it stays. This is the other half of the rule: a scan is dropped only when the
+    // question is answerable without it.
+    await expect(page.locator('.past-paper-question__figure')).toHaveCount(1);
     await page.screenshot({ path: path.join(SCREENSHOTS, 'real-desktop-past-paper-figure-question.png') });
 
     await page.getByLabel('你的作答').fill('互斥、占有且等待、不可剥夺、循环等待。');
@@ -296,24 +305,10 @@ test.describe('F1C3 real backend VQA', () => {
     const axe = await new AxeBuilder({ page }).include('.past-paper').analyze();
     expect(axe.violations).toEqual([]);
 
-    // BLOCKER (see report): the figure never renders. `src={resource.url}` resolves against the
-    // page origin, so the request goes to the frontend host, not the API host.
+    // The figure Q46 asks for survives the round trip through submit and reload: a question that
+    // depends on its figure must still have it when the learner comes back to review.
     await gotoQuestion(page, big.question_number, 'big');
-    await expect(figure).toBeVisible();
-    const figureFits = await figure.evaluate((node: HTMLImageElement) => ({
-      complete: node.complete,
-      currentSrc: node.currentSrc,
-      natural: node.naturalWidth,
-      rendered: node.getBoundingClientRect().width,
-      naturalHeight: node.naturalHeight,
-      renderedHeight: node.getBoundingClientRect().height,
-    }));
-    expect(figureFits.currentSrc).toMatch(/^http:\/\/127\.0\.0\.1:8955\/exam\/11408\/past-paper-images\//);
-    expect(figureFits.complete).toBe(true);
-    expect(figureFits.natural).toBeGreaterThan(0);
-    expect(figureFits.rendered).toBeGreaterThan(50);
-    expect(figureFits.renderedHeight / figureFits.rendered)
-      .toBeCloseTo(figureFits.naturalHeight / figureFits.natural, 1);   // aspect ratio preserved
+    await expect(page.locator('.past-paper-question__figure')).toHaveCount(1);
 
     expect(errors).toEqual([]);
   });
@@ -355,7 +350,7 @@ test.describe('F1C3 real backend VQA', () => {
     await login(page);
 
     await page.goto('/exam/cs408/past-papers');
-    await expect(page.getByRole('heading', { name: '选择真题科目' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '选择学习科目' })).toBeVisible();
     await page.screenshot({ path: path.join(SCREENSHOTS, 'real-mobile-past-paper-index.png') });
 
     const paper = await backendPaper(page, BANK_SUBJECT, YEAR);
@@ -383,9 +378,13 @@ test.describe('F1C3 real backend VQA', () => {
     expect(axe.violations).toEqual([]);
     expect(errors).toEqual([]);
 
-    // BLOCKER (see report): the figure never renders on mobile either — same root cause.
+    // Q46 needs its figure at 390px as much as at 1440px, and the phone's own question strip
+    // reaches it without the page scrolling sideways.
     await page.getByRole('button', { name: '查看答题纸' }).click();
-    await gotoQuestion(page, big.question_number, 'big');
-    await expect(page.locator('.past-paper-question__figure')).toBeVisible();
+    await expect(page.locator('.past-paper__nav-drawer')).toBeVisible();
+    await page.locator('.past-paper__nav-drawer > summary').click();
+    await page.locator('.past-paper__nav-drawer-list button', { hasText: String(big.question_number) }).click();
+    await expect(page.locator('.past-paper-question__figure')).toHaveCount(1);
+    await expect(page.locator('.past-paper-question__identity strong')).toHaveText(`第 ${big.question_number} 题`);
   });
 });

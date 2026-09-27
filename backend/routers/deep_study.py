@@ -172,8 +172,6 @@ def run_deep_study(payload: DeepStudyRequest, db: Session = Depends(get_db),
     429 — raised by the unified AI boundary, not decided here. A material the caller may not
     ground an answer in is listed in ``materials.excluded``; it is never silently read.
     """
-    from main import serialize_reference_item  # lazy: the shared citation shape
-
     feature_flags.ensure_feature_allowed(db, current_user, "deep_study")
     try:
         result = deep_study.run_deep_study(
@@ -190,9 +188,36 @@ def run_deep_study(payload: DeepStudyRequest, db: Session = Depends(get_db),
                                                      "message": exc.message})
 
     chunks = result.pop("chunks", [])
-    result["citations"] = [serialize_reference_item(chunk) for chunk in chunks]
+    result["citations"] = _citations(chunks)
     result["material_refs"] = _material_refs(chunks)
     return result
+
+
+def _citations(chunks: list[dict]) -> list[dict]:
+    """The citation shape THIS endpoint publishes: the chunk's identity plus its snippet.
+
+    Deliberately NOT ``main.serialize_reference_item``. That helper is the CHAT reference
+    boundary, which publishes only ``{filename, snippet}``; a deep-study citation additionally
+    carries the ``material_id`` the frontend uses to open the material, and this endpoint
+    declares that in ``DeepStudyCitation``. The two are different contracts, so this one is
+    built here from the chunks the service already returned rather than borrowed from the
+    other boundary.
+    """
+    citations = []
+    for chunk in chunks:
+        snippet = (chunk.get("chunk_text") or chunk.get("chunk_summary") or "").strip()
+        if len(snippet) > 220:
+            snippet = snippet[:220].rstrip() + "..."
+        citations.append({
+            "material_id": chunk["material_id"],
+            "filename": chunk.get("source_filename") or "",
+            "subject": chunk.get("subject") or "",
+            "file_type": chunk.get("file_type") or "",
+            "snippet": snippet,
+            "score": round(float(chunk.get("score") or 0), 4),
+            "created_at": chunk.get("created_at"),
+        })
+    return citations
 
 
 def _material_refs(chunks: list[dict]) -> list[dict]:

@@ -1,24 +1,25 @@
 import type { ReactNode } from 'react';
-import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
-import { Breadcrumb } from '@/components/page/breadcrumb';
+import { useNavigate } from '@tanstack/react-router';
 import { ContextHeader, type ContextFact } from '@/components/page/context-header';
 import { ContextNav, type ContextNavItem } from '@/components/page/context-nav';
 import { useCourseCatalog, useCourseDashboard } from '@/features/course/api/course';
 import { AdaptivePractice } from '@/components/learning/adaptive-practice';
-import { displayMetric } from '@/features/learning-intelligence/presentation';
 import { routePath } from '@/lib/router';
 import { readCourseList } from '../course-context';
 
 /**
- * The tabs of the course space, in the order a learner moves through it: what the course
- * contains, then learning it, then being tested on it, then dealing with what went wrong, then
- * looking back at what happened. The AI question surface sits last because it is a tool used
- * while doing those things, not a step in the sequence.
+ * The tabs of the course space, in the order a learner moves through it: asking about the
+ * course, then what it contains, then learning it, then being tested on it, then dealing with
+ * what went wrong, then looking back at what happened.
+ *
+ * There is no 概览 tab. The course's overview was a page of prose describing what the tabs
+ * already do, and a first tab whose content is an explanation of the other tabs is not a
+ * surface — 课程问答 is what a learner opens a course to actually do, so it leads the strip.
  */
 export function courseNavItems(courseId: string): readonly ContextNavItem[] {
   const params = { courseId };
   return [
-    { id: 'overview', label: '概览', to: '/course/$courseId', params },
+    { id: 'ask', label: '课程问答', to: '/course/$courseId/ask', params },
     { id: 'materials', label: '资料', to: '/course/$courseId/materials', params },
     { id: 'knowledge', label: '知识结构', to: '/course/$courseId/knowledge', params },
     { id: 'study', label: '学习', to: '/course/$courseId/study', params },
@@ -27,7 +28,6 @@ export function courseNavItems(courseId: string): readonly ContextNavItem[] {
     { id: 'plan', label: '计划', to: '/course/$courseId/plan', params },
     { id: 'records', label: '记录', to: '/course/$courseId/records', params },
     { id: 'state', label: '学习状态', to: '/course/$courseId/state', params },
-    { id: 'ask', label: '课程问答', to: '/course/$courseId/ask', params },
   ];
 }
 
@@ -49,6 +49,11 @@ export function courseNameFrom(value: unknown): string | undefined {
 /**
  * Moving between the courses a learner actually has, from inside one of them.
  *
+ * This control IS how the page names the course it is in — there is no second title beside it,
+ * because the same name twice on one line says nothing the selector does not already say. It is
+ * therefore always rendered, including for a learner with a single course: the open course is
+ * what the select shows.
+ *
  * The stored context is a *set* of courses with one of them being read at a time, so "the current
  * course" is a property of what is open right now — there is no separate current-course pointer
  * in the API, and this control does not invent one. Switching therefore navigates the same tab
@@ -58,49 +63,46 @@ export function courseNameFrom(value: unknown): string | undefined {
  * A native `<select>` is used rather than a custom menu: it is operable by keyboard and screen
  * reader on every device without this component implementing any of that.
  */
-function CourseSwitcher({ courseId, active }: { courseId: string; active: string }) {
+function CourseSwitcher({
+  courseId,
+  active,
+  name,
+}: {
+  courseId: string;
+  active: string;
+  /** The course's own name when the dashboard already reported it, for the not-in-list case. */
+  name?: string;
+}) {
   const catalog = useCourseCatalog();
   const navigate = useNavigate();
-  const currentHref = useRouterState({ select: (state) => state.location.href });
   const courses = readCourseList(catalog.data);
   const items = courseNavItems(courseId);
   const target = items.find((item) => item.id === active) ?? items[0];
   const inList = courses.some((course) => course.id === courseId);
 
   return (
-    <div className="flex flex-wrap items-end gap-3">
-      {courses.length > 1 || (courses.length === 1 && !inList) ? (
-        <div>
-          <label htmlFor="course-switcher" className="block text-metadata text-text-secondary">
-            切换课程
-          </label>
-          <select
-            id="course-switcher"
-            value={inList ? courseId : ''}
-            onChange={(event) => {
-              const next = event.target.value;
-              if (!next || !target) return;
-              void navigate({ to: routePath(target.to), params: { courseId: next } });
-            }}
-            className="mt-1 h-11 max-w-56 rounded-control border border-border-default bg-surface px-3 text-body text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-          >
-            {inList ? null : <option value="">当前课程不在课程列表中</option>}
-            {courses.map((course) => (
-              <option key={course.id} value={course.id}>
-                {course.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      ) : null}
-      <Link
-        to="/course/setup"
-        search={{ returnTo: currentHref }}
-        className="inline-flex h-11 items-center rounded-control border border-border-default bg-surface px-4 text-body font-medium text-text-primary hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-      >
-        管理课程
-      </Link>
-    </div>
+    <select
+      aria-label="切换课程"
+      value={inList ? courseId : ''}
+      // Nothing to switch to and an id that is not in the list yet — the identity is still worth
+      // showing, it just cannot be changed from here.
+      disabled={!inList && !courses.length}
+      onChange={(event) => {
+        const next = event.target.value;
+        if (!next || !target) return;
+        void navigate({ to: routePath(target.to), params: { courseId: next } });
+      }}
+      className="h-9 max-w-56 rounded-control border border-border-default bg-surface px-3 text-body text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+    >
+      {/* A course the list does not hold (an older link, a renamed id) still gets named here:
+          the select is the page's only statement of which course is open. */}
+      {inList ? null : <option value="">{name ?? courseId}</option>}
+      {courses.map((course) => (
+        <option key={course.id} value={course.id}>
+          {course.name}
+        </option>
+      ))}
+    </select>
   );
 }
 
@@ -119,28 +121,13 @@ export function CoursePageShell({
   const dashboard = useCourseDashboard(courseId);
   const courseName = courseNameFrom(dashboard.data);
   const items = courseNavItems(courseId);
-  const activeLabel = items.find((item) => item.id === active)?.label;
-
-  const courseFacts: ContextFact[] = [
-    { label: '当前课程', value: courseName ?? (dashboard.isPending ? '正在读取课程…' : displayMetric(undefined)) },
-    ...(facts ?? []),
-  ];
-
   return (
-    <div className="mx-auto w-full max-w-content px-5 py-8 sm:px-8 lg:px-12">
-      <Breadcrumb
-        items={[
-          { label: '课程学习', to: '/course' },
-          { label: courseName ?? '本课程', to: active === 'overview' ? undefined : '/course/$courseId', params: { courseId } },
-          ...(activeLabel ? [{ label: activeLabel }] : []),
-        ]}
-      />
-      <ContextNav ariaLabel="课程学习导航" items={items} activeId={active} className="mt-4" />
-      <ContextHeader
-        facts={courseFacts}
-        actions={<CourseSwitcher courseId={courseId} active={active} />}
-        className="mt-6"
-      />
+    <div className="space-accent space-accent--course mx-auto w-full max-w-content px-5 py-8 sm:px-8 lg:px-12">
+      <ContextNav ariaLabel="专业学习导航" items={items} activeId={active} />
+      <div className="mt-6 flex flex-wrap items-center gap-3 border-b border-border-default pb-4">
+        <CourseSwitcher courseId={courseId} active={active} name={courseName} />
+      </div>
+      {facts?.length ? <ContextHeader facts={facts} className="mt-5" /> : null}
       {active === 'practice' ? (
         <AdaptivePractice
           serviceKey="course_learning"

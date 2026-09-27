@@ -70,7 +70,9 @@ test('records are factual, cursor-paginated, filtered server-side and accessible
   await page.screenshot({ path: path.join(SCREENSHOTS, 'desktop-records.png'), fullPage: true });
   await page.getByRole('button', { name: '加载更多' }).click();
   await expect(page.locator('.learning-records__row')).toHaveCount(firstPage.records.length + secondPage.records.length);
-  await page.getByRole('link', { name: '操作系统' }).click();
+  // The paper is chosen in the workspace header — one switcher for the whole workspace, not a
+  // second module row inside every tool.
+  await page.getByLabel('切换 408 学习科目').selectOption('operating_system');
   await expect(page).toHaveURL(/\/exam\/cs408\/records\?module=operating_system/);
   const filtered = await request.get(`${API}/exam/prep/records?exam_module_id=operating_system&limit=30`);
   const filteredPage = await filtered.json() as { records: unknown[] };
@@ -113,7 +115,7 @@ test('student twin preview is a real read-only experiment with module scope', as
   await expect(page.getByText(/不控制判分，不修改知识状态、错题或学习计划/)).toBeVisible();
   await expect(page.getByText(/learner_state|misconception_v2|tutor_policy|evidence_reliability|SCIENTIFIC_RUNTIME_UNAVAILABLE/i)).toHaveCount(0);
   await page.screenshot({ path: path.join(SCREENSHOTS, 'desktop-state.png'), fullPage: true });
-  await page.getByRole('link', { name: '数据结构' }).click();
+  await page.getByLabel('切换 408 学习科目').selectOption('data_structure');
   await expect(page).toHaveURL(/\/exam\/cs408\/state\?module=data_structure/);
   await expect(page.getByText('当前学习状态摘要')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole('link', { name: '查看学习记录' })).toHaveAttribute('href', '/exam/cs408/records?module=data_structure');

@@ -1,13 +1,15 @@
 import { useState, type ReactNode } from 'react';
+import { Link } from '@tanstack/react-router';
 import { ChevronDown } from 'lucide-react';
 import type { components } from '@/types/api';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { searchValueOut } from '@/lib/router';
 import { cs408Modules } from '@/features/exam/api/dashboard-summary';
-import { isCanonicalConceptCode } from '@/features/exam/api/chapter-practice';
 import { useExamStudyPlan, useUpdateExamKnowledgeItem } from '@/features/exam/api/study-plan';
 import { knowledgeStatusLabel, progressStatusLabel } from '@/features/exam/view-models/status-labels';
 import { ExamPageShell } from './exam-page-shell';
+import { Cs408SubjectChooser } from './cs408-subject-chooser';
 import './cs408-knowledge-workspace.css';
 
 type KnowledgeNode = components['schemas']['ExamStudyPlanKnowledgeNode'];
@@ -38,14 +40,31 @@ function Detail({ node, courseId, subjectKey, onStatusChanged }: { node: Knowled
       { onSuccess: (response) => { onStatusChanged(response.status); setEditing(false); } },
     );
   };
+  // The node's CODE is not shown. It is an internal identity — and on this content it is often a
+  // minted path (`_leaf:1.1.1.1`) that means nothing to a learner. It is still what the state
+  // update sends and what the assistant is told, so hiding it changes nothing but the reading.
+  //
+  // The state is ONE block: what it is, and the one control that changes it. It used to be two —
+  // 学习状态 in the facts list and 我的学习状态 under it — which stated the same fact twice and
+  // left the learner to work out which of the two was the real one.
   return <div className="knowledge-detail" aria-live="polite">
     <p className="knowledge-detail__eyebrow">当前知识点</p>
     <h2>{node.title}</h2>
-    <dl><div><dt>知识编码</dt><dd>{node.code}</dd></div><div><dt>学习状态</dt><dd><StatusMark status={node.status} /></dd></div>
-      {node.learned_at ? <div><dt>学习时间</dt><dd>{node.learned_at}</dd></div> : null}
-      {node.review_due_at ? <div><dt>复习日期</dt><dd>{node.review_due_at}</dd></div> : null}
-    </dl>
-    {isLeaf ? <div className="knowledge-detail__action"><p>我的学习状态</p>{editing ? <div className="knowledge-status-picker" role="group" aria-label="选择学习状态">{statusChoices.map((choice) => <Button key={choice.value} size="sm" variant={choice.value === node.status ? 'primary' : 'secondary'} disabled={mutation.isPending} onClick={() => update(choice.value)}>{choice.label}</Button>)}</div> : <Button variant="secondary" onClick={() => setEditing(true)}>更新学习状态</Button>}{mutation.isError ? <p role="alert">更新失败，请稍后重试。</p> : null}</div> : <p className="knowledge-detail__hint">选择具体知识点后可更新学习状态。</p>}
+    <div className="knowledge-detail__state">
+      <div className="knowledge-detail__state-row">
+        <p className="knowledge-detail__state-label">学习状态</p>
+        <StatusMark status={node.status} />
+        {isLeaf ? (editing ? <div className="knowledge-status-picker" role="group" aria-label="选择学习状态">{statusChoices.map((choice) => <Button key={choice.value} size="sm" variant={choice.value === node.status ? 'primary' : 'secondary'} disabled={mutation.isPending} onClick={() => update(choice.value)}>{choice.label}</Button>)}</div> : <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>更新</Button>) : null}
+      </div>
+      {node.learned_at || node.review_due_at ? <p className="knowledge-detail__dates">{[node.learned_at ? `学习于 ${node.learned_at}` : null, node.review_due_at ? `复习日期 ${node.review_due_at}` : null].filter(Boolean).join(' · ')}</p> : null}
+      {!isLeaf ? <p className="knowledge-detail__hint">选择具体知识点后可更新学习状态。</p> : null}
+      {mutation.isError ? <p role="alert">更新失败，请稍后重试。</p> : null}
+    </div>
+    {/* The way out of this panel into the paper's own conversation, carrying the node the learner
+        is looking at. It is a link, not a chat box: the conversation is a page of the paper, and
+        this states the context it will arrive with rather than opening a second one here. No
+        question is asked on the learner's behalf — the composer is empty. */}
+    <div className="knowledge-detail__action"><p>AI 对话</p><Button asChild variant="secondary" size="sm"><Link to="/exam/cs408/ask" search={{ module: subjectKey, knowledge_point: searchValueOut(node.code), knowledge_point_title: node.title }}>围绕此知识点问 AI</Link></Button></div>
   </div>;
 }
 
@@ -63,30 +82,52 @@ function KnowledgeBranch({ node, depth, selectedCode, onSelect }: { node: Knowle
   </li>;
 }
 
-function Section({ section, moduleKey, chapterCode, selectedCode, onSelect }: { section: StudyPlanSection; moduleKey: string; chapterCode: string; selectedCode?: string; onSelect: (node: KnowledgeNode) => void }) {
+function Section({ section, selectedCode, onSelect }: { section: StudyPlanSection; selectedCode?: string; onSelect: (node: KnowledgeNode) => void }) {
   const [open, setOpen] = useState(false);
-  // `section.code` IS the canonical knowledge leaf: the node the module knowledge-map seed
-  // publishes as a leaf code, and the same string a chapter-practice question carries as its
-  // concept. It is the identity this link propagates — never the section's TITLE, never a
-  // position in the list, and never anything read out of a question. The chapter it belongs
-  // to is `chapter.code`, which the API also publishes, so neither half is derived here.
-  //
-  // A section whose code is synthesized (`_leaf:<path>`, which the API mints for a node the
-  // seed gives no code) has NO canonical identity, so no practice link is offered from it:
-  // there is nothing to propagate, and inventing one is what this sprint exists to prevent.
-  const canonicalConcept = isCanonicalConceptCode(section.code) ? section.code : undefined;
-  return <li className="knowledge-section"><div className="knowledge-row knowledge-row--section"><Disclosure open={open} title={section.title} onClick={() => setOpen((value) => !value)}><span>{section.title}</span></Disclosure>{canonicalConcept ? <a className="knowledge-chapter__practice" href={`/exam/cs408/practice?module=${moduleKey}&chapter=${chapterCode}&concept=${canonicalConcept}`}>知识点练习</a> : null}<span className="knowledge-progress-status">{progressStatusLabel(section.section_status)}</span></div>{open ? <ul className="knowledge-children">{section.children.map((node) => <KnowledgeBranch key={node.code} node={node} depth={0} selectedCode={selectedCode} onSelect={onSelect} />)}</ul> : null}</li>;
+  // The section carries no practice link. 章节练习 is a first-level page of the paper, and a
+  // link into it on every level of the tree was a second entry point for one destination —
+  // the tree said "study this" and "practise this" in the same breath, at four depths. What
+  // this page owns is the structure and the state of it; the state a section is in is stated
+  // beside it, and a learner who wants questions goes to the page that has them.
+  return <li className="knowledge-section"><div className="knowledge-row knowledge-row--section"><Disclosure open={open} title={section.title} onClick={() => setOpen((value) => !value)}><span>{section.title}</span></Disclosure><span className="knowledge-progress-status">{progressStatusLabel(section.section_status)}</span></div>{open ? <ul className="knowledge-children">{section.children.map((node) => <KnowledgeBranch key={node.code} node={node} depth={0} selectedCode={selectedCode} onSelect={onSelect} />)}</ul> : null}</li>;
 }
 
 function Chapter({ chapter, selectedCode, onSelect, initiallyOpen }: { chapter: StudyPlanChapter; selectedCode?: string; onSelect: (node: KnowledgeNode) => void; initiallyOpen: boolean }) {
   const [open, setOpen] = useState(initiallyOpen);
-  const currentModule = new URLSearchParams(window.location.search).get('module') ?? 'data_structure';
-  return <li className="knowledge-chapter" id={`chapter-${chapter.code}`}><div className="knowledge-chapter__heading"><span>{String(chapter.chapter_no).padStart(2, '0')}</span><Disclosure open={open} title={chapter.title} onClick={() => setOpen((value) => !value)}><strong>{chapter.title}</strong></Disclosure><a className="knowledge-chapter__practice" href={`/exam/cs408/practice?module=${currentModule}&chapter=${chapter.code}`}>章节练习</a><span className="knowledge-progress-status">{progressStatusLabel(chapter.chapter_status)}</span></div>{open ? <ul className="knowledge-sections">{chapter.children.map((section) => <Section key={section.code} section={section} moduleKey={currentModule} chapterCode={chapter.code} selectedCode={selectedCode} onSelect={onSelect} />)}</ul> : null}</li>;
+  return <li className="knowledge-chapter" id={`chapter-${chapter.code}`}><div className="knowledge-chapter__heading"><span>{String(chapter.chapter_no).padStart(2, '0')}</span><Disclosure open={open} title={chapter.title} onClick={() => setOpen((value) => !value)}><strong>{chapter.title}</strong></Disclosure><span className="knowledge-progress-status">{progressStatusLabel(chapter.chapter_status)}</span></div>{open ? <ul className="knowledge-sections">{chapter.children.map((section) => <Section key={section.code} section={section} selectedCode={selectedCode} onSelect={onSelect} />)}</ul> : null}</li>;
 }
 
-export function Cs408KnowledgeWorkspace({ moduleKey }: { moduleKey: string }) {
-  const module = cs408Modules.find((entry) => entry.key === moduleKey) ?? cs408Modules[0];
+export function Cs408KnowledgeWorkspace({ moduleKey }: { moduleKey?: string }) {
+  const module = cs408Modules.find((entry) => entry.key === moduleKey);
+  if (!module) {
+    return (
+      <ExamPageShell cs408Tab="knowledge">
+        <Cs408SubjectChooser
+          to="/exam/cs408/knowledge"
+          description="知识脉络按四门课分别组织。先选一门，再进入它的知识目录。"
+        />
+      </ExamPageShell>
+    );
+  }
+  return <Cs408KnowledgeModule module={module} />;
+}
+
+function Cs408KnowledgeModule({ module }: { module: (typeof cs408Modules)[number] }) {
   const query = useExamStudyPlan(module.key);
   const [selected, setSelected] = useState<KnowledgeNode>();
-  return <ExamPageShell activeItem="cs408" cs408Tab="knowledge" moduleKey={module.key}><section className="cs408-knowledge" aria-labelledby="knowledge-title"><header className="cs408-knowledge__header"><p>CS408 / 知识脉络</p><h1 id="knowledge-title">{module.name}知识脉络</h1><div className="cs408-knowledge__modules" aria-label="CS408 模块">{cs408Modules.map((entry) => <a key={entry.key} href={`/exam/cs408/knowledge?module=${entry.key}`} aria-current={entry.key === module.key ? 'page' : undefined}>{entry.name}</a>)}</div></header>{query.isPending ? <div className="cs408-knowledge__loading"><Skeleton className="h-11 w-48" /><Skeleton className="h-72 w-full" /></div> : null}{query.isError || !query.data ? <section className="cs408-knowledge__error"><h2>知识脉络暂时无法加载</h2><p>请检查网络后重试。</p><Button variant="secondary" onClick={() => void query.refetch()}>重试</Button></section> : null}{query.data ? <div className="cs408-knowledge__grid"><section className="knowledge-outline" aria-label={`${module.name}知识目录`}><p className="knowledge-outline__summary">已学习 {query.data.stats.mastered} / {query.data.stats.total_knowledge_points} 个知识点</p><ol>{query.data.chapters.map((chapter, index) => <Chapter key={chapter.code} chapter={chapter} selectedCode={selected?.code} onSelect={setSelected} initiallyOpen={index === 0} />)}</ol></section>{selected ? <Detail node={selected} courseId={query.data.course_id} subjectKey={module.key} onStatusChanged={(status) => setSelected((current) => current ? { ...current, status } : current)} /> : <div className="knowledge-detail knowledge-detail--empty"><p>选择一个知识点</p><h2>从目录开始</h2><span>展开章节，查看具体知识点与当前学习状态。</span></div>}</div> : null}</section></ExamPageShell>;
+  // Which paper this is open in is stated once, by the shell above — the page used to repeat the
+  // four papers as a second switcher beside its own title, next to the one the shell already
+  // draws.
+  //
+  // The title is not drawn either. The tab strip above says 知识脉络, and it says it as the tab
+  // that is open, so a heading repeating it was a second statement of the same fact — one that
+  // also split the page into a title bar plus a body. The heading stays in the document, unseen,
+  // because a page still has to be a document: this is what a screen reader announces on arrival
+  // and what the outline below is labelled by.
+  //
+  // The page's tools are not here either. 对话 and 资料库 are first-level pages of the paper, in
+  // the strip above, because that is what they are in 专业学习 — a global entry bolted into one
+  // tool's body is a second navigation, and it made this page answer for the whole space. What is
+  // left is what this page is: the outline, and the knowledge point that is open in it.
+  return <ExamPageShell cs408Tab="knowledge" moduleKey={module.key}><section className="cs408-knowledge" aria-labelledby="knowledge-title"><h1 id="knowledge-title" className="sr-only">知识脉络</h1>{query.isPending ? <div className="cs408-knowledge__loading"><Skeleton className="h-11 w-48" /><Skeleton className="h-72 w-full" /></div> : null}{query.isError || !query.data ? <section className="cs408-knowledge__error"><h2>知识脉络暂时无法加载</h2><p>请检查网络后重试。</p><Button variant="secondary" onClick={() => void query.refetch()}>重试</Button></section> : null}{query.data ? <div className="cs408-knowledge__grid"><section className="knowledge-outline" aria-label={`${module.name}知识目录`}><p className="knowledge-outline__summary">已学习 {query.data.stats.mastered} / {query.data.stats.total_knowledge_points} 个知识点</p><ol>{query.data.chapters.map((chapter, index) => <Chapter key={chapter.code} chapter={chapter} selectedCode={selected?.code} onSelect={setSelected} initiallyOpen={index === 0} />)}</ol></section>{selected ? <Detail node={selected} courseId={query.data.course_id} subjectKey={module.key} onStatusChanged={(status) => setSelected((current) => current ? { ...current, status } : current)} /> : <div className="knowledge-detail knowledge-detail--empty"><p>选择一个知识点</p><h2>从目录开始</h2><span>展开章节，查看具体知识点与当前学习状态。</span></div>}</div> : null}</section></ExamPageShell>;
 }

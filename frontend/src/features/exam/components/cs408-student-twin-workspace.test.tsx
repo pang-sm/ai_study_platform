@@ -30,51 +30,57 @@ const capabilities = (studentTwinVisible = true) => ({
 });
 
 describe('Cs408StudentTwinWorkspace', () => {
-  it('renders Student Twin as the sole visible experiment, with the typed factual evidence count and records link', () => {
+  it('renders the learner state with the typed factual evidence count and records link', () => {
     hooks.useScientificCapabilities.mockReturnValue({ isPending: false, isError: false, data: capabilities() });
     hooks.useStudentTwinPreview.mockReturnValue({ isPending: false, isError: false, data: preview(), refetch: vi.fn() });
-    render(<Cs408StudentTwinWorkspace moduleKey="operating_system" />);
+    const { container } = render(<Cs408StudentTwinWorkspace moduleKey="operating_system" />);
     expect(hooks.useStudentTwinPreview).toHaveBeenCalledWith('operating_system', true);
-    expect(screen.getByRole('heading', { name: '学习状态实验视图' })).toBeInTheDocument();
-    expect(screen.getByText('自研确定性学习状态引擎')).toBeInTheDocument();
-    expect(screen.getByText('基于真实作答与学习事件')).toBeInTheDocument();
-    expect(screen.getByText('基于真实学习记录计算；仅用于实验性展示；不控制判分，不修改知识状态、错题或学习计划。')).toBeInTheDocument();
-    expect(screen.getByText('本次计算使用的事实依据')).toBeInTheDocument();
+    // 学习状态 is the tab above, so the page name survives only as the region's accessible name.
+    expect(screen.getByRole('heading', { name: '学习状态' })).toHaveClass('sr-only');
+    expect(screen.getByText('基于你的真实学习记录计算。它不参与判分，也不会改写你的知识状态、错题或学习计划。')).toBeInTheDocument();
+    expect(screen.getByText('本次状态依据的学习记录')).toBeInTheDocument();
     expect(screen.getByText('2 条')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '查看学习记录' })).toHaveAttribute('href', '/exam/cs408/records?module=operating_system');
     // The summary is read through the product's own labels, so the runtime's field names, the
     // learner's reference and the engine's internal quantity never reach the page.
-    expect(screen.getByText('本次计算使用的事件数')).toBeInTheDocument();
     expect(screen.getByText('涉及知识点')).toBeInTheDocument();
     expect(screen.getByText('2 个')).toBeInTheDocument();
     expect(screen.queryByText(/events_seen|concepts|user_ref|global_ability|0\.8125/)).not.toBeInTheDocument();
     expect(screen.queryByText(/掌握度|能力预测|掌握概率|神经网络|learner_state|misconception_v2|SHADOW|ONTOLOGY_MISMATCH/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /保存|更新|修改|提交/ })).not.toBeInTheDocument();
+    // None of the machinery behind the state is learner-facing: this is a student's page, and how
+    // the engine is built is an internal matter. The words below must never come back.
+    expect(container.textContent).not.toMatch(/实验|实验视图|自研|student.?twin|scientific.?runtime|状态引擎|确定性/);
   });
 
-  it('shows the scientific unavailable state without internal runtime blockers', () => {
+  it('shows the unavailable state without internal runtime blockers', () => {
     hooks.useScientificCapabilities.mockReturnValue({ isPending: false, isError: false, data: capabilities() });
     hooks.useStudentTwinPreview.mockReturnValue({ isPending: false, isError: false, data: preview('UNAVAILABLE'), refetch: vi.fn() });
-    render(<Cs408StudentTwinWorkspace />);
+    const { container } = render(<Cs408StudentTwinWorkspace />);
     expect(screen.getByText('学习状态服务暂时不可用')).toBeInTheDocument();
     expect(screen.queryByText('SCIENTIFIC_RUNTIME_UNAVAILABLE')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '计算机网络' })).toHaveAttribute('href', '/exam/cs408/state?module=computer_network');
+    // The four papers are chosen once, in the workspace header above this page — the page used to
+    // draw a second copy of them here, beside a header that already named the open paper.
+    expect(screen.queryByRole('link', { name: '计算机网络' })).not.toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/实验|自研|student.?twin|scientific.?runtime|状态引擎/);
   });
 
-  it('keeps the shell bounded and does not request or expose Student Twin when capabilities do not make it visible', () => {
+  it('keeps the shell bounded and does not request or expose the state when capabilities do not make it visible', () => {
     hooks.useScientificCapabilities.mockReturnValue({ isPending: false, isError: false, data: capabilities(false) });
     hooks.useStudentTwinPreview.mockReturnValue({ isPending: false, isError: false, data: preview(), refetch: vi.fn() });
-    render(<Cs408StudentTwinWorkspace />);
-    expect(screen.getByText('学习状态实验暂时不可展示')).toBeInTheDocument();
+    const { container } = render(<Cs408StudentTwinWorkspace />);
+    expect(screen.getByText('当前暂不展示学习状态')).toBeInTheDocument();
     expect(screen.queryByText('状态引擎输出')).not.toBeInTheDocument();
     expect(screen.queryByText(/learner_state|misconception_v2|SHADOW|MISSING_INPUT/)).not.toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/实验|自研|student.?twin|scientific.?runtime/);
   });
 
   it('uses bounded failure handling when the capabilities directory fails', () => {
     hooks.useScientificCapabilities.mockReturnValue({ isPending: false, isError: true, data: undefined });
     hooks.useStudentTwinPreview.mockReturnValue({ isPending: false, isError: false, data: undefined, refetch: vi.fn() });
-    render(<Cs408StudentTwinWorkspace />);
-    expect(screen.getByText('暂时无法确认学习状态实验是否可展示')).toBeInTheDocument();
+    const { container } = render(<Cs408StudentTwinWorkspace />);
+    expect(screen.getByText('暂时无法读取学习状态')).toBeInTheDocument();
     expect(screen.queryByText(/Error|blocker|runtime|learner_state|misconception_v2/i)).not.toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/实验|自研|student.?twin|scientific.?runtime/);
   });
 });

@@ -1,0 +1,159 @@
+/* The exam space sits on the SAME canvas as every other space. It used to paint the whole
+   space warm beige, which made 考研学习 look like a different product from 专业学习 and
+   编程学习 — the background said "different app" where the difference is only "different
+   subject". What marks the space is the accent on its small labels, plus the plan treatment
+   below, which is a local surface and not a canvas. */
+.exam-shell { position: relative; min-height: calc(100vh - 4rem); overflow: clip; background: var(--color-page-background); color: var(--color-text-primary); }
+.exam-page { padding-block: clamp(2rem, 4vw, 3rem); }
+.exam-kicker { margin: 0; color: var(--space-accent, var(--color-primary-hover)); font-size: var(--text-metadata); font-weight: 700; letter-spacing: 0.1em; }
+
+/* The one way to change the combination. It belongs to the subjects it changes, so it sits on
+   that block's heading line. */
+.exam-action { display: inline-flex; min-height: 2.5rem; align-items: center; border: 1px solid var(--color-border-default); border-radius: var(--radius-control); background: var(--color-surface); padding: 0 1rem; color: var(--color-text-primary); font-size: var(--text-body); font-weight: 500; text-decoration: none; }
+.exam-action:hover { background: var(--color-primary-soft); }
+.exam-action:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+
+/* ------------------------------------------------------------------ 科目状态页
+
+   What a subject with no content says when a learner opens it: its name, its state, and what
+   that means for their plan. Nothing here reports a count — a knowledge-point total, a question
+   total or a percentage would all be numbers the product has not measured. */
+.exam-status { max-width: var(--container-reading); }
+.exam-status__state { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 0.75rem; margin: 1.25rem 0 0; }
+.exam-status__state-label { margin: 0; color: var(--color-text-muted); font-size: var(--text-metadata); }
+.exam-status__body { margin: 0.9rem 0 0; color: var(--color-text-primary); font-size: var(--text-body); line-height: 1.7; }
+.exam-status__body--muted { color: var(--color-text-secondary); }
+.exam-status__section { margin-top: 2rem; border-top: 1px solid var(--color-border-default); padding-top: 1.25rem; }
+.exam-status__section-title { margin: 0; color: var(--color-text-muted); font-size: var(--text-metadata); }
+.exam-status__plan { display: grid; gap: 0.5rem; margin: 0.75rem 0 0; padding: 0; list-style: none; }
+.exam-status__plan li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem 0.75rem; font-size: var(--text-body); color: var(--color-text-primary); }
+.exam-status__plan li span { color: var(--color-text-muted); font-size: var(--text-metadata); }
+.exam-status__actions { margin-top: 2rem; }
+
+/* ------------------------------------------------------------------ 我的考试科目
+
+   Every subject the learner is sitting, in one grid: which line of the plan it is on, its name,
+   and one action. The cards sit in an auto-filling grid rather than stretching to the page, so a
+   learner with one subject gets one card and not a banner — a single 408 stretched across 1440px
+   read as a hero, which is the shape this page exists to not be.
+
+   What differs between the cards is the subject's own maturity: the studiable subject carries the
+   accent rule and the way in, a framework-only subject carries its state and the page that
+   explains it. Never a count, never a progress figure, never an action that opens nothing.
+
+   The card is a column with room under its last line, and the action sits at the foot of it. Both
+   matter for the same reason: the primary button is the point of the card, so it must never read
+   as pressed against the border or clipped by it — the bottom padding is deliberately the largest
+   of the card's edges, and the action keeps its own gap above whatever it follows. */
+.exam-subjects { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(20rem, 100%), 1fr)); align-items: start; gap: 1rem; margin: 0; padding: 0; list-style: none; }
+.exam-subject { display: flex; flex-direction: column; border: 1px solid var(--color-border-default); border-radius: var(--radius-card); background: var(--color-surface); padding: clamp(1rem, 2vw, 1.25rem); padding-bottom: clamp(1.25rem, 2.5vw, 1.5rem); }
+.exam-subject--open { border-left: 4px solid var(--space-accent, var(--color-primary)); }
+.exam-subject__slot { color: var(--color-text-muted); font-size: var(--text-metadata); }
+.exam-subject__name { margin: 0.25rem 0 0; font-size: var(--text-card-title); font-weight: 600; letter-spacing: -0.01em; }
+/* The action sits at the card's foot so every card's button lines up. Nothing sits between the
+   name and it: the card is the subject and the way in, and a subject's state is one click away
+   on its own page. */
+.exam-subject__action { margin-top: auto; padding-top: 1.25rem; }
+
+/* ------------------------------------------------------------------ 设置考试方案
+
+   A short flow, not a form. A learner is answering one question at a time — what exam and which
+   year, which professional paper, which public courses — and then reading the plan back before
+   committing to it. The progress is one line of text, so it reads the same on a phone as on a
+   desktop and never becomes a stepper squeezed across a narrow screen. */
+.exam-setup { max-width: 52rem; }
+.exam-setup__target { border-left: 3px solid var(--space-accent, var(--color-primary)); background: var(--color-brand-subtle); padding: 0.85rem 1rem; }
+.exam-setup__target-kicker { margin: 0; color: var(--color-text-secondary); font-size: var(--text-metadata); }
+.exam-setup__target-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.6rem; margin-top: 0.35rem; }
+.exam-setup__year { width: 6.5rem; height: 2.5rem; border: 1px solid var(--color-border-default); border-radius: var(--radius-control); background: var(--color-surface); padding: 0 0.6rem; font: inherit; font-size: var(--text-card-title); font-weight: 600; color: var(--color-text-primary); }
+.exam-setup__year::placeholder { color: var(--color-text-muted); font-weight: 400; }
+.exam-setup__year:focus-visible { outline: 2px solid var(--space-accent, var(--color-primary)); outline-offset: 2px; }
+.exam-setup__target-value { font-size: var(--text-card-title); font-weight: 600; letter-spacing: -0.01em; color: var(--color-text-primary); }
+.exam-setup__target-hint { margin: 0.4rem 0 0; color: var(--color-text-secondary); font-size: var(--text-metadata); }
+.exam-setup__progress { margin: 1.5rem 0 0; color: var(--space-accent, var(--color-primary-hover)); font-size: var(--text-metadata); font-weight: 600; letter-spacing: 0.02em; }
+
+.exam-step { margin-top: 1.5rem; border-top: 1px solid var(--color-border-default); padding-top: 1.5rem; }
+.exam-step__title { margin: 0; font-size: var(--text-section-title); font-weight: 600; letter-spacing: -0.02em; }
+.exam-step__hint { margin: 0.6rem 0 0; max-width: var(--container-reading); color: var(--color-text-secondary); font-size: var(--text-body); line-height: 1.65; }
+.exam-step__group { margin-top: 1.75rem; }
+.exam-step__group-title { margin: 0; font-size: var(--text-heading); font-weight: 600; letter-spacing: -0.01em; }
+.exam-step__nav { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1rem; margin-top: 2rem; border-top: 1px solid var(--color-border-default); padding-top: 1.25rem; }
+
+.exam-options { display: grid; gap: 0; margin: 0.9rem 0 0; }
+.exam-option { position: relative; display: grid; grid-template-columns: 1.25rem minmax(0, 1fr) auto; gap: 0.85rem; align-items: center; min-height: 3.25rem; cursor: pointer; border-top: 1px solid var(--color-border-default); padding: 0.6rem 0; }
+.exam-option:last-child { border-bottom: 1px solid var(--color-border-default); }
+.exam-option:has(input:checked) { background: var(--color-primary-soft); }
+.exam-option:has(input:checked)::before { position: absolute; inset-block: 0; left: 0; width: 0.2rem; background: var(--space-accent, var(--color-primary)); content: ""; }
+.exam-option input { margin: 0; accent-color: var(--space-accent, var(--color-primary)); }
+.exam-option__text { min-width: 0; }
+.exam-option__text strong { display: block; font-size: var(--text-body); font-weight: 600; }
+.exam-option__text small { display: block; margin-top: 0.2rem; color: var(--color-text-secondary); font-size: var(--text-metadata); }
+.exam-option__parts { margin-top: 0.35rem; color: var(--color-text-secondary); font-size: var(--text-metadata); }
+/* `text-secondary`, not `text-muted`: a checked row is tinted with `primary-soft`, and the muted
+   ink only reaches ~4.47:1 against it — under AA for text this size. */
+.exam-option__meta { color: var(--color-text-secondary); font-size: var(--text-metadata); white-space: nowrap; }
+
+.exam-recommend { margin-top: 1.25rem; border: 1px solid var(--color-border-default); border-radius: var(--radius-control); background: var(--color-surface); padding: 0.9rem 1rem; }
+.exam-recommend__title { margin: 0; color: var(--color-text-muted); font-size: var(--text-metadata); }
+.exam-recommend__value { margin: 0.35rem 0 0; font-size: var(--text-body); font-weight: 600; letter-spacing: -0.01em; }
+.exam-recommend__foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1rem; margin-top: 0.85rem; border-top: 1px solid var(--color-border-default); padding-top: 0.85rem; }
+.exam-recommend__note { margin: 0; max-width: var(--container-reading); color: var(--color-text-secondary); font-size: var(--text-metadata); line-height: 1.6; }
+
+.exam-custom-list { margin: 0.9rem 0 0; padding: 0; list-style: none; border-top: 1px solid var(--color-border-default); }
+.exam-custom-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; border-bottom: 1px solid var(--color-border-default); padding: 0.6rem 0; }
+
+/* The confirmation is the plan itself, read back: what exam, which direction, and the subjects
+   one per line — not a dump of the fields the form happens to have. */
+.exam-confirm { border: 1px solid var(--color-border-default); border-top: 3px solid var(--space-accent, var(--color-primary)); border-radius: var(--radius-card); background: var(--color-surface); padding: clamp(1.25rem, 2.5vw, 2rem); }
+.exam-confirm__headline { margin: 0; font-size: var(--text-section-title); font-weight: 600; letter-spacing: -0.02em; }
+.exam-confirm__direction { margin: 0.4rem 0 0; color: var(--color-text-secondary); font-size: var(--text-body); }
+.exam-confirm__subjects { margin: 1.5rem 0 0; padding: 0; list-style: none; border-top: 1px solid var(--color-border-default); }
+.exam-confirm__subjects li { border-bottom: 1px solid var(--color-border-default); padding: 0.6rem 0; font-size: var(--text-body); }
+.exam-confirm__subjects li span { color: var(--color-text-muted); font-size: var(--text-metadata); }
+.exam-confirm__note { margin: 1.25rem 0 0; max-width: var(--container-reading); color: var(--color-text-secondary); font-size: var(--text-metadata); line-height: 1.6; }
+.exam-confirm__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1rem; margin-top: 1.5rem; }
+
+/* ------------------------------------------------------------------ CS408 workspace
+
+   408 keeps its own identity inside the subject: one line saying which paper is open, one
+   switcher beside it, and one strip of tools under them. Those are the only three things above
+   the content — the page used to carry a breadcrumb, a tab strip AND a second copy of the four
+   papers inside the body, three navigations for one workspace. */
+.cs408-head { padding-top: 1.25rem; }
+.cs408-head__identity { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; margin-top: 0.25rem; }
+.cs408-head__name { margin: 0; color: var(--space-accent, var(--color-primary-hover)); font-size: var(--text-metadata); font-weight: 700; letter-spacing: 0.08em; }
+.cs408-module-select { height: 2.5rem; max-width: 100%; border: 1px solid var(--color-border-default); border-radius: var(--radius-control); background: var(--color-surface); padding: 0 0.65rem; color: var(--color-text-primary); font: inherit; font-size: var(--text-body); font-weight: 600; }
+.cs408-module-select:focus-visible { outline: 2px solid var(--space-accent, var(--color-primary)); outline-offset: 2px; }
+
+/* ------------------------------------------------------------------ 408 科目选择
+
+   Four papers, four ways in. The page holds nothing else: no tool links per row (they live in
+   the workspace's own strip), no 01–04 numbering, and no status board to read before choosing.
+   The state a paper is in, where the page has really read it, is one quiet word. */
+.cs408-choice__title { margin: 0.75rem 0 0; font-size: var(--text-page-title); font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; color: var(--color-text-primary); }
+.cs408-choice__note { margin: 0.6rem 0 0; max-width: var(--container-reading); color: var(--color-text-secondary); font-size: var(--text-body); line-height: 1.65; }
+.cs408-choice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(16rem, 100%), 1fr)); gap: 0.75rem; margin: 1.5rem 0 0; padding: 0; list-style: none; }
+.cs408-choice { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.75rem; min-height: 4.25rem; border: 1px solid var(--color-border-default); border-radius: var(--radius-card); background: var(--color-surface); padding: 0.9rem 1rem; text-decoration: none; transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard); }
+.cs408-choice:hover { border-color: var(--space-accent, var(--color-primary)); background: var(--color-primary-soft); }
+.cs408-choice:focus-visible { outline: 2px solid var(--space-accent, var(--color-primary)); outline-offset: 2px; }
+.cs408-choice__name { flex: 1 1 auto; min-width: 0; color: var(--color-text-primary); font-size: var(--text-card-title); font-weight: 600; letter-spacing: -0.01em; }
+.cs408-choice__status { color: var(--color-text-secondary); font-size: var(--text-metadata); }
+.cs408-choice__go { flex: 0 0 auto; width: 1rem; height: 1rem; color: var(--color-text-muted); }
+
+/* ------------------------------------------------------------------ space accent
+
+   What marks the exam space is the accent on the small labels above page titles — the same
+   device the other two spaces use, so all three read as one product with three subjects rather
+   than three products. */
+.exam-kicker,
+.cs408-head__name {
+  color: var(--space-accent, var(--color-primary-hover));
+}
+
+@media (max-width: 40rem) {
+  .exam-page { padding-block: 1.5rem; }
+  .exam-step__title { font-size: var(--text-heading); }
+  .exam-confirm { padding: 1.25rem 1rem; }
+  .exam-confirm__headline { font-size: var(--text-heading); }
+  .exam-recommend__foot { align-items: flex-start; }
+}

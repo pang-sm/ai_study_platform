@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils';
 type ReviewFilter = 'all' | 'course_learning' | 'exam_11408' | 'programming';
 const filters: Array<[ReviewFilter, string]> = [
   ['all', '全部'],
-  ['course_learning', '课程学习'],
+  ['course_learning', '专业学习'],
   ['exam_11408', '11408'],
   ['programming', '编程'],
 ];
@@ -41,15 +41,14 @@ export function ReviewPage() {
   return (
     <div className="mx-auto w-full max-w-content px-5 py-10 sm:px-8 lg:px-12">
       <PageHeader
-        eyebrow="共享学习核心"
         title="统一复习"
-        description="三个学习空间的待复习与待处理项目都在这里；复习日期与弱项判断只使用后端记录的事实。"
+        description="三个方向的待复习与待处理项目都在这里；复习日期与弱项判断只看已经记录下来的学习情况。"
         meta={
           summary.data ? (
             <>
               <Badge tone="brand">待处理 {summary.data.total}</Badge>
               <span className="text-metadata text-text-secondary">
-                已存复习日期：{summary.data.has_stored_due_dates ? '有' : '无'}
+                {summary.data.has_stored_due_dates ? '这些复习项已经安排了日期' : '这些复习项还没有安排日期'}
               </span>
             </>
           ) : null
@@ -94,7 +93,7 @@ export function ReviewPage() {
                     {item.title}
                   </Link>
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone="neutral">{namespaceLabel(item.service_namespace) ?? '学习空间'}</Badge>
+                    <Badge tone="neutral">{namespaceLabel(item.service_namespace) ?? '学习'}</Badge>
                     {item.source_type ? (
                       <Badge tone="neutral">{sourceLabel(item.source_type) ?? '学习项'}</Badge>
                     ) : null}
@@ -158,18 +157,18 @@ export function ReviewPage() {
         <EmptyState
           className="mt-8"
           title="暂无待处理复习"
-          description="后端当前没有返回符合此范围的复习事实。"
+          description="这个范围里现在没有要复习的内容。换个范围看看，或者先去完成一次练习。"
         />
       )}
 
       {schedule.isSuccess ? (
         <StatusNote tone="success" className="mt-6">
-          已按后端策略安排复习；日期、间隔与原因来自返回事实。
+          已安排复习；日期与间隔来自复习策略。
         </StatusNote>
       ) : null}
       {complete.isSuccess ? (
         <StatusNote tone="success" className="mt-6">
-          真实结果已记录；复习、学习状态、记录与推荐练习正在刷新。
+          结果已记录；复习、学习状态与记录正在刷新。
         </StatusNote>
       ) : null}
     </div>

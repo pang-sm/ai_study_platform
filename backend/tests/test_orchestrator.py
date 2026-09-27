@@ -93,8 +93,15 @@ def test_unknown_usage_reconciliation_pending(db_session):
     result = orch.execute(db_session, u.id, "tutor.chat", _messages(),
                           request_id="orch-unknown-1", max_tokens=200)
     assert result.status == "reconciliation_pending"
+    # The provider DID answer; not knowing the price of that answer yet holds the reservation for
+    # reconciliation, it does not throw the answer away.
+    assert result.content == "fake response"
     req = db_session.query(AIRequest).filter(AIRequest.request_id == "orch-unknown-1").one()
     assert req.status == "reconciliation_pending"
+    # Nothing was written off: the reservation is still held against the budget.
+    b = db_session.query(UsageBudget).filter(
+        UsageBudget.user_id == u.id, UsageBudget.period_type == "daily").one()
+    assert b.reserved_amount == req.reserved_credits > 0
 
 
 # ---- B44: billing idempotency (same request id) ----

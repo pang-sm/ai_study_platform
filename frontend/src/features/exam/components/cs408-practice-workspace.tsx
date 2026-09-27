@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from '@tanstack/react-router';
+import { searchValueOut } from '@/lib/router';
 import type { components } from '@/types/api';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -7,13 +9,16 @@ import { useChapterPracticeAttempt, useChapterPracticeOutline, useChapterPractic
 import { useQuestionExplain } from '@/features/exam/api/question-explain';
 import { ApiRequestError } from '@/features/exam/api/content-status';
 import { ExamPageShell } from './exam-page-shell';
-import { StrongReasoningSurface } from '@/components/learning/advanced-learning-surfaces';
+import { Cs408SubjectChooser } from './cs408-subject-chooser';
+import { PracticeQuestionNavigator } from './practice-question-navigator';
 import { AiFeedback } from '@/components/learning/ai-feedback';
 import './cs408-practice-workspace.css';
 
 type Question = ChapterPracticeAttempt['questions'][number];
 type SubmitResult = NonNullable<ChapterPracticeAttempt['results']>[number];
 type PracticeViewMode = 'questions' | 'summary';
+/** One question's AI explanation, plus the follow-ups asked about it — all keyed by the turn. */
+type ExplainState = { analysis?: string; error?: string; requestId?: string; followUps?: Array<{ question: string; answer: string }> };
 const emptyQuestions: Question[] = [];
 
 function chapterLabel(chapter: { chapter_no: number; chapter_title: string } | undefined, hasAttempt = false, conceptCode?: string) {
@@ -32,16 +37,28 @@ function QuestionBody({ question, answer, questionIndex, questionTotal, onChange
   if (question.question_type === 'big') {
     return <div className="practice-question practice-question--big"><QuestionIdentity index={questionIndex} total={questionTotal} chapter={question.chapter_name} /><p className="practice-question__type">简答题 · 自行复盘</p><h2>{question.stem}</h2><label className="practice-question__textarea-label" htmlFor={`answer-${question.id}`}>你的作答</label><textarea id={`answer-${question.id}`} value={answer} disabled={submitted} onChange={(event) => onChange(event.target.value)} placeholder="写下你的思路与答案" rows={9} /><p className="practice-question__hint">本题提交后可自行对照参考答案。</p></div>;
   }
-  return <fieldset className="practice-question" disabled={submitted}><QuestionIdentity index={questionIndex} total={questionTotal} chapter={question.chapter_name} /><p className="practice-question__type">选择题 · {question.chapter_name}</p><legend>{question.stem}</legend><div className="practice-question__options">{Object.entries(question.options).map(([key, value]) => <label key={key} className={answer === key ? 'is-selected' : undefined}><input type="radio" name={`question-${question.id}`} value={key} checked={answer === key} onChange={() => onChange(key)} /><span><b>{key}</b>{value}</span></label>)}</div></fieldset>;
+  // The stem is a paragraph, NOT a <legend>. A full-width legend is laid into the fieldset's
+  // own top border, so the 2px rule ran straight through the question text: the sentence the
+  // learner is answering read as struck through. The fieldset keeps the group semantics, and
+  // both it and the option group take their name from the stem through aria-labelledby.
+  const stemId = `practice-stem-${question.id}`;
+  return <fieldset className="practice-question" disabled={submitted} aria-labelledby={stemId}><QuestionIdentity index={questionIndex} total={questionTotal} chapter={question.chapter_name} /><p className="practice-question__type">选择题</p><p id={stemId} className="practice-question__stem">{question.stem}</p><div className="practice-question__options" role="radiogroup" aria-labelledby={stemId}>{Object.entries(question.options).map(([key, value]) => <label key={key} className={answer === key ? 'is-selected' : undefined}><input type="radio" name={`question-${question.id}`} value={key} checked={answer === key} onChange={() => onChange(key)} /><span><b>{key}</b>{value}</span></label>)}</div></fieldset>;
 }
 
 function sessionFacts(results: SubmitResult[]) { const answered = results.filter((r) => r.user_answer !== ''); const choices = answered.filter((r) => r.question_type === 'choice'); const correct = choices.filter((r) => r.correct === true); const incorrect = choices.filter((r) => r.correct === false); const selfReview = answered.filter((r) => r.question_type === 'big' && r.judge === 'self_review'); return { answered: answered.length, unanswered: results.length - answered.length, correct: correct.length, incorrect: incorrect.length, selfReview: selfReview.length, retryIds: incorrect.map((r) => r.question_id), denominator: choices.length }; }
 
 function QuestionIdentity({ index, total, chapter }: { index: number; total: number; chapter: string }) {
-  return <div className="practice-question__identity"><strong>{String(index).padStart(2, '0')}</strong><span>第 {index} / {total} 题</span><small>{chapter}</small></div>;
+  return (
+    <div className="practice-question__identity">
+      <p>
+        <span>第 {index} / {total} 题</span>
+        {chapter ? <span className="practice-question__chapter">{chapter}</span> : null}
+      </p>
+    </div>
+  );
 }
 
-function ResultMark({ result, onExplain, explainState }: { result?: SubmitResult; onExplain: () => void; explainState: { loading: boolean; analysis?: string; error?: string; requestId?: string } }) {
+function ResultMark({ result, onExplain, onFollowUp, explainState }: { result?: SubmitResult; onExplain: () => void; onFollowUp: (question: string) => void; explainState: React.ComponentProps<typeof ExplainBlock>['state'] }) {
   if (!result) return null;
   const staticAnalysis = result.analysis.trim();
   if (result.question_type === 'big') {
@@ -50,7 +67,7 @@ function ResultMark({ result, onExplain, explainState }: { result?: SubmitResult
       <div className="practice-result__answer"><span>你的作答</span><p>{result.user_answer || '未作答'}</p></div>
       <div className="practice-result__answer"><span>参考答案</span><p>{result.standard_answer}</p></div>
       {staticAnalysis ? <StaticAnalysis analysis={staticAnalysis} /> : null}
-      <ExplainBlock onExplain={onExplain} state={explainState} />
+      <ExplainBlock onExplain={onExplain} onFollowUp={onFollowUp} state={explainState} />
     </section>;
   }
   const unanswered = result.correct === null || result.user_answer === '';
@@ -59,7 +76,7 @@ function ResultMark({ result, onExplain, explainState }: { result?: SubmitResult
     <span>判定</span><strong id="grading-title">{verdict}</strong>
     <small>你的答案：{result.user_answer || '未作答'}</small><small>正确答案：{result.standard_answer}</small>
     {staticAnalysis ? <StaticAnalysis analysis={staticAnalysis} /> : null}
-    <ExplainBlock onExplain={onExplain} state={explainState} />
+    <ExplainBlock onExplain={onExplain} onFollowUp={onFollowUp} state={explainState} />
   </section>;
 }
 
@@ -67,13 +84,68 @@ function StaticAnalysis({ analysis }: { analysis: string }) {
   return <section className="practice-result__analysis" aria-labelledby="static-analysis-title"><h2 id="static-analysis-title">题目解析</h2><p>{analysis}</p></section>;
 }
 
-function ExplainBlock({ onExplain, state }: { onExplain: () => void; state: { loading: boolean; analysis?: string; error?: string; requestId?: string } }) {
+/**
+ * The AI explanation of THIS question, and the follow-ups that stay about it.
+ *
+ * It is deliberately NOT the default reading of a submitted answer: 题目解析 is the product's own
+ * text and it is free and instant, while this is a model call that consumes the learner's AI
+ * 额度 and takes seconds. A learner who wants it presses the button; one who does not is never
+ * charged for it. It exists only after submission — before that, nobody here has an answer to
+ * give away.
+ *
+ * Everything the model is told about comes from the question the learner is on: the stem, the
+ * options, the answer they gave, the reference answer, the product's own 解析, and the knowledge
+ * point the question examines. A follow-up is sent the same way, with the learner's own question
+ * added, which is why 为什么 B 不对 needs no re-typing of the question.
+ *
+ * The follow-ups stay HERE. They used to open the product-wide assistant, which took the learner
+ * off the question and promised only "a conversation about this subject" — the assistant had
+ * never read the question at all.
+ */
+function ExplainBlock({ onExplain, onFollowUp, state }: {
+  onExplain: () => void;
+  onFollowUp: (question: string) => void;
+  state: { loading: boolean; followingUp: boolean; analysis?: string; error?: string; requestId?: string; followUps?: ReadonlyArray<{ question: string; answer: string }> };
+}) {
+  const [draft, setDraft] = useState('');
+  const ask = () => {
+    const question = draft.trim();
+    if (!question || state.followingUp) return;
+    setDraft('');
+    onFollowUp(question);
+  };
   return <section className="practice-result__ai" aria-labelledby="ai-explain-title"><h2 id="ai-explain-title">AI 讲解</h2>
     {state.analysis ? <p>{state.analysis}</p> : null}
     {state.error ? <p role="alert">{state.error}</p> : null}
-    {!state.analysis ? <Button variant="secondary" disabled={state.loading} onClick={onExplain}>{state.loading ? '正在生成讲解' : state.error ? '重新生成讲解' : 'AI 讲解'}</Button> : null}
+    {!state.analysis ? <Button variant="secondary" disabled={state.loading} onClick={onExplain}>{state.loading ? '正在生成讲解' : state.error ? '重新生成讲解' : 'AI 讲解这道题'}</Button> : null}
     {state.loading ? <p className="practice-result__ai-status" role="status" aria-live="polite">正在生成讲解</p> : null}
     {state.requestId ? <AiFeedback requestId={state.requestId} workflowId="exam_practice_ai_explain" /> : null}
+    {state.followUps?.length ? <ul className="practice-result__followups-list">
+      {state.followUps.map((turn, index) => (
+        <li key={`${index}-${turn.question}`}>
+          <p className="practice-result__followups-question">{turn.question}</p>
+          <p>{turn.answer}</p>
+        </li>
+      ))}
+    </ul> : null}
+    {state.analysis ? <div className="practice-result__followups">
+      <label className="practice-result__followups-title" htmlFor="practice-follow-up">继续追问这道题</label>
+      <div className="practice-result__followups-row">
+        <input
+          id="practice-follow-up"
+          type="text"
+          value={draft}
+          disabled={state.followingUp}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); ask(); } }}
+          placeholder="例如：为什么 B 不对？"
+          className="practice-result__followups-input"
+        />
+        <Button variant="secondary" size="sm" disabled={!draft.trim() || state.followingUp} onClick={ask}>
+          {state.followingUp ? '正在作答' : '追问'}
+        </Button>
+      </div>
+    </div> : null}
   </section>;
 }
 
@@ -110,8 +182,9 @@ export function Cs408PracticeWorkspace({ moduleKey, chapterCode, conceptCode, at
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [currentIndex, setCurrentIndex] = useState(0);
   const [resultByQuestionId, setResultByQuestionId] = useState<Record<number, SubmitResult>>({});
-  const [explanations, setExplanations] = useState<Record<string, { analysis?: string; error?: string; requestId?: string }>>({});
+  const [explanations, setExplanations] = useState<Record<string, ExplainState>>({});
   const [explainingKey, setExplainingKey] = useState<string>();
+  const [followingUpKey, setFollowingUpKey] = useState<string>();
   const [viewMode, setViewMode] = useState<PracticeViewMode>(); const [confirmSubmit, setConfirmSubmit] = useState(false);
   const confirmationRef = useRef<HTMLElement>(null);
   const continuePracticeRef = useRef<HTMLButtonElement>(null);
@@ -164,6 +237,18 @@ export function Cs408PracticeWorkspace({ moduleKey, chapterCode, conceptCode, at
   // concept and the write boundary validates it against that same set.
   const retry = (ids: number[]) => create.mutate({ moduleKey: module!.key, questionIds: ids, knowledgePointId: conceptCode }, { onSuccess: (response) => { setResultByQuestionId({}); setAnswers({}); setCreatedAttemptQuestionIds(ids); setCurrentIndex(0); setViewMode('questions'); setLocalAttemptId(response.attempt_id); onAttemptChange?.(response.attempt_id); } });
   const explainKey = currentQuestion && attemptId !== undefined ? `${attemptId}:${currentQuestion.id}` : undefined;
+  /**
+   * What the model is told about, for ONE question: the question itself, the answer the learner
+   * gave, the reference answer, the product's own 解析, and the knowledge point the question
+   * examines. All of it comes from the question the learner is looking at — the code is never sent
+   * (`_leaf:1.1.1.1` means nothing to a model), only the point's name, when there is one.
+   */
+  const questionMaterial = (question: NonNullable<typeof currentQuestion>, result: SubmitResult) => ({
+    stem: result.stem, options: result.options, standard_answer: result.standard_answer,
+    user_answer: result.user_answer, question_type: result.question_type,
+    analysis: result.analysis,
+    knowledge_point: question.knowledge_point_name ?? undefined,
+  });
   const explainCurrent = () => {
     if (!currentQuestion || !module || attemptId === undefined) return;
     const result = authoritativeResultByQuestionId[currentQuestion.id];
@@ -171,23 +256,108 @@ export function Cs408PracticeWorkspace({ moduleKey, chapterCode, conceptCode, at
     const key = `${attemptId}:${currentQuestion.id}`;
     setExplainingKey(key);
     setExplanations((current) => ({ ...current, [key]: {} }));
-    explain.mutate({ moduleKey: module.key, input: { stem: result.stem, options: result.options, standard_answer: result.standard_answer, user_answer: result.user_answer, question_type: result.question_type } }, {
+    explain.mutate({ moduleKey: module.key, input: questionMaterial(currentQuestion, result) }, {
       onSuccess: (response) => setExplanations((current) => ({ ...current, [key]: { analysis: response.analysis, requestId: response.request_id } })),
       onError: (error) => setExplanations((current) => ({ ...current, [key]: { error: explainErrorMessage(error) } })),
       onSettled: () => setExplainingKey((current) => current === key ? undefined : current),
     });
   };
+  /** One follow-up about the SAME question, answered from the same material. */
+  const followUpCurrent = (question: string) => {
+    if (!currentQuestion || !module || attemptId === undefined || !question.trim()) return;
+    const result = authoritativeResultByQuestionId[currentQuestion.id];
+    const existing = explanations[`${attemptId}:${currentQuestion.id}`];
+    if (!result || !existing?.analysis) return;
+    const key = `${attemptId}:${currentQuestion.id}`;
+    setFollowingUpKey(key);
+    explain.mutate({ moduleKey: module.key, input: { ...questionMaterial(currentQuestion, result), follow_up: question.trim() } }, {
+      onSuccess: (response) => setExplanations((current) => {
+        const state = current[key] ?? {};
+        return { ...current, [key]: { ...state, followUps: [...(state.followUps ?? []), { question: question.trim(), answer: response.analysis }] } };
+      }),
+      onError: (error) => setExplanations((current) => {
+        const state = current[key] ?? {};
+        return { ...current, [key]: { ...state, followUps: [...(state.followUps ?? []), { question: question.trim(), answer: explainErrorMessage(error) }] } };
+      }),
+      onSettled: () => setFollowingUpKey((current) => current === key ? undefined : current),
+    });
+  };
 
-  return <ExamPageShell activeItem="cs408" cs408Tab="practice" moduleKey={module?.key}><section className="cs408-practice" aria-labelledby="practice-title"><header className="cs408-practice__header"><p>CS408 / 章节练习</p><h1 id="practice-title">{module ? module.name : '选择学习模块'}</h1><span>{chapterLabel(selectedChapter, attemptId !== undefined, conceptCode)}</span></header>
-    {module ? <StrongReasoningSurface context="CS408 章节练习" subjectKey={module.key} chapterId={chapterCode} knowledgePointId={conceptCode} /> : null}
-    {(!module || !chapterCode) && attemptId === undefined ? <PracticeSelector moduleKey={module?.key} outline={outline.data} loading={outline.isPending} /> : null}
+  if (!module) {
+    return <ExamPageShell cs408Tab="practice"><Cs408SubjectChooser to="/exam/cs408/practice" description="章节练习按四门课分别组织。先选一门，再进入它的章节目录。" /></ExamPageShell>;
+  }
+
+  // A chapter (or an attempt) is open. The chapter-selection screen is then the whole page: the
+  // two things below the desk — the deep-reasoning panel and the recommendation strip — are
+  // about a chapter that has been chosen, and on the chooser they were a second, larger entry
+  // point than the chapter list itself. Doing the questions is the task; these are help.
+  const chapterOpen = Boolean(chapterCode) || attemptId !== undefined;
+  return <ExamPageShell cs408Tab="practice" moduleKey={module.key}><section className="cs408-practice" aria-labelledby="practice-title"><header className="cs408-practice__header"><h1 id="practice-title" className="sr-only">章节练习</h1>{chapterOpen ? <span>{chapterLabel(selectedChapter, attemptId !== undefined, conceptCode)}</span> : null}</header>
+    {!chapterCode && attemptId === undefined ? <PracticeSelector moduleKey={module.key} outline={outline.data} loading={outline.isPending} /> : null}
+    {/* An attempt the learner opened by URL, while it loads or when it cannot be read. Both used
+        to render nothing at all — a deep link to an attempt that is gone (or that is not theirs:
+        the API answers 404 for both, deliberately) left a page whose entire body was an empty
+        line, with no way back. It says what it is and offers the chapter again. */}
+    {module && attemptId !== undefined && attempt.isPending ? <div className="cs408-practice__loading"><Skeleton className="h-9 w-40" /><Skeleton className="h-80 w-full" /></div> : null}
+    {module && attemptId !== undefined && attempt.isError ? <section className="cs408-practice__state" aria-labelledby="practice-attempt-unavailable"><h2 id="practice-attempt-unavailable">练习记录不可用</h2><p>这次练习记录不存在或已过期。</p><Button asChild variant="secondary"><Link to="/exam/cs408/practice" search={{ module: module.key, chapter: searchValueOut(chapterCode), concept: undefined, attempt: undefined }}>返回本章练习</Link></Button></section> : null}
     {module && chapterCode && attemptId === undefined && questionsQuery.isPending ? <div className="cs408-practice__loading"><Skeleton className="h-9 w-40" /><Skeleton className="h-80 w-full" /></div> : null}
     {module && chapterCode && attemptId === undefined && (questionsQuery.isError || !questionsQuery.data) ? <section className="cs408-practice__state"><h2>章节练习暂时无法加载</h2><Button variant="secondary" onClick={() => void questionsQuery.refetch()}>重试</Button></section> : null}
     {module && chapterCode && attemptId === undefined && questionsQuery.data && questions.length === 0 ? <section className="cs408-practice__state"><h2>{conceptCode ? '本知识点暂无可用练习题' : '本章节暂无可用练习题'}</h2><a href={`/exam/cs408/practice?module=${module.key}${conceptCode ? `&chapter=${chapterCode}` : ''}`}>{conceptCode ? '返回本章练习' : '返回章节选择'}</a></section> : null}
-    {currentQuestion ? <div className="cs408-practice__desk">{activeViewMode === 'questions' ? <nav className="practice-navigator" aria-label="题目导航"><p>本次 {questions.length} 题</p><div>{questions.map((question, index) => <button key={question.id} type="button" aria-current={index === currentIndex ? 'step' : undefined} aria-label={`第 ${index + 1} 题`} className={displayedAnswers[String(question.id)] ? 'is-answered' : undefined} onClick={() => { setViewMode('questions'); setCurrentIndex(index); }}>{String(index + 1).padStart(2, '0')}</button>)}</div></nav> : null}<div className="practice-main">{activeViewMode === 'summary' ? <section className="practice-summary"><h2>本次练习完成</h2><div className="practice-summary__facts"><p>共 {authoritativeResults.length} 题</p><p>已作答 {facts.answered} · 答对 {facts.correct} · 答错 {facts.incorrect} · 自行复盘 {facts.selfReview} · 未作答 {facts.unanswered}</p><p>{facts.denominator ? `自动判分题正确率 ${Math.round(facts.correct / facts.denominator * 100)}%` : '本次没有自动判分题'}</p></div><div className="practice-summary__actions"><Button variant="secondary" onClick={() => setViewMode('questions')}>查看本次题目</Button>{facts.retryIds.length ? <Button onClick={() => retry(facts.retryIds)}>重练本次错题</Button> : null}<Button variant="secondary" onClick={() => retry(chapterQuestionIds)}>{conceptCode ? '再做一遍本知识点' : '再做一遍本章'}</Button>{facts.incorrect > 0 ? <a href={`/exam/cs408/wrong?module=${module?.key}&status=active`}>去错题本订正</a> : null}<a href={conceptCode && chapterCode ? `/exam/cs408/practice?module=${module?.key}&chapter=${chapterCode}` : `/exam/cs408/practice?module=${module?.key}`}>返回章节</a></div></section> : <><QuestionBody question={currentQuestion} questionIndex={currentIndex + 1} questionTotal={questions.length} answer={displayedAnswers[String(currentQuestion.id)] ?? ''} submitted={submitted} onChange={(answer) => updateAnswer(currentQuestion.id, answer)} /><ResultMark result={authoritativeResultByQuestionId[currentQuestion.id]} onExplain={explainCurrent} explainState={{ loading: explainingKey === explainKey, ...explanations[explainKey ?? ''] }} /></>}{activeViewMode === 'questions' ? <div className="practice-main__actions"><div>{currentIndex > 0 ? <Button variant="ghost" onClick={() => setCurrentIndex((index) => index - 1)}>上一题</Button> : null}{currentIndex < questions.length - 1 ? <Button variant="ghost" onClick={() => setCurrentIndex((index) => index + 1)}>下一题</Button> : null}</div><div>{submitted ? <Button variant="secondary" onClick={() => setViewMode('summary')}>本次练习总结</Button> : null}{attemptId === undefined ? <Button disabled={create.isPending} onClick={start}>开始本章练习</Button> : submitted ? null : <><Button variant="secondary" disabled={save.isPending} onClick={saveCurrent}>保存答案</Button><Button ref={submitControlRef} disabled={submit.isPending} onClick={requestSubmit}>提交本章答案</Button></>}</div></div> : null}{confirmSubmit ? <section ref={confirmationRef} className="practice-confirm" role="alertdialog" aria-label="未完成提交确认"><h2>还有 {questions.filter((question) => !(reconciledAnswers[String(question.id)] ?? '').trim()).length} 题未作答</h2><p>仍然提交本次练习吗？</p><div><Button ref={continuePracticeRef} variant="secondary" onClick={dismissConfirmation}>继续作答</Button><Button onClick={() => { setConfirmSubmit(false); submitAll(); }}>仍然提交</Button></div></section> : null}{create.isError ? <p className="practice-error" role="alert">{createErrorMessage(create.error)}</p> : null}{save.isError || submit.isError ? <p className="practice-error" role="alert">操作未完成，请稍后重试。</p> : null}</div></div> : null}
+    {currentQuestion ? <div className="cs408-practice__desk">{activeViewMode === 'questions' ? <PracticeQuestionNavigator total={questions.length} currentIndex={currentIndex} isAnswered={(index) => Boolean(displayedAnswers[String(questions[index]?.id)])} onSelect={(index) => { setViewMode('questions'); setCurrentIndex(index); }} /> : null}<div className="practice-main">{activeViewMode === 'summary' ? <section className="practice-summary"><h2>本次练习完成</h2><div className="practice-summary__facts"><p>共 {authoritativeResults.length} 题</p><p>已作答 {facts.answered} · 答对 {facts.correct} · 答错 {facts.incorrect} · 自行复盘 {facts.selfReview} · 未作答 {facts.unanswered}</p><p>{facts.denominator ? `自动判分题正确率 ${Math.round(facts.correct / facts.denominator * 100)}%` : '本次没有自动判分题'}</p></div><div className="practice-summary__actions"><Button variant="secondary" onClick={() => setViewMode('questions')}>查看本次题目</Button>{facts.retryIds.length ? <Button onClick={() => retry(facts.retryIds)}>重练本次错题</Button> : null}<Button variant="secondary" onClick={() => retry(chapterQuestionIds)}>{conceptCode ? '再做一遍本知识点' : '再做一遍本章'}</Button>{facts.incorrect > 0 ? <a href={`/exam/cs408/wrong?module=${module?.key}&status=active`}>去错题本订正</a> : null}<a href={conceptCode && chapterCode ? `/exam/cs408/practice?module=${module?.key}&chapter=${chapterCode}` : `/exam/cs408/practice?module=${module?.key}`}>返回章节</a></div></section> : <><QuestionBody question={currentQuestion} questionIndex={currentIndex + 1} questionTotal={questions.length} answer={displayedAnswers[String(currentQuestion.id)] ?? ''} submitted={submitted} onChange={(answer) => updateAnswer(currentQuestion.id, answer)} /><ResultMark result={authoritativeResultByQuestionId[currentQuestion.id]} onExplain={explainCurrent} onFollowUp={followUpCurrent} explainState={{ loading: explainingKey === explainKey, followingUp: followingUpKey === explainKey, ...explanations[explainKey ?? ''] }} /></>}{activeViewMode === 'questions' ? <div className="practice-main__actions"><div>{currentIndex > 0 ? <Button variant="ghost" onClick={() => setCurrentIndex((index) => index - 1)}>上一题</Button> : null}{currentIndex < questions.length - 1 ? <Button variant="ghost" onClick={() => setCurrentIndex((index) => index + 1)}>下一题</Button> : null}</div><div>{submitted ? <Button variant="secondary" onClick={() => setViewMode('summary')}>本次练习总结</Button> : null}{attemptId === undefined ? <Button disabled={create.isPending} onClick={start}>开始本章练习</Button> : submitted ? null : <><Button variant="secondary" disabled={save.isPending} onClick={saveCurrent}>保存答案</Button><Button ref={submitControlRef} disabled={submit.isPending} onClick={requestSubmit}>提交本章答案</Button></>}</div></div> : null}{confirmSubmit ? <section ref={confirmationRef} className="practice-confirm" role="alertdialog" aria-label="未完成提交确认"><h2>还有 {questions.filter((question) => !(reconciledAnswers[String(question.id)] ?? '').trim()).length} 题未作答</h2><p>仍然提交本次练习吗？</p><div><Button ref={continuePracticeRef} variant="secondary" onClick={dismissConfirmation}>继续作答</Button><Button onClick={() => { setConfirmSubmit(false); submitAll(); }}>仍然提交</Button></div></section> : null}{create.isError ? <p className="practice-error" role="alert">{createErrorMessage(create.error)}</p> : null}{save.isError || submit.isError ? <p className="practice-error" role="alert">操作未完成，请稍后重试。</p> : null}</div></div> : null}
+
   </section></ExamPageShell>;
 }
 
-function PracticeSelector({ moduleKey, outline, loading }: { moduleKey?: string; outline?: components['schemas']['ExamChapterPracticeOutlineResponse']; loading: boolean }) {
-  return <section className="practice-selector" aria-label="章节练习选择"><h2>{moduleKey ? '章节目录' : '模块目录'}</h2>{!moduleKey ? <div className="practice-selector__modules">{cs408Modules.map((entry, index) => <a key={entry.key} href={`/exam/cs408/practice?module=${entry.key}`}><span>{String(index + 1).padStart(2, '0')}</span><strong>{entry.name}</strong><i aria-hidden="true">→</i></a>)}</div> : null}{moduleKey && loading ? <Skeleton className="h-32 w-full" /> : null}{moduleKey && outline ? <ol>{outline.chapters.map((chapter) => <li key={chapter.chapter_code}><a href={`/exam/cs408/practice?module=${moduleKey}&chapter=${chapter.chapter_code}`}><span>第 {chapter.chapter_no} 章</span><strong>{chapter.chapter_title}</strong><small>{chapter.question_count} 道题</small></a></li>)}</ol> : null}</section>;
+/**
+ * The paper's chapters, and the way into one of them.
+ *
+ * This is what 章节练习 is for, so it is the whole of the page when no chapter is open: the real
+ * chapter list, each chapter's real question count, and one action. Every number comes from the
+ * question bank through the outline endpoint — there is no target, no percentage and no
+ * "recommended" chapter, because the product has measured none of those and a learner cannot act
+ * on a number nobody took.
+ *
+ * The four papers are NOT listed here. Which paper is open is stated once, in the header above,
+ * and this page only chooses the chapter.
+ */
+function PracticeSelector({ moduleKey, outline, loading }: { moduleKey: string; outline?: components['schemas']['ExamChapterPracticeOutlineResponse']; loading: boolean }) {
+  return <section className="practice-selector" aria-label="章节练习选择">
+    <h2>选择章节</h2>
+    {loading ? <Skeleton className="h-32 w-full" /> : null}
+    {outline && outline.chapters.length === 0 ? <p className="practice-selector__empty">这门科目还没有章节练习题。</p> : null}
+    {outline ? <ol>{outline.chapters.map((chapter) => <li key={chapter.chapter_code}>
+      <a href={`/exam/cs408/practice?module=${moduleKey}&chapter=${chapter.chapter_code}`}>
+        <span className="practice-selector__no">{String(chapter.chapter_no).padStart(2, '0')}</span>
+        <strong>{chapterTitle(chapter.chapter_title, chapter.chapter_no)}</strong>
+        <small>{chapter.question_count} 道题</small>
+        <span className="practice-selector__go">开始练习</span>
+      </a>
+    </li>)}</ol> : null}
+    {outline && outline.chapters.length ? <p className="practice-selector__total">共 {chapterTotal(outline)} 道章节练习题</p> : null}
+  </section>;
+}
+
+/**
+ * How many chapter questions the paper has, counted the way the chapters are.
+ *
+ * NOT `outline.total`: the server's total counts a question once per knowledge point it is
+ * tagged with, so a question filed under two points is counted twice there. The chapter counts
+ * are one per question, so the sum of them is the number a learner would get by adding up the
+ * page — and the page must not disagree with itself.
+ */
+function chapterTotal(outline: components['schemas']['ExamChapterPracticeOutlineResponse']): number {
+  return outline.chapters.reduce((sum, chapter) => sum + chapter.question_count, 0);
+}
+
+/**
+ * The chapter's title without the seed's own numbering.
+ *
+ * Some modules' seeds title a chapter 「第1章 计算机系统概述」 and others just 「线性表」. The
+ * row already states the number in its own column, so the prefix is dropped when it is THIS
+ * chapter's own number — never a title that merely begins with something that looks like one,
+ * and never so much that nothing is left.
+ */
+function chapterTitle(title: string, chapterNo: number): string {
+  const stripped = title.replace(new RegExp(`^第\\s*${chapterNo}\\s*[章节]\\s*`), '').trim();
+  return stripped || title;
 }

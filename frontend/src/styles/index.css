@@ -44,3 +44,43 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* A horizontally scrollable tab strip whose tail is out of view says so, rather than looking
+   finished. Applied only while the strip actually overflows. */
+.context-nav--overflows {
+  mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+}
+
+/* ------------------------------------------------------------------ learning-space accent
+
+   The three spaces share ONE canvas, one header and one set of surfaces. What tells them apart
+   is a single accent, applied in three places only: the small label above a page's title, the
+   rule under the current tab, and the current tab's own text.
+
+   This replaced a per-space page background. 考研学习 painted its whole area warm beige, which
+   read as a different product rather than a different subject, and it made the exam space the
+   only one where the rest of the product's tokens were wrong. An accent is enough: it is
+   visible on every page of a space without changing what the page is made of.
+
+   `--space-accent` defaults to the product primary so a surface outside all three spaces (a
+   shared page, a component in isolation, a test) still resolves to something real. */
+.space-accent {
+  --space-accent: var(--color-primary);
+}
+
+.space-accent--exam { --space-accent: var(--color-exam); }
+.space-accent--course { --space-accent: var(--color-course); }
+.space-accent--programming { --space-accent: var(--color-programming); }
+
+/* The current tab's rule and label. Scoped to a space so the shared tab strip needs no prop
+   telling it which space it is in — the space it is rendered inside already said so. */
+.space-accent .context-nav-tab[aria-current='page'] {
+  border-bottom-color: var(--space-accent);
+  color: var(--space-accent);
+}
+
+/* The small label above a page title. */
+.space-accent .space-eyebrow {
+  color: var(--space-accent);
+}

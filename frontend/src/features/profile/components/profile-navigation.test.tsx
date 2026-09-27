@@ -67,9 +67,13 @@ describe('profile section navigation', () => {
       '法务',
     ]);
 
-    // A listed section and a rendered section cannot drift: every href must resolve.
+    // A listed section and a rendered section cannot drift: every entry must resolve. The
+    // section travels as a search parameter rather than a fragment, because that is what makes
+    // it survive a refresh and what a setup flow can send a learner back to.
     for (const link of links) {
-      const id = (link.getAttribute('href') ?? '').replace('#', '');
+      const href = link.getAttribute('href') ?? '';
+      expect(href.startsWith('/profile?section=')).toBe(true);
+      const id = new URLSearchParams(href.split('?')[1]).get('section') ?? '';
       expect(id).not.toBe('');
       expect(document.getElementById(id)).not.toBeNull();
     }
@@ -93,7 +97,7 @@ describe('profile section navigation', () => {
     renderApp('/profile');
     await screen.findByDisplayValue('测试学习者');
 
-    const selector = screen.getByLabelText('跳转到分区');
+    const selector = screen.getByLabelText('跳转到');
     const options = within(selector).getAllByRole('option');
     expect(options.map((option) => option.textContent)).toEqual([
       '选择要查看的分区…',

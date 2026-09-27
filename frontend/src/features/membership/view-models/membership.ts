@@ -121,6 +121,10 @@ export interface PlanRow {
   weeklyBudget: number | null;
   capabilities: string[];
   isCurrent: boolean;
+  /** The price of one period in cents, or null for a tier that cannot be ordered (Free). */
+  priceCents: number | null;
+  /** The period that price buys, in days. Null wherever `priceCents` is. */
+  durationDays: number | null;
 }
 
 export function planRows(
@@ -141,8 +145,28 @@ export function planRows(
       weeklyBudget: definition?.weekly_budget ?? null,
       capabilities: definition?.capabilities ?? [],
       isCurrent: tier === (currentTier ?? 'free'),
+      priceCents: definition?.price_cents ?? null,
+      durationDays: definition?.duration_days ?? null,
     };
   });
+}
+
+/**
+ * A price, as the learner will pay it.
+ *
+ * It reads the tier's own `price_cents` — the same value `create_pending_order` charges — so the
+ * page cannot advertise a price the order would contradict. A tier with no price says 免费 rather
+ * than ¥0.00, because "cannot be ordered" and "costs nothing" are different facts.
+ */
+export function formatPrice(priceCents: number | null): string {
+  if (priceCents === null || priceCents === undefined) return '免费';
+  return `¥${(priceCents / 100).toFixed(2)}`;
+}
+
+/** The period a price buys, stated beside it. */
+export function formatPeriod(durationDays: number | null): string {
+  if (!durationDays) return '';
+  return `${durationDays} 天`;
 }
 
 // A cap of `null` is an UNCAPPED period (Advanced has no daily cap), which is a different

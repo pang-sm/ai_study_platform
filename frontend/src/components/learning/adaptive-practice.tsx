@@ -29,6 +29,28 @@ function hrefFor(scope: AdaptiveScope, id: string, entryHref?: string) {
 }
 
 /**
+ * What separates one candidate from the next.
+ *
+ * Two candidates from the same knowledge point carry the same `label`, so a list that showed only
+ * the label rendered six DIFFERENT questions as six identical rows — a learner reads that as a bug
+ * or as padding, and neither is true. The type and the difficulty are the candidate's own fields
+ * and they do differ, so they are what the row shows next to the knowledge point.
+ */
+const QUESTION_TYPE_LABELS: Record<string, string> = {
+  choice: '选择题',
+  big: '简答题',
+};
+
+function candidateDetail(candidate: {
+  question_type?: string | null;
+  difficulty?: string | null;
+}): string | undefined {
+  const type = candidate.question_type ? QUESTION_TYPE_LABELS[candidate.question_type] : undefined;
+  const parts = [type, candidate.difficulty ?? undefined].filter(Boolean);
+  return parts.length ? parts.join(' · ') : undefined;
+}
+
+/**
  * Practice the backend picked, with its reason attached.
  *
  * Every candidate names the rule that selected it, and the facts behind that rule are rendered as
@@ -60,27 +82,29 @@ export function AdaptivePractice({ serviceKey, courseId, examModuleId, language,
     <section className="mt-10" aria-labelledby="adaptive-practice-title">
       <SectionHeading
         id="adaptive-practice-title"
-        eyebrow="下一步练习"
         title="推荐练习"
-        description="按已记录的学习事实推荐；每一项都保留它被选中的原因。"
+        description="按你已记录的学习情况推荐；每一项都保留它被选中的原因。"
       />
       {candidates.length ? (
         <ol className="mt-5 space-y-5">
-          {candidates.map((candidate) => {
+          {candidates.map((candidate, index) => {
             const href = hrefFor(scope, candidate.question_source_id, entryHref);
+            const detail = candidateDetail(candidate);
             return (
               <li key={candidate.candidate_id} className="border-l-2 border-border-default pl-4">
                 <p className="text-body font-medium text-text-primary">{candidate.label}</p>
                 <p className="mt-1 text-metadata text-text-secondary">
-                  {candidate.knowledge_point_name ?? candidate.question_type ?? candidate.source_type}
+                  第 {index + 1} / {candidates.length} 题
+                  {candidate.knowledge_point_name ? ` · ${candidate.knowledge_point_name}` : ''}
+                  {detail ? ` · ${detail}` : ''}
                 </p>
                 <details className="mt-2">
                   <summary className="text-body text-text-secondary">为什么推荐这一题</summary>
                   <p className="mt-2 text-body text-text-primary">
-                    {reasonLabels[candidate.reason] ?? '后端给出的推荐原因'}
+                    {reasonLabels[candidate.reason] ?? '推荐依据暂不可显示'}
                   </p>
                   <p className="mt-1 text-body text-text-secondary">
-                    {query.data?.reasons?.[candidate.reason] ?? '后端未提供该原因的说明。'}
+                    {query.data?.reasons?.[candidate.reason] ?? '这项暂时没有可显示的说明。'}
                   </p>
                   <FactList
                     className="mt-3"
@@ -101,7 +125,7 @@ export function AdaptivePractice({ serviceKey, courseId, examModuleId, language,
       ) : (
         <EmptyState
           className="mt-5"
-          title="后端当前没有可展示的推荐练习。"
+          title="现在还没有可以推荐的练习。"
           description="没有候选时不补造题目；完成一次练习或复习后，这里会重新给出建议。"
         />
       )}

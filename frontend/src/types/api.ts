@@ -1065,6 +1065,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/exam/prep/math/taxonomy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Math Taxonomy
+         * @description The maths taxonomy — the backend's own statement about the maths subject.
+         *
+         *     Public (no session) for the same reason the catalogue is: it is versioned config, identical
+         *     for every learner, and says nothing about anyone.
+         */
+        get: operations["get_math_taxonomy_exam_prep_math_taxonomy_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/exam/prep/subjects/{subject_id}/content-status": {
         parameters: {
             query?: never;
@@ -2609,6 +2632,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/chat/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Chat Stream
+         * @description The same turn as POST /chat, delivered as it is written.
+         *
+         *     Preparation is shared with POST /chat (one implementation of scope, ownership, session,
+         *     retrieval and capability), and so is settlement — the answer is simply read from a provider
+         *     stream in pieces instead of from one response. Everything the learner is not allowed to see
+         *     (a provider's raw chunk, hidden reasoning, routing or billing detail) stops before this
+         *     function: the only frames that leave are start / delta / done / error.
+         */
+        post: operations["chat_stream_chat_stream_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/chat/upload": {
         parameters: {
             query?: never;
@@ -2637,6 +2686,40 @@ export interface paths {
         put?: never;
         /** Upload Material */
         post: operations["upload_material_materials_upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/personal-materials/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Personal Material */
+        post: operations["upload_personal_material_personal_materials_upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/chat/attachments/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Chat Attachment */
+        post: operations["upload_chat_attachment_chat_attachments_upload_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2731,6 +2814,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/library/materials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Library Materials
+         * @description The learner's own material library, across every entry point that uploaded into it.
+         */
+        get: operations["list_library_materials_library_materials_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/personal-materials/{material_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Personal Material */
+        delete: operations["delete_personal_material_personal_materials__material_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/materials/{material_id}/download": {
         parameters: {
             query?: never;
@@ -2795,6 +2915,30 @@ export interface paths {
         post?: never;
         /** Delete Material */
         delete: operations["delete_material_materials__material_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/materials/{material_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Library Material
+         * @description Remove ONE asset from the learner's own library.
+         *
+         *     The write side of `GET /library/materials`, and deliberately scope-blind: a course upload, a
+         *     personal upload and a chat upload are all the owner's assets, so the client never has to know
+         *     which scope a row came from to delete it — the same reason the list does not ask either.
+         */
+        delete: operations["delete_library_material_library_materials__material_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2937,7 +3081,14 @@ export interface paths {
         delete: operations["delete_chat_session_chat_sessions__session_id__delete"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Rename Chat Session
+         * @description Rename ONE of the caller's own conversations.
+         *
+         *     The title is the only thing this writes. It is trimmed, refused when it would be empty, and
+         *     capped so a name stays a name; the session's messages, scope and ownership are untouched.
+         */
+        patch: operations["rename_chat_session_chat_sessions__session_id__patch"];
         trace?: never;
     };
     "/code/sessions": {
@@ -3977,6 +4128,42 @@ export interface paths {
         head?: never;
         /** Update Course Learning Study Plan Task */
         patch: operations["update_course_learning_study_plan_task_course_learning_study_plan_tasks__task_id__patch"];
+        trace?: never;
+    };
+    "/exam/11408/subjects/{subject_key}/materials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Exam Subject Materials
+         * @description This subject's material library. READ-ONLY.
+         */
+        get: operations["get_exam_subject_materials_exam_11408_subjects__subject_key__materials_get"];
+        put?: never;
+        /**
+         * Upload Exam Subject Material
+         * @description Upload ONE file into THIS subject's library.
+         *
+         *     WHO and WHICH SUBJECT are both decided here, from the session and the path — the client
+         *     supplies neither and there is no form field it could supply them through. The scope is
+         *     then resolved by `resolve_material_scope`, the one function that decides what a
+         *     `<module>_11408` id means, so the pipeline's own validation is what refuses a malformed
+         *     subject rather than a second rule written here.
+         *
+         *     `source_type` is left unset, exactly as a course upload leaves it: `exam_scope` would
+         *     additionally file the material into the learner's COURSE-LEARNING exam-cram settings,
+         *     which is course-space user state and not this space's to write. The material's domain —
+         *     and therefore its quota and its label — is read off its scope id, which is the exam one
+         *     either way.
+         */
+        post: operations["upload_exam_subject_material_exam_11408_subjects__subject_key__materials_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/exam/11408/subjects/{subject_key}/dashboard-summary": {
@@ -7012,7 +7199,7 @@ export interface components {
     schemas: {
         /**
          * AIFeedbackRequest
-         * @description One rating. The request id is the identity; ``reason`` follows the frozen taxonomy.
+         * @description One rating for one request, with an optional negative-feedback detail.
          */
         AIFeedbackRequest: {
             /** Request Id */
@@ -7023,7 +7210,14 @@ export interface components {
              */
             rating: "up" | "down";
             /** Reason */
-            reason?: ("incorrect" | "too_shallow" | "too_complex" | "too_verbose" | "too_brief" | "bad_code" | "slow" | "poor_image" | "other") | null;
+            reason?: ("incorrect" | "not_answered" | "unclear" | "too_shallow" | "too_complex" | "too_verbose" | "too_brief" | "citation_issue" | "bad_code" | "slow" | "poor_image" | "other") | null;
+            /** Reasons */
+            reasons?: ("incorrect" | "not_answered" | "unclear" | "too_shallow" | "too_complex" | "too_verbose" | "too_brief" | "citation_issue" | "bad_code" | "slow" | "poor_image" | "other")[];
+            /**
+             * Comment
+             * @default
+             */
+            comment: string;
             /**
              * Regenerated
              * @default false
@@ -7048,6 +7242,13 @@ export interface components {
             rating: string;
             /** Reason */
             reason?: string | null;
+            /** Reasons */
+            reasons?: string[];
+            /**
+             * Comment
+             * @default
+             */
+            comment: string;
             /**
              * Regenerated
              * @default false
@@ -7828,6 +8029,11 @@ export interface components {
              */
             username: string;
         };
+        /** Body_upload_chat_attachment_chat_attachments_upload_post */
+        Body_upload_chat_attachment_chat_attachments_upload_post: {
+            /** File */
+            file: string;
+        };
         /** Body_upload_chat_file_chat_upload_post */
         Body_upload_chat_file_chat_upload_post: {
             /** File */
@@ -7862,6 +8068,11 @@ export interface components {
             /** File */
             file: string;
         };
+        /** Body_upload_exam_subject_material_exam_11408_subjects__subject_key__materials_post */
+        Body_upload_exam_subject_material_exam_11408_subjects__subject_key__materials_post: {
+            /** File */
+            file: string;
+        };
         /** Body_upload_material_materials_upload_post */
         Body_upload_material_materials_upload_post: {
             /** File */
@@ -7882,20 +8093,13 @@ export interface components {
              * @default
              */
             track: string;
-            /**
-             * Question
-             * @default
-             */
-            question: string;
-            /** Conversation Id */
-            conversation_id?: number | null;
-            /**
-             * Save To Materials
-             * @default false
-             */
-            save_to_materials: boolean;
             /** Source Type */
             source_type?: string | null;
+        };
+        /** Body_upload_personal_material_personal_materials_upload_post */
+        Body_upload_personal_material_personal_materials_upload_post: {
+            /** File */
+            file: string;
         };
         /** ChangePasswordRequest */
         ChangePasswordRequest: {
@@ -7954,8 +8158,15 @@ export interface components {
              * @default []
              */
             material_ids: number[];
+            /**
+             * Attachment Ids
+             * @default []
+             */
+            attachment_ids: number[];
             /** Edit Source Message Id */
             edit_source_message_id?: number | null;
+            /** Continue From Message Id */
+            continue_from_message_id?: number | null;
             /**
              * Branch Id
              * @default
@@ -7981,10 +8192,33 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             /**
+             * Knowledge Point Id
+             * @default
+             */
+            knowledge_point_id: string;
+            /**
+             * Knowledge Point Title
+             * @default
+             */
+            knowledge_point_title: string;
+            /**
              * Service Key
              * @default
              */
             service_key: string;
+            /**
+             * Model Preference
+             * @default
+             */
+            model_preference: string;
+            /** Model Id */
+            model_id?: string | null;
+            /**
+             * Thinking Mode
+             * @default standard
+             * @enum {string}
+             */
+            thinking_mode: "standard" | "deep";
         };
         /** CodeAISavedChatCreate */
         CodeAISavedChatCreate: {
@@ -8526,6 +8760,11 @@ export interface components {
             course_goals?: {
                 [key: string]: string;
             } | null;
+            /**
+             * Recommended Courses
+             * @default []
+             */
+            recommended_courses: string[];
             /** Plan */
             plan?: string | null;
             /**
@@ -9284,6 +9523,20 @@ export interface components {
             note?: string | null;
             /** Tags */
             tags?: string[] | null;
+        };
+        /**
+         * CustomExamSubject
+         * @description A subject the learner named themselves — 自命题专业课.
+         *
+         *     It is NOT an ``ExamSubjectSummary``: it has no availability, no capability flags and no
+         *     modules, because none of those exist for it. Modelling it as a catalogue subject would let a
+         *     client render a 进入学习 affordance for content the product has never had.
+         */
+        CustomExamSubject: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
         };
         /** DeepStudyCitation */
         DeepStudyCitation: {
@@ -10233,9 +10486,13 @@ export interface components {
          * @description ``_profile_payload`` — the learner's Exam Prep profile.
          *
          *     ``subjects`` carries each selected subject's own availability and capability flags, so
-         *     a client never has to guess which of them can actually be entered. An unconfigured
-         *     profile is NOT an error: every field is explicitly null/empty and ``configured`` says
-         *     which case it is.
+         *     a client never has to guess which of them can actually be entered. ``custom_subjects`` is the
+         *     learner's own list and is kept SEPARATE from ``subjects`` for that reason: the two are not the
+         *     same kind of thing, and merging them would make a subject with no content indistinguishable
+         *     from a national subject whose content is merely not built yet.
+         *
+         *     An unconfigured profile is NOT an error: every field is explicitly null/empty and
+         *     ``configured`` says which case it is.
          */
         ExamPrepProfileResponse: {
             /** Configured */
@@ -10250,6 +10507,8 @@ export interface components {
             target_exam_year: number | null;
             /** Subjects */
             subjects: (components["schemas"]["ExamSubjectSummary"] | components["schemas"]["UnknownExamSubject"])[];
+            /** Custom Subjects */
+            custom_subjects: components["schemas"]["CustomExamSubject"][];
         };
         /** ExamPrepProfileUpsert */
         ExamPrepProfileUpsert: {
@@ -10259,6 +10518,8 @@ export interface components {
             selected_subjects?: string[];
             /** Target Exam Year */
             target_exam_year?: number | null;
+            /** Custom Subjects */
+            custom_subjects?: string[];
         };
         /**
          * ExamQuestionAnalysisRequest
@@ -10273,6 +10534,12 @@ export interface components {
          *     `stem` is Optional rather than required so an omitted stem keeps the handler's own 400
          *     "stem is required" instead of turning into a 422 from validation; `context` is accepted
          *     for historical callers and is currently not used to build the prompt.
+         *
+         *     `knowledge_point`, `analysis` and `follow_up` are the three pieces of the same kind of
+         *     prompt material, and they are what make this "about THIS question" rather than a generic
+         *     explanation: the point the question examines, the product's own 解析 (so a follow-up answer
+         *     cannot contradict it), and the learner's own follow-up question. All three are optional, and
+         *     a request that carries none of them behaves exactly as before.
          */
         ExamQuestionAnalysisRequest: {
             /** Stem */
@@ -10289,6 +10556,12 @@ export interface components {
             question_type?: string | null;
             /** Context */
             context?: string | null;
+            /** Knowledge Point */
+            knowledge_point?: string | null;
+            /** Analysis */
+            analysis?: string | null;
+            /** Follow Up */
+            follow_up?: string | null;
         };
         /**
          * ExamQuestionAnalysisResponse
@@ -10636,11 +10909,13 @@ export interface components {
          *     `extra="forbid"` is deliberate and load-bearing: without it a body containing
          *     `{"status": "completed"}` was silently accepted, returned 200, and changed nothing —
          *     the worst possible answer to a field the caller clearly cared about. It is now a loud
-         *     422 naming the field. Completing a task means performing the factual action for its
-         *     type: practising its questions (`chapter_practice`), clearing its review-due leaves
-         *     (`review`), or marking its knowledge points learned (`knowledge`). `/learning/tasks`
-         *     is a different system (course_learning / programming) whose completion DOES write
-         *     mastery, and it must not be used for the CS408 plan.
+         *     422. The RESPONSE body is only the learner-facing validation sentence: the rejected field
+         *     and Pydantic's own vocabulary are logged server-side and never returned (main.py's
+         *     RequestValidationError handler, pinned by test_error_detail_boundary.py). Completing a task
+         *     means performing the factual action for its type: practising its questions
+         *     (`chapter_practice`), clearing its review-due leaves (`review`), or marking its knowledge
+         *     points learned (`knowledge`). `/learning/tasks` is a different system (course_learning /
+         *     programming) whose completion DOES write mastery, and it must not be used for the CS408 plan.
          */
         ExamStudyPlanTaskCreate: {
             /** Username */
@@ -10772,6 +11047,120 @@ export interface components {
             today_plan: components["schemas"]["ExamDashboardPlanTask"][];
             materials: components["schemas"]["ExamDashboardMaterials"];
             quota: components["schemas"]["ExamDashboardQuota"];
+        };
+        /**
+         * ExamSubjectMaterialItem
+         * @description ONE material in a 408 subject's library.
+         *
+         *     A named subset of the pipeline's serializer, with `extra` allowed so anything else that
+         *     SAME serializer appends arrives intact. `can_preview` / `preview_url` and
+         *     `can_download` / `download_url` are named explicitly because they are what the page acts
+         *     on — and they stay the SERVER's judgement of both questions: which file types a browser
+         *     can render, and whether this particular file is still there to serve.
+         */
+        ExamSubjectMaterialItem: {
+            /** Id */
+            id: number;
+            /**
+             * Course Id
+             * @default
+             */
+            course_id: string;
+            /**
+             * Subject Key
+             * @default
+             */
+            subject_key: string;
+            /** Subject */
+            subject?: string | null;
+            /** File Type */
+            file_type?: string | null;
+            /** Original Filename */
+            original_filename?: string | null;
+            /** Mime Type */
+            mime_type?: string | null;
+            /**
+             * File Size
+             * @default 0
+             */
+            file_size: number;
+            /** Parse Status */
+            parse_status?: string | null;
+            /**
+             * Parse Progress
+             * @default 0
+             */
+            parse_progress: number;
+            /**
+             * Chunk Count
+             * @default 0
+             */
+            chunk_count: number;
+            /** Created At */
+            created_at?: string | null;
+            /**
+             * Can Preview
+             * @default false
+             */
+            can_preview: boolean;
+            /** Preview Url */
+            preview_url?: string | null;
+            /**
+             * Can Download
+             * @default false
+             */
+            can_download: boolean;
+            /** Download Url */
+            download_url?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * ExamSubjectMaterialUploadResponse
+         * @description The upload result, in the material pipeline's own shape plus the subject identity.
+         */
+        ExamSubjectMaterialUploadResponse: {
+            /** Subject Key */
+            subject_key: string;
+            /** Course Id */
+            course_id: string;
+            /**
+             * Success
+             * @default true
+             */
+            success: boolean;
+            /** Material Id */
+            material_id?: number | null;
+            /** Filename */
+            filename?: string | null;
+            /** Parse Status */
+            parse_status?: string | null;
+            /**
+             * Parse Progress
+             * @default 0
+             */
+            parse_progress: number;
+            /**
+             * Message
+             * @default
+             */
+            message: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * ExamSubjectMaterialsResponse
+         * @description `subject_key` is echoed because the PATH decided it, not the client.
+         */
+        ExamSubjectMaterialsResponse: {
+            /** Subject Key */
+            subject_key: string;
+            /** Course Id */
+            course_id: string;
+            /** Items */
+            items: components["schemas"]["ExamSubjectMaterialItem"][];
+            /** Total */
+            total: number;
         };
         /**
          * ExamSubjectSummary
@@ -11724,6 +12113,115 @@ export interface components {
              */
             course_id: string;
         };
+        /**
+         * MathCoverageEntrySummary
+         * @description One statement about one canonical item's membership in one paper's range.
+         *
+         *     ``included`` is true / false / null, and null is NOT false: it means nobody has established
+         *     the answer, which is the state of every entry the product currently holds.
+         */
+        MathCoverageEntrySummary: {
+            /** Variant */
+            variant: string;
+            /** Domain */
+            domain: string;
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "domain" | "chapter" | "section";
+            /** Code */
+            code: string;
+            /** Included */
+            included: boolean | null;
+            /** Source Id */
+            source_id: string;
+        };
+        /** MathCoverageSourceSummary */
+        MathCoverageSourceSummary: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Kind */
+            kind: string;
+            /** Reference */
+            reference: string;
+            /** Verification Status */
+            verification_status: string;
+            /** Note */
+            note: string;
+        };
+        /**
+         * MathDomainSummary
+         * @description One canonical part of the maths exam. There are three, and each exists once.
+         */
+        MathDomainSummary: {
+            /** Key */
+            key: string;
+            /** Display Name */
+            display_name: string;
+            /** Order */
+            order: number;
+            /** Knowledge Map Id */
+            knowledge_map_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "available" | "pending";
+            /** Source */
+            source: string;
+            /** Source Reference */
+            source_reference: string;
+        };
+        /**
+         * MathTaxonomyResponse
+         * @description The whole maths taxonomy: domains, papers, and whatever is known about each paper's range.
+         *
+         *     ``coverage`` is empty today because no authoritative syllabus has been imported. A client must
+         *     read ``coverage_status`` and ``included: null`` rather than treating an absent entry as "not
+         *     examined" — the two are different statements and only one of them is true.
+         */
+        MathTaxonomyResponse: {
+            /** Math Taxonomy Version */
+            math_taxonomy_version: string;
+            /**
+             * Math Ready Level
+             * @enum {string}
+             */
+            math_ready_level: "L0" | "L1" | "L2";
+            /** Math Openable */
+            math_openable: boolean;
+            /** Openable Reason */
+            openable_reason: string;
+            /** Domains */
+            domains: components["schemas"]["MathDomainSummary"][];
+            /** Variants */
+            variants: components["schemas"]["MathVariantSummary"][];
+            /** Coverage Status */
+            coverage_status: string;
+            /** Coverage Note */
+            coverage_note: string;
+            /** Coverage Sources */
+            coverage_sources: components["schemas"]["MathCoverageSourceSummary"][];
+            /** Coverage */
+            coverage: components["schemas"]["MathCoverageEntrySummary"][];
+        };
+        /**
+         * MathVariantSummary
+         * @description A maths paper. It decides SCOPE and owns no content.
+         */
+        MathVariantSummary: {
+            /** Id */
+            id: string;
+            /** Display Name */
+            display_name: string;
+            /** Subject Id */
+            subject_id: string;
+            /** Order */
+            order: number;
+        };
         /** MeRequest */
         MeRequest: {
             /** Username */
@@ -12308,8 +12806,9 @@ export interface components {
         };
         /**
          * PlanDefinition
-         * @description One tier's factual limits. ``daily_budget`` is ``None`` when the tier has no daily
-         *     cap (Advanced); that is a real absence, not a zero.
+         * @description One tier's factual limits and its price. ``daily_budget`` is ``None`` when the tier has no
+         *     daily cap (Advanced); that is a real absence, not a zero. ``price_cents`` is ``None`` for a
+         *     tier that cannot be ordered at all (Free), for the same reason.
          */
         PlanDefinition: {
             /** Label */
@@ -12320,6 +12819,10 @@ export interface components {
             weekly_budget: number | null;
             /** Capabilities */
             capabilities: string[];
+            /** Price Cents */
+            price_cents?: number | null;
+            /** Duration Days */
+            duration_days?: number | null;
         };
         /** PlanGeneratePreviewRequest */
         PlanGeneratePreviewRequest: {
@@ -13151,6 +13654,14 @@ export interface components {
              * @default false
              */
             force: boolean;
+        };
+        /**
+         * RenameChatSessionRequest
+         * @description A conversation's new name. The only field this endpoint writes.
+         */
+        RenameChatSessionRequest: {
+            /** Title */
+            title: string;
         };
         /** RenameConversationRequest */
         RenameConversationRequest: {
@@ -16012,6 +16523,26 @@ export interface operations {
             };
         };
     };
+    get_math_taxonomy_exam_prep_math_taxonomy_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MathTaxonomyResponse"];
+                };
+            };
+        };
+    };
     get_subject_content_status_exam_prep_subjects__subject_id__content_status_get: {
         parameters: {
             query?: never;
@@ -18585,6 +19116,39 @@ export interface operations {
             };
         };
     };
+    chat_stream_chat_stream_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     upload_chat_file_chat_upload_post: {
         parameters: {
             query?: never;
@@ -18623,15 +19187,79 @@ export interface operations {
     upload_material_materials_upload_post: {
         parameters: {
             query?: never;
-            header?: {
-                authorization?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody: {
             content: {
                 "multipart/form-data": components["schemas"]["Body_upload_material_materials_upload_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_personal_material_personal_materials_upload_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_personal_material_personal_materials_upload_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_chat_attachment_chat_attachments_upload_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_chat_attachment_chat_attachments_upload_post"];
             };
         };
         responses: {
@@ -18825,6 +19453,68 @@ export interface operations {
             };
         };
     };
+    list_library_materials_library_materials_get: {
+        parameters: {
+            query?: {
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_personal_material_personal_materials__material_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                material_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     download_material_file_materials__material_id__download_get: {
         parameters: {
             query?: {
@@ -18962,6 +19652,37 @@ export interface operations {
             query?: {
                 username?: string;
             };
+            header?: never;
+            path: {
+                material_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_library_material_library_materials__material_id__delete: {
+        parameters: {
+            query?: never;
             header?: never;
             path: {
                 material_id: number;
@@ -19330,6 +20051,7 @@ export interface operations {
                 course?: string;
                 subject_key?: string;
                 exam_subject?: string;
+                version_message_id?: number | null;
             };
             header?: never;
             path: {
@@ -19363,6 +20085,8 @@ export interface operations {
         parameters: {
             query?: {
                 username?: string;
+                subject?: string;
+                course?: string;
                 subject_key?: string;
                 exam_subject?: string;
             };
@@ -19373,6 +20097,47 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rename_chat_session_chat_sessions__session_id__patch: {
+        parameters: {
+            query?: {
+                username?: string;
+                subject?: string;
+                course?: string;
+                subject_key?: string;
+                exam_subject?: string;
+            };
+            header?: never;
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenameChatSessionRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -21880,6 +22645,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_exam_subject_materials_exam_11408_subjects__subject_key__materials_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subject_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamSubjectMaterialsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_exam_subject_material_exam_11408_subjects__subject_key__materials_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subject_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_exam_subject_material_exam_11408_subjects__subject_key__materials_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamSubjectMaterialUploadResponse"];
                 };
             };
             /** @description Validation Error */

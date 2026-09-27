@@ -687,11 +687,7 @@ async def upload_course_material(course_id: str, background_tasks: BackgroundTas
         subject_key=key,
         subject=key,
         track="course_learning",
-        question="",
-        conversation_id=None,
-        save_to_materials=False,
         source_type=None,                 # a course upload is a plain user upload
-        authorization=None,
         db=db,
         current_user=current_user,
     )

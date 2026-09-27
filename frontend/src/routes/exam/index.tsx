@@ -1,4 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { MyExamPage } from '@/features/exam/components/exam-product-pages';
+import { ExamHomePage } from '@/features/exam/components/exam-home-page';
 
-export const Route = createFileRoute('/exam/')({ component: MyExamPage });
+export const Route = createFileRoute('/exam/')({ component: ExamHomePage });

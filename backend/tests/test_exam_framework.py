@@ -208,6 +208,56 @@ def test_invalid_track_and_subject_are_rejected(client):
                             "selected_subjects": ["school_custom_exam"]}).status_code == 400
 
 
+def test_custom_subject_is_the_learners_own_and_stays_out_of_the_catalogue(client):
+    """自命题专业课: a name the learner owns, not a fifteenth national subject.
+
+    The catalogue is frozen config, so a custom subject must NOT appear in it, must not be
+    selectable by id, and must not carry a question bank — the honest state for it is "you can add
+    your own material", which only holds while nothing pretends content exists.
+    """
+    register_onboarding = register_and_login(client, "h4_custom_subject")
+    del register_onboarding
+
+    catalogue_ids = {s["id"] for s in client.get("/exam/prep/catalog").json()["subjects"]}
+    r = client.put("/exam/prep/profile", json={
+        "selected_track": "cs_408", "selected_subjects": ["cs_408"],
+        "custom_subjects": ["数据结构与算法（自命题）"]})
+    assert r.status_code == 200, r.text
+    body = r.json()
+
+    custom = body["custom_subjects"]
+    assert len(custom) == 1
+    assert custom[0]["name"] == "数据结构与算法（自命题）"
+    # Identity is server-derived and namespaced, so it can never collide with a catalogue id.
+    assert custom[0]["id"].startswith("custom_")
+    assert custom[0]["id"] not in catalogue_ids
+    # And a custom subject is NOT smuggled into `subjects`, which is the catalogue's own field.
+    assert body["selected_subjects"] == ["cs_408"]
+    assert {s["id"] for s in body["subjects"]} == {"cs_408"}
+
+    # It survives a re-read, and a re-save of the same name keeps ONE identity rather than
+    # minting a new subject every time the profile is saved.
+    again = client.get("/exam/prep/profile").json()
+    assert [item["name"] for item in again["custom_subjects"]] == ["数据结构与算法（自命题）"]
+    assert again["custom_subjects"][0]["id"] == custom[0]["id"]
+
+    resaved = client.put("/exam/prep/profile", json={
+        "selected_track": "cs_408", "selected_subjects": ["cs_408"],
+        "custom_subjects": ["数据结构与算法（自命题）", "数据结构与算法（自命题）", "  "]})
+    assert resaved.status_code == 200
+    assert len(resaved.json()["custom_subjects"]) == 1
+
+
+def test_an_empty_custom_subject_list_clears_them(client):
+    register_and_login(client, "h4_custom_clear")
+    client.put("/exam/prep/profile", json={
+        "selected_track": "cs_408", "selected_subjects": ["cs_408"],
+        "custom_subjects": ["A"]})
+    cleared = client.put("/exam/prep/profile", json={
+        "selected_track": "cs_408", "selected_subjects": ["cs_408"], "custom_subjects": []})
+    assert cleared.json()["custom_subjects"] == []
+
+
 def test_target_exam_year_is_validated(client):
     register_and_login(client, "h4_profile_year")
     assert client.put("/exam/prep/profile", json={

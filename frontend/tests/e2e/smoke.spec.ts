@@ -55,6 +55,6 @@ test('a protected route never renders without a session', async ({ page }) => {
 
   // Without a reachable session probe the honest outcome is a reported failure with a retry —
   // never a learning surface rendered for an unidentified visitor.
-  await expect(page.getByRole('heading', { name: '学习工作区' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: '选择学习科目' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: '重试' })).toBeVisible();
 });

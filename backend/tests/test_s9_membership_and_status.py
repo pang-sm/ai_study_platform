@@ -67,11 +67,24 @@ def test_current_tier_and_plan_catalog_are_concrete(client):
     plans = catalog["plans"]
     assert set(plans) == {"free", "standard", "advanced"}
     for definition in plans.values():
-        assert set(definition) == {"label", "daily_budget", "weekly_budget", "capabilities"}
+        assert set(definition) == {
+            "label", "daily_budget", "weekly_budget", "capabilities",
+            "price_cents", "duration_days",
+        }
         assert isinstance(definition["capabilities"], list) and definition["capabilities"]
     # Advanced has NO daily cap, and the absence is null — not a zero
     assert plans["advanced"]["daily_budget"] is None
     assert plans["free"]["daily_budget"] == 100
+    # The catalogue states the price the ORDER charges, read from the one constant that prices
+    # orders. A page that advertised a different number from the one it bills is the failure this
+    # guards against, so the assertion is against the constant rather than against a literal.
+    from usage import service
+    for tier in ("standard", "advanced"):
+        assert plans[tier]["price_cents"] == service.UNIFIED_PLAN_PRICING[tier]["price_cents"]
+        assert plans[tier]["duration_days"] == service.UNIFIED_PLAN_PRICING[tier]["default_duration_days"]
+    # Free cannot be ordered, so it has no price — an absence, not a zero.
+    assert plans["free"]["price_cents"] is None
+    assert plans["free"]["duration_days"] is None
 
 
 def test_usage_summary_reports_one_shape_for_capped_and_uncapped_periods(client, db_session):
@@ -317,7 +330,7 @@ def test_the_migration_chain_reaches_a_single_head_on_a_fresh_database(tmp_path)
     con = sqlite3.connect(f"file:{fresh.as_posix()}?mode=ro", uri=True)
     try:
         revision = con.execute("select version_num from alembic_version").fetchone()[0]
-        assert revision == "20260921_0013"
+        assert revision == "20260923_0015"
         columns = {row[1] for row in con.execute("PRAGMA table_info(practice_attempts)")}
         assert {"response_time_source", "attempt_index"} <= columns
         # the tables S9 relies on exist, and no hint column was invented for a model's sake
@@ -335,7 +348,7 @@ def test_there_is_exactly_one_alembic_head():
     assert result.returncode == 0, result.stderr[-1000:]
     heads = [line for line in result.stdout.splitlines() if line.strip()]
     assert len(heads) == 1, result.stdout
-    assert heads[0].startswith("20260921_0013")
+    assert heads[0].startswith("20260923_0015")
 
 
 def test_s9_added_no_migration_of_its_own():

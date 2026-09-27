@@ -30,16 +30,23 @@ vi.mock('@tanstack/react-router', () => ({ Link: ({ children, to, search }: { ch
   return <a href={`${to}${parameters.size ? `?${parameters}` : ''}`}>{children}</a>;
 } }));
 vi.mock('./exam-page-shell', () => ({ ExamPageShell: ({ children }: { children: React.ReactNode }) => children }));
-// This suite isolates the legacy ledger. Dynamic Planning has its own query-client integration
+// This suite isolates the plan ledger. Dynamic Planning has its own query-client integration
 // tests; mounting it here would make a static ledger test depend on mutation infrastructure.
-vi.mock('@/features/learning-intelligence/learning-intelligence-surfaces', () => ({ DynamicPlanSurface: () => null }));
+// It still records the scope it was handed — see the `module` assertion below.
+const surfaces = vi.hoisted(() => ({ props: [] as Array<Record<string, unknown>> }));
+vi.mock('@/features/learning-intelligence/learning-intelligence-surfaces', () => ({
+  DynamicPlanSurface: (props: Record<string, unknown>) => { surfaces.props.push(props); return null; },
+}));
 
 describe('Cs408StudyPlanWorkspace', () => {
   hooks.useCs408StudyPlans.mockImplementation(() => plans);
   it('treats a missing learning_plan feature as locked and does not mount plan content', () => {
     plans = [];
     render(<Cs408StudyPlanWorkspace />);
-    expect(screen.getByRole('heading', { name: '学习计划' })).toBeInTheDocument();
+    // 学习计划 is the tab above, so it survives only as the region's accessible name.
+    expect(screen.getByRole('heading', { name: '学习计划' })).toHaveClass('sr-only');
+    expect(screen.queryByText('CS408 / 学习计划簿')).not.toBeInTheDocument();
+    expect(screen.queryByText('按实际学习记录更新任务状态')).not.toBeInTheDocument();
     expect(screen.getByText('当前档位暂未开放学习计划')).toBeInTheDocument();
     expect(screen.queryByText('理解虚拟内存')).not.toBeInTheDocument();
     expect(hooks.useCs408StudyPlans).toHaveBeenLastCalledWith(false);
@@ -60,6 +67,10 @@ describe('Cs408StudyPlanWorkspace', () => {
     entitlement = { isPending: false, isError: false, data: { service_key: 'exam_11408', current_tier: 'standard', policy_version: 'v1', features: { learning_plan: { allowed: true, required_tier: 'standard', required_capability: 'planning.generate' } } }, refetch };
     plans = [{ isPending: false, isError: false, data: plan('operating_system', '操作系统', [task, { ...task, id: 8, computed_status: 'not_started', status: 'not_started' }, { ...task, id: 9, computed_status: 'completed', status: 'completed' }]), refetch }];
     render(<Cs408StudyPlanWorkspace />);
+    // The body opens on the tasks themselves: no 学习计划 headline, no subtitle restating the tab.
+    expect(screen.getByRole('heading', { name: '学习计划' })).toHaveClass('sr-only');
+    expect(screen.queryByText('CS408 / 学习计划簿')).not.toBeInTheDocument();
+    expect(screen.queryByText('按实际学习记录更新任务状态')).not.toBeInTheDocument();
     expect(screen.getAllByText('理解虚拟内存')).toHaveLength(3);
     expect(screen.getByText('进行中')).toBeInTheDocument();
     expect(screen.getByText('未开始')).toBeInTheDocument();
@@ -67,5 +78,43 @@ describe('Cs408StudyPlanWorkspace', () => {
     expect(screen.getByRole('link', { name: '继续学习' })).toHaveAttribute('href', '/exam/cs408/knowledge?module=operating_system');
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /完成|标记/i })).not.toBeInTheDocument();
+  });
+
+  it('names the paper an adjustment is for, because the API refuses a proposal without one', () => {
+    // REGRESSION GUARD. 408 keeps one plan per paper, and the adjustment route refuses a proposal
+    // whose `exam_module_id` is empty (`module_required`). The page used to send `''`, so every
+    // learner saw "请求暂时不可用，请稍后重试。" and the feature could not work at all.
+    surfaces.props.length = 0;
+    entitlement = { isPending: false, isError: false, data: { service_key: 'exam_11408', current_tier: 'standard', policy_version: 'v1', features: { learning_plan: { allowed: true, required_tier: 'standard', required_capability: 'planning.generate' } } }, refetch };
+    plans = [{ isPending: false, isError: false, data: plan('operating_system', '操作系统', [task]), refetch }];
+    render(<Cs408StudyPlanWorkspace />);
+
+    const props = surfaces.props.at(-1) as { scope: { exam_module_id: string; service_key: string }; scopeSelect: { value: string; options: Array<{ value: string }>; label: string } };
+    expect(props.scope.service_key).toBe('exam_11408');
+    // The plan the learner actually has work in, not an arbitrary first paper.
+    expect(props.scope.exam_module_id).toBe('operating_system');
+    expect(props.scopeSelect.value).toBe('operating_system');
+    expect(props.scopeSelect.label).toBe('调整科目');
+    expect(props.scopeSelect.options.map((option) => option.value)).toEqual(['data_structure', 'computer_organization', 'operating_system', 'computer_network']);
+  });
+
+  it('opens the adjustment on the paper the learner arrived with', () => {
+    // The 学习计划 tab carries `?module=` like every other tool tab. That context wins over the
+    // "paper you happen to have work in" fallback — the learner is already looking at a paper.
+    surfaces.props.length = 0;
+    entitlement = { isPending: false, isError: false, data: { service_key: 'exam_11408', current_tier: 'standard', policy_version: 'v1', features: { learning_plan: { allowed: true, required_tier: 'standard', required_capability: 'planning.generate' } } }, refetch };
+    plans = [{ isPending: false, isError: false, data: plan('operating_system', '操作系统', [task]), refetch }];
+    render(<Cs408StudyPlanWorkspace moduleKey="data_structure" />);
+    const props = surfaces.props.at(-1) as { scope: { exam_module_id: string } };
+    expect(props.scope.exam_module_id).toBe('data_structure');
+  });
+
+  it('falls back to a stable default when there is no context and no work yet', () => {
+    surfaces.props.length = 0;
+    entitlement = { isPending: false, isError: false, data: { service_key: 'exam_11408', current_tier: 'standard', policy_version: 'v1', features: { learning_plan: { allowed: true, required_tier: 'standard', required_capability: 'planning.generate' } } }, refetch };
+    plans = [];
+    render(<Cs408StudyPlanWorkspace />);
+    const props = surfaces.props.at(-1) as { scope: { exam_module_id: string } };
+    expect(props.scope.exam_module_id).toBe('data_structure');
   });
 });

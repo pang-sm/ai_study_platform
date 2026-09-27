@@ -21,7 +21,10 @@ def execute_programming_ai(db, user, capability: str, messages: list[dict], *,
                            learning_context: LearningContext,
                            max_tokens: int | None = None,
                            temperature: float | None = None,
-                           request_id: str | None = None) -> OrchestratorResult:
+                           request_id: str | None = None,
+                           explicit_model: str | None = None,
+                           model_preference: str | None = None,
+                           thinking: bool | None = None) -> OrchestratorResult:
     """Execute exactly one Programming AI operation with canonical durable ownership."""
     if learning_context.service_namespace != ServiceNamespace.PROGRAMMING:
         raise ValueError("Programming AI requires a programming LearningContext")
@@ -29,12 +32,18 @@ def execute_programming_ai(db, user, capability: str, messages: list[dict], *,
         raise ValueError("Programming AI LearningContext must belong to current user")
     result = AIOrchestrator().execute(
         db, user.id, capability, messages, max_tokens=max_tokens,
-        temperature=temperature, request_id=request_id, learning_context=learning_context)
+        temperature=temperature, request_id=request_id, learning_context=learning_context,
+        explicit_model=explicit_model,
+        model_preference=model_preference, thinking=thinking)
     if not result.ok:
         raise HTTPException(status_code=denial_status(result.error_category),
                             detail="AI capability unavailable")
-    if result.status == "reconciliation_pending" or not result.content:
-        raise HTTPException(status_code=502, detail="AI usage reconciliation pending")
+    # `ok` is the provider's outcome and `content` is its answer; a `reconciliation_pending` (or
+    # `released`) ledger status says how the CALL was billed, not whether it answered. The
+    # reservation stays held and reconciliation still has to happen, but the learner is not made
+    # to lose an answer that was produced. Only a call with nothing to show is an error.
+    if not result.content:
+        raise HTTPException(status_code=502, detail="AI returned no answer")
     return result
 
 
@@ -50,3 +59,20 @@ def denial_status(error_category: str | None) -> int:
     if error_category == "budget_reserve_failed":
         return 429
     return 502
+
+
+def stream_programming_ai(db, user, capability: str, messages: list[dict], *,
+                          learning_context: LearningContext, max_tokens: int | None = None,
+                          request_id: str | None = None,
+                          explicit_model: str | None = None,
+                          model_preference: str | None = None,
+                          thinking: bool | None = None):
+    """The streaming twin of `execute_programming_ai`: same canonical language context, read live."""
+    if learning_context.service_namespace != ServiceNamespace.PROGRAMMING:
+        raise ValueError("Programming AI requires a programming LearningContext")
+    if learning_context.user_id != user.id:
+        raise ValueError("Programming AI LearningContext must belong to current user")
+    return AIOrchestrator().stream(
+        db, user.id, capability, messages, max_tokens=max_tokens, request_id=request_id,
+        learning_context=learning_context, explicit_model=explicit_model,
+        model_preference=model_preference, thinking=thinking)

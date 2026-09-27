@@ -54,15 +54,21 @@ async function courseSurfaces(page: Page) {
     return [];
   }
   return [
-    { path: href, name: 'course-home', nav: '课程学习导航', activeTab: '概览' },
-    { path: `${href}/materials`, name: 'course-materials', nav: '课程学习导航', activeTab: '资料' },
+    // `crumbs` says whether the space marks its position with a breadcrumb trail. The course and
+    // exam spaces do not: the course names itself with its switcher, and the exam workspace with
+    // a back link plus the identity line, so a trail beside those would be a second navigation
+    // saying the same thing. Only the programming workbench carries one.
+    { path: href, name: 'course-ask', nav: '专业学习导航', activeTab: '课程问答', crumbs: false },
+    { path: `${href}/materials`, name: 'course-materials', nav: '专业学习导航', activeTab: '资料', crumbs: false },
   ];
 }
 
 const FIXED_SURFACES = [
-  { path: '/exam/cs408', name: 'exam-cs408', nav: 'CS408 工具导航', activeTab: '概览' },
-  { path: '/programming', name: 'programming-home', nav: null, activeTab: null },
-  { path: '/programming/python', name: 'programming-python', nav: '编程学习导航', activeTab: '练习' },
+  // 408 is four papers under one subject. The tools belong to a paper, so the workspace — with its
+  // switcher and its strip — is what a paper opens; the subject's front door only asks which.
+  { path: '/exam/cs408?module=data_structure', name: 'exam-cs408', nav: 'CS408 工具导航', activeTab: '概览', crumbs: false },
+  { path: '/programming', name: 'programming-home', nav: null, activeTab: null, crumbs: false },
+  { path: '/programming/python', name: 'programming-python', nav: '编程学习导航', activeTab: '练习', crumbs: true },
 ] as const;
 
 test.describe('P7-C learning space acceptance', () => {
@@ -92,7 +98,11 @@ test.describe('P7-C learning space acceptance', () => {
             'aria-current',
             'page',
           );
-          await expect(page.getByRole('navigation', { name: '面包屑' })).toBeVisible();
+          if (surface.crumbs) {
+            await expect(page.getByRole('navigation', { name: '面包屑' })).toBeVisible();
+          } else {
+            await expect(page.getByRole('navigation', { name: '面包屑' })).toHaveCount(0);
+          }
         }
 
         const overflow = await page.evaluate(

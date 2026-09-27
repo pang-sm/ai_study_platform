@@ -31,8 +31,10 @@ async function signIn(page: Page) {
   await page.getByLabel('密码', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: '登录' }).click();
   // The account control in the header exists at every width, so this helper works whether the
-  // navigation is the persistent sidebar or the panel a phone opens.
-  await expect(page.getByRole('button', { name: USERNAME })).toBeVisible({ timeout: 20_000 });
+  // navigation is the persistent sidebar or the panel a phone opens. It is a LINK, not the
+  // disclosure button it used to be: the control opens the profile directly and announces whose
+  // profile in its own accessible name.
+  await expect(page.getByRole('link', { name: `打开学习档案：${USERNAME}` })).toBeVisible({ timeout: 20_000 });
 }
 
 /** A read through the session the browser already holds, so it sees the learner's own data. */
@@ -160,7 +162,7 @@ test.describe('P7-D first-run loop', () => {
 
     await page.getByRole('checkbox', { name: 'C++', exact: true }).check();
     await page.getByRole('radio', { name: '基础', exact: true }).check();
-    await page.getByRole('button', { name: /保存并开始|保存设置/ }).click();
+    await page.getByRole('button', { name: '保存' }).click();
 
     await expect(page).toHaveURL(/\/programming\/?$/, { timeout: 20_000 });
 
@@ -190,7 +192,7 @@ test.describe('P7-D first-run loop', () => {
     }
     await page.getByLabel('专业').fill('计算机科学与技术');
     await page.getByLabel('年级').selectOption('大三');
-    await page.getByRole('button', { name: /保存并开始|保存课程设置/ }).click();
+    await page.getByRole('button', { name: '保存' }).click();
 
     await expect(page).toHaveURL(/\/course\/?$/, { timeout: 20_000 });
 
@@ -204,8 +206,9 @@ test.describe('P7-D first-run loop', () => {
     await signIn(page);
     await page.goto('/course');
 
-    // The space points at the one flow that changes the course set.
-    await expect(page.getByRole('link', { name: /管理课程|设置课程/ }).first()).toHaveAttribute(
+    // The space has exactly one settings entry, and it is the flow that changes the course set.
+    await expect(page.getByRole('link', { name: '学习设置' })).toHaveCount(1);
+    await expect(page.getByRole('link', { name: '学习设置' })).toHaveAttribute(
       'href',
       /\/course\/setup/,
     );
@@ -217,7 +220,7 @@ test.describe('P7-D first-run loop', () => {
     if ((await page.getByRole('button', { name: `移除课程 ${second}` }).count()) === 0) {
       await page.getByLabel('添加课程').fill(second);
       await page.getByRole('button', { name: '添加到课程' }).click();
-      await page.getByRole('button', { name: /保存并开始|保存课程设置/ }).click();
+      await page.getByRole('button', { name: '保存' }).click();
     }
     // A fixed starting point, so the link below is read from the list rather than from whichever
     // screen the branch above happened to leave open.
@@ -263,7 +266,7 @@ test.describe('P7-D first-run loop', () => {
     test.setTimeout(120_000);
     await signIn(page);
     await page.goto('/exam/setup?returnTo=%2F');
-    await expect(page.getByRole('heading', { name: '设置我的备考' })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('heading', { level: 1, name: '设置考试方案' })).toBeVisible({ timeout: 20_000 });
 
     const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations, 'axe on /exam/setup').toEqual([]);
@@ -272,7 +275,10 @@ test.describe('P7-D first-run loop', () => {
     await track.check();
     const subject = page.getByRole('checkbox').first();
     await subject.check();
-    await page.getByRole('button', { name: '保存备考设置' }).click();
+    // The flow confirms the plan on its last step before saving it.
+    await page.getByRole('button', { name: '下一步' }).click();
+    await page.getByRole('button', { name: '下一步' }).click();
+    await page.getByRole('button', { name: '确认考试方案' }).click();
 
     // The entry that sent the learner here is where they land.
     await expect(page).toHaveURL(/\/$/, { timeout: 20_000 });
@@ -288,10 +294,11 @@ test.describe('P7-D first-run loop', () => {
     await expect(
       page.getByRole('region', { name: '先建立一个学习空间，智学AI才能为你形成真实学习安排。' }),
     ).toHaveCount(0);
-    // ...and what is there instead is the server's own next action, not a substitute prompt.
-    await expect(page.getByRole('heading', { name: '今天接下来学什么' })).toBeVisible({
-      timeout: 20_000,
-    });
+    // ...and what is there instead is the page's own decision slot or the rest of today's work,
+    // never a substitute prompt.
+    await expect(
+      page.getByText('现在先做', { exact: true }).or(page.getByRole('heading', { name: '今天接下来' })).first(),
+    ).toBeVisible({ timeout: 20_000 });
   });
 
   /* -------------------------------------------------------- profile wiring */
@@ -304,7 +311,7 @@ test.describe('P7-D first-run loop', () => {
     await expect(section).toBeVisible({ timeout: 20_000 });
     // The course rows are read from the course space, which the setup above just filled.
     await expect(section.getByText(/已声明 \d+ 门课程/)).toBeVisible({ timeout: 20_000 });
-    await expect(section.getByRole('link', { name: /管理课程|设置课程/ })).toHaveAttribute(
+    await expect(section.getByRole('link', { name: '学习设置' })).toHaveAttribute(
       'href',
       '/course/setup?returnTo=%2Fprofile',
     );

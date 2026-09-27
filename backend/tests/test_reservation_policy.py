@@ -414,3 +414,53 @@ def test_orchestrator_sends_no_thinking_switch_for_plain_models(db_session):
                  explicit_model="deepseek-flash", max_tokens=200)
     # providers without a thinking switch must not receive one
     assert seen == [None]
+
+
+# ---- A16: the ceiling is carried by the request AND counted by the reservation ----
+
+class _RecordingProvider(FakeProvider):
+    """A provider that produces exactly what the request authorised it to produce."""
+
+    def __init__(self, specs: list, **kwargs):
+        super().__init__(**kwargs)
+        self._specs = specs
+
+    def complete(self, spec):
+        self._specs.append(spec)
+        usage = self._deterministic_usage(spec)
+        return dataclasses.replace(super().complete(spec), usage=usage)
+
+
+def test_the_provider_is_bounded_by_the_ceiling_the_reservation_used(db_session):
+    """A reservation is only an upper bound if the request carries the same ceiling.
+
+    Sending no max_tokens left the provider free to answer past the reserved output, and the
+    ledger then refused the whole call as an overage — the learner losing an answer that had
+    already been produced and reserved for.
+    """
+    u = _make_user(db_session, "rv-ceiling")
+    specs: list = []
+    orch = AIOrchestrator(provider_factory=lambda name: _RecordingProvider(specs, provider=name))
+
+    # The caller asks for no particular length.
+    result = orch.execute(db_session, u.id, "tutor.chat", _messages(), request_id="rv-ceil-1")
+
+    assert result.status == "settled"
+    ceiling = specs[0].max_tokens
+    assert ceiling is not None
+    # The ceiling the provider was given IS the one the estimate reserved from, so a provider that
+    # answers to its limit cannot bill past the reservation.
+    est = cost.estimate_credits(result.provider, result.model, 0, ceiling, capability="tutor.chat")
+    assert est["expected_output_tokens"] >= ceiling
+    assert result.actual_credits is not None and result.actual_credits <= result.estimated_credits
+
+
+def test_a_caller_specified_ceiling_still_wins(db_session):
+    u = _make_user(db_session, "rv-ceiling-explicit")
+    specs: list = []
+    orch = AIOrchestrator(provider_factory=lambda name: _RecordingProvider(specs, provider=name))
+
+    orch.execute(db_session, u.id, "tutor.chat", _messages(), request_id="rv-ceil-2",
+                 max_tokens=300)
+
+    assert specs[0].max_tokens == 300

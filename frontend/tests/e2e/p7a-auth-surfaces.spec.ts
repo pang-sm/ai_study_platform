@@ -41,7 +41,7 @@ test('sign-in surfaces have no horizontal overflow at desktop and mobile widths'
     { width: 390, height: 844 },
   ]) {
     await page.setViewportSize(size);
-    for (const path of ['/login', '/register']) {
+    for (const path of ['/login', '/register', '/terms', '/privacy']) {
       await page.goto(path);
       const hasOverflow = await page.evaluate(
         () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
@@ -51,13 +51,34 @@ test('sign-in surfaces have no horizontal overflow at desktop and mobile widths'
   }
 });
 
+test('the published legal documents are readable and accessible without a session', async ({ page }) => {
+  for (const [path, title] of [
+    ['/terms', '用户协议'],
+    ['/privacy', '隐私政策'],
+  ] as const) {
+    await page.goto(path);
+    await expect(page.getByRole('heading', { name: title, level: 1 })).toBeVisible();
+    expect((await new AxeBuilder({ page }).analyze()).violations, path).toEqual([]);
+  }
+});
+
+test('the sign-in footer reaches both documents', async ({ page }) => {
+  await page.goto('/login');
+
+  await page.getByRole('link', { name: '用户协议' }).click();
+  await expect(page.getByRole('heading', { name: '用户协议', level: 1 })).toBeVisible();
+
+  await page.getByRole('link', { name: '隐私政策' }).click();
+  await expect(page.getByRole('heading', { name: '隐私政策', level: 1 })).toBeVisible();
+});
+
 test('a protected route reports the failure instead of guessing when the API is unreachable', async ({ page }) => {
   await page.goto('/exam/cs408/practice');
 
   // With no reachable session probe the app cannot know whether this visitor is signed in, so it
   // must not render a protected surface and must not claim to be signed out either.
   await expect(page.getByRole('heading', { name: '出错了' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: '选择学习模块' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: '选择学习科目' })).toHaveCount(0);
 });
 
 test('the sign-in page is still reachable while the session probe fails', async ({ page }) => {

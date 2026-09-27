@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from ai import pool
+from ai.router import select_model
 from database import get_db
 from usage import service
 from usage.capabilities import check_capability_permission
@@ -38,10 +39,18 @@ def list_ai_models(capability: str = "", db: Session = Depends(get_db),
     if perm.get("entitlement_grant"):
         menu_tier = feature_flags.minimum_tier_for(capability) or tier
     options = pool.user_visible_options(menu_tier, capability)
+    # Preview through the real Router, with no client-side duplicate of its selection policy.
+    # It remains a recommendation only; execute-time health/budget/fallback can resolve another.
+    preview = select_model(menu_tier, capability)
     return {
         "capability": capability,
         "tier": tier,
         "default": "auto",
         "policy_version": pool.POOL_VERSION,
         "options": options,
+        "recommended_model_id": preview.model if preview.ok else None,
+        # Learner-safe model CLASS picker (POST /chat accepts the chosen key as
+        # ``model_preference``): auto + one entry per class present for this tier, each
+        # carrying ONLY a key and a Chinese label — never a provider, a model id or a price.
+        "preferences": pool.preference_options(menu_tier, capability),
     }

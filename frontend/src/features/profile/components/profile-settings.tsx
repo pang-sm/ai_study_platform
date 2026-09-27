@@ -141,7 +141,7 @@ export function LearningSettingsForm({ profile }: { profile: UserProfile }) {
       <TextField
         label="学习方向"
         type="text"
-        hint="例如：计算机考研 408。课程、备考科目与编程语言分别在各自的学习空间里设置。"
+        hint="例如：计算机考研 408。课程、备考科目与编程语言分别在各自的方向里设置。"
         error={errors.learning_direction?.message}
         {...register('learning_direction')}
       />

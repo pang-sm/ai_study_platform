@@ -19,7 +19,10 @@ from core.learning_context import LearningContext, ServiceNamespace
 def execute_exam_ai(db, user, capability: str, messages: list[dict], *,
                     learning_context: LearningContext,
                     max_tokens: int | None = None,
-                    temperature: float | None = None) -> OrchestratorResult:
+                    temperature: float | None = None,
+                    explicit_model: str | None = None,
+                    model_preference: str | None = None,
+                    thinking: bool | None = None) -> OrchestratorResult:
     """Execute exactly one Exam Prep AI operation with canonical durable ownership."""
     if learning_context.service_namespace != ServiceNamespace.EXAM_PREP:
         raise ValueError("Exam AI requires an exam_prep LearningContext")
@@ -27,12 +30,18 @@ def execute_exam_ai(db, user, capability: str, messages: list[dict], *,
         raise ValueError("Exam AI LearningContext must belong to current user")
     result = AIOrchestrator().execute(
         db, user.id, capability, messages, max_tokens=max_tokens,
-        temperature=temperature, learning_context=learning_context)
+        temperature=temperature, learning_context=learning_context,
+        explicit_model=explicit_model,
+        model_preference=model_preference, thinking=thinking)
     if not result.ok:
         raise HTTPException(status_code=_denial_status(result.error_category),
                             detail="AI capability unavailable")
-    if result.status == "reconciliation_pending" or not result.content:
-        raise HTTPException(status_code=502, detail="AI usage reconciliation pending")
+    # `ok` is the provider's outcome and `content` is its answer; a `reconciliation_pending` (or
+    # `released`) ledger status says how the CALL was billed, not whether it answered. The
+    # reservation stays held and reconciliation still has to happen, but the learner is not made
+    # to lose an answer that was produced. Only a call with nothing to show is an error.
+    if not result.content:
+        raise HTTPException(status_code=502, detail="AI returned no answer")
     return result
 
 
@@ -110,3 +119,19 @@ def grade_big_answer(db, user, *, learning_context: LearningContext, stem: str,
     feedback = str(data.get("feedback") or "").strip()
     return score, feedback
 
+
+
+def stream_exam_ai(db, user, capability: str, messages: list[dict], *,
+                   learning_context: LearningContext, max_tokens: int | None = None,
+                   explicit_model: str | None = None,
+                   model_preference: str | None = None,
+                   thinking: bool | None = None):
+    """The streaming twin of `execute_exam_ai`: same canonical exam context, read live."""
+    if learning_context.service_namespace != ServiceNamespace.EXAM_PREP:
+        raise ValueError("Exam AI requires an exam_prep LearningContext")
+    if learning_context.user_id != user.id:
+        raise ValueError("Exam AI LearningContext must belong to current user")
+    return AIOrchestrator().stream(
+        db, user.id, capability, messages, max_tokens=max_tokens,
+        learning_context=learning_context, explicit_model=explicit_model,
+        model_preference=model_preference, thinking=thinking)

@@ -1,28 +1,28 @@
 """ACCEL_SPRINT_S4 — PRODUCTION DATA-PLANE MIGRATION READINESS (PART J).
 
-The real ``backend/app.db`` is a 72-table legacy database that predates Alembic entirely:
-it has no ``alembic_version`` and none of the data-plane tables. This module proves the
-full chain reaches HEAD on a ``byte-for-byte COPY`` of it — never on the original, which
-stays READ ONLY.
+The rehearsal database is built HERE, in this test's own temp directory: the application's own
+bootstrap (``create_all`` + ``ensure_database_schema``) with no ``alembic_version`` — the state
+every database of this product was in before Alembic — plus sentinel rows this module seeds.
+Nothing is read from ``backend/app.db``, which is a gitignored runtime database rather than a
+fixture, and no historical table-count is reconstructed. The rehearsal is therefore reproducible
+on a fresh clone and in CI.
 
 What is proven, in order:
 
-  1. the copy migrates to HEAD and passes ``PRAGMA integrity_check``;
+  1. the rehearsal database migrates to HEAD and passes ``PRAGMA integrity_check``;
   2. every pre-existing table keeps every row, and nothing is dropped;
-  3. the data-plane tables (``learning_events``, ``model_predictions``,
-     ``model_inference_runs``) now exist;
-  4. the application starts at HEAD with ``Base.metadata.create_all`` DISABLED — the
+  3. the application starts at HEAD with ``Base.metadata.create_all`` DISABLED — the
      schema comes from Alembic, so the app does not depend on ``create_all``;
-  5. the historical backfill runs honestly and is IDEMPOTENT on a second run;
-  6. ``GET /exam/prep/records`` works against the migrated schema;
-  7. ``GET /exam/prep/scientific/student-twin`` reaches a REAL runtime and returns a real
+  4. the historical backfill runs honestly and is IDEMPOTENT on a second run;
+  5. ``GET /exam/prep/records`` works against the migrated schema;
+  6. ``GET /exam/prep/scientific/student-twin`` reaches a REAL runtime and returns a real
      state for a real event in the migrated database.
 
 Everything runs in subprocesses so the migrated database, its own ``DATABASE_URL`` and the
 runtime address are genuinely independent of this test process.
 
-Skips (never fails) when the real database, the alembic tooling or the scientific runtime
-environment is not present on this machine.
+The only remaining external dependency is the scientific runtime environment, which is
+conditional by design (a test skips only when the runtime itself is absent).
 """
 import json
 import os
@@ -38,13 +38,12 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BACKEND = REPO_ROOT / "backend"
-REAL_DB = BACKEND / "app.db"
-PYTHON = BACKEND / ".venv" / "Scripts" / "python.exe"
+# The interpreter that runs pytest, so subprocesses are portable instead of hard-coding a venv.
+PYTHON = Path(sys.executable)
 RUNTIME_PYTHON = Path(r"D:\ZhixueAI\envs\runtime-service\Scripts\python.exe")
 RUNTIME_SERVICE_ROOT = REPO_ROOT / "scientific_runtime_service"
 
-# The legacy baseline. Row counts here are READ before and AFTER; any change is a failure.
-LEGACY_TABLE_COUNT = 72
+# Tables the rehearsal seeds and requires to survive the upgrade.
 PROTECTED_TABLES = ("exam_question_bank", "programming_exercises", "knowledge_points")
 
 # --------------------------------------------------------------------------- probe
@@ -81,7 +80,6 @@ report["foreign_key_check"] = [list(r) for r in c.execute("pragma foreign_key_ch
 report["alembic_version"] = [r[0] for r in c.execute("select * from alembic_version")]
 c.close()
 report["pre_existing_rows"] = {t: rows(t) for t in json.loads(os.environ["S4_PROTECTED"])}
-report["data_plane_absent_before"] = json.loads(os.environ["S4_ABSENT_BEFORE"])
 
 # ---- create_all must be a pure no-op at HEAD --------------------------------------
 created = {}
@@ -218,39 +216,82 @@ def _wait_for_health(port: int, timeout: float = 40.0) -> bool:
     return False
 
 
+def _app_bootstrap(database: Path) -> None:
+    """Build the schema the way the application builds it at import: create_all + ensure_*.
+
+    Imports ``models``/``database``/``database_schema`` rather than ``main``, because ``main``
+    runs the schema preflight and would refuse this not-yet-migrated database.
+    """
+    script = (
+        "import os, sys; sys.path.insert(0, os.environ['S4_BACKEND']);"
+        "import models, usage.models, data_plane.models, learning.wrong_answers.models;"
+        "from database import Base, engine, init_user_profile_schema;"
+        "from database_schema import ensure_database_schema;"
+        # the SAME bootstrap order main.py uses at import, minus the schema preflight
+        "Base.metadata.create_all(bind=engine);"
+        "init_user_profile_schema();"
+        "ensure_database_schema(engine);"
+        "print('bootstrapped')")
+    completed = subprocess.run(
+        [str(PYTHON), "-c", script], cwd=str(BACKEND),
+        env={**os.environ, "DATABASE_URL": f"sqlite:///{database.as_posix()}",
+             "S4_BACKEND": str(BACKEND), "UPLOAD_ROOT": str(database.parent / "uploads")},
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
+    assert completed.returncode == 0, completed.stderr[-3000:]
+
+
+def _seed_rehearsal(database: Path) -> None:
+    """Sentinel rows this rehearsal owns — deterministic, small, never a copy of real data."""
+    script = (
+        "import os, sys; sys.path.insert(0, os.environ['S4_BACKEND']);"
+        "import models; from database import SessionLocal;"
+        "db = SessionLocal();"
+        "db.add(models.KnowledgePoint(username='s4seed', course_id='data_structure',"
+        " title='S4-SENTINEL-KP'));"
+        "db.add(models.ExamQuestionBank(subject_key='operating_system', source_type='chapter',"
+        " stem='S4-SENTINEL-QUESTION', standard_answer='A'));"
+        "db.add(models.ProgrammingExercise(slug='s4-sentinel', language='python',"
+        " title='S4-SENTINEL', difficulty='easy', description='sentinel', source_repo='seed',"
+        " source_path='seed', source_commit='0' * 40, license_text='MIT',"
+        " attribution='seed'));"
+        "db.commit(); db.close(); print('seeded')")
+    completed = subprocess.run(
+        [str(PYTHON), "-c", script], cwd=str(BACKEND),
+        env={**os.environ, "DATABASE_URL": f"sqlite:///{database.as_posix()}",
+             "S4_BACKEND": str(BACKEND), "UPLOAD_ROOT": str(database.parent / "uploads")},
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
+    assert completed.returncode == 0, completed.stderr[-3000:]
+
+
 @pytest.fixture(scope="module")
 def migrated():
-    """A byte-for-byte copy of the REAL database, migrated to HEAD, then probed.
+    """The rehearsal database, migrated to HEAD, then probed.
 
-    The real file is opened for reading only. Every write lands on the copy.
+    Built here: the application's own bootstrap with no ``alembic_version``, plus sentinel rows
+    this module owns. Every write lands in this fixture's temp directory — no runtime database
+    and no checkout path is read or written.
     """
-    if not REAL_DB.exists():
-        pytest.skip("real backend/app.db is not present on this machine")
-    if not PYTHON.exists():
-        pytest.skip("backend venv python is not present on this machine")
-
-    original = {
-        "sha256": _sha256(REAL_DB),
-        "size": REAL_DB.stat().st_size,
-        "mtime": REAL_DB.stat().st_mtime,
-    }
-
     workdir = Path(tempfile.mkdtemp(prefix="s4-migration-"))
     copy = workdir / "app.db"
-    shutil.copy2(REAL_DB, copy)
-    assert _sha256(copy) == original["sha256"], "the copy is not byte-for-byte"
+
+    _app_bootstrap(copy)
+    _seed_rehearsal(copy)
+
+    original = {
+        "sha256": _sha256(copy),
+        "size": copy.stat().st_size,
+        "mtime": copy.stat().st_mtime,
+    }
 
     legacy_tables = _tables(copy)
-    legacy_rows = {t: _rows(copy, t) for t in PROTECTED_TABLES
-                   if t in legacy_tables}
-    absent_before = [t for t in ("learning_events", "model_predictions",
-                                 "model_inference_runs", "alembic_version")
-                     if t not in legacy_tables]
+    legacy_rows = {t: _rows(copy, t) for t in PROTECTED_TABLES if t in legacy_tables}
+    assert all(count > 0 for count in legacy_rows.values()), \
+        f"the rehearsal must seed every protected table: {legacy_rows}"
 
     env = {**os.environ, "DATABASE_URL": f"sqlite:///{copy.as_posix()}"}
     upgrade = subprocess.run(
         [str(PYTHON), "-m", "alembic", "-c", "alembic.ini", "upgrade", "head"],
-        cwd=str(REPO_ROOT), env=env, capture_output=True, text=True)
+        cwd=str(REPO_ROOT), env=env, capture_output=True, text=True, encoding="utf-8", errors="replace")
     assert upgrade.returncode == 0, upgrade.stderr[-3000:]
 
     runtime = _start_runtime()
@@ -260,7 +301,6 @@ def migrated():
             "S4_DB": copy.as_posix(),
             "S4_BACKEND": str(BACKEND),
             "S4_PROTECTED": json.dumps(sorted(legacy_rows)),
-            "S4_ABSENT_BEFORE": json.dumps(absent_before),
             "STUDENT_TWIN_MODE": "internal",
         }
         if runtime:
@@ -268,7 +308,7 @@ def migrated():
         probe_file = workdir / "probe.py"
         probe_file.write_text(PROBE, encoding="utf-8")
         probed = subprocess.run([str(PYTHON), str(probe_file)], env=probe_env,
-                                capture_output=True, text=True, cwd=str(BACKEND))
+                                capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=str(BACKEND))
         assert probed.returncode == 0, probed.stderr[-4000:]
         marker = [line for line in probed.stdout.splitlines()
                   if line.startswith("S4_PROBE_JSON:")]
@@ -344,13 +384,41 @@ def _rows(path: Path, table: str) -> int:
         con.close()
 
 
+def _run_alembic(db_path: Path, revision: str) -> None:
+    """Run the real Alembic upgrade against a temporary database."""
+    result = subprocess.run(
+        [str(PYTHON), "-m", "alembic", "-c", "alembic.ini", "upgrade", revision],
+        cwd=str(REPO_ROOT),
+        env={**os.environ, "DATABASE_URL": f"sqlite:///{db_path.as_posix()}"},
+        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def _alembic_revision(db_path: Path) -> str:
+    import sqlite3
+
+    con = sqlite3.connect(f"file:{db_path.as_posix()}?mode=ro", uri=True)
+    try:
+        return con.execute("select version_num from alembic_version").fetchone()[0]
+    finally:
+        con.close()
+
+
+@pytest.fixture
+def fresh_db():
+    """An empty temporary SQLite file — Alembic creates it on first upgrade."""
+    workdir = Path(tempfile.mkdtemp(prefix="s4-fresh-"))
+    yield workdir / "fresh.db"
+    shutil.rmtree(workdir, ignore_errors=True)
+
+
 # ================================================================ PART J — migration
 
-def test_real_db_copy_reaches_head_with_integrity_ok(migrated):
+def test_the_rehearsal_database_reaches_head_with_integrity_ok(migrated):
     report = migrated["report"]
     assert report["integrity_check"] == "ok"
     assert report["foreign_key_check"] == []
-    assert report["alembic_version"] == ["20260921_0013"], report["alembic_version"]
+    assert report["alembic_version"] == ["20260923_0015"], report["alembic_version"]
 
 
 def test_no_table_was_dropped_and_every_legacy_row_survived(migrated):
@@ -365,23 +433,40 @@ def test_no_table_was_dropped_and_every_legacy_row_survived(migrated):
 
 
 def test_protected_static_assets_are_intact(migrated):
+    """The seeded content tables survive the upgrade with their rows.
+
+    The fixture seeds these tables, so a missing table is a failure here, not a reason to skip:
+    skipping on absence is what let this assertion go vacuous before.
+    """
     rows = migrated["legacy_rows"]
-    if not rows:
-        pytest.skip("no protected tables present in the legacy database")
-    # the real content counts, read from the copy
-    assert rows.get("exam_question_bank", 0) > 0
-    assert rows.get("programming_exercises", 0) > 0
-    assert sum(rows.values()) > 0
+    assert set(rows) == set(PROTECTED_TABLES), \
+        f"the fixture must seed every protected table: {sorted(rows)}"
+    for table, count in rows.items():
+        assert count > 0, table
 
 
-def test_data_plane_tables_are_created_by_the_migration(migrated):
-    report = migrated["report"]
-    assert set(report["data_plane_absent_before"]) == {
-        "learning_events", "model_predictions", "model_inference_runs", "alembic_version"}
+def test_data_plane_tables_are_created_by_the_migration(fresh_db):
+    """Revision-isolated: 0001's OWN contribution, on a database this test builds.
+
+    A fresh database has no data-plane tables; upgrading to the revision that introduces them
+    must create them and nothing else's. This no longer depends on the shape of any existing
+    database (see the sibling case in test_practice_migration.py for 0003-0008).
+    """
+    before = _tables(fresh_db) if fresh_db.exists() else set()
+    assert before == set(), "the fresh database must start empty"
+
+    _run_alembic(fresh_db, "20260915_0001")
+    at_0001 = _tables(fresh_db)
     for table in ("learning_events", "model_predictions", "model_inference_runs",
-                  "practice_sessions", "practice_attempts", "wrong_answer_states",
+                  "alembic_version"):
+        assert table in at_0001, table
+
+    _run_alembic(fresh_db, "head")
+    at_head = _tables(fresh_db)
+    for table in ("practice_sessions", "practice_attempts", "wrong_answer_states",
                   "exam_prep_profiles"):
-        assert table in report["tables_at_head"], table
+        assert table in at_head, table
+    assert _alembic_revision(fresh_db) == "20260923_0015"
 
 
 def test_application_starts_without_create_all(migrated):
@@ -457,16 +542,15 @@ def test_student_twin_reaches_the_real_runtime_for_a_real_event(migrated):
 
 # ================================================================ PART P — DB safety
 
-def test_the_real_database_was_never_modified(migrated):
-    """PART P: the audit copy is the only thing that changed."""
-    original = migrated["original"]
-    assert _sha256(REAL_DB) == original["sha256"], "REAL app.db CONTENT CHANGED"
-    assert REAL_DB.stat().st_size == original["size"]
-    assert REAL_DB.stat().st_mtime == original["mtime"]
+def test_the_rehearsal_writes_nothing_outside_its_own_directory(migrated):
+    """PART P: the rehearsal is side-effect-free on the repository.
 
-
-def test_the_real_database_still_has_its_legacy_shape(migrated):
-    """The real database must NOT have been migrated as a side effect."""
-    tables = _tables(REAL_DB)
-    assert "learning_events" not in tables
-    assert "alembic_version" not in tables
+    Only the database it built in its own temp directory is migrated, and every artifact it
+    exposes lives there — so a suite run cannot touch a runtime database or any checkout path.
+    """
+    workdir = migrated["copy"].parent
+    assert workdir.name.startswith("s4-migration-"), workdir
+    assert migrated["copy"].is_file()
+    assert migrated["copy"].parent == workdir
+    assert BACKEND not in migrated["copy"].parents
+    assert REPO_ROOT not in migrated["copy"].parents
