@@ -90,6 +90,7 @@ from core.security_audit import (
     code_execution_audit_context,
     reset_code_execution_audit,
 )
+from core.storage_paths import StoragePathError, safe_join_under_root
 from database import Base, SessionLocal, engine, get_db, init_user_profile_schema, update_conversation_title
 from database_schema import ensure_database_schema
 from membership import (
@@ -662,6 +663,9 @@ logger.setLevel(logging.INFO)
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_ROOT = BASE_DIR / "uploads"
 UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
+# SECURITY_S1A: per-user uploads are keyed by the numeric user id, never by the username.
+# The name is not part of the API — it is an internal storage layout.
+USER_UPLOAD_DIR = "users"
 MATERIAL_UPLOAD_ROOT = UPLOAD_ROOT / "materials"
 MATERIAL_UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
 PRACTICE_IMPORT_ROOT = UPLOAD_ROOT / "practice_imports"
@@ -2460,13 +2464,31 @@ def validate_upload(file: UploadFile, file_bytes: bytes, max_size_mb: int | None
             raise HTTPException(status_code=400, detail="文件扩展名与类型不匹配")
 
 
-def save_uploaded_file(username: str, original_filename: str, file_bytes: bytes) -> str:
-    user_dir = UPLOAD_ROOT / username
-    user_dir.mkdir(parents=True, exist_ok=True)
+def save_uploaded_file(user: models.User, original_filename: str, file_bytes: bytes) -> str:
+    """Persist an uploaded file under a directory derived from the uploader's internal id.
+
+    SECURITY_S1A: the directory used to be the *username* — user-chosen text with no
+    character validation — so a username containing ``..`` or a separator escaped the upload
+    root entirely. Filesystem identity is now the numeric primary key, which no request can
+    influence, and the join is proven contained before anything is written.
+
+    Legitimate historical uploads keep reading correctly: stored paths are resolved from the
+    database by ``resolve_stored_file_path``, which enforces the same containment, so this
+    change alters where new files land without orphaning old ones.
+    """
+    if not isinstance(getattr(user, "id", None), int):
+        raise HTTPException(status_code=400, detail="无法确定上传者身份")
 
     safe_name = sanitize_filename(original_filename)
     stored_name = f"{secrets.token_hex(8)}_{safe_name}"
-    file_path = user_dir / stored_name
+    try:
+        file_path = safe_join_under_root(
+            UPLOAD_ROOT, USER_UPLOAD_DIR, str(user.id), stored_name, mkdir_parents=True
+        )
+    except StoragePathError:
+        # Reached only if the filename sanitizer ever lets structure through. Refusing the
+        # write is the point; a 400 keeps it from surfacing as an opaque server error.
+        raise HTTPException(status_code=400, detail="文件名不合法")
 
     with open(file_path, "wb") as output:
         output.write(file_bytes)
@@ -5571,7 +5593,7 @@ async def handle_material_upload(
         if not extracted_text or not extracted_text.strip():
             raise HTTPException(status_code=400, detail="文件内容为空，请检查后重试。")
 
-        stored_file_path = save_uploaded_file(user.username, original_filename, file_bytes)
+        stored_file_path = save_uploaded_file(user, original_filename, file_bytes)
 
     elif file_type == "image":
         # TODO: Qwen fallback logic for images is duplicated between
@@ -5579,7 +5601,7 @@ async def handle_material_upload(
         # Extract a shared _qwen_fallback_for_image() helper in a future refactor.
         local_ocr_text = extract_image_text(file_bytes)
         extracted_text = local_ocr_text
-        stored_file_path = save_uploaded_file(user.username, original_filename, file_bytes)
+        stored_file_path = save_uploaded_file(user, original_filename, file_bytes)
 
         vision_config = get_vision_runtime_config(db)
         if vision_config["vision_enabled"] and should_use_qwen_for_image(local_ocr_text):
@@ -5647,7 +5669,7 @@ async def handle_material_upload(
                 parse_metadata["parse_status"] = "partial" if (extracted_text or "").strip() else "failed"
                 parse_metadata["extract_method"] = "local" if (extracted_text or "").strip() else "failed"
                 parse_metadata["qwen_used"] = True
-        stored_file_path = save_uploaded_file(user.username, original_filename, file_bytes)
+        stored_file_path = save_uploaded_file(user, original_filename, file_bytes)
 
     if not extracted_text.strip():
         if file_type == "pdf":
@@ -6219,15 +6241,46 @@ def get_qwen_status():
     return get_qwen_status_payload()
 
 
+# Matches models.User.username (String(50)) — the validator states the storage contract
+# rather than inventing a tighter one that would reject names the schema accepts.
+USERNAME_MAX_LENGTH = 50
+USERNAME_UNSAFE_CHARS = ("/", "\\")
+
+
+def validate_username(username: str) -> str:
+    """Normalize and validate a *new* username; reject values unsafe as text.
+
+    SECURITY_S1A defense in depth, not the containment boundary: uploads are now keyed by the
+    numeric user id, so a username never takes part in a filesystem path. This still refuses
+    structure and control characters so a name cannot become dangerous to a future
+    path-handling caller. Unicode — Chinese included — is deliberately allowed: usernames are
+    display names on a Chinese-facing product, and restricting them to ASCII would be an
+    unrelated product change.
+
+    Applied at registration only. Existing accounts are never re-validated, so this rule
+    cannot lock anyone out.
+    """
+    value = (username or "").strip()
+    if not value:
+        raise HTTPException(status_code=400, detail="账号不能为空")
+    if len(value) > USERNAME_MAX_LENGTH:
+        raise HTTPException(
+            status_code=400, detail=f"账号长度不能超过 {USERNAME_MAX_LENGTH} 个字符"
+        )
+    if any(char in value for char in USERNAME_UNSAFE_CHARS):
+        raise HTTPException(status_code=400, detail="账号不能包含 / 或 \\")
+    if any(ord(char) < 32 or ord(char) == 127 for char in value):
+        raise HTTPException(status_code=400, detail="账号不能包含控制字符")
+    return value
+
+
 @app.post("/register")
 def register(user: schemas.UserCreate, request: Request, response: Response, db: Session = Depends(get_db)):
-    username = user.username.strip()
+    username = validate_username(user.username)
     password = user.password.strip()
     email = user.email.strip()
     normalized_email = _normalize_email(email)
 
-    if not username:
-        raise HTTPException(status_code=400, detail="账号不能为空")
     if len(password) < 6:
         raise HTTPException(status_code=400, detail="密码至少需要 6 位")
     if not email or "@" not in email or "." not in email.split("@")[-1]:
@@ -26463,9 +26516,14 @@ async def create_practice_import_job(
         raise HTTPException(status_code=400, detail="仅支持 PDF、图片、Word(docx)、TXT、Markdown 文件")
 
     # 保存文件
+    # SECURITY_S1A: same storage-containment class as the user upload path. The name is
+    # server-built and normalized, and the join is proven contained before the write.
     file_id = secrets.token_hex(6)
-    stored_name = f"{int(time.time())}_{file_id}_{original_filename}"
-    stored_path = PRACTICE_IMPORT_ROOT / stored_name
+    stored_name = f"{int(time.time())}_{file_id}_{sanitize_filename(original_filename)}"
+    try:
+        stored_path = safe_join_under_root(PRACTICE_IMPORT_ROOT, stored_name, mkdir_parents=True)
+    except StoragePathError:
+        raise HTTPException(status_code=400, detail="文件名不合法")
     stored_path.write_bytes(file_bytes)
 
     # 创建 job
