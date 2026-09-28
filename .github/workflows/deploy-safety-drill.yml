@@ -1,0 +1,129 @@
+name: Deploy safety drill (operator)
+
+# THE DRILL. Re-creates the exact condition that took production down on 2026-09-28 — a
+# direction plan code in the global `users.plan` — and then leaves it in place, so the FAILING
+# deploy can be run against it and observed.
+#
+# The claim being tested is:
+#     NEW VERSION FAILS != CURRENT PRODUCTION FAILS
+#
+# Procedure (each step is a separate run, on purpose — the point is that a human watches):
+#   1. this workflow            -> inject the unmappable code
+#   2. deploy.yml               -> MUST fail, and production MUST stay 200
+#   3. repair-legacy-plan.yml   -> repair the row
+#   4. deploy.yml               -> MUST succeed again
+#
+# Safety: the injection writes one column on one row and never touches `subscriptions`, so the
+# drilled account keeps its entitlements. The deploy's preflight is READ-ONLY and now runs while
+# the current release is still serving, which is the whole reason step 2 cannot hurt production.
+on:
+  workflow_dispatch:
+    inputs:
+      username:
+        description: 'Account to drill against (use the acceptance account)'
+        required: true
+        default: 'prod_acceptance_learner'
+      plan:
+        description: 'Unmappable direction code to inject'
+        required: true
+        type: choice
+        default: 'full_exam'
+        options:
+          - full_exam
+          - monthly_sprint
+          - quarterly_boost
+      confirm:
+        description: 'Type DRILL to confirm this writes to the PRODUCTION database'
+        required: true
+        default: ''
+
+run-name: 部署安全演练：注入不可映射档位码
+
+jobs:
+  drill:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Require explicit confirmation
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          if [ "${CONFIRM}" != "DRILL" ]; then
+            echo "[drill] refusing: the confirm field must be exactly DRILL"
+            exit 1
+          fi
+
+      - name: Prepare SSH
+        shell: bash
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_SSH_KEY: ${{ secrets.TENCENT_SSH_KEY }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          : "${TENCENT_HOST:?TENCENT_HOST secret required}"
+          : "${TENCENT_SSH_KEY:?TENCENT_SSH_KEY secret required}"
+          SSH_PORT="${SSH_PORT:-22}"
+          HOST_CLEAN="${TENCENT_HOST#*@}"
+          HOST_CLEAN="${HOST_CLEAN%%:*}"
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$TENCENT_SSH_KEY" | tr -d '\r' > "$HOME/.ssh/tencent_deploy_key"
+          chmod 600 "$HOME/.ssh/tencent_deploy_key"
+          ssh-keyscan -T 20 -p "$SSH_PORT" -H "$HOST_CLEAN" >> "$HOME/.ssh/known_hosts" 2>/dev/null || true
+          echo "[drill] SSH ready"
+
+      - name: Inject the unmappable global plan code
+        shell: bash
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_USER: ${{ secrets.TENCENT_USER }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT || '22' }}
+          TARGET_USERNAME: ${{ inputs.username }}
+          TARGET_PLAN: ${{ inputs.plan }}
+        run: |
+          set -euo pipefail
+          HOST_CLEAN="${TENCENT_HOST#*@}"
+          HOST_CLEAN="${HOST_CLEAN%%:*}"
+          SSH_PORT="${SSH_PORT:-22}"
+          KEY="$HOME/.ssh/tencent_deploy_key"
+          scp -i "$KEY" -P "$SSH_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            scripts/deploy/drill_set_global_plan.py \
+            "$TENCENT_USER@$HOST_CLEAN:drill_set_global_plan.py"
+
+          ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=10 \
+            -i "$KEY" -p "$SSH_PORT" \
+            "$TENCENT_USER@$HOST_CLEAN" \
+            "TARGET_USERNAME='${TARGET_USERNAME}' TARGET_PLAN='${TARGET_PLAN}' bash -se" <<'DRILLEOF'
+          set -euo pipefail
+          DATA_DB=/var/lib/ai_study_platform/app.db
+          BACKUP_DIR=/var/lib/ai_study_platform/audits
+          TIMESTAMP="$(date -u +%Y%m%d_%H%M%S)"
+          BACKUP="$BACKUP_DIR/app.db.before-deploy-drill.$TIMESTAMP.db"
+          REPO_ROOT="$HOME/ai_study_platform"
+          PYTHON_BIN="$REPO_ROOT/backend/.venv/bin/python"
+
+          mkdir -p "$BACKUP_DIR"
+          sqlite3 "$DATA_DB" ".timeout 5000" ".backup '$BACKUP'"
+          stat -c '[drill] backup %s bytes  %n' "$BACKUP"
+
+          mv "$HOME/drill_set_global_plan.py" "$REPO_ROOT/scripts/deploy/drill_set_global_plan.py"
+          cd "$REPO_ROOT"
+          DATABASE_URL="sqlite:///$DATA_DB" "$PYTHON_BIN" scripts/deploy/drill_set_global_plan.py \
+            --username "$TARGET_USERNAME" --plan "$TARGET_PLAN"
+
+          echo "[drill] === what the deploy's preflight will now see ==="
+          sqlite3 -header -csv "$DATA_DB" \
+            "SELECT id, username, plan FROM users WHERE username = '$TARGET_USERNAME';"
+          DRILLEOF
+
+      - name: Confirm production is still serving before the failing deploy
+        run: |
+          set -euo pipefail
+          code="$(curl -sS -k --max-time 20 -o /dev/null -w '%{http_code}' https://101.32.190.42/api/health || true)"
+          echo "[drill] pre-attempt public /api/health=$code"
+          [ "$code" = "200" ] || { echo "[drill] ERROR: production is not healthy before the drill"; exit 1; }
+          echo "[drill] production is serving; now run deploy.yml and watch it FAIL without stopping it"
