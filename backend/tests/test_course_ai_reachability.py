@@ -42,12 +42,14 @@ AI_BOUNDARY_FNS = ("_course_ai_content", "execute_course_ai",
 # What remains below is the honest, still-open programming surface: these are real product
 # endpoints with a real model call that has not been converged yet, and each one owes the
 # same closure (capability → permission → usage → router → gateway → settle → ai_requests).
+# SECURITY_S1C removed the five PROGRAMMING entries that used to be here
+# (generate_code_challenge, explain_challenge_failure, generate_challenge_tests,
+# generate_learning_diagnosis, _repair_generated_challenge_with_ai). They now run through the
+# unified boundary like every other programming AI call — capability permission, budget
+# reservation, router, ledger — so they belong in the STRICTER set that must never reach the
+# legacy client, not in this one. Removing them here is what makes the guard enforce that:
+# a direct call reappearing in any of them fails this file.
 NON_COURSE_DIRECT_CALLS = {
-    "generate_code_challenge": "programming",
-    "explain_challenge_failure": "programming",
-    "generate_challenge_tests": "programming",
-    "generate_learning_diagnosis": "programming",
-    "_repair_generated_challenge_with_ai": "programming challenge repair",
     "structure_practice_paper_text": "legacy path when no db/user context is available",
     "refine_question_analysis_with_ai": "non-course / non-exam service_key branch only",
     "_repair_json_with_ai": "non-course / non-exam service_key branch only",
@@ -165,6 +167,26 @@ def test_direct_calls_in_course_endpoints_are_guarded_by_another_space(index):
             assert _proves_non_course(guards), (
                 f"{func_name}:{call.lineno} reaches {LEGACY_PROVIDER_FN} without an "
                 f"exam/programming guard (guards seen: {guards})")
+
+
+def test_main_py_builds_exactly_one_raw_provider_client():
+    """A SECOND raw client in main.py is how the membership-recommendation bypass appeared.
+
+    One client is the legacy ``call_deepseek`` client, whose three remaining callers are
+    declared in ``NON_COURSE_DIRECT_CALLS`` and unreachable from a request. The function-level
+    declaration list cannot see a new client, because it tracks ``call_deepseek`` calls — who
+    *built* a client is invisible to it. SECURITY_S1C removed the second one
+    (`/membership/recommendation` built its own client for an AI fallback layer); this asserts
+    it does not come back.
+    """
+    constructions = [
+        node for node in ast.walk(ast.parse(MAIN_SOURCE))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name) and node.func.id == "OpenAI"
+    ]
+    assert len(constructions) == 1, (
+        "main.py must build exactly one raw provider client (the legacy call_deepseek client); "
+        f"found {len(constructions)} at lines {[n.lineno for n in constructions]}")
 
 
 def test_pure_course_endpoints_never_call_a_provider_directly(index):

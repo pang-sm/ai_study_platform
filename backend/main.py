@@ -15372,6 +15372,26 @@ def validate_generated_challenge(challenge_data: dict, language: str) -> dict:
     return {"ok": len(errors) == 0, "errors": errors, "warnings": warnings}
 
 
+def _require_programming_capability(db: Session, user: models.User, capability: str) -> None:
+    """Refuse a Programming AI request this tier is not permitted — before any work is done.
+
+    SECURITY_S1C. The orchestrator enforces this too, but only at the provider-call boundary:
+    a legacy endpoint would have already built its prompt, and the legacy daily counter (which
+    answers 429 with an "upgrade" message) could have answered first. Checking here means a
+    Free learner asking for a Standard capability gets the correct answer — 403, not permitted
+    — and that nothing is prepared for a request that can never run.
+
+    The policy module and the tier resolution are the SAME ones the orchestrator gates on, so
+    this can only ever agree with it (or refuse earlier, never allow more).
+    """
+    from ops import feature_flags
+    from usage import service as usage_service
+
+    tier = usage_service.effective_subscription(db, user.id)
+    if not feature_flags.capability_permitted(db, user.id, tier, capability)["allowed"]:
+        raise HTTPException(status_code=403, detail="AI capability unavailable")
+
+
 def _repair_generated_challenge_with_ai(challenge_data: dict, language: str, validation: dict, db: Session, user: models.User) -> dict | None:
     issues = list(validation.get("errors") or []) + list(validation.get("warnings") or [])
     if not issues:
@@ -15395,10 +15415,24 @@ def _repair_generated_challenge_with_ai(challenge_data: dict, language: str, val
 {json.dumps(challenge_data, ensure_ascii=False)}
 """
     try:
-        raw = call_deepseek([
-            {"role": "system", "content": "你只输出修复后的编程题 JSON 对象。"},
-            {"role": "user", "content": repair_prompt},
-        ], timeout_seconds=45)
+        # SECURITY_S1C: this is a SECOND model call inside one request, and it used to reach the
+        # provider with no entitlement and no accounting at all. It now runs through the same
+        # boundary, booking its own reservation and its own `ai_requests` row — the
+        # orchestrator's semantics are one call, one request, and bundling it into the caller's
+        # reservation would be inventing a second ledger rule. It stays best-effort: a refusal
+        # (budget, technical) degrades to "this item is not repairable" and the caller records a
+        # validation failure, never to an unaccounted model call.
+        from learning.spaces.programming.ai import execute_programming_ai
+        from learning.spaces.programming.context import build_programming_context
+        _repair_result = execute_programming_ai(
+            db, user, "question.generate",
+            [
+                {"role": "system", "content": "你只输出修复后的编程题 JSON 对象。"},
+                {"role": "user", "content": repair_prompt},
+            ],
+            learning_context=build_programming_context(user, language=language),
+        )
+        raw = _repair_result.content or ""
         record_ai_usage(user.username, "json_repair", db, service_key="programming")
     except Exception as exc:
         logger.warning("challenge repair call failed: %s", exc)
@@ -15614,14 +15648,22 @@ def generate_code_challenge(
 
 {question_text}"""
 
+    # SECURITY_S1C: capability permission is the AUTHORIZATION. The daily counter below is an
+    # ADDITIONAL, stricter bound — it can only refuse sooner, never grant what the policy denies.
+    _require_programming_capability(db, user, "question.generate")
     check_programming_usage_limit(user, "challenge_generate", db)
 
-    ai_response = call_deepseek(
+    from learning.spaces.programming.ai import execute_programming_ai
+    from learning.spaces.programming.context import build_programming_context
+    _generate_result = execute_programming_ai(
+        db, user, "question.generate",
         [
             {"role": "system", "content": CODE_CHALLENGE_GENERATE_PROMPT},
             {"role": "user", "content": user_prompt},
-        ]
+        ],
+        learning_context=build_programming_context(user, language=language),
     )
+    ai_response = _generate_result.content or ""
 
     record_ai_usage(user.username, "challenge_generate", db, estimated_tokens=estimate_tokens_from_text(ai_response), status="success", service_key="programming")
 
@@ -16297,7 +16339,19 @@ def explain_challenge_failure(
     ]
 
     try:
-        explanation = call_deepseek(messages)
+        # SECURITY_S1C: this endpoint had no entitlement check at all — only an audit counter —
+        # so any authenticated learner could reach the provider. It now runs through the unified
+        # boundary: capability permission, budget reservation, router and ledger.
+        _require_programming_capability(db, user, "programming.explain")
+        from learning.spaces.programming.ai import execute_programming_ai
+        from learning.spaces.programming.context import build_programming_context
+        _explain_result = execute_programming_ai(
+            db, user, "programming.explain", messages,
+            learning_context=build_programming_context(
+                user, language=(challenge.language or "").strip() or None,
+                exercise_id=getattr(challenge, "id", None)),
+        )
+        explanation = _explain_result.content or ""
         record_ai_usage(user.username, "challenge_explain", db, estimated_tokens=len(code) // 2 + 500, service_key="programming")
         return {"success": True, "explanation": explanation}
     except HTTPException:
@@ -16411,7 +16465,17 @@ def generate_challenge_tests(
     ]
 
     try:
-        ai_response = call_deepseek(messages)
+        # SECURITY_S1C: no entitlement check existed here either. Generating test cases is
+        # authoring assessment content, so it asks the content-generation capability.
+        _require_programming_capability(db, user, "question.generate")
+        from learning.spaces.programming.ai import execute_programming_ai
+        from learning.spaces.programming.context import build_programming_context
+        _tests_result = execute_programming_ai(
+            db, user, "question.generate", messages,
+            learning_context=build_programming_context(
+                user, language=language, exercise_id=getattr(challenge, "id", None)),
+        )
+        ai_response = _tests_result.content or ""
         record_ai_usage(user.username, "challenge_test_gen", db, estimated_tokens=estimate_tokens_from_text(ai_response), service_key="programming")
     except HTTPException:
         raise
@@ -16910,14 +16974,24 @@ def generate_learning_diagnosis(
 
 请根据以上数据生成编程学习诊断报告。"""
 
+    # SECURITY_S1C: capability permission first, then the legacy daily counter as an ADDITIONAL
+    # bound. A diagnosis IS a report over the learner's history — the programming twin of
+    # `ai_generate_learning_report`, which already asks `report.generate` — so it asks the same
+    # capability rather than a new one.
+    _require_programming_capability(db, user, "report.generate")
     check_usage_limit(user.username, "learning_diagnosis", db, "programming")
 
-    ai_response = call_deepseek(
+    from learning.spaces.programming.ai import execute_programming_ai
+    from learning.spaces.programming.context import build_programming_context
+    _diagnosis_result = execute_programming_ai(
+        db, user, "report.generate",
         [
             {"role": "system", "content": CODE_LEARNING_DIAGNOSIS_PROMPT},
             {"role": "user", "content": user_prompt},
-        ]
+        ],
+        learning_context=build_programming_context(user, language=None),
     )
+    ai_response = _diagnosis_result.content or ""
 
     record_ai_usage(user.username, "learning_diagnosis", db, estimated_tokens=estimate_tokens_from_text(ai_response), status="success", service_key="programming")
 
@@ -31051,13 +31125,15 @@ def get_membership_recommendation(
             "needs_manual_choice": True,
         }
 
-    openai_client = OpenAI(
-        api_key=os.getenv("DEEPSEEK_API_KEY"),
-        base_url=os.getenv("DEEPSEEK_BASE_URL"),
-    )
-    # The learner's whole stage is the context: the grade decides which courses of the direction
-    # are relevant to them, and the semester is carried with it.
-    result = recommend_plan_by_major(major, grade, db, openai_client, semester=semester)
+    # SECURITY_S1C: this route built its OWN OpenAI client and handed it to the classifier's
+    # last-resort AI layer, so an authenticated learner with an unmatched major could reach a
+    # provider with no capability, no budget and no ledger row — the same bypass class as the
+    # /code/* endpoints. "Classify an arbitrary major" has no capability in the policy, and
+    # inventing one is exactly what this round forbids, so the call is refused rather than
+    # re-routed: the classifier falls through to its documented final layer, which returns the
+    # generic recommendation with `needs_manual_choice`, and the learner picks their own plan.
+    # The stage is still the context: the grade decides which courses of the direction apply.
+    result = recommend_plan_by_major(major, grade, db, semester=semester)
     return result
 
 

@@ -56,7 +56,12 @@ def denial_status(error_category: str | None) -> int:
     """
     if error_category in {"permission_denied", "tier_not_permitted"}:
         return 403
-    if error_category == "budget_reserve_failed":
+    # SECURITY_S1C: `budget_incompatible` is the category the ROUTER raises when no candidate
+    # fits the remaining budget — i.e. the ordinary shape of "you are out of budget", not an
+    # edge case. The course and exam adapters both name it here; this one did not, so a spent
+    # budget answered 502 ("capability unavailable") instead of 429, which states the opposite
+    # of what happened. Same two names as the siblings, no new rule.
+    if error_category in {"budget_reserve_failed", "budget_incompatible"}:
         return 429
     return 502
 
