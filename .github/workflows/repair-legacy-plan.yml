@@ -61,10 +61,12 @@ jobs:
           SSH_PORT="${SSH_PORT:-22}"
           KEY="$HOME/.ssh/tencent_deploy_key"
           # The runner's copy of the script wins: the host checkout may be the revision that
-          # failed to deploy, and it does not have this file.
+          # failed to deploy, and it does not have this file. Staged into the login home as a
+          # bare filename — a relative destination is resolved against that home, and
+          # "scripts/deploy/..." does not exist there (only inside the checkout).
           scp -i "$KEY" -P "$SSH_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes \
             scripts/deploy/repair_legacy_plan.py \
-            "$TENCENT_USER@$HOST_CLEAN:scripts/deploy/repair_legacy_plan.py"
+            "$TENCENT_USER@$HOST_CLEAN:repair_legacy_plan.py"
 
           ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=10 \
             -i "$KEY" -p "$SSH_PORT" "$TENCENT_USER@$HOST_CLEAN" 'bash -se' <<'REPAIREOF'
@@ -80,6 +82,11 @@ jobs:
             echo "[repair] ERROR: backend venv not found at $PYTHON_BIN"
             exit 1
           fi
+
+          # The script resolves its repo root from its OWN path, so it has to live in the
+          # checkout's scripts/deploy/ — move the staged copy into place.
+          mkdir -p "$REPO_ROOT/scripts/deploy"
+          mv "$HOME/repair_legacy_plan.py" "$REPO_ROOT/scripts/deploy/repair_legacy_plan.py"
 
           mkdir -p "$BACKUP_DIR"
           sqlite3 "$DATA_DB" ".timeout 5000" ".backup '$BACKUP'"
