@@ -79,8 +79,16 @@ from auth import hash_password, verify_password
 from core import schema_preflight as core_schema_preflight
 from core.code_execution import (
     code_execution_unavailable_detail,
+    configured_backend,
     is_secure_code_execution_available,
     require_secure_code_execution,
+)
+from core.security_audit import (
+    audit_code_execution_denied,
+    audit_code_execution_permitted,
+    bind_code_execution_audit,
+    code_execution_audit_context,
+    reset_code_execution_audit,
 )
 from database import Base, SessionLocal, engine, get_db, init_user_profile_schema, update_conversation_title
 from database_schema import ensure_database_schema
@@ -12891,6 +12899,36 @@ def _parse_exercise_test_counts(language: str, output: str, total: int, exit_cod
     return (total, total) if exit_code == 0 else (0, total)
 
 
+def _audit_fields(request, current_user, *, action: str, language: str = "", resource=None) -> dict:
+    """The only fields a code-execution audit record may carry (SECURITY_S0.5).
+
+    Submitted source, stdin, stdout/stderr and any credential are deliberately absent,
+    so they cannot reach the log even by accident.
+    """
+    return dict(
+        user=getattr(current_user, "username", "") or "",
+        action=action,
+        language=language or "",
+        resource=resource,
+        request_id=_ai_usage_action_id.get() or "",
+        ip=getattr(getattr(request, "client", None), "host", "") or "",
+    )
+
+
+def _code_execution_audit(request, current_user, *, action: str, language: str = "", resource=None):
+    """Bind the audit context for the duration of one execution attempt."""
+    return code_execution_audit_context(
+        **_audit_fields(request, current_user, action=action, language=language, resource=resource)
+    )
+
+
+def _bind_code_execution_audit(request, current_user, *, action: str, language: str = "", resource=None):
+    """Token-based variant for handlers that already own a try/finally."""
+    return bind_code_execution_audit(
+        **_audit_fields(request, current_user, action=action, language=language, resource=resource)
+    )
+
+
 def _run_official_exercise_tests(project: models.CodeProject, exercise: models.ProgrammingExercise, files: list[models.CodeProjectFile], submission: bool) -> dict:
     # SECURITY_S0: the learner's own source is written, compiled and imported below.
     # Treat the whole compilation as untrusted and refuse unless a verified sandbox
@@ -13396,7 +13434,7 @@ def run_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerciseR
 
 
 @app.post("/programming/exercises/{exercise_id}/submit")
-def submit_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerciseRunRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+def submit_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerciseRunRequest, request: Request, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     assert_username_matches_current_user(req.username, current_user)
     user = current_user
     exercise = db.query(models.ProgrammingExercise).filter_by(id=exercise_id).first()
@@ -13404,7 +13442,12 @@ def submit_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerci
     if not exercise or not exercise.is_active or exercise.quality_status != "approved" or project.programming_exercise_id != exercise.id:
         raise HTTPException(status_code=404, detail="题目项目不存在")
     project_files = list_project_files(project.id, db)
-    result = _run_official_exercise_tests(project, exercise, project_files, submission=True)
+    # SECURITY_S0.5: the learner's own source is judged below; bind the audit identity.
+    with _code_execution_audit(
+        request, current_user, action="programming.exercise.submit",
+        language=exercise.language, resource=exercise_id,
+    ):
+        result = _run_official_exercise_tests(project, exercise, project_files, submission=True)
     public_samples = _public_exercise_samples(exercise) or _standard_oj_cases(exercise, hidden=False)
     if result.get("compile_error") or "compile" in result.get("failed_categories", []):
         result["cases"] = [
@@ -13789,6 +13832,7 @@ def _detect_project_java_main_classes(files: list[models.CodeProjectFile]) -> li
 def execute_code_project(
     project_id: int,
     req: schemas.CodeProjectExecuteRequest,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
@@ -13806,6 +13850,11 @@ def execute_code_project(
         raise HTTPException(status_code=503, detail="当前代码运行任务较多，请稍后重试。")
 
     tmp_dir = tempfile.mkdtemp(prefix="code_project_")
+    # SECURITY_S0.5: bind who/what before any compile/run so the guard's audit event
+    # identifies the learner. Reset in the finally below.
+    audit_token = _bind_code_execution_audit(
+        request, current_user, action="code.project.execute", language=project.language, resource=project_id
+    )
     try:
         _write_project_files(tmp_dir, files)
         language = normalize_project_language(project.language)
@@ -13903,6 +13952,7 @@ def execute_code_project(
 
         raise HTTPException(status_code=400, detail="不支持的项目语言")
     finally:
+        reset_code_execution_audit(audit_token)
         DOCKER_SEMAPHORE.release()
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
@@ -14551,6 +14601,7 @@ def diagnose_code(req: schemas.CodeDiagnoseRequest, current_user: models.User = 
 @app.post("/code/execute")
 def execute_code(
     req: schemas.CodeExecuteRequest,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
@@ -14628,6 +14679,10 @@ def execute_code(
     if not acquired:
         raise HTTPException(status_code=503, detail="当前代码运行任务较多，请稍后重试。")
 
+    # SECURITY_S0.5: bind the audit identity before the container backend is reached.
+    audit_token = _bind_code_execution_audit(
+        request, current_user, action="code.execute", language=language, resource=req.session_id
+    )
     try:
         if language == "c":
             result = _run_c_code_in_docker(code, stdin)
@@ -14636,6 +14691,7 @@ def execute_code(
         result["success"] = True
         return result
     finally:
+        reset_code_execution_audit(audit_token)
         DOCKER_SEMAPHORE.release()
 
 
@@ -15872,6 +15928,7 @@ def submit_code_challenge(
 def run_challenge_tests(
     challenge_id: int,
     req: schemas.CodeChallengeRunTestsRequest,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
@@ -15971,6 +16028,10 @@ def run_challenge_tests(
 
     is_c = language == "c"
 
+    # SECURITY_S0.5: bind the audit identity before the container backend is reached.
+    audit_token = _bind_code_execution_audit(
+        request, current_user, action="code.challenge.run_tests", language=language, resource=challenge_id
+    )
     try:
         results = []
         passed_count = 0
@@ -16046,6 +16107,7 @@ def run_challenge_tests(
             "results": results,
         }
     finally:
+        reset_code_execution_audit(audit_token)
         DOCKER_SEMAPHORE.release()
 
 
@@ -35653,8 +35715,16 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
         # SECURITY_S0: this handler used to fall back to a host PTY whenever the docker
         # CLI was missing, which ran learner code on the host. That fallback is removed.
         # Without a verified sandbox the terminal refuses instead of degrading to the host.
-        if not is_secure_code_execution_available():
-            raise ValueError(code_execution_unavailable_detail()["message"])
+        # SECURITY_S0.5: the terminal enforces the policy itself (it cannot raise an HTTP
+        # error mid-socket), so it records the decision explicitly.
+        with _code_execution_audit(
+            ws, user, action="programming.exercise.interactive",
+            language=language, resource=exercise_id,
+        ):
+            if not is_secure_code_execution_available():
+                audit_code_execution_denied(backend=configured_backend())
+                raise ValueError(code_execution_unavailable_detail()["message"])
+            audit_code_execution_permitted(backend=configured_backend())
         print(
             f"[WS-TERMINAL] exercise_start request_id={request_id} "
             f"run_session_id={run_session_id} exercise_id={exercise_id} "
@@ -35917,10 +35987,14 @@ async def interactive_run(ws: WebSocket):
 
     # SECURITY_S0: this entry point runs the learner's code in a container. Refuse
     # unless a verified sandbox is available — there is no host fallback here.
-    if not is_secure_code_execution_available():
-        await ws.send_text(json.dumps({"type": "error", "message": code_execution_unavailable_detail()["message"]}, ensure_ascii=False))
-        await ws.close(code=1013)
-        return
+    # SECURITY_S0.5: record the decision; this handler enforces the policy itself.
+    with _code_execution_audit(ws, current_user, action="code.interactive_run", language=language):
+        if not is_secure_code_execution_available():
+            audit_code_execution_denied(backend=configured_backend())
+            await ws.send_text(json.dumps({"type": "error", "message": code_execution_unavailable_detail()["message"]}, ensure_ascii=False))
+            await ws.close(code=1013)
+            return
+        audit_code_execution_permitted(backend=configured_backend())
 
     if not _check_code_run_rate(username, CODE_RUN_RATE_EXECUTE):
         await ws.send_text(json.dumps({"type": "error", "message": "运行过于频繁，每分钟最多 10 次，请稍后再试。"}))

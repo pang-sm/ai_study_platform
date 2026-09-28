@@ -24,6 +24,13 @@ import shutil
 
 from fastapi import HTTPException
 
+from core.security_audit import (
+    CODE_EXECUTION_DENIED_SANDBOX_UNAVAILABLE,
+    CODE_EXECUTION_PERMITTED,
+    SANDBOX_UNAVAILABLE,
+    audit_code_execution,
+)
+
 CODE_EXECUTION_BACKEND_ENV = "CODE_EXECUTION_BACKEND"
 
 BACKEND_DISABLED = "disabled"
@@ -63,8 +70,21 @@ def code_execution_unavailable_detail() -> dict:
 def require_secure_code_execution() -> None:
     """Refuse learner code execution unless a verified sandbox may run it.
 
+    Every decision is written to the security audit log (SECURITY_S0.5) using the
+    context bound by the calling entry point. The audit record is emitted here rather
+    than at each call site so an entry point cannot execute without being recorded.
+
     Raises:
         HTTPException: 503 with the stable ``code_execution_unavailable`` detail.
     """
-    if not is_secure_code_execution_available():
-        raise HTTPException(status_code=503, detail=code_execution_unavailable_detail())
+    backend = configured_backend()
+    if is_secure_code_execution_available():
+        audit_code_execution(CODE_EXECUTION_PERMITTED, allowed=True, backend=backend)
+        return
+    audit_code_execution(
+        CODE_EXECUTION_DENIED_SANDBOX_UNAVAILABLE,
+        allowed=False,
+        reason=SANDBOX_UNAVAILABLE,
+        backend=backend,
+    )
+    raise HTTPException(status_code=503, detail=code_execution_unavailable_detail())
