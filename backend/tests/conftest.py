@@ -14,6 +14,12 @@ os.environ["DATABASE_URL"] = f"sqlite:///{(TEST_ROOT / 'test.db').as_posix()}"
 os.environ["UPLOAD_ROOT"] = str(TEST_ROOT / "uploads")
 # STEP 7A: tests exercise the SHADOW (INTERNAL) pipeline by default; production stays OFF.
 os.environ["STUDENT_TWIN_MODE"] = "internal"
+# SECURITY_S2A: the suite IS a test environment, and says so. The mock payment provider is
+# opt-IN by an explicit APP_ENV name, so relying on the variable being absent would now deny
+# every mock-payment test — and, worse, would have made the suite silently depend on the very
+# fail-open this round removed. Set unconditionally so the suite does not change behaviour
+# with the shell it happens to be run from.
+os.environ["APP_ENV"] = "test"
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
