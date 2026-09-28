@@ -653,6 +653,98 @@ def cn_2022_q47():
     return svg(680, 528, "".join(body), "")
 
 
+def ds_2024_q7():
+    """二叉搜索树. T is k3's RIGHT subtree, so every key in it satisfies k3 < x < k2 — the stored
+    answer D. The figure forces exactly one option, which is what makes it checkable."""
+    body = [ellipse(200, 60, 26, 26, "k1", fill="#eef3f8", dy=5, size=14),
+            ellipse(330, 150, 26, 26, "k2", fill="#eef3f8", dy=5, size=14),
+            ellipse(250, 250, 26, 26, "k3", fill="#eef3f8", dy=5, size=14),
+            link(180, 80, 130, 150, ""), link(220, 80, 310, 130, ""),
+            link(310, 170, 270, 232, ""), link(350, 170, 400, 240, ""),
+            link(230, 270, 180, 330, ""), link(270, 270, 320, 330, "")]
+    # The unlabelled subtrees are drawn as the paper draws them — triangles, not node lists,
+    # because the question says nothing about their contents.
+    for cx, cy in ((120, 190), (400, 280), (170, 370)):
+        body.append(f'<polygon points="{cx - 26},{cy + 34} {cx + 26},{cy + 34} {cx},{cy - 26}" '
+                    f'fill="#f5f7fa" stroke="{LINE}" stroke-width="1.5"/>')
+    body.append(ellipse(320, 380, 26, 26, "T", fill="#eef3f8", dy=5, size=15))
+    body.append(text(430, 380, "T 为 k3 的右子树", size=13, anchor="start", fill=MUTED))
+    return svg(600, 430, "".join(body), "")
+
+
+def cn_2024_q33():
+    """分组交换网络. Redrawn faithfully to the paper: a diamond of four routers, not the
+    straight chain an earlier revision drew from the 【图示信息】 summary alone."""
+    body = [
+        rect(40, 180, 76, 48, "H1", size=14),
+        rect(190, 180, 90, 48, "路由器", size=13),
+        rect(370, 80, 90, 48, "路由器", size=13),
+        rect(370, 290, 90, 48, "路由器", size=13),
+        rect(560, 180, 90, 48, "路由器", size=13),
+        rect(700, 180, 76, 48, "H2", size=14),
+        link(116, 204, 190, 204, "10 Mb/s", ly=194),
+        link(280, 196, 370, 116, "1000 Mb/s", lx=322, ly=140),
+        link(280, 214, 370, 300, "100 Mb/s", lx=318, ly=280),
+        link(460, 104, 560, 190, "1 Mb/s", lx=530, ly=132),
+        link(460, 316, 560, 218, "100 Mb/s", lx=530, ly=300),
+        link(650, 204, 700, 204, "10 Mb/s", ly=194),
+    ]
+    return svg(820, 380, "".join(body), "瓶颈链路为 1 Mb/s")
+
+
+def co_2022_q43():
+    """CPU 数据通路. Components and control signals are exactly the ones the paper labels; the
+    question asks about the wiring, so each signal keeps its own arrow."""
+    bus_top, bus_inner = 70, 210
+    body = [
+        text(400, 40, "系统总线", size=13, weight="600"),
+        f'<line x1="150" y1="{bus_top}" x2="640" y2="{bus_top}" stroke="{LINE}" stroke-width="2.4"/>',
+        text(600, 200, "内部总线", size=13, weight="600", anchor="end"),
+        f'<line x1="150" y1="{bus_inner}" x2="640" y2="{bus_inner}" stroke="{LINE}" stroke-width="2.4"/>',
+        text(676, 66, "Read", size=12, fill=ACCENT, anchor="start"),
+        text(676, 86, "Write", size=12, fill=ACCENT, anchor="start"),
+        # 主存储器 hangs off the system bus on the far left.
+        rect(40, 120, 76, 120, "", rx=3),
+        text(78, 176, "主存", size=13, weight="600"),
+        text(78, 196, "储器", size=13, weight="600"),
+        link(116, 150, 150, 90, ""),
+        rect(170, 118, 84, 44, "MAR", size=13),
+        rect(300, 148, 84, 44, "MDR", size=13),
+        rect(430, 118, 70, 44, "PC", size=13),
+        rect(540, 118, 70, 44, "IR", size=13),
+        link(212, 162, 212, 210, "MARin", ly=190, size=11),
+        link(342, 192, 342, 210, "MDRin", ly=204, size=11),
+        link(342, 148, 342, 118, "MDRout", ly=132, size=11),
+        link(465, 162, 465, 210, "PCin", ly=190, size=11),
+        link(465, 118, 465, 70, "PCout", ly=96, size=11),
+        link(575, 118, 575, 70, "IRin", ly=96, size=11),
+        text(618, 112, "送 CU 等部件", size=11, fill=ACCENT, anchor="start"),
+        # Operand path: 内部总线 → Y → ALU, and GPRs on the right.
+        rect(170, 240, 70, 44, "Y", size=13),
+        link(205, 210, 205, 240, "Yin", ly=232, size=11),
+        rect(300, 236, 110, 56, "ALU", size=14),
+        text(355, 224, "A 16 | B 16", size=11, fill=MUTED),
+        text(355, 312, "F 16", size=11, fill=MUTED),
+        text(430, 264, "ALUop", size=11, fill=ACCENT, anchor="start"),
+        link(240, 256, 300, 256, ""),
+        link(355, 292, 355, 320, ""),
+        rect(320, 320, 70, 44, "Z", size=13),
+        link(355, 364, 420, 364, ""),
+        text(400, 386, "Zout", size=11, fill=ACCENT, anchor="middle"),
+        rect(170, 320, 110, 44, "", rx=3),
+        text(186, 338, "FR", size=12, weight="600", anchor="start"),
+        text(186, 356, "SF OF…", size=11, fill=MUTED, anchor="start"),
+        link(355, 340, 280, 340, ""),
+        rect(500, 240, 120, 70, "GPRs", size=14),
+        link(500, 256, 460, 256, "rd 4", ly=248, size=11),
+        text(626, 262, "rs 4", size=11, fill=MUTED, anchor="start"),
+        link(560, 310, 560, 330, "GPRin", ly=326, size=11),
+        link(620, 256, 656, 256, ""),
+        text(660, 260, "GPRout", size=11, fill=ACCENT, anchor="start"),
+    ]
+    return svg(740, 420, "".join(body), "")
+
+
 # --------------------------------------------------------------------------------- registry
 
 FIGURES = {
@@ -678,6 +770,8 @@ FIGURES = {
     ("data_structure", 2022, 8): ("2022_q8_1.svg", ds_2022_q8),
     ("operating_system", 2022, 45): ("2022_q45_1.svg", os_2022_q45),
     ("computer_network", 2022, 47): ("2022_q47_1.svg", cn_2022_q47),
+    ("data_structure", 2024, 7): ("2024_q7_1.svg", ds_2024_q7),
+    ("computer_organization", 2022, 43): ("2022_q43_1.svg", co_2022_q43),
     ("computer_network", 2024, 47): ("2024_q47_1.svg", cn_2024_q47),
     ("computer_network", 2026, 37): ("2026_q37_1.svg", cn_2026_q37),
     ("computer_organization", 2026, 43): ("2026_q43_1.svg", co_2026_q43),
