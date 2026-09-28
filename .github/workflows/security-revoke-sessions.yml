@@ -1,0 +1,81 @@
+name: Security — Revoke All Sessions
+
+# SECURITY_S0.5 post-incident containment for the SECURITY_S0 host-RCE window.
+#
+# The read primitive reached app.db, which stores auth_sessions.token_hash. Raw tokens are
+# never persisted, so a stolen hash is not directly replayable — but the endpoint that could
+# have leaked it logged nothing, so "we cannot prove it was unused" is the operative fact,
+# and invalidating every live session is the conservative answer.
+#
+# Fixed logic only, no arbitrary input: it revokes auth_sessions.revoked_at and tightens the
+# mode of ONE known credential-bearing drop-in. It never touches users, passwords,
+# memberships or learning data, and it is idempotent.
+on:
+  workflow_dispatch:
+
+jobs:
+  revoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare SSH
+        shell: bash
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_SSH_KEY: ${{ secrets.TENCENT_SSH_KEY }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          : "${TENCENT_HOST:?TENCENT_HOST secret required}"
+          : "${TENCENT_SSH_KEY:?TENCENT_SSH_KEY secret required}"
+          SSH_PORT="${SSH_PORT:-22}"
+          HOST_CLEAN="${TENCENT_HOST#*@}"
+          HOST_CLEAN="${HOST_CLEAN%%:*}"
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$TENCENT_SSH_KEY" | tr -d '\r' > "$HOME/.ssh/tencent_deploy_key"
+          chmod 600 "$HOME/.ssh/tencent_deploy_key"
+          ssh-keygen -y -f "$HOME/.ssh/tencent_deploy_key" >/dev/null 2>/tmp/revoke-keygen.err
+          ssh-keyscan -T 20 -p "$SSH_PORT" -H "$HOST_CLEAN" >> "$HOME/.ssh/known_hosts" 2>/dev/null || true
+          echo "[revoke] SSH ready"
+
+      - name: Revoke sessions and harden the secret drop-in
+        shell: bash
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_USER: ${{ secrets.TENCENT_USER }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          HOST_CLEAN="${TENCENT_HOST#*@}"
+          HOST_CLEAN="${HOST_CLEAN%%:*}"
+          SSH_PORT="${SSH_PORT:-22}"
+          ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=10 \
+            -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" \
+            "$TENCENT_USER@$HOST_CLEAN" 'bash -se' <<'REVOKEEOF'
+          set -euo pipefail
+          cd "$HOME/ai_study_platform"
+
+          echo "[revoke] === drop-in modes (path and mode only, never contents) ==="
+          for f in /etc/systemd/system/ai-backend.service.d/*.conf; do
+            [ -e "$f" ] || continue
+            stat -c '[revoke]   %a %n' "$f"
+          done
+
+          # The SMTP drop-in is the only credential-bearing file in this directory. Tighten
+          # it here as well as in deploy.yml so the host is safe even before the next deploy.
+          SMTP_DROPIN=/etc/systemd/system/ai-backend.service.d/smtp.conf
+          if [ -e "$SMTP_DROPIN" ]; then
+            sudo chmod 600 "$SMTP_DROPIN"
+            stat -c '[revoke] smtp drop-in tightened -> %a %n' "$SMTP_DROPIN"
+          else
+            echo "[revoke] no smtp drop-in present — nothing to tighten"
+          fi
+
+          echo "[revoke] === session revocation ==="
+          DATABASE_URL="sqlite:////var/lib/ai_study_platform/app.db" \
+            backend/.venv/bin/python scripts/deploy/revoke_all_sessions.py
+          echo "[revoke] done"
+          REVOKEEOF
