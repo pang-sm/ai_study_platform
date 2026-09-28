@@ -518,6 +518,141 @@ def ds_2022_q41():
     return svg(860, 484, "".join(body), "")
 
 
+# ------------------------------------------- figures read from the official paper (2026-09-28)
+#
+# These were redrawn after viewing the question in the paper itself (downloaded for fact-checking
+# only — no scan is ever shipped, cropped, or de-watermarked). Each one records what makes it
+# trustworthy: the (year, subject, number) was re-read from the LIVE API immediately beforehand,
+# the stem matches, and the drawing reproduces the answer the bank already stores.
+
+def _darrow(x1, y1, x2, y2, label="", lx=None, ly=None, size=13, dx=0, dy=-8):
+    """A directed edge for the graph questions."""
+    out = [f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{LINE}" stroke-width="1.6" '
+           f'marker-end="url(#ah)"/>']
+    if label:
+        out.append(text(lx if lx is not None else (x1 + x2) / 2 + dx,
+                        ly if ly is not None else (y1 + y2) / 2 + dy,
+                        label, size=size, fill=ACCENT))
+    return "".join(out)
+
+
+def ds_2022_q7():
+    """AOE 网. Edges and durations read from the paper; the slack they give is max at g, and the
+    stored answer is B (g) — that agreement is the check, not the picture."""
+    v = {1: (110, 250), 2: (250, 130), 3: (250, 330), 4: (410, 110), 5: (430, 330), 6: (580, 220)}
+    body = [_darrow(*v[1], *v[2], "a=2", lx=165, ly=178),
+            _darrow(*v[1], *v[3], "b=5", lx=168, ly=300),
+            _darrow(*v[2], *v[3], "c=3", lx=228, ly=232),
+            _darrow(*v[2], *v[4], "d=3", lx=330, ly=112),
+            _darrow(*v[3], *v[4], "e=3", lx=330, ly=238),
+            _darrow(*v[3], *v[5], "f=3", lx=348, ly=340),
+            _darrow(*v[3], *v[6], "g=1", lx=462, ly=248),
+            _darrow(*v[4], *v[5], "h=1", lx=392, ly=232),
+            _darrow(*v[4], *v[6], "i=4", lx=506, ly=150),
+            _darrow(*v[5], *v[6], "j=1", lx=520, ly=300)]
+    for number, (x, y) in v.items():
+        body.append(ellipse(x, y, 20, 20, str(number), fill="#eef3f8", dy=5, size=14))
+    return svg(680, 400, "".join(body), "")
+
+
+def ds_2022_q8():
+    """5 阶 B 树 T. The root key list and the five leaves are read straight off the paper.
+
+    Deleting 260 and rebalancing is what the question asks about; the drawing only has to show
+    the tree as given.
+    """
+    root_keys = ["60", "90", "260", "350"]
+    body = [text(40, 34, "5 阶 B 树 T", size=15, anchor="start", weight="600")]
+    kw = 74
+    rx = 110
+    for index, key in enumerate(root_keys):
+        body.append(rect(rx + index * kw, 60, kw, 44, key, rx=3))
+    leaves = [["30", "50"], ["70", "80", "85"], ["100", "110"], ["280", "300"], ["400", "500"]]
+    lx = 40
+    for slot, leaf in enumerate(leaves):
+        width = kw * len(leaf)
+        for index, key in enumerate(leaf):
+            body.append(rect(lx + index * kw, 190, kw, 44, key, rx=3))
+        # Each child hangs off the root's own pointer slot — the slot sits before the first key
+        # and between/after the rest, which is what makes it read as one node with five children
+        # rather than five unrelated boxes.
+        body.append(link(rx + slot * kw, 104, lx + width / 2, 190, ""))
+        lx += width + 18
+    # The root's five child slots are the gaps around its four keys.
+    body.append(text(40, 268, "根结点 4 个关键字；5 个叶结点", size=13, anchor="start", fill=MUTED))
+    return svg(lx + 20, 296, "".join(body), "")
+
+
+def os_2022_q45():
+    """文件系统 (a) 目录结构与 (b) 文件名/索引结点号/磁盘块号 表.
+
+    The table reproduces the stored answer (doc shares inode 10 with course1, so x = 30) — the
+    inconsistency a mis-transcribed table would show up as is exactly that x.
+    """
+    body = [text(60, 32, "题 45(a) 图　目录结构", size=14, anchor="start", weight="600")]
+    body.append(rect(60, 60, 96, 40, "stu", rx=3))
+    body.append(rect(240, 60, 110, 40, "course", rx=3))
+    body.append(rect(240, 150, 110, 40, "doc", rx=3))
+    body.append(link(156, 80, 240, 80, ""))
+    body.append(link(156, 84, 240, 170, ""))
+    body.append(rect(430, 30, 110, 40, "course1", rx=3))
+    body.append(rect(430, 108, 110, 40, "course2", rx=3))
+    body.append(link(350, 80, 430, 50, ""))
+    body.append(link(350, 84, 430, 128, ""))
+
+    rows = [["stu", "1", "10"], ["course", "2", "20"], ["course1", "10", "30"],
+            ["course2", "100", "40"], ["doc", "10", "x"]]
+    body.append(text(60, 250, "题 45(b) 图", size=14, anchor="start", weight="600"))
+    body.append(table(60, 268, [170, 190, 170], ["文件名", "索引结点号", "磁盘块号"], rows))
+    return svg(620, 268 + 42 * 6 + 40, "".join(body), "")
+
+
+def cn_2022_q47():
+    """网络拓扑. Every address and MAC is the one printed in the figure; 设备1 / 设备2 keep the
+    paper's own labels, because identifying them is the question."""
+    body = [
+        ellipse(90, 130, 52, 26, "Internet", fill="#eef3f8", dy=5, size=13),
+        rect(210, 110, 60, 42, "R", size=15),
+        text(240, 104, "E0", size=12, fill=MUTED),
+        text(250, 82, "192.168.0.1/25", size=12, fill=MUTED),
+        text(250, 168, "00-11-11-11-11-A1", size=11, fill=MUTED),
+        link(142, 130, 210, 130, ""),
+        rect(400, 110, 60, 42, "S", size=15),
+        link(270, 130, 400, 130, ""),
+        rect(210, 230, 90, 44, "设备 1", size=14),
+        rect(210, 330, 90, 44, "设备 2", size=14),
+        link(240, 152, 240, 230, ""),
+        link(240, 274, 240, 330, ""),
+        rect(60, 234, 64, 40, "H1", size=14),
+        link(124, 254, 210, 254, ""),
+        rect(60, 336, 64, 40, "H2", size=14),
+        rect(370, 336, 64, 40, "H3", size=14),
+        link(124, 356, 210, 356, ""),
+        link(300, 356, 370, 356, ""),
+        # The AP / DHCP branch hangs off the switch.
+        ellipse(392, 226, 26, 24, "AP", fill="#eef3f8", dy=5, size=12),
+        link(400, 152, 392, 202, ""),
+        text(322, 268, "00-11-11-11-11-C1", size=11, fill=MUTED, anchor="start"),
+        # H4 and H5 are the two stations associated with the AP. The H4 link leaves to the
+        # right of 设备2's branch, so it cannot be read as passing through H3.
+        link(408, 246, 470, 244, ""),
+        link(412, 248, 486, 350, ""),
+        rect(480, 108, 150, 46, "DHCP 服务器", size=13),
+        link(460, 130, 480, 130, ""),
+        text(556, 172, "192.168.0.2/25", size=11, fill=MUTED),
+        text(556, 190, "00-11-11-11-11-B1", size=11, fill=MUTED),
+        rect(470, 244, 64, 40, "H5", size=14),
+        rect(486, 350, 64, 40, "H4", size=14),
+        text(486, 300, "192.168.0.4/25", size=11, fill=MUTED, anchor="start"),
+        text(486, 318, "00-11-11-11-11-E1", size=11, fill=MUTED, anchor="start"),
+        text(486, 412, "192.168.0.3/25", size=11, fill=MUTED, anchor="start"),
+        text(486, 430, "00-11-11-11-11-D1", size=11, fill=MUTED, anchor="start"),
+        text(240, 500, "H1 与 H2 同一广播域、不同冲突域；H2 与 H3 同一冲突域",
+             size=12, fill=MUTED),
+    ]
+    return svg(680, 528, "".join(body), "")
+
+
 # --------------------------------------------------------------------------------- registry
 
 FIGURES = {
@@ -539,6 +674,10 @@ FIGURES = {
     ("operating_system", 2026, 45): ("2026_q45_1.svg", os_2026_q45),
     ("data_structure", 2025, 11): ("2025_q11_1.svg", ds_2025_q11),
     ("data_structure", 2022, 41): ("2022_q41_1.svg", ds_2022_q41),
+    ("data_structure", 2022, 7): ("2022_q7_1.svg", ds_2022_q7),
+    ("data_structure", 2022, 8): ("2022_q8_1.svg", ds_2022_q8),
+    ("operating_system", 2022, 45): ("2022_q45_1.svg", os_2022_q45),
+    ("computer_network", 2022, 47): ("2022_q47_1.svg", cn_2022_q47),
     ("computer_network", 2024, 47): ("2024_q47_1.svg", cn_2024_q47),
     ("computer_network", 2026, 37): ("2026_q37_1.svg", cn_2026_q37),
     ("computer_organization", 2026, 43): ("2026_q43_1.svg", co_2026_q43),
