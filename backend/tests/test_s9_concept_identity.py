@@ -253,13 +253,20 @@ def test_a_question_set_that_does_not_belong_to_the_concept_is_rejected(client, 
 
 
 def test_a_cross_module_question_set_is_rejected(client, bank):
+    """SECURITY_S1B moved WHERE this is refused, not whether.
+
+    The subject check used to live in the concept validation below, which only ran after the
+    ids had already been loaded into the set — so a foreign row was accepted by the loader and
+    merely diagnosed afterwards. Attempt creation now re-validates every id against the route's
+    subject before anything is loaded, so a cross-module set is refused at the boundary. The
+    concept-level diagnosis is consequently unreachable by construction; nothing (frontend or
+    backend) ever consumed its code, so the boundary refusal is the behaviour worth pinning.
+    """
     register_and_login(client, "s9_cross_module_set")
     foreign = [bank["操作系统选择"].id]
     response = _create(client, foreign, module=DS, knowledge_point_id="1.1")
-    assert response.status_code == 422
-    detail = response.json()["detail"]
-    assert detail["code"] == app_main.CONCEPT_QUESTION_MODULE_MISMATCH
-    assert detail["other_modules"] == [OS_ONLY_MODULE]
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "question_not_available"
 
 
 def test_the_canonical_concept_filter_refuses_a_non_canonical_id(client, bank):

@@ -98,8 +98,13 @@ def _attempt_fixture(client, username):
     """A real submitted chapter-practice attempt: one choice question, answered WRONG."""
     register_and_login(client, username)
     with database.SessionLocal() as db:
+        # SECURITY_S1B: `source_type` is "chapter" — the only value the domain uses for chapter
+        # practice (the production bank is chapter 9098 / past_paper 235). This fixture used to
+        # say "chapter_practice", which is not a value of this column anywhere in the codebase;
+        # it worked only because attempt-create did not filter on source type at all, which is
+        # exactly the boundary S1B closed. The fixture's subject is explain-does-not-mutate.
         db.add(models.ExamQuestionBank(
-            subject_key=SUBJECT, subject_name="数据结构", source_type="chapter_practice",
+            subject_key=SUBJECT, subject_name="数据结构", source_type="chapter",
             question_type="choice",
             stem="线性表的顺序存储与链式存储，哪个支持 O(1) 随机访问？",
             options_json=json.dumps({"A": "顺序存储", "B": "链式存储"}, ensure_ascii=False),

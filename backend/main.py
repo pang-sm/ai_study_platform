@@ -91,6 +91,7 @@ from core.security_audit import (
     reset_code_execution_audit,
 )
 from core.storage_paths import StoragePathError, safe_join_under_root
+import exam_question_bank_access as question_bank_access
 from database import Base, SessionLocal, engine, get_db, init_user_profile_schema, update_conversation_title
 from database_schema import ensure_database_schema
 from membership import (
@@ -23060,8 +23061,14 @@ def _serialize_question_bank(item):
 def get_question_bank_stats(subject_key: str, db: Session = Depends(get_db)):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
-    items = db.query(models.ExamQuestionBank).filter(
-        models.ExamQuestionBank.subject_key == subject_key, models.ExamQuestionBank.is_active == True).all()
+    # SECURITY_S1B: no identity on this route, so it reports official (public) rows only.
+    # Previously it counted every row, including other learners' private ones.
+    items = question_bank_access.visible_query(
+        db.query(models.ExamQuestionBank).filter(
+            models.ExamQuestionBank.subject_key == subject_key,
+            models.ExamQuestionBank.is_active == True,
+        ), None,
+    ).all()
     return {
         "subject_key": subject_key, "total": len(items),
         "chapter": sum(1 for i in items if i.source_type == "chapter"),
@@ -23082,23 +23089,36 @@ def get_question_bank_questions(subject_key: str, source_type: str = "", knowled
     if source_type: q = q.filter(models.ExamQuestionBank.source_type == source_type)
     if knowledge_point_id: q = q.filter(models.ExamQuestionBank.knowledge_point_id == knowledge_point_id)
     username = request_username(username, current_user)
-    q = q.filter((models.ExamQuestionBank.visibility == "public") |
-                 (models.ExamQuestionBank.owner_username == username))
+    q = question_bank_access.visible_query(q, username)
     items = q.order_by(models.ExamQuestionBank.created_at.desc()).all()
     return {"items": [_serialize_question_bank(i) for i in items], "total": len(items)}
 
 
 @app.post("/exam/11408/{subject_key}/question-bank/questions")
-def create_question_bank_question(subject_key: str, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+def create_question_bank_question(subject_key: str, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    """Author an official row in the shared CS408 question bank.
+
+    SECURITY_S1B: this is official-content authoring, not a learner feature. The bank is static
+    server-owned content per the SSOT (9,333 rows built by the offline importers), no client
+    ever called this endpoint, and while it was open to any authenticated learner it let them
+    write ``visibility=public, source_type=chapter`` rows that every other learner then saw and
+    was graded against. It is now admin-only through the existing RBAC, with a dedicated
+    ``question_bank.manage`` permission so a read-only auditor cannot author shared content.
+    """
+    require_admin_permission(current_user, "question_bank.manage")
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
     stem = (req.get("stem") or "").strip()
     if not stem: raise HTTPException(status_code=400, detail="stem is required")
     qtype = (req.get("question_type") or "choice").strip()
+    # The sharing flag decides who can see the row, so it is validated rather than copied.
+    visibility = (req.get("visibility") or question_bank_access.PUBLIC_VISIBILITY).strip()
+    if visibility not in question_bank_access.VALID_VISIBILITIES:
+        raise HTTPException(status_code=400, detail="visibility 取值无效")
     item = models.ExamQuestionBank(
         subject_key=subject_key, subject_name=EXAM_SUBJECT_DIRS.get(subject_key, subject_key),
-        source_type=(req.get("source_type") or "chapter").strip(),
-        visibility=(req.get("visibility") or "public").strip(),
+        source_type=(req.get("source_type") or question_bank_access.CHAPTER_SOURCE_TYPE).strip(),
+        visibility=visibility,
         owner_username=current_user.username,
         knowledge_point_id=(req.get("knowledge_point_id") or "").strip() or None,
         knowledge_point_name=(req.get("knowledge_point_name") or "").strip() or None,
@@ -23419,6 +23439,7 @@ def get_chapter_practice_outline(subject_key: str):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
     questions = {}  # kp_id -> count
+    # SECURITY_S1B: this route carries no identity, so it counts official (public) rows only.
     items = db_query_chapter_questions(subject_key)
     for item in items:
         kp_ids = _split_chapter_question_kp_ids(item)
@@ -23532,15 +23553,21 @@ def _reject_concept(code: str, message: str, **extra):
     """422 with a stable machine-readable code. The identity is never rewritten."""
     raise HTTPException(status_code=422, detail={"code": code, "message": message, **extra})
 
-def db_query_chapter_questions(subject_key):
+def db_query_chapter_questions(subject_key, username: str | None = None):
+    """Chapter rows visible in ``subject_key``.
+
+    SECURITY_S1B: visibility is part of the query, not a per-route afterthought. ``username``
+    of None means an unauthenticated caller, who sees only official (public) rows.
+    """
     from database import SessionLocal
     db = SessionLocal()
     try:
-        return db.query(models.ExamQuestionBank).filter(
+        query = db.query(models.ExamQuestionBank).filter(
             models.ExamQuestionBank.subject_key == subject_key,
-            models.ExamQuestionBank.source_type == "chapter",
+            models.ExamQuestionBank.source_type == question_bank_access.CHAPTER_SOURCE_TYPE,
             models.ExamQuestionBank.is_active == True,
-        ).all()
+        )
+        return question_bank_access.visible_query(query, username).all()
     finally: db.close()
 
 
@@ -23567,7 +23594,9 @@ def get_chapter_practice_questions(subject_key: str, knowledge_point_id: str = "
                                       username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
-    items = db_query_chapter_questions(subject_key)
+    # SECURITY_S1B: public rows plus this learner's own, so a foreign private row can never
+    # appear in the list even though `_serialize_practice_question` strips its answers.
+    items = db_query_chapter_questions(subject_key, current_user.username)
     # BC5A: an explicit canonical-chapter filter. It is additive — with `chapter_code` empty the
     # endpoint behaves exactly as before, and the sub-group filters below still compose with it.
     canonical_chapter = (chapter_code or "").strip()
@@ -23644,10 +23673,11 @@ def get_chapter_analytics(subject_key: str, username: str = "", db: Session = De
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
     # Stats per knowledge point
-    items = db.query(models.ExamQuestionBank).filter(
+    # SECURITY_S1B: same visibility rule as the list, so the two cannot disagree.
+    items = question_bank_access.visible_query(db.query(models.ExamQuestionBank).filter(
         models.ExamQuestionBank.subject_key == subject_key,
-        models.ExamQuestionBank.source_type == "chapter",
-        models.ExamQuestionBank.is_active == True).all()
+        models.ExamQuestionBank.source_type == question_bank_access.CHAPTER_SOURCE_TYPE,
+        models.ExamQuestionBank.is_active == True), current_user.username).all()
     kp_stats = {}
     for i in items:
         kp = (i.knowledge_point_name or "未知")
@@ -23706,9 +23736,11 @@ def create_chapter_practice_attempt(subject_key: str, req: ExamPracticeAttemptCr
     username = request_username(req, current_user)
     qids = req.question_ids
     if not qids: raise HTTPException(status_code=400, detail="question_ids required")
-    items = db.query(models.ExamQuestionBank).filter(
-        models.ExamQuestionBank.id.in_(qids), models.ExamQuestionBank.is_active == True).all()
-    if not items: raise HTTPException(status_code=400, detail="no valid questions found")
+    # SECURITY_S1B: the client's ids are a request, not an authorization. Every id is
+    # re-checked (exists / active / this subject / chapter source / visible to this learner)
+    # and one bad id refuses the whole attempt rather than being silently dropped.
+    items = question_bank_access.resolve_chapter_questions(
+        db, qids, subject_key=subject_key, username=username)
 
     # ACCEL_PRODUCT_S9 — the concept slot is VALIDATED, never trusted and never rewritten.
     # Absent stays absent: direct entry, past papers and legacy attempts legitimately carry
@@ -23776,12 +23808,19 @@ def _persisted_attempt_results(attempt):
          response_model=ExamPracticeAttemptDetailResponse,
          response_model_exclude_unset=True)
 def get_chapter_practice_attempt(subject_key: str, attempt_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    # SECURITY_S1B: `subject_key` is a real scope boundary, not display-only (Rule 6), so the
+    # attempt must belong to the subject named in the URL.
     a = db.query(models.ExamPracticeAttempt).filter(
         models.ExamPracticeAttempt.id == attempt_id,
-        models.ExamPracticeAttempt.username == current_user.username).first()
+        models.ExamPracticeAttempt.username == current_user.username,
+        models.ExamPracticeAttempt.subject_key == subject_key,
+    ).first()
     if not a: raise HTTPException(status_code=404, detail="Attempt not found")
     qids = json.loads(a.question_ids_json or "[]")
-    items = db.query(models.ExamQuestionBank).filter(models.ExamQuestionBank.id.in_(qids)).all()
+    # Hydration re-applies the same authorization, so an attempt captured before this rule
+    # existed cannot disclose a row its owner was never allowed to see.
+    items = question_bank_access.hydrate_chapter_questions(
+        db, qids, subject_key=subject_key, username=current_user.username)
     saved = {};
     if a.answers_json:
         try: saved = json.loads(a.answers_json)
@@ -23823,7 +23862,10 @@ def submit_chapter_attempt(subject_key: str, attempt_id: int, req: ExamPracticeW
     if not a or a.status != "in_progress": raise HTTPException(status_code=404, detail="Attempt not found")
     answers = req.answers
     qids = json.loads(a.question_ids_json or "[]")
-    items = {i.id: i for i in db.query(models.ExamQuestionBank).filter(models.ExamQuestionBank.id.in_(qids)).all()}
+    # SECURITY_S1B: grading reads only rows the learner is authorized to practise. This is the
+    # disclosure boundary — `standard_answer` and `analysis` are emitted from these rows only.
+    items = {row.id: row for row in question_bank_access.hydrate_chapter_questions(
+        db, qids, subject_key=subject_key, username=current_user.username)}
     results, correct, wrong, big_count, mistake_saved = [], 0, 0, 0, 0; now = utc_now(); username = current_user.username
     for qid in qids:
         item = items.get(qid)
@@ -31301,6 +31343,9 @@ PERMISSIONS = {
     "backups.delete",
     "model_config.view",
     "model_config.manage",
+    # SECURITY_S1B: authoring rows in the shared CS408 question bank. It is deliberately in the
+    # writable set for `operator` and absent from `auditor`, matching every other content write.
+    "question_bank.manage",
     *SUPER_ADMIN_ONLY_PERMISSIONS,
 }
 
@@ -31323,6 +31368,7 @@ ROLE_PERMISSIONS = {
         "settings.view",
         "settings.manage",
         "announcements.manage",
+        "question_bank.manage",
         "batch.users",
         "batch.materials",
         "batch.reports",
