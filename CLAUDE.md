@@ -208,6 +208,55 @@
 - 数据库改动：先备份 → Alembic 迁移 → `PRAGMA integrity_check` = ok，并说明「是否需要迁移」。
 - 汇报：改了哪些文件、实现什么、如何测试、有无风险（含是否需要迁移）。
 
+## 默认交付流程：改完即部署（长期，2026-09-28 起生效）
+
+**默认行为**：用户要求开发功能 / 修 Bug / 调整 UI / 修改功能时，除非用户**明确说**
+「只改本地不要部署」，否则必须完整走完下面这条链路，**不得在本地通过就停止**：
+
+```text
+修改代码 → 运行相关测试 → 检查 git diff / git status
+→ 只提交本轮明确修改的文件 → commit（中文说明）
+→ push origin main → 等待 GitHub Actions 部署成功
+→ 在公网 URL 做 smoke test / 功能验收
+→ 确认线上运行的是最新 commit → 再向用户汇报
+```
+
+**禁止（长期；每条都对应已发生过的失败模式）**：
+
+- 本地改好了但线上没更新。
+- 只跑 `localhost:5173` / `localhost:8000` 就算完成。
+- 只 commit 不 deploy（未 push，或 push 后未确认部署结果）。
+- 部署成功但没有检查公网页面。
+- 没确认线上版本 SHA 就告诉用户「完成」。
+
+每轮汇报**至少**给出下列字段（未做该项填 `N/A` 并说明原因，不得省略字段）：
+
+```text
+CHANGE = PASS / FAIL
+TESTS = ...
+COMMIT = <sha>
+DEPLOYMENT = PASS / FAIL
+PRODUCTION_URL = ...
+PRODUCTION_SHA = <sha>
+PUBLIC_SMOKE_TEST = PASS / FAIL
+ONLINE_ACCEPTANCE_READY = YES / NO
+```
+
+**部署失败不得报告为完成**：必须继续排查修复，直到公网环境真实可验收；
+若确实无法修复，明确报告具体阻塞原因，不得含糊称「已完成」。
+
+**如何确认线上 SHA**（生产没有版本端点，不要靠猜）：
+`gh run list --workflow=deploy.yml --limit 1` 取 run id →
+`gh run view <id> --log | grep "HEAD is now at"`（服务器端 `git reset --hard` 之后的真实 HEAD），
+并确认该 SHA == 本地 `HEAD`。另可用 `curl -k https://<host>/api/health` 做存活探针。
+
+**例外（仅此一类）**：纯文档 / 契约变更（本文件、`.claude/**`、`docs/**`）本身不改变线上运行行为，
+仍需 commit + push（`deploy.yml` 无 path filter，push 即触发部署），
+但不要求公网功能 smoke test，此时 `PUBLIC_SMOKE_TEST = N/A`、`ONLINE_ACCEPTANCE_READY = N/A`。
+
+**Git 安全边界不因本条放宽**：仍然禁止 `git add .` / `git add -A`，仍然只按显式路径 `git add <file>`；
+仍然禁止 `--force` / `reset --hard` / `clean` / `stash` / `checkout --`。
+
 ## Git 工作流程（长期）
 
 > **Git 状态不再由本文件断言，必须每次开工前现场检查。**
