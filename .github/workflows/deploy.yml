@@ -13,7 +13,10 @@ concurrency:
   group: production-certbot
   cancel-in-progress: false
 
-run-name: 部署：${{ github.event.head_commit.message }}
+# A display string, not shell — the message cannot execute here. But the
+# workflow_dispatch payload has no `head_commit` at all, so without a fallback the
+# title renders as a bare "部署：" and the Actions list loses the rollback anchor.
+run-name: 部署：${{ github.event.head_commit.message || '手动触发' }}
 
 on:
   push:
@@ -31,14 +34,24 @@ jobs:
         with:
           fetch-depth: 0
 
+      # The commit message is attacker-influenced on every push. A `run:` body is shell
+      # SOURCE: GitHub substitutes `${{ }}` into the text *before* bash parses it, so a
+      # backtick or `$( )` in the message executes on the runner. Pass it through `env`
+      # instead — env values reach the process verbatim and are never parsed as shell.
+      # No `${{ }}` may appear inside a `run:` body in this file; add it to `env` above.
       - name: 写入部署摘要
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          TRIGGER_ACTOR: ${{ github.actor }}
+          TRIGGER_EVENT: ${{ github.event_name }}
         run: |
-          echo "## 本次部署信息" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- 分支：${GITHUB_REF_NAME}" >> $GITHUB_STEP_SUMMARY
-          echo "- 提交说明：${{ github.event.head_commit.message }}" >> $GITHUB_STEP_SUMMARY
-          echo "- 提交人：${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
-          echo "- 触发方式：${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          set -euo pipefail
+          echo "## 本次部署信息" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 分支：${GITHUB_REF_NAME}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 提交说明：${COMMIT_MSG:-（无提交说明）}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 提交人：${TRIGGER_ACTOR:-未知}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 触发方式：${TRIGGER_EVENT:-未知}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: 打印最近版本记录
         run: git log --oneline -5
