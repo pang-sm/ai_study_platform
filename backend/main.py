@@ -2014,8 +2014,12 @@ def _sync_membership_to_track(db: Session, user: models.User):
             track.quota_json = json.dumps(get_exam_package_quota(pkg), ensure_ascii=False)
             track.updated_at = utc_now()
             db.commit()
-    # Sync users.plan for legacy compat using standard plan names
-    user.plan = mplan  # free / monthly / quarterly / full
+    # Sync users.plan into the GLOBAL legacy vocabulary. `mplan` is a DIRECTION code
+    # (exam_11408 sells monthly_sprint / quarterly_boost / full_exam) and this field is global —
+    # writing the raw direction code produced a plan no reader accepts and no migration can map.
+    # See membership.DIRECTION_PLAN_TO_GLOBAL_PLAN.
+    from membership import DIRECTION_PLAN_TO_GLOBAL_PLAN
+    user.plan = DIRECTION_PLAN_TO_GLOBAL_PLAN.get((mplan or "free").strip().lower(), "free")
     db.commit()
 
 

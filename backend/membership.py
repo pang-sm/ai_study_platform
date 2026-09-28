@@ -317,6 +317,24 @@ PLAN_DEFINITIONS = {
 
 VALID_PLANS = set(PLAN_DEFINITIONS.keys())
 
+# One direction code → the GLOBAL legacy plan vocabulary (free / monthly / quarterly / full).
+#
+# ``users.plan`` is a global field. Migration 20260919_0011 spells the only codes it can map
+# (``LEGACY_GLOBAL_RANKS`` + ``LEGACY_GLOBAL_PLAN_TIER``), and every reader already degrades a
+# code it does not know to "free" (``get_user_plan``, ``effective_service_plan``). The direction
+# catalogs use their OWN codes — ``exam_11408`` sells monthly_sprint / quarterly_boost /
+# full_exam — so writing one of those into the global field bought nothing and cost a lot: the
+# membership back-fill gate refuses to run against a global plan it cannot map, and that gate
+# sits *before* the application is started, so the whole deployment stopped.
+#
+# Rank is the only thing the field still carries, so the translation preserves it.
+DIRECTION_PLAN_TO_GLOBAL_PLAN = {
+    "free": "free",
+    "monthly": "monthly", "monthly_sprint": "monthly",
+    "quarterly": "quarterly", "quarterly_boost": "quarterly",
+    "full": "full", "full_exam": "full",
+}
+
 # Direction-specific commercial catalog.  This is the only source of truth
 # for the V1 mock checkout flow; legacy plan definitions above remain for the
 # existing global entitlement/redeem API.

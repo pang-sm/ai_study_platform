@@ -378,3 +378,27 @@ def test_the_frozen_scientific_modes_are_unchanged():
                       "misconception_v2", "memory", "irt", "concept_verifier"):
         assert modes[component] != metadata.MODE_PREVIEW, component
     assert science_capabilities.summary()["totals"]["user_visible"] == 1
+
+
+def test_every_direction_plan_code_translates_into_a_mappable_global_code():
+    """`users.plan` is GLOBAL; nothing direction-scoped may be written into it.
+
+    The incident this pins (2026-09-28): ``_sync_membership_to_track`` wrote the exam direction's
+    raw code (``full_exam``) into ``users.plan``. Migration 20260919_0011 cannot map that code,
+    and its pre-check runs BEFORE the service is started — so one such row left production with
+    the backend stopped. Every direction code the catalogs can produce must therefore translate,
+    and every translated value must be a code that gate accepts.
+    """
+    from membership import DIRECTION_PLAN_TO_GLOBAL_PLAN, SERVICE_PLAN_CATALOG
+
+    migration = _load_migration(MIG_0011, "s10_mig_0011")
+
+    direction_codes = {code for catalog in SERVICE_PLAN_CATALOG.values() for code in catalog}
+    untranslated = sorted(direction_codes - set(DIRECTION_PLAN_TO_GLOBAL_PLAN))
+    assert untranslated == [], (
+        f"catalog codes with no global translation: {untranslated} — writing one into "
+        "users.plan would be refused by the membership gate and stop the deployment")
+
+    for source, target in sorted(DIRECTION_PLAN_TO_GLOBAL_PLAN.items()):
+        assert migration._tier_from_legacy_user_plan(target) is not None, (
+            f"{source} -> {target} is not a code the membership gate can map")

@@ -1,0 +1,96 @@
+name: Repair global users.plan (operator)
+
+# WHEN TO USE. The deploy is refusing with:
+#   [membership-precheck] STOP: refusing to migrate ... "source": "users.plan:<code>"
+# and because that gate runs BEFORE the service is started, production is left DOWN. This
+# normalises the offending global plan rows so the next deploy can proceed.
+#
+# WHY IT IS NEEDED. `users.plan` is a GLOBAL field, but a DIRECTION code
+# (`full_exam` / `monthly_sprint` / `quarterly_boost` for exam_11408) was being written into it.
+# Migration 20260919_0011 cannot map those, and every reader already degraded an unknown code to
+# "free", so the write bought nothing and only stopped deployments.
+#
+# WHAT IT TOUCHES. Only the rows the gate would reject, translated rank-preservingly
+# (`full_exam` -> `full`). The unified tier in `subscriptions` is NOT touched. Takes a DB backup
+# first. Idempotent.
+#
+# The script is copied from this run's checkout, so it runs even when the host checkout is the
+# older revision that the failed deploy left behind.
+on:
+  workflow_dispatch:
+
+run-name: 修复全局 users.plan
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare SSH
+        shell: bash
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_SSH_KEY: ${{ secrets.TENCENT_SSH_KEY }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          : "${TENCENT_HOST:?TENCENT_HOST secret required}"
+          : "${TENCENT_SSH_KEY:?TENCENT_SSH_KEY secret required}"
+          SSH_PORT="${SSH_PORT:-22}"
+          HOST_CLEAN="${TENCENT_HOST#*@}"
+          HOST_CLEAN="${HOST_CLEAN%%:*}"
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$TENCENT_SSH_KEY" | tr -d '\r' > "$HOME/.ssh/tencent_deploy_key"
+          chmod 600 "$HOME/.ssh/tencent_deploy_key"
+          ssh-keyscan -T 20 -p "$SSH_PORT" -H "$HOST_CLEAN" >> "$HOME/.ssh/known_hosts" 2>/dev/null || true
+          echo "[repair] SSH ready"
+
+      - name: Copy the repair script and run it
+        shell: bash
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_USER: ${{ secrets.TENCENT_USER }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          HOST_CLEAN="${TENCENT_HOST#*@}"
+          HOST_CLEAN="${HOST_CLEAN%%:*}"
+          SSH_PORT="${SSH_PORT:-22}"
+          KEY="$HOME/.ssh/tencent_deploy_key"
+          # The runner's copy of the script wins: the host checkout may be the revision that
+          # failed to deploy, and it does not have this file.
+          scp -i "$KEY" -P "$SSH_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            scripts/deploy/repair_legacy_plan.py \
+            "$TENCENT_USER@$HOST_CLEAN:scripts/deploy/repair_legacy_plan.py"
+
+          ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=10 \
+            -i "$KEY" -p "$SSH_PORT" "$TENCENT_USER@$HOST_CLEAN" 'bash -se' <<'REPAIREOF'
+          set -euo pipefail
+          DATA_DB=/var/lib/ai_study_platform/app.db
+          BACKUP_DIR=/var/lib/ai_study_platform/audits
+          TIMESTAMP="$(date -u +%Y%m%d_%H%M%S)"
+          BACKUP="$BACKUP_DIR/app.db.before-legacy-plan-repair.$TIMESTAMP.db"
+          REPO_ROOT="$HOME/ai_study_platform"
+          PYTHON_BIN="$REPO_ROOT/backend/.venv/bin/python"
+
+          if [ ! -x "$PYTHON_BIN" ]; then
+            echo "[repair] ERROR: backend venv not found at $PYTHON_BIN"
+            exit 1
+          fi
+
+          mkdir -p "$BACKUP_DIR"
+          sqlite3 "$DATA_DB" ".timeout 5000" ".backup '$BACKUP'"
+          stat -c '[repair] backup %s bytes  %n' "$BACKUP"
+          sha256sum "$BACKUP" | sed 's/^/[repair] backup sha256 /'
+
+          cd "$REPO_ROOT"
+          DATABASE_URL="sqlite:///$DATA_DB" "$PYTHON_BIN" scripts/deploy/repair_legacy_plan.py
+
+          echo "[repair] === users.plan rows now ==="
+          sqlite3 -header -csv "$DATA_DB" \
+            "SELECT id, username, plan FROM users WHERE plan IS NOT NULL AND plan != '' AND plan != 'free';"
+          echo "[repair] integrity_check = $(sqlite3 "$DATA_DB" 'PRAGMA integrity_check;')"
+          REPAIREOF
