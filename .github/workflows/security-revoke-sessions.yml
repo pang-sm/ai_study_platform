@@ -1,4 +1,4 @@
-name: Security — Revoke All Sessions
+name: Security — Revoke All Sessions & Secret Inventory
 
 # SECURITY_S0.5 post-incident containment for the SECURITY_S0 host-RCE window.
 #
@@ -7,9 +7,12 @@ name: Security — Revoke All Sessions
 # have leaked it logged nothing, so "we cannot prove it was unused" is the operative fact,
 # and invalidating every live session is the conservative answer.
 #
-# Fixed logic only, no arbitrary input: it revokes auth_sessions.revoked_at and tightens the
-# mode of ONE known credential-bearing drop-in. It never touches users, passwords,
-# memberships or learning data, and it is idempotent.
+# It also classifies the systemd drop-ins the incident review could not see: it prints each
+# file's mode and the NAMES of the variables it sets, never any value. That is what turns
+# "some 0644 file sits in the secret directory" into a decidable question.
+#
+# Fixed logic only, no arbitrary input. It never touches users, passwords, memberships or
+# learning data, and it is idempotent.
 on:
   workflow_dispatch:
 
@@ -41,7 +44,7 @@ jobs:
           ssh-keyscan -T 20 -p "$SSH_PORT" -H "$HOST_CLEAN" >> "$HOME/.ssh/known_hosts" 2>/dev/null || true
           echo "[revoke] SSH ready"
 
-      - name: Revoke sessions and harden the secret drop-in
+      - name: Revoke sessions, inventory secrets and harden the drop-in
         shell: bash
         env:
           TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
@@ -57,21 +60,40 @@ jobs:
             "$TENCENT_USER@$HOST_CLEAN" 'bash -se' <<'REVOKEEOF'
           set -euo pipefail
           cd "$HOME/ai_study_platform"
+          UNIT_DIR=/etc/systemd/system/ai-backend.service.d
+          ALL_UNITS="/etc/systemd/system/ai-backend.service"
 
-          echo "[revoke] === drop-in modes (path and mode only, never contents) ==="
-          for f in /etc/systemd/system/ai-backend.service.d/*.conf; do
+          echo "[revoke] === drop-in mode + variable NAMES (never values) ==="
+          for f in $UNIT_DIR/*.conf; do
             [ -e "$f" ] || continue
-            stat -c '[revoke]   %a %n' "$f"
+            stat -c '[revoke]   mode %a  %n' "$f"
+            # Print only the environment variable NAMES each file sets.
+            sudo grep -oE 'Environment="?[A-Za-z_][A-Za-z0-9_]*=' "$f" 2>/dev/null \
+              | sed -E 's/^Environment="?//; s/=$//' \
+              | sort -u \
+              | sed 's/^/[revoke]       var /' || true
           done
 
-          # The SMTP drop-in is the only credential-bearing file in this directory. Tighten
-          # it here as well as in deploy.yml so the host is safe even before the next deploy.
-          SMTP_DROPIN=/etc/systemd/system/ai-backend.service.d/smtp.conf
-          if [ -e "$SMTP_DROPIN" ]; then
-            sudo chmod 600 "$SMTP_DROPIN"
-            stat -c '[revoke] smtp drop-in tightened -> %a %n' "$SMTP_DROPIN"
-          else
-            echo "[revoke] no smtp drop-in present — nothing to tighten"
+          echo "[revoke] === canonical AI provider env NAMES present in unit config ==="
+          # Names only. This answers "which providers are configured" without reading a value.
+          for name in DEEPSEEK_API_KEY DASHSCOPE_API_KEY ARK_API_KEY MOONSHOT_API_KEY ZHIPUAI_API_KEY MINIMAX_API_KEY; do
+            if sudo grep -qE "Environment=\"?${name}=" $ALL_UNITS $UNIT_DIR/*.conf 2>/dev/null; then
+              echo "[revoke]   ${name} PRESENT_IN_UNIT_CONFIG"
+            else
+              echo "[revoke]   ${name} absent-from-unit-config"
+            fi
+          done
+
+          echo "[revoke] === local env files present on host ==="
+          for f in backend/.env backend/.env.local .env; do
+            if [ -e "$f" ]; then echo "[revoke]   present: $f"; else echo "[revoke]   absent: $f"; fi
+          done
+
+          # Tighten the credential-bearing drop-in here as well as in deploy.yml, so the host
+          # is safe even before the next deploy runs.
+          if [ -e "$UNIT_DIR/smtp.conf" ]; then
+            sudo chmod 600 "$UNIT_DIR/smtp.conf"
+            stat -c '[revoke] smtp drop-in tightened -> %a %n' "$UNIT_DIR/smtp.conf"
           fi
 
           echo "[revoke] === session revocation ==="
