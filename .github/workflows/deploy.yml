@@ -293,6 +293,83 @@ jobs:
           REPO_ROOT="$HOME/ai_study_platform"
           cd "$REPO_ROOT"
 
+          # ── DEPLOY_SAFETY 1/5: ROLLBACK ANCHORS, taken BEFORE anything is replaced ──
+          # The running release has to be restorable without depending on the network or on
+          # the branch still pointing at it, so the source tree is archived out of band and the
+          # live frontend build is copied aside. Both live in $HOME, NOT in the repo, so the
+          # --delete rsync further down cannot reach them.
+          #
+          # This must happen first: the very next thing the deploy does is replace the source
+          # tree, and `git reset --hard` erases the revision that is currently serving traffic.
+          ROLLBACK_DIR="$HOME/.deploy_rollback"
+          mkdir -p "$ROLLBACK_DIR"
+          ROLLBACK_STAMP="$(date +%Y%m%d_%H%M%S)"
+          PREVIOUS_REVISION="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+          ROLLBACK_TAR="$ROLLBACK_DIR/source.$ROLLBACK_STAMP.tgz"
+          tar czf "$ROLLBACK_TAR" -C "$REPO_ROOT" \
+            --exclude=./.git --exclude=./backend/.venv --exclude=./backend/backups \
+            --exclude=./backend/uploads --exclude=./backend/app.db --exclude=./backend/.env .
+          echo "[deploy] rollback source anchor: $ROLLBACK_TAR ($(du -h "$ROLLBACK_TAR" | cut -f1)) revision=$PREVIOUS_REVISION"
+          ROLLBACK_WWW="$ROLLBACK_DIR/www.$ROLLBACK_STAMP"
+          if [ -d /var/www/ai_study_platform ]; then
+            cp -a /var/www/ai_study_platform "$ROLLBACK_WWW"
+            echo "[deploy] rollback frontend anchor: $ROLLBACK_WWW"
+          fi
+          # Keep the three newest anchors; they are megabytes, not gigabytes.
+          find "$ROLLBACK_DIR" -maxdepth 1 -name 'source.*.tgz' -printf '%T@ %p\n' \
+            | sort -nr | tail -n +4 | cut -d' ' -f2- | while read -r OLD; do rm -f "$OLD"; done
+          find "$ROLLBACK_DIR" -maxdepth 1 -type d -name 'www.*' -printf '%T@ %p\n' \
+            | sort -nr | tail -n +4 | cut -d' ' -f2- | while read -r OLD; do rm -rf "$OLD"; done
+
+          # ── DEPLOY_SAFETY 2/5: the health gate, and the rollback it triggers ──
+          # INTERNAL health only — the listener on loopback is the only address the backend
+          # serves; the external probe stays on 443 (see the guard at the end of this file).
+          wait_for_backend_health() {
+            local attempts="${1:-30}" i
+            for i in $(seq 1 "$attempts"); do
+              if curl -fsS http://127.0.0.1:8000/health >/dev/null; then return 0; fi
+              sleep 2
+            done
+            return 1
+          }
+
+          # Restore the release that was serving traffic when this deploy started, and prove it
+          # is serving again. The restore is deliberately the MIRROR of the forward path — the
+          # same rsync and the same excludes — rather than a hand-written list of directories,
+          # because a list that misses one file leaves a half-old tree that is worse than either
+          # release. .git / .venv / backups / uploads / .env / app.db are never touched.
+          rollback_to_previous_release() {
+            echo "[deploy] ROLLBACK: restoring the previous release (revision $PREVIOUS_REVISION)"
+            sudo systemctl stop ai-backend || true
+            if [ -f "$ROLLBACK_TAR" ]; then
+              local stage
+              stage="$(mktemp -d)"
+              tar xzf "$ROLLBACK_TAR" -C "$stage"
+              rsync -a --delete --exclude='.git/' --exclude='backend/app.db' \
+                --exclude='backend/.env' --exclude='backend/.venv/' \
+                --exclude='backend/backups/' --exclude='backend/uploads/' \
+                "$stage/" "$REPO_ROOT/"
+              rm -rf "$stage"
+              echo "[deploy] ROLLBACK: source restored from $ROLLBACK_TAR"
+            else
+              echo "[deploy] ROLLBACK: no source anchor — cannot restore the code automatically"
+            fi
+            if [ -d "$ROLLBACK_WWW" ]; then
+              sudo rm -rf /var/www/ai_study_platform
+              sudo mv "$ROLLBACK_WWW" /var/www/ai_study_platform
+              echo "[deploy] ROLLBACK: frontend build restored"
+            fi
+            sudo systemctl start ai-backend || true
+            if wait_for_backend_health 30; then
+              echo "[deploy] ROLLBACK: the PREVIOUS release is serving again (health ok)"
+              echo "[deploy] ROLLBACK: this deployment FAILED; production was NOT left down"
+              return 0
+            fi
+            echo "[deploy] ROLLBACK: previous release came back UNHEALTHY — manual attention required"
+            sudo journalctl -u ai-backend -n 80 --no-pager || true
+            return 1
+          }
+
           export GIT_TERMINAL_PROMPT=0
           echo "[deploy] repository: $(pwd)"
           echo "[deploy] disk before git update"
@@ -421,8 +498,15 @@ jobs:
           npm run build
           cd ..
 
+          # ── DEPLOY_SAFETY 3/5: NO STOP HERE ──
+          # Everything from this point to the health-gated switch runs against the LIVE database
+          # while the CURRENT release keeps serving. That is safe because the schema policy is
+          # additive-only (CREATE TABLE IF NOT EXISTS / ALTER TABLE ADD COLUMN / CREATE INDEX IF
+          # NOT EXISTS), so already-running code keeps working against a migrated schema.
+          #
+          # The frontend build is also deliberately NOT published yet: a new bundle in front of
+          # an unvalidated backend is how a failed deploy ends up half-shipped.
           sudo mkdir -p /var/www/ai_study_platform
-          sudo rsync -a --delete frontend/dist/ /var/www/ai_study_platform/
 
           # ── Persistent database outside git worktree ──
           sudo mkdir -p /var/lib/ai_study_platform
@@ -434,10 +518,17 @@ jobs:
           fi
           sudo chown -R $(whoami):$(whoami) /var/lib/ai_study_platform 2>/dev/null || true
           sudo chmod 755 /var/lib/ai_study_platform 2>/dev/null || true
-          # Stop writers before the protected snapshot and catalog seed.
-          sudo systemctl stop ai-backend || true
-          if sudo systemctl is-active --quiet ai-backend; then
-            echo "[deploy] ERROR: ai-backend did not stop before database work"
+          # PREFLIGHT (read only). This gate asks its question against the live database BEFORE
+          # anything is stopped, so a refusal costs the deployment nothing and production keeps
+          # serving. Its late position is exactly what turned a data bug into a 15-minute outage
+          # on 2026-09-28: the old release had already been stopped when this first ran.
+          echo "=== Membership mapping precheck (read only; current release still serving) ==="
+          if ! DATABASE_URL="sqlite:///$DATA_DB" "$PYTHON_BIN" \
+               scripts/deploy/check_membership_mapping.py; then
+            echo "[deploy] ERROR: unmappable legacy membership state."
+            echo "[deploy]        NOTHING was written and NOTHING was stopped — the running"
+            echo "[deploy]        release is still serving. Repair the listed rows (see"
+            echo "[deploy]        scripts/deploy/repair_legacy_plan.py), then redeploy."
             exit 1
           fi
           # A catalog migration must never run without a recoverable snapshot.
@@ -445,10 +536,14 @@ jobs:
             CATALOG_BACKUP_DIR="$REPO_ROOT/backend/backups"
             mkdir -p "$CATALOG_BACKUP_DIR"
             CATALOG_BACKUP="$CATALOG_BACKUP_DIR/app.db.before-catalog-reform.$(date +%Y%m%d_%H%M%S).db"
-            if ! cp "$DATA_DB" "$CATALOG_BACKUP"; then
+            # `.backup` is the ONLINE-safe snapshot. The service is still running here, and a
+            # plain `cp` of a live SQLite file can capture a torn page — this is the same
+            # primitive the operator repair workflows use against production.
+            if ! sudo sqlite3 "$DATA_DB" ".timeout 5000" ".backup '$CATALOG_BACKUP'"; then
               echo "[deploy] ERROR: catalog database backup failed"
               exit 1
             fi
+            sudo chown "$(whoami):$(whoami)" "$CATALOG_BACKUP" 2>/dev/null || true
             test -s "$CATALOG_BACKUP" || { echo "[deploy] ERROR: catalog database backup is empty"; exit 1; }
             echo "[deploy] Catalog database backup: $CATALOG_BACKUP ($(du -h "$CATALOG_BACKUP" | cut -f1))"
             # A new automatic snapshot was just created. Retain the newest
@@ -482,11 +577,12 @@ jobs:
           # ── ACCEL_SPRINT_S6 PART A: migrate BEFORE the application starts ──
           # The application refuses to start on a database that is behind HEAD
           # (backend/core/schema_preflight.py), and SQLAlchemy's create_all can never
-          # repair one: it does not add columns to a table that already exists. So the
-          # migration is not optional and cannot be deferred past the restart below.
-          # The writers are already stopped, and a verified backup exists above; if the
-          # migration fails, the application is NOT started and the operator restores
-          # from that backup.
+          # repair one: it does not add columns to a table that already exists. So this is
+          # not optional and cannot be deferred past the restart below.
+          #
+          # DEPLOY_SAFETY: it runs while the CURRENT release is still serving. Safe because the
+          # schema policy is additive-only; the membership gate that guards it already ran
+          # above, before anything was stopped.
           if [ -n "${CATALOG_BACKUP:-}" ]; then
             test -s "$CATALOG_BACKUP" || {
               echo "[deploy] ERROR: refusing to migrate without a non-empty backup"
@@ -500,19 +596,6 @@ jobs:
           cd "$REPO_ROOT"
           MIGRATION_LOG="$REPO_ROOT/backend/backups/migration.$(date +%Y%m%d_%H%M%S).log"
           mkdir -p "$(dirname "$MIGRATION_LOG")"
-          # ── ACCEL_PRODUCT_S10 PART 3: pre-migration membership gate (READ ONLY) ──
-          # 0011 translates legacy paid entitlements to unified tiers. A row it cannot map
-          # deterministically is refused rather than guessed at, and this check answers that
-          # question BEFORE the migration is attempted — so a refusal costs the deployment
-          # nothing and never leaves a half-applied chain.
-          echo "=== Membership mapping precheck (read only) ==="
-          if ! DATABASE_URL="sqlite:///$DATA_DB" "$PYTHON_BIN" \
-               scripts/deploy/check_membership_mapping.py; then
-            echo "[deploy] ERROR: unmappable legacy membership state; NOT migrating and NOT"
-            echo "[deploy]        starting the application. Restore is unnecessary (nothing"
-            echo "[deploy]        was written); decide the listed rows by hand, then redeploy."
-            exit 1
-          fi
 
           echo "=== alembic upgrade head ==="
           set +e
@@ -699,6 +782,12 @@ jobs:
           DATABASE_URL="sqlite:///$DATA_DB" "$PYTHON_BIN" exam_resources/11408/computer_network/chapter_practice/build_computer_network_chapter_questions.py || echo "[deploy] WARN: CN chapter build failed"
           DATABASE_URL="sqlite:///$DATA_DB" "$PYTHON_BIN" exam_resources/11408/computer_network/past_papers/build_computer_network_past_papers.py || echo "[deploy] WARN: CN past papers build failed"
           cd ..
+
+          # ── DEPLOY_SAFETY 4/5: THE SWITCH — the FIRST stop in the whole deployment ──
+          # Everything above this line ran against a still-serving production. From here the
+          # candidate takes the port, and a failure from here on triggers the rollback below
+          # instead of leaving production down.
+          echo "=== Switching to the candidate release ==="
           sudo systemctl restart ai-backend
 
           # INTERNAL_BACKEND_HEALTH — this reads the listener on loopback, which is the only
@@ -706,19 +795,21 @@ jobs:
           # EXTERNAL_NGINX_HEALTH check (public https://…/api/health) runs later, on the
           # runner, and covers nginx + TLS. Neither of them may be moved onto public :8000.
           echo "=== Waiting for backend health (internal, 127.0.0.1) ==="
-          for i in {1..30}; do
-            if curl -fsS http://127.0.0.1:8000/health >/dev/null; then
-              echo "[deploy] backend health ok"
-              break
-            fi
-            if [ "$i" -eq 30 ]; then
-              echo "[deploy] backend health failed after restart"
-              sudo systemctl status ai-backend --no-pager -l || true
-              sudo journalctl -u ai-backend -n 80 --no-pager || true
-              exit 1
-            fi
-            sleep 2
-          done
+          if wait_for_backend_health 30; then
+            echo "[deploy] backend health ok"
+          else
+            echo "[deploy] ERROR: the candidate release did not become healthy after the switch"
+            sudo systemctl status ai-backend --no-pager -l || true
+            sudo journalctl -u ai-backend -n 80 --no-pager || true
+            rollback_to_previous_release || true
+            exit 1
+          fi
+
+          # ── DEPLOY_SAFETY 5/5: publish the frontend only now ──
+          # The backend has answered /health on this release. Publishing the bundle any earlier
+          # is how a failed deploy ends up serving new assets against a stopped API.
+          sudo rsync -a --delete frontend/dist/ /var/www/ai_study_platform/
+          echo "[deploy] frontend published"
 
           echo "=== Deploy Scientific Runtime Service (zhixue-runtime) ==="
           # The runtime closure ships as an immutable artifact under deploy/artifacts/
@@ -765,6 +856,9 @@ jobs:
               echo "[deploy] HTTPS health failed after Secure cookie activation"
               sudo systemctl status ai-backend --no-pager -l || true
               sudo journalctl -u ai-backend -n 80 --no-pager || true
+              # The switch already happened, so this is still a candidate failure: put the
+              # previous release back rather than leaving production on a broken revision.
+              rollback_to_previous_release || true
               exit 1
             fi
             sleep 2
@@ -773,11 +867,11 @@ jobs:
           REDIRECT_LOCATION="$(curl -sSI --max-redirs 0 http://101.32.190.42/ 2>/dev/null | awk 'tolower($1)=="location:" {print $2}' | tr -d '\r' || true)"
           case "$REDIRECT_STATUS" in
             301|302|307|308) ;;
-            *) echo "[deploy] HTTP did not redirect to HTTPS: status=$REDIRECT_STATUS"; exit 1;;
+            *) echo "[deploy] HTTP did not redirect to HTTPS: status=$REDIRECT_STATUS"; rollback_to_previous_release || true; exit 1;;
           esac
           case "$REDIRECT_LOCATION" in
             https://101.32.190.42/*) ;;
-            *) echo "[deploy] HTTP redirect target is not HTTPS: $REDIRECT_LOCATION"; exit 1;;
+            *) echo "[deploy] HTTP redirect target is not HTTPS: $REDIRECT_LOCATION"; rollback_to_previous_release || true; exit 1;;
           esac
           echo "[deploy] HTTP redirect verified: $REDIRECT_STATUS -> $REDIRECT_LOCATION"
 
