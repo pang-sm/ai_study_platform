@@ -327,21 +327,25 @@ def test_resource_url_is_application_relative_and_leaks_no_path(client, bank_pap
             assert ".." not in url
 
 
-def test_existing_figure_is_reachable_over_http(client, bank_paper):
+def test_a_drawn_figure_is_reachable_over_http(client, bank_paper):
+    """A drawn figure resolves and serves — and the drawn tree is the only figure source."""
     register_and_login(client, "bc6_figure")
     resolved_any = False
     for subject_key in exam_past_paper.SUBJECT_NAMES:
-        for year in (2022,):
-            candidates = exam_past_paper._scan_asset_filenames(subject_key, year, 12) or []
-            for name in candidates[:1]:
-                if exam_past_paper.resolve_resource_file(subject_key, year, name) is None:
-                    continue
-                response = client.get(f"/exam/11408/past-paper-images/{subject_key}/{year}/{name}")
+        figures_root = exam_past_paper.EXAM_RESOURCES_DIR / subject_key / "past_papers" / "figures"
+        if not figures_root.is_dir():
+            continue
+        for year_dir in sorted(path for path in figures_root.iterdir() if path.is_dir()):
+            names = sorted(path.name for path in year_dir.iterdir() if path.is_file())
+            for name in names[:1]:
+                year = int(year_dir.name)
+                assert exam_past_paper.resolve_resource_file(subject_key, year, name) is not None
+                response = client.get(
+                    f"/exam/11408/past-paper-images/{subject_key}/{year}/{name}")
                 assert response.status_code == 200, f"{subject_key}/{year}/{name}"
                 assert response.headers["content-type"].startswith("image/")
                 resolved_any = True
-    if not resolved_any:
-        pytest.skip("no figure assets in this checkout")
+    assert resolved_any, "no drawn figure was exercised"
 
 
 def test_traversal_and_bad_filenames_are_rejected(client, bank_paper):
@@ -388,29 +392,26 @@ def test_missing_resources_surfaces_a_reference_that_cannot_resolve(bank_paper):
     assert public.missing_resources == ["definitely_absent_901_0.jpg"]
 
 
-def test_recovered_operating_system_2022_q46_figure_is_reachable(client, bank_paper):
-    """The one figure BC6 initially reported absent: recovered from the document source.
+def test_the_scraped_watermarked_images_are_no_longer_served(client, bank_paper):
+    """The scraped trees are unreachable, because they were watermarked AND of the wrong question.
 
-    The bank row for `operating_system` 2022 Q46 had no mapping entry and no `2022_46_*` asset,
-    while the same paper's OCR cache references `.../2022/img_14.jpg`, which exists on disk. It is
-    now part of the curated mapping and served through the one resource route.
+    Measured 2026-09-28: `operating_system/2022/img_14.jpg` — the file BC6 once recorded as a
+    "recovered" figure — is a watermarked screenshot of a DIFFERENT question, like every other
+    file under `images/` and `assets/` (``2025_q33_1.jpg`` holds question 37,
+    ``2026_q37_1.jpg`` holds question 40). Serving one leaked a commercial watermark onto a
+    learner's page and showed a question the learner was not answering.
     """
-    register_and_login(client, "bc6_q46")
-    names = exam_past_paper._bank_resources("operating_system", 2022, 46)
-    if not names:
-        pytest.skip("operating_system 2022 Q46 has no asset in this checkout")
-    assert "img_14.jpg" in names
-    assert exam_past_paper.resolve_resource_file("operating_system", 2022, "img_14.jpg") is not None
-
+    register_and_login(client, "bc6_scraped")
+    assert exam_past_paper.resolve_resource_file("operating_system", 2022, "img_14.jpg") is None
     response = client.get("/exam/11408/past-paper-images/operating_system/2022/img_14.jpg")
-    assert response.status_code == 200
-    assert response.headers["content-type"].startswith("image/")
-    assert len(response.content) > 1000, "a real figure, not a placeholder"
+    assert response.status_code == 404
 
-    mapping = json.loads(
-        (exam_past_paper.EXAM_RESOURCES_DIR / "operating_system" / "past_papers"
-         / "image_mapping.json").read_text(encoding="utf-8"))
-    assert "2022-46" in mapping, "the recovered figure must be recorded in the curated mapping"
+    # Nothing may be advertised out of either scraped tree, for any question of any paper.
+    for subject_key in exam_past_paper.SUBJECT_NAMES:
+        for year in (2022, 2023, 2024, 2025, 2026):
+            for number in range(1, 60):
+                for name in exam_past_paper._bank_resources(subject_key, year, number):
+                    assert name.endswith(".svg"), f"{subject_key} {year} Q{number}: {name}"
 
 
 # ================================================================ F. boundaries

@@ -64,10 +64,31 @@ vi.mock('@/features/exam/api/study-plan', () => ({
 
 // Whatever else the app shell reads on the way to this page is answered emptily, so a shell query
 // can never be mistaken for a failure of the page under test.
-const { get } = vi.hoisted(() => ({ get: vi.fn() }));
+const { get, entitlement } = vi.hoisted(() => ({
+  get: vi.fn(),
+  // 知识脉络 is gated by the same `learning_plan` entitlement 学习计划 is, so the page reads it
+  // before asking for the outline. Default OPEN; the locked case has its own test below.
+  entitlement: { allowed: true, required_tier: 'standard' },
+}));
+vi.mock('@/features/exam/api/cs408-study-plan', () => ({
+  useExamPlanEntitlement: () => ({
+    data: {
+      service_key: 'exam_11408',
+      current_tier: entitlement.allowed ? 'standard' : 'free',
+      policy_version: 'test',
+      features: {
+        learning_plan: { allowed: entitlement.allowed, required_tier: entitlement.required_tier },
+      },
+    },
+    isPending: false,
+    isError: false,
+  }),
+}));
 vi.mock('@/lib/api/client', () => ({ apiClient: { GET: get, POST: vi.fn(), PUT: vi.fn() } }));
 
 beforeEach(() => {
+  entitlement.allowed = true;
+  entitlement.required_tier = 'standard';
   get.mockReset();
   get.mockImplementation(async () => ({ data: {}, error: undefined, response: { ok: true, status: 200 } }));
 });
@@ -89,6 +110,21 @@ async function renderWorkspace() {
 
 describe('Cs408KnowledgeWorkspace', () => {
   beforeEach(() => { sectionCode = '1.1'; nodeCode = 'node-1'; });
+
+  // The defect this guards: a refused outline used to render as 「知识脉络暂时无法加载 / 请检查网络
+  // 后重试」 with a 重试 button that could never succeed, because the refusal is a TIER, not a
+  // network fault. A locked page must name what to change and offer the way to change it.
+  it('renders a tier requirement, not a network error, when the outline is refused', async () => {
+    entitlement.allowed = false;
+    await renderWorkspace();
+
+    expect(screen.getByRole('heading', { name: '当前档位暂未开放知识脉络' })).toBeInTheDocument();
+    expect(screen.getByText(/知识脉络需要 Standard 及以上档位/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '查看会员档位与权益' })).toHaveAttribute(
+      'href', '/membership');
+    expect(screen.queryByRole('button', { name: '重试' })).not.toBeInTheDocument();
+    expect(screen.queryByText('请检查网络后重试。')).not.toBeInTheDocument();
+  });
 
   it('renders the real recursive children hierarchy and keeps chapter semantics separate from knowledge semantics', async () => {
     const user = userEvent.setup();

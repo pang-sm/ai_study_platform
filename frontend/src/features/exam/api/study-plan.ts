@@ -27,8 +27,8 @@ async function updateKnowledgeItem(input: ExamKnowledgeItemUpdate): Promise<Exam
   return data;
 }
 
-export function useExamStudyPlan(moduleKey: string) {
-  return useQuery({ queryKey: examStudyPlanKey(moduleKey), queryFn: () => requestStudyPlan(moduleKey), retry: false });
+export function useExamStudyPlan(moduleKey: string, enabled = true) {
+  return useQuery({ queryKey: examStudyPlanKey(moduleKey), queryFn: () => requestStudyPlan(moduleKey), enabled, retry: false });
 }
 
 export function useUpdateExamKnowledgeItem(moduleKey: string) {

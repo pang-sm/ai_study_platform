@@ -6,7 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { searchValueOut } from '@/lib/router';
 import { cs408Modules } from '@/features/exam/api/dashboard-summary';
+import { useExamPlanEntitlement } from '@/features/exam/api/cs408-study-plan';
+import { ApiRequestError } from '@/features/exam/api/content-status';
+import { normalizeApiError } from '@/features/exam/api/errors';
 import { useExamStudyPlan, useUpdateExamKnowledgeItem } from '@/features/exam/api/study-plan';
+import { tierLabel } from '@/features/membership/view-models/membership';
 import { knowledgeStatusLabel, progressStatusLabel } from '@/features/exam/view-models/status-labels';
 import { ExamPageShell } from './exam-page-shell';
 import { Cs408SubjectChooser } from './cs408-subject-chooser';
@@ -112,8 +116,33 @@ export function Cs408KnowledgeWorkspace({ moduleKey }: { moduleKey?: string }) {
   return <Cs408KnowledgeModule module={module} />;
 }
 
+/**
+ * The page's one LOCKED state, and the only honest answer to a refused outline.
+ *
+ * 知识脉络 is gated by the same `learning_plan` entitlement 学习计划 is, so it is refused the
+ * same way — and it used to be refused the WRONG way: a 403 was reported as 「请检查网络后重试」
+ * with a 重试 button that could never succeed, because retrying does not change a tier. It names
+ * the exact tier the learner has to reach and links to the page that owns that decision, which is
+ * the same shape 学习计划 uses because it is literally the same entitlement.
+ */
+function LockedKnowledge({ requiredTier }: { requiredTier?: string }) {
+  return <section className="cs408-knowledge__state">
+    <h2>当前档位暂未开放知识脉络</h2>
+    <p>{requiredTier ? <>知识脉络需要 {tierLabel(requiredTier)} 及以上档位，当前账号尚未开通。</> : <>该功能将在符合当前会员权益时开放。</>}</p>
+    <Link to="/membership">查看会员档位与权益</Link>
+  </section>;
+}
+
 function Cs408KnowledgeModule({ module }: { module: (typeof cs408Modules)[number] }) {
-  const query = useExamStudyPlan(module.key);
+  const entitlement = useExamPlanEntitlement();
+  // `features` is a MAPPING whose key set depends on the direction, so it is only safe to index
+  // after a presence check — the generated type says so, and `data?.features[...]` would still
+  // throw on a payload that carries `data` but no `features`.
+  const planFeature = entitlement.data?.features?.['learning_plan'];
+  const allowed = planFeature?.allowed === true;
+  // The outline is only asked for once the gate is known OPEN. Calling it unconditionally on a
+  // free account means a guaranteed 403 whose only visible effect was a fake network error.
+  const query = useExamStudyPlan(module.key, allowed);
   const [selected, setSelected] = useState<KnowledgeNode>();
   // Which paper this is open in is stated once, by the shell above — the page used to repeat the
   // four papers as a second switcher beside its own title, next to the one the shell already
@@ -129,5 +158,9 @@ function Cs408KnowledgeModule({ module }: { module: (typeof cs408Modules)[number
   // the strip above, because that is what they are in 专业学习 — a global entry bolted into one
   // tool's body is a second navigation, and it made this page answer for the whole space. What is
   // left is what this page is: the outline, and the knowledge point that is open in it.
-  return <ExamPageShell cs408Tab="knowledge" moduleKey={module.key}><section className="cs408-knowledge" aria-labelledby="knowledge-title"><h1 id="knowledge-title" className="sr-only">知识脉络</h1>{query.isPending ? <div className="cs408-knowledge__loading"><Skeleton className="h-11 w-48" /><Skeleton className="h-72 w-full" /></div> : null}{query.isError || !query.data ? <section className="cs408-knowledge__error"><h2>知识脉络暂时无法加载</h2><p>请检查网络后重试。</p><Button variant="secondary" onClick={() => void query.refetch()}>重试</Button></section> : null}{query.data ? <div className="cs408-knowledge__grid"><section className="knowledge-outline" aria-label={`${module.name}知识目录`}><p className="knowledge-outline__summary">已学习 {query.data.stats.mastered} / {query.data.stats.total_knowledge_points} 个知识点</p><ol>{query.data.chapters.map((chapter, index) => <Chapter key={chapter.code} chapter={chapter} selectedCode={selected?.code} onSelect={setSelected} initiallyOpen={index === 0} />)}</ol></section>{selected ? <Detail node={selected} courseId={query.data.course_id} subjectKey={module.key} onStatusChanged={(status) => setSelected((current) => current ? { ...current, status } : current)} /> : <div className="knowledge-detail knowledge-detail--empty"><p>选择一个知识点</p><h2>从目录开始</h2><span>展开章节，查看具体知识点与当前学习状态。</span></div>}</div> : null}</section></ExamPageShell>;
+  const errorState = query.error instanceof ApiRequestError ? normalizeApiError(query.error.status, query.error.detail) : normalizeApiError(undefined);
+  if (!entitlement.isPending && !entitlement.isError && !allowed) {
+    return <ExamPageShell cs408Tab="knowledge" moduleKey={module.key}><section className="cs408-knowledge" aria-labelledby="knowledge-title"><h1 id="knowledge-title" className="sr-only">知识脉络</h1><LockedKnowledge requiredTier={planFeature?.required_tier} /></section></ExamPageShell>;
+  }
+  return <ExamPageShell cs408Tab="knowledge" moduleKey={module.key}><section className="cs408-knowledge" aria-labelledby="knowledge-title"><h1 id="knowledge-title" className="sr-only">知识脉络</h1>{query.isPending ? <div className="cs408-knowledge__loading"><Skeleton className="h-11 w-48" /><Skeleton className="h-72 w-full" /></div> : null}{query.isError || !query.data ? <section className="cs408-knowledge__error">{errorState.kind === 'capability_required' ? <><h2>当前档位暂未开放知识脉络</h2><Link to="/membership">查看会员档位与权益</Link></> : <><h2>{errorState.message}</h2><Button variant="secondary" onClick={() => void query.refetch()}>重试</Button></>}</section> : null}{query.data ? <div className="cs408-knowledge__grid"><section className="knowledge-outline" aria-label={`${module.name}知识目录`}><p className="knowledge-outline__summary">已学习 {query.data.stats.mastered} / {query.data.stats.total_knowledge_points} 个知识点</p><ol>{query.data.chapters.map((chapter, index) => <Chapter key={chapter.code} chapter={chapter} selectedCode={selected?.code} onSelect={setSelected} initiallyOpen={index === 0} />)}</ol></section>{selected ? <Detail node={selected} courseId={query.data.course_id} subjectKey={module.key} onStatusChanged={(status) => setSelected((current) => current ? { ...current, status } : current)} /> : <div className="knowledge-detail knowledge-detail--empty"><p>选择一个知识点</p><h2>从目录开始</h2><span>展开章节，查看具体知识点与当前学习状态。</span></div>}</div> : null}</section></ExamPageShell>;
 }

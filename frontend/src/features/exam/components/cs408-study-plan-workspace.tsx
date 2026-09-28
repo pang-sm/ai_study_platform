@@ -73,7 +73,9 @@ function LockedPlan({ requiredTier }: { requiredTier?: string }) {
 
 export function Cs408StudyPlanWorkspace({ moduleKey }: { moduleKey?: string } = {}) {
   const entitlement = useExamPlanEntitlement();
-  const planFeature = entitlement.data?.features['learning_plan'];
+  // `features` is a mapping whose key set depends on the direction — index it only after a
+  // presence check, because `data?.features[...]` still throws on a payload with no `features`.
+  const planFeature = entitlement.data?.features?.['learning_plan'];
   const allowed = planFeature?.allowed === true;
   const plans = useCs408StudyPlans(allowed);
   const allPlans = plans.flatMap((result) => result.data ? [result.data] : []);

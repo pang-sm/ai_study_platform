@@ -234,20 +234,6 @@ def canonical_image_url(subject_key: str, year: int, filename: str) -> str | Non
     return IMAGE_ROUTE.format(subject_key=subject_key, year=int(year), filename=filename)
 
 
-def _filename_from_any_url(raw: str) -> str | None:
-    """Extract a bare filename from any historical reference form.
-
-    Handles the three shapes found in the repository:
-      ``/static/exam_papers/11408/{subject}/{year}/{file}``,
-      ``/api/exam/11408/{subject}/past-paper-images/{year}/{file}``,
-      ``/{subject}/past-paper-images/{year}/{file}``.
-    """
-    if not raw or not isinstance(raw, str):
-        return None
-    tail = raw.split("?", 1)[0].rstrip("/").rsplit("/", 1)[-1]
-    return tail or None
-
-
 class ResolvedQuestion:
     """Internal normalized question — one shape for both sources."""
 
@@ -293,106 +279,54 @@ def _document_type(raw_type) -> str:
     return "big" if str(raw_type or "").strip() in {"大题", "big", "简答题"} else "choice"
 
 
-_ASSET_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp", ".gif")
+_CLEAN_FIGURE_ROOT = "figures"
+_CLEAN_FIGURE_EXTENSIONS = (".svg",)
 
 
-def _scan_asset_filenames(subject_key: str, year: int, question_number: int) -> list[str]:
-    """Filenames for a question derived from the on-disk asset convention.
+def _clean_figure_filenames(subject_key: str, year: int, question_number: int) -> list[str]:
+    """The watermark-free figures drawn for one question — the ONLY figures that may be served.
 
-    Some subjects ship the real figures in a deterministic layout but carry no curated
-    ``image_mapping.json`` (``computer_organization`` is the case: 80 files under
-    ``assets/{year}/q{number}_{index}.jpg`` and no mapping at all). Deriving the names from that
-    convention delivers the files that already exist; it never invents one.
+    This replaces three legacy sources (a curated ``image_mapping.json``, an on-disk asset
+    convention, and the OCR document's ``image_urls``). All three pointed into the scraped
+    ``assets/`` and ``images/`` trees, and those trees are not usable: measured on 2026-09-28,
+    every file is a watermarked screenshot taken from a commercial exam-prep site, AND every
+    file attached to a question is a screenshot of a DIFFERENT question (``2025_q33_1.jpg``
+    holds question 37, ``2026_q37_1.jpg`` holds question 40). They could not be shown, and
+    because they were not the right figure they could not be redrawn from either.
+
+    So the source is the ``figures/{year}/`` tree, which holds vectors drawn from each
+    question's own text by ``exam_resources/11408/build_clean_figures.py``. A question with no
+    file there has no figure, and says so through ``missing_resources`` — never a watermark,
+    never another question's diagram, and nothing invented.
     """
+    directory = EXAM_RESOURCES_DIR / subject_key / "past_papers" / _CLEAN_FIGURE_ROOT / str(year)
+    if not directory.is_dir():
+        return []
     number = int(question_number)
     patterns = (
         re.compile(rf"^q{number}_(\d+)$"),
         re.compile(rf"^{year}_q{number}_(\d+)$"),
         re.compile(rf"^{year}_{number}_(\d+)$"),
     )
-    past_papers = EXAM_RESOURCES_DIR / subject_key / "past_papers"
-    directories = (past_papers / "assets" / str(year), past_papers / "images")
+    try:
+        entries = sorted(directory.iterdir(), key=lambda p: p.name)
+    except OSError:
+        return []
     found = []
-    for directory in directories:
-        if not directory.is_dir():
+    for entry in entries:
+        if not entry.is_file():
             continue
-        try:
-            entries = sorted(directory.iterdir(), key=lambda p: p.name)
-        except OSError:
+        stem, dot, extension = entry.name.rpartition(".")
+        if not dot or f".{extension.lower()}" not in _CLEAN_FIGURE_EXTENSIONS:
             continue
-        for entry in entries:
-            if not entry.is_file():
-                continue
-            stem, dot, extension = entry.name.rpartition(".")
-            if not dot or f".{extension.lower()}" not in _ASSET_EXTENSIONS:
-                continue
-            if any(pattern.match(stem) for pattern in patterns):
-                found.append(entry.name)
+        if any(pattern.match(stem) for pattern in patterns):
+            found.append(entry.name)
     return found
 
 
-def _document_resources_for_number(subject_key: str, year: int, question_number: int) -> list[str]:
-    """Figure filenames the DOCUMENT source associates with one question number.
-
-    Both sources describe the same official paper, so a question the bank owns can still have its
-    figure filed only on the document side. `operating_system` 2022 Q46 is exactly that case: the
-    bank row has no mapping entry and no `2022_46_*` asset, while the OCR cache references
-    `.../2022/img_14.jpg`, which exists on disk. Reading that reference delivers a real file; it
-    never invents one.
-    """
-    for raw in document_questions(subject_key, year):
-        try:
-            number = int(raw.get("number"))
-        except (TypeError, ValueError):
-            continue
-        if number != int(question_number):
-            continue
-        names = _document_resources(raw.get("image_urls"))
-        if names:
-            return names
-    return []
-
-
 def _bank_resources(subject_key: str, year: int, question_number: int) -> list[str]:
-    """Filenames this question's figures resolve to.
-
-    Resolution order, each step only used when the previous one is silent:
-
-      1. the curated ``image_mapping.json``;
-      2. the on-disk asset convention (`q{n}_{i}.jpg` / `{year}_{n}_{i}.jpg`);
-      3. the document source's ``image_urls`` for the same (subject, year, number).
-    """
-    mapping_file = EXAM_RESOURCES_DIR / subject_key / "past_papers" / "image_mapping.json"
-    value = None
-    if mapping_file.exists():
-        try:
-            mapping = json.loads(mapping_file.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            mapping = {}
-        value = (mapping.get(f"{year}-{int(question_number):02d}")
-                 or mapping.get(f"{year}-{question_number}"))
-    if isinstance(value, dict):
-        value = value.get("image_urls", [])
-    out = []
-    if isinstance(value, list):
-        for entry in value:
-            name = _filename_from_any_url(entry)
-            if name:
-                out.append(name)
-    if not out:
-        out = _scan_asset_filenames(subject_key, year, question_number)
-    if not out:
-        out = _document_resources_for_number(subject_key, year, question_number)
-    return out
-
-
-def _document_resources(raw_urls) -> list[str]:
-    out = []
-    for entry in raw_urls or []:
-        name = _filename_from_any_url(entry)
-        if name:
-            out.append(name)
-    return out
+    """Filenames this question's figures resolve to — see ``_clean_figure_filenames``."""
+    return _clean_figure_filenames(subject_key, year, question_number)
 
 
 def bank_questions(db, subject_key: str, year: int):
@@ -444,7 +378,7 @@ def _from_bank(db, subject_key: str, year: int, rows) -> list[ResolvedQuestion]:
     return out
 
 
-def _from_document(raw_questions) -> list[ResolvedQuestion]:
+def _from_document(raw_questions, subject_key: str, year: int) -> list[ResolvedQuestion]:
     out = []
     for raw in raw_questions:
         try:
@@ -460,7 +394,7 @@ def _from_document(raw_questions) -> list[ResolvedQuestion]:
             standard_answer=str(raw.get("answer") or raw.get("standard_answer") or "").strip(),
             analysis=str(raw.get("analysis") or "").strip(),
             full_score=10 if qtype == "big" else 2,
-            resource_filenames=_document_resources(raw.get("image_urls")),
+            resource_filenames=_clean_figure_filenames(subject_key, year, number),
         ))
     return out
 
@@ -496,7 +430,8 @@ def resolve_paper(db, subject_key: str, year: int) -> ResolvedPaper:
     rows = bank_questions(db, subject_key, year)
     if rows:
         return ResolvedPaper(subject_key, year, "bank", _from_bank(db, subject_key, year, rows))
-    return ResolvedPaper(subject_key, year, "document", _from_document(document_questions(subject_key, year)))
+    return ResolvedPaper(subject_key, year, "document",
+                         _from_document(document_questions(subject_key, year), subject_key, year))
 
 
 def available_papers(db, subject_key: str) -> list[PastPaperSummary]:
@@ -690,20 +625,20 @@ def resolve_resource_file(subject_key: str, year: int, filename: str) -> Path | 
     if subject_key not in SUBJECT_NAMES:
         return None
     past_papers = EXAM_RESOURCES_DIR / subject_key / "past_papers"
-    static_subject = EXAM_STATIC_DIR / subject_key
-    candidates = (
-        (past_papers / "assets" / str(year), filename),
-        (past_papers / "images", filename),
-        (static_subject / str(year), filename),
-        (static_subject / "0", filename),
-    )
-    # Some curated mappings name the right asset with the wrong image extension (the real file is
-    # `2022_23_0.jpeg`, the mapping says `.jpg`). Retry the same stem across the known extensions
-    # so an existing asset is still delivered — this repairs delivery, it does not invent a file.
+    # The drawn figures are the ONLY figure root. The three scraped trees — `past_papers/assets`,
+    # `past_papers/images` and `static/exam_papers/11408` — are all the same unusable set: every
+    # file is a watermarked screenshot of some OTHER question (see `_clean_figure_filenames`).
+    # `static/` was reachable only from here (main.py deliberately leaves the `/static/exam_papers`
+    # mount off), so dropping it closes the last URL that could serve a watermark. The static
+    # tree itself is a protected asset and is NOT deleted — it is simply no longer served.
+    candidates = ((past_papers / _CLEAN_FIGURE_ROOT / str(year), filename),)
+    # A curated reference may name the right asset with the wrong extension. Retry the same stem
+    # across the known extensions so an existing figure is still delivered — this repairs
+    # delivery, it does not invent a file.
     stem = filename.rsplit(".", 1)[0]
     attempts = [(root, name) for root, name in candidates]
     attempts += [(root, stem + ext) for root, _ in candidates
-                 for ext in (".jpeg", ".jpg", ".png", ".webp", ".gif")
+                 for ext in (".svg", ".jpeg", ".jpg", ".png", ".webp", ".gif")
                  if stem + ext != filename]
     for root, name in attempts:
         try:

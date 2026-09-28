@@ -565,33 +565,35 @@ def test_legacy_stores_are_not_product_authority(client, db_session, chapter_ban
 def test_figure_wrong_record_reuses_the_past_paper_resource_contract(client, db_session):
     """A figure question in the wrong book emits the SAME URL contract BC6 established."""
     register_and_login(client, "bc7_figure")
-    # The real 2022 computer_organization figures live on disk, not in the test database, so
-    # the paper is seeded against the REAL question 12 and its REAL figure. The answer is
-    # then deliberately wrong, so the test cannot pass because the answer happened to be right.
+    # A question the DRAWN figure set actually covers. The scraped scans used to satisfy this
+    # by merely existing on disk, but they are no longer a figure source — they were watermarked
+    # and belonged to other questions — so the test names a number the figure set really has.
     import exam_past_paper
-    assert exam_past_paper.resources_for(SUBJECT, YEAR, 12), (
-        "this paper's question 12 must carry a figure for the test to mean anything")
+    subject_key, year, number = "computer_network", 2022, 36
+    assert exam_past_paper.resources_for(subject_key, year, number), (
+        "this question must carry a drawn figure for the test to mean anything")
 
     row = ExamQuestionBank(
-        subject_key=SUBJECT, subject_name="计算机组成原理", source_type="past_paper",
-        visibility="public", year=YEAR, question_number=12, question_type="choice",
+        subject_key=subject_key, subject_name="计算机网络", source_type="past_paper",
+        visibility="public", year=year, question_number=number, question_type="choice",
         stem="BC7 图题", options_json=json.dumps({"A": "甲", "B": "乙"}),
-        standard_answer="A", is_active=True, source_ref="past_paper:2022-Q12")
+        standard_answer="A", is_active=True, source_ref="past_paper:2022-Q36")
     db_session.add(row)
     db_session.commit()
     db_session.refresh(row)
     try:
-        created = client.post(f"/exam/11408/{SUBJECT}/past-paper-attempts",
-                              json={"year": YEAR}).json()
-        submitted = client.post(f"/exam/11408/{SUBJECT}/past-paper-attempts/"
-                                f"{created['attempt_id']}/submit", json={"answers": {"12": "B"}})
+        created = client.post(f"/exam/11408/{subject_key}/past-paper-attempts",
+                              json={"year": year}).json()
+        submitted = client.post(f"/exam/11408/{subject_key}/past-paper-attempts/"
+                                f"{created['attempt_id']}/submit",
+                                json={"answers": {str(number): "B"}})
         assert submitted.status_code == 200, submitted.text
 
         record = _items(client)[0]
-        assert record["question_number"] == 12
-        assert record["resources"], "question 12 of the real 2022 paper carries figures"
+        assert record["question_number"] == number
+        assert record["resources"], "this question carries a drawn figure"
         urls = [r["url"] for r in record["resources"]]
-        assert urls == [r.url for r in exam_past_paper.resources_for(SUBJECT, YEAR, 12)], (
+        assert urls == [r.url for r in exam_past_paper.resources_for(subject_key, year, number)], (
             "the wrong book must emit the SAME resource URLs as the paper itself")
         assert all(u.startswith("/exam/11408/past-paper-images/") for u in urls)
         assert all(not u.startswith(("http://", "https://", "file:")) for u in urls)

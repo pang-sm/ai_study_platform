@@ -1,0 +1,135 @@
+name: Grant membership tier (operator)
+
+# WHY THIS WORKFLOW EXISTS. Production refuses the mock payment provider on purpose
+# (`is_mock_payment_allowed` is fail-closed), and no super-admin account exists on the host,
+# so there is no product-supported way for an operator to put an acceptance account on a paid
+# tier. This is the narrow, audited path for exactly that.
+#
+# WHAT IT TOUCHES. One table, through the application's OWN activation function
+# (`usage.service.activate_subscription` — the same one the payment and redemption paths call),
+# so the resulting subscription row is indistinguishable from a purchased one. No raw SQL, no
+# hand-written column lists. It takes a DB backup first.
+#
+# Secret handling: no credential, password or hash is ever printed — the script prints only
+# usernames, tiers and counts. TENCENT_SSH_KEY / provider keys are never echoed.
+on:
+  workflow_dispatch:
+    inputs:
+      username:
+        description: 'Target username (an ordinary account; never an admin)'
+        required: true
+        default: 'prod_acceptance_learner'
+      tier:
+        description: 'Unified subscription tier to grant'
+        required: true
+        type: choice
+        default: 'advanced'
+        options:
+          - standard
+          - advanced
+      days:
+        description: 'Duration in days'
+        required: true
+        default: '365'
+      confirm:
+        description: 'Type GRANT to confirm this writes to the PRODUCTION database'
+        required: true
+        default: ''
+
+run-name: 授予会员档位：${{ inputs.username }} → ${{ inputs.tier }}
+
+jobs:
+  grant:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Require explicit confirmation
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          if [ "${CONFIRM}" != "GRANT" ]; then
+            echo "[grant] refusing: the confirm field must be exactly GRANT"
+            exit 1
+          fi
+
+      - name: Prepare SSH
+        shell: bash
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_SSH_KEY: ${{ secrets.TENCENT_SSH_KEY }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          : "${TENCENT_HOST:?TENCENT_HOST secret required}"
+          : "${TENCENT_SSH_KEY:?TENCENT_SSH_KEY secret required}"
+          SSH_PORT="${SSH_PORT:-22}"
+          HOST_CLEAN="${TENCENT_HOST#*@}"
+          HOST_CLEAN="${HOST_CLEAN%%:*}"
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$TENCENT_SSH_KEY" | tr -d '\r' > "$HOME/.ssh/tencent_deploy_key"
+          chmod 600 "$HOME/.ssh/tencent_deploy_key"
+          ssh-keyscan -T 20 -p "$SSH_PORT" -H "$HOST_CLEAN" >> "$HOME/.ssh/known_hosts" 2>/dev/null || true
+          echo "[grant] SSH ready"
+
+      - name: Back up the database and grant the tier
+        shell: bash
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_USER: ${{ secrets.TENCENT_USER }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT || '22' }}
+          TARGET_USERNAME: ${{ inputs.username }}
+          TARGET_TIER: ${{ inputs.tier }}
+          TARGET_DAYS: ${{ inputs.days }}
+        run: |
+          set -euo pipefail
+          HOST_CLEAN="${TENCENT_HOST#*@}"
+          HOST_CLEAN="${HOST_CLEAN%%:*}"
+          SSH_PORT="${SSH_PORT:-22}"
+          ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=10 \
+            -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" \
+            -o SendEnv=TARGET_USERNAME -o SendEnv=TARGET_TIER -o SendEnv=TARGET_DAYS \
+            "$TENCENT_USER@$HOST_CLEAN" \
+            "TARGET_USERNAME='${TARGET_USERNAME}' TARGET_TIER='${TARGET_TIER}' TARGET_DAYS='${TARGET_DAYS}' bash -se" <<'GRANTEOF'
+          set -euo pipefail
+          DATA_DB=/var/lib/ai_study_platform/app.db
+          BACKUP_DIR=/var/lib/ai_study_platform/audits
+          TIMESTAMP="$(date -u +%Y%m%d_%H%M%S)"
+          BACKUP="$BACKUP_DIR/app.db.before-membership-grant.$TIMESTAMP.db"
+          REPO_ROOT="$HOME/ai_study_platform"
+          PYTHON_BIN="$REPO_ROOT/backend/.venv/bin/python"
+
+          echo "[grant] === target ==="
+          echo "[grant] username=${TARGET_USERNAME} tier=${TARGET_TIER} days=${TARGET_DAYS}"
+
+          if [ ! -x "$PYTHON_BIN" ]; then
+            echo "[grant] ERROR: backend venv not found at $PYTHON_BIN"
+            exit 1
+          fi
+          if [ ! -f "$REPO_ROOT/scripts/deploy/grant_membership.py" ]; then
+            echo "[grant] ERROR: scripts/deploy/grant_membership.py is not on the host."
+            echo "[grant]        Deploy the commit that adds it first, then re-run this workflow."
+            exit 1
+          fi
+
+          # Back up before mutating, per the project's database rule.
+          mkdir -p "$BACKUP_DIR"
+          sqlite3 "$DATA_DB" ".timeout 5000" ".backup '$BACKUP'"
+          stat -c '[grant] backup %s bytes  %n' "$BACKUP"
+          sha256sum "$BACKUP" | sed 's/^/[grant] backup sha256 /'
+
+          cd "$REPO_ROOT"
+          DATABASE_URL="sqlite:///$DATA_DB" "$PYTHON_BIN" scripts/deploy/grant_membership.py \
+            --username "$TARGET_USERNAME" --tier "$TARGET_TIER" --days "$TARGET_DAYS"
+
+          echo "[grant] === post-grant integrity check ==="
+          echo "[grant] $(sqlite3 "$DATA_DB" 'PRAGMA integrity_check;')"
+          echo "[grant] === active subscriptions for this user ==="
+          sqlite3 -header -csv "$DATA_DB" \
+            "SELECT u.username, s.tier, s.status, s.source, s.start_at, s.end_at
+               FROM subscriptions s JOIN users u ON u.id = s.user_id
+              WHERE u.username = '$TARGET_USERNAME' ORDER BY s.id;"
+          GRANTEOF
