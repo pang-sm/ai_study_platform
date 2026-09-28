@@ -83,6 +83,7 @@ from core.code_execution import (
     is_secure_code_execution_available,
     require_secure_code_execution,
 )
+from core import login_abuse
 from core.security_audit import (
     audit_code_execution_denied,
     audit_code_execution_permitted,
@@ -622,9 +623,12 @@ async def ai_usage_action_scope(request: Request, call_next):
 # ── Global Exception Handlers ── ensure ALL responses are JSON ──
 @app.exception_handler(HTTPException)
 async def http_exception_json_handler(request: Request, exc: HTTPException):
+    # `exc.headers` is forwarded because dropping it silently discards protocol headers a
+    # handler deliberately set — `Retry-After` on a 429 being the one that matters here.
     return JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.detail},
+        headers=getattr(exc, "headers", None),
     )
 
 
@@ -6331,10 +6335,54 @@ def register(user: schemas.UserCreate, request: Request, response: Response, db:
     return {"message": "注册成功", "user": user_profile(new_user), "profile": user_profile(new_user)}
 
 
+# A bcrypt hash of a random value no submitted password can equal. When no account matched,
+# verifying against this spends the same work as a real check, so the response time stops
+# answering "does this account exist?" — the one enumeration channel the shared error message
+# left open. Computed once per process, at import.
+_LOGIN_TIMING_PARITY_HASH = hash_password(secrets.token_urlsafe(32))
+
+
+def _spend_password_verification(password: str) -> None:
+    """Burn one bcrypt verification without caring about the result.
+
+    bcrypt 5 refuses input longer than 72 bytes by raising before doing any work; that refusal
+    is swallowed here so an over-long password still answers the caller exactly as it did
+    before this change (the generic 400), rather than surfacing as a 500.
+    """
+    try:
+        verify_password(password, _LOGIN_TIMING_PARITY_HASH)
+    except ValueError:
+        pass
+
+
 @app.post("/login")
-def login(user: schemas.UserLogin, response: Response, db: Session = Depends(get_db)):
+def login(user: schemas.UserLogin, request: Request, response: Response, db: Session = Depends(get_db)):
     identifier = user.username.strip()
     password = user.password.strip()
+
+    # SECURITY_S2B: throttled on two independent dimensions — the source address and the
+    # account — before any credential work happens. Refusing first also means a throttled
+    # attacker cannot make the server spend bcrypt time on their behalf.
+    normalized_identifier = login_abuse.normalize_login_identifier(identifier)
+    client_ip = login_abuse.resolve_client_ip(
+        request.client.host if request.client else None, request.headers,
+    )
+    decision = login_abuse.check_login_attempt(ip=client_ip, identifier=normalized_identifier)
+    if not decision.allowed:
+        login_abuse.audit_login_rate_limited(
+            scope=decision.scope,
+            identifier_digest=login_abuse.identifier_digest(normalized_identifier),
+            ip=client_ip,
+            retry_after=decision.retry_after,
+        )
+        raise HTTPException(
+            status_code=login_abuse.RATE_LIMITED_STATUS,
+            detail={
+                "code": login_abuse.RATE_LIMITED_CODE,
+                "message": login_abuse.RATE_LIMITED_MESSAGE,
+            },
+            headers={"Retry-After": str(decision.retry_after)},
+        )
 
     if not identifier:
         raise HTTPException(status_code=400, detail="账号、邮箱或密码错误")
@@ -6346,12 +6394,25 @@ def login(user: schemas.UserLogin, response: Response, db: Session = Depends(get
     db_user = db.query(models.User).filter(models.User.username == identifier).first()
     if not db_user:
         db_user = _user_by_verified_email(db, identifier)
-    if not db_user:
-        raise HTTPException(status_code=400, detail="账号、邮箱或密码错误")
-    if not verify_password(password, db_user.hashed_password):
+
+    # An unknown account and a wrong password take the same path and produce the same 400: no
+    # branch here says which one happened, and neither the response nor the audit log names it.
+    if db_user is None:
+        _spend_password_verification(password)
+        credentials_ok = False
+    else:
+        credentials_ok = verify_password(password, db_user.hashed_password)
+
+    if not credentials_ok:
+        login_abuse.record_login_failure(ip=client_ip, identifier=normalized_identifier)
+        login_abuse.audit_login_failed(
+            identifier_digest=login_abuse.identifier_digest(normalized_identifier), ip=client_ip,
+        )
         raise HTTPException(status_code=400, detail="账号、邮箱或密码错误")
 
     ensure_user_can_access(db_user)
+    login_abuse.record_login_success(ip=client_ip, identifier=normalized_identifier)
+    login_abuse.audit_login_succeeded(user=db_user.username, ip=client_ip)
     create_auth_session(db, db_user, response)
     return {"message": "登录成功", "user": user_profile(db_user), "profile": user_profile(db_user)}
 

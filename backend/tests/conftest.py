@@ -45,6 +45,21 @@ def _reset_provider_health():
     registry().reset()
 
 
+@pytest.fixture(autouse=True)
+def _reset_login_abuse_state():
+    """SECURITY_S2B login counters are PROCESS-global, and every plain ``TestClient`` presents
+    the same peer address (``testclient``).
+
+    Without this, failed logins from earlier tests would accumulate in one shared source bucket
+    and eventually answer an unrelated test's login with a 429 — a suite that passes or fails
+    depending on test order and on how many tests ran before it.
+    """
+    from core import login_abuse
+    login_abuse.reset_login_abuse_state()
+    yield
+    login_abuse.reset_login_abuse_state()
+
+
 @pytest.fixture
 def client():
     with TestClient(main.app) as test_client:

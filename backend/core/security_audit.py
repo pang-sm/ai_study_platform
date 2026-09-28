@@ -25,7 +25,9 @@ import logging
 from contextvars import ContextVar
 from typing import Any, Iterator
 
-logger = logging.getLogger("security.audit")
+from core.logging import ensure_security_audit_logging
+
+logger = ensure_security_audit_logging()
 
 # The complete set of context a caller may bind. Nothing else is ever logged.
 _CONTEXT_FIELDS = ("user", "action", "language", "resource", "request_id", "ip")
