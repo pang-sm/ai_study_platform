@@ -10,6 +10,8 @@ import time
 import os
 from pathlib import Path
 
+from core.code_execution import require_secure_code_execution
+
 
 JAVA_BUILD_GRADLE = '''
 plugins {
@@ -117,6 +119,9 @@ def run_java_tests(
     the temporary directory. Gradle runs offline so a missing deployment cache
     is reported instead of triggering a runtime dependency download.
     """
+    # SECURITY_S0: Gradle compiles and runs the learner's Java sources. Refuse
+    # unless a verified sandbox is available; there is no host fallback.
+    require_secure_code_execution()
     gradle = _find_gradle()
     if not gradle:
         return {

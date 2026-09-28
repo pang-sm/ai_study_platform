@@ -1,0 +1,70 @@
+"""Secure code execution policy — SECURITY_S0.
+
+USER-CONTROLLED CODE MUST NEVER EXECUTE ON THE HOST.
+
+Every path that compiles or runs learner-submitted code passes through this module
+before it may spawn a process. The default is fail closed: unless a deployment has
+explicitly opted in to a verified sandbox backend, execution is refused with the
+stable ``code_execution_unavailable`` result.
+
+Having a ``docker`` binary on PATH is deliberately NOT sufficient. Treating
+``shutil.which("docker") is not None`` as "a sandbox is available" would let an
+unrelated host package install silently re-open user code execution. The opt-in is
+the deployment variable ``CODE_EXECUTION_BACKEND``; docker presence is only a
+necessary precondition once that opt-in exists.
+
+Current production state (SECURITY_S0): no Docker is installed and no sandbox has
+passed independent acceptance, so :func:`is_secure_code_execution_available` returns
+False and every execution entry point fails closed.
+"""
+from __future__ import annotations
+
+import os
+import shutil
+
+from fastapi import HTTPException
+
+CODE_EXECUTION_BACKEND_ENV = "CODE_EXECUTION_BACKEND"
+
+BACKEND_DISABLED = "disabled"
+BACKEND_DOCKER = "docker"
+
+# Only backends whose isolation has been independently verified belong in this set.
+# Restoring user code execution requires an explicit deployment change AND a verified
+# sandbox (see SECURITY_S0B).
+_SANDBOX_BACKENDS = frozenset({BACKEND_DOCKER})
+
+UNAVAILABLE_CODE = "code_execution_unavailable"
+UNAVAILABLE_MESSAGE = "代码运行服务暂时不可用，请稍后再试。"
+
+
+def configured_backend() -> str:
+    """The explicitly configured backend; absent or unrecognised values mean disabled."""
+    raw = (os.getenv(CODE_EXECUTION_BACKEND_ENV) or "").strip().lower()
+    return raw if raw in ({BACKEND_DISABLED} | set(_SANDBOX_BACKENDS)) else BACKEND_DISABLED
+
+
+def is_secure_code_execution_available() -> bool:
+    """True only when a verified sandbox backend is explicitly enabled AND usable.
+
+    Never returns True merely because ``docker`` happens to be on PATH.
+    """
+    if configured_backend() not in _SANDBOX_BACKENDS:
+        return False
+    # The chosen sandbox still needs its runtime; its absence fails closed too.
+    return shutil.which("docker") is not None
+
+
+def code_execution_unavailable_detail() -> dict:
+    """Stable machine-readable refusal. Never exposes sandbox internals."""
+    return {"code": UNAVAILABLE_CODE, "message": UNAVAILABLE_MESSAGE}
+
+
+def require_secure_code_execution() -> None:
+    """Refuse learner code execution unless a verified sandbox may run it.
+
+    Raises:
+        HTTPException: 503 with the stable ``code_execution_unavailable`` detail.
+    """
+    if not is_secure_code_execution_available():
+        raise HTTPException(status_code=503, detail=code_execution_unavailable_detail())

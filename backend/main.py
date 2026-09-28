@@ -77,6 +77,11 @@ from routers.admin_ops import router as admin_ops_router
 import schemas
 from auth import hash_password, verify_password
 from core import schema_preflight as core_schema_preflight
+from core.code_execution import (
+    code_execution_unavailable_detail,
+    is_secure_code_execution_available,
+    require_secure_code_execution,
+)
 from database import Base, SessionLocal, engine, get_db, init_user_profile_schema, update_conversation_title
 from database_schema import ensure_database_schema
 from membership import (
@@ -12887,6 +12892,10 @@ def _parse_exercise_test_counts(language: str, output: str, total: int, exit_cod
 
 
 def _run_official_exercise_tests(project: models.CodeProject, exercise: models.ProgrammingExercise, files: list[models.CodeProjectFile], submission: bool) -> dict:
+    # SECURITY_S0: the learner's own source is written, compiled and imported below.
+    # Treat the whole compilation as untrusted and refuse unless a verified sandbox
+    # may run it. There is no host fallback.
+    require_secure_code_execution()
     language = normalize_project_language(exercise.language)
     if _is_standard_oj_exercise(exercise):
         cases = _standard_oj_cases(exercise, hidden=False)
@@ -13021,6 +13030,8 @@ def _sample_test_bundle(exercise: models.ProgrammingExercise, sample: dict) -> l
 
 def _run_standard_oj_case(project: models.CodeProject, files: list[models.CodeProjectFile], sample: dict) -> dict:
     """Compile/run one normal stdin/stdout case without any Exercism adapter."""
+    # SECURITY_S0: gcc/g++/javac/python run over learner source below. Fail closed.
+    require_secure_code_execution()
     language = normalize_project_language(project.language)
     started = time.time()
     with tempfile.TemporaryDirectory(prefix="standard-oj-") as raw:
@@ -13085,6 +13096,9 @@ def _run_standard_oj_case(project: models.CodeProject, files: list[models.CodePr
 
 
 def _run_public_sample(project: models.CodeProject, exercise: models.ProgrammingExercise, files: list[models.CodeProjectFile], sample: dict) -> dict:
+    # SECURITY_S0: compiles/runs learner source (and delegates to the Java and
+    # stdin/stdout adapters). Fail closed before any of it spawns.
+    require_secure_code_execution()
     language = normalize_project_language(exercise.language)
     is_stdin_stdout_sample = (
         sample.get("stdin_text") is not None
@@ -13686,6 +13700,10 @@ def _truncate_output(text: str) -> tuple[str, bool]:
 
 
 def _run_project_command(args: list[str], cwd: str, stdin: str = "", timeout: int = 6) -> dict:
+    # SECURITY_S0: this is the single host-subprocess helper for project runs. A
+    # timeout, truncated output, shell=False and a temp cwd are NOT a sandbox, so
+    # the gate lives here rather than at the call sites.
+    require_secure_code_execution()
     start = time.time()
     try:
         proc = subprocess.run(
@@ -14011,6 +14029,9 @@ def _run_code_in_docker(code: str, stdin: str = "") -> dict:
     This function ONLY runs 'docker' CLI. User code is written to a temp file
     and executed INSIDE the container, never on the host.
     """
+    # SECURITY_S0: the container backend is opt-in. An unverified deployment must
+    # not reach it merely because a docker binary exists on PATH.
+    require_secure_code_execution()
     tmp_dir = tempfile.mkdtemp(prefix="code_exec_")
     script_path = os.path.join(tmp_dir, "script.py")
     input_path = os.path.join(tmp_dir, "stdin.txt")
@@ -14149,6 +14170,8 @@ def _run_c_code_in_docker(code: str, stdin: str = "") -> dict:
     User code is mounted read-only; binary is compiled to /tmp inside the container.
     --tmpfs for C uses :rw,nosuid (without noexec) so the compiled binary can run.
     """
+    # SECURITY_S0: container backend is opt-in; see core.code_execution.
+    require_secure_code_execution()
     tmp_dir = tempfile.mkdtemp(prefix="code_exec_c_")
     source_path = os.path.join(tmp_dir, "main.c")
     input_path = os.path.join(tmp_dir, "stdin.txt")
@@ -35627,6 +35650,11 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
             db.close()
         if language not in {"C", "C++", "Python", "Java"} or not files:
             raise ValueError("unsupported language or empty project")
+        # SECURITY_S0: this handler used to fall back to a host PTY whenever the docker
+        # CLI was missing, which ran learner code on the host. That fallback is removed.
+        # Without a verified sandbox the terminal refuses instead of degrading to the host.
+        if not is_secure_code_execution_available():
+            raise ValueError(code_execution_unavailable_detail()["message"])
         print(
             f"[WS-TERMINAL] exercise_start request_id={request_id} "
             f"run_session_id={run_session_id} exercise_id={exercise_id} "
@@ -35646,7 +35674,7 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
                 handle.write(item.content or "")
         await ws.send_text(json.dumps({"type": "status", "message": "正在编译…"}, ensure_ascii=False))
         memory = INTERACTIVE_MEMORY_C if language in {"C", "C++"} else INTERACTIVE_MEMORY
-        use_docker = shutil.which("docker") is not None
+        use_docker = True  # guaranteed by the availability gate above
         runtime_image = DOCKER_IMAGE
         runtime_command = ["python", "-u", f"/code/{safe_project_path(entry_file)}"]
         # Compile native programs before opening the interactive PTY.  This
@@ -35674,12 +35702,6 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
                     "-v", f"{tmp_dir}:/work", "-w", "/work", DOCKER_IMAGE_C,
                     compiler_name, *compiler_flags, *source_relative_files, "-o", "program",
                 ]
-            else:
-                compiler_path = shutil.which(compiler_name)
-                if not compiler_path:
-                    raise ValueError(f"服务器未安装 {compiler_name}，无法运行 {language} 项目")
-                local_binary = os.path.join(tmp_dir, "program.exe" if os.name == "nt" else "program")
-                compile_cmd = [compiler_path, *compiler_flags, *source_files, "-o", local_binary]
             compile_started_at = time.time()
             print(f"[WS-TERMINAL] compile_start request_id={request_id} exercise_id={exercise_id} language={language} file_count={len(source_files)}", flush=True)
             compiled = subprocess.run(compile_cmd, capture_output=True, text=True, timeout=20, cwd=tmp_dir)
@@ -35695,60 +35717,18 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
                 await ws.send_text(json.dumps({"type": "exit", "exit_code": compiled.returncode, "run_session_id": run_session_id}, ensure_ascii=False))
                 exit_sent = True
                 return
-            runtime_image, runtime_command = DOCKER_IMAGE_C, ["/code/program"] if use_docker else [local_binary]
+            runtime_image, runtime_command = DOCKER_IMAGE_C, ["/code/program"]
         elif language == "Java":
-            if use_docker:
-                runtime_image = "eclipse-temurin:21-jdk"
-                runtime_command = ["sh", "-lc", f"cp -a /code /tmp/work && cd /tmp/work && javac $(find . -name '*.java') && java {main_class}"]
-            else:
-                javac_path = shutil.which("javac")
-                java_path = shutil.which("java")
-                java_files = [
-                    os.path.join(tmp_dir, safe_project_path(item.relative_path))
-                    for item in files
-                    if str(item.relative_path).lower().endswith(".java")
-                ]
-                if not javac_path or not java_path:
-                    raise ValueError("服务器未安装 javac/java，无法运行 Java 项目")
-                if not java_files:
-                    raise ValueError("项目中没有可编译的 Java 文件")
-                classes_dir = os.path.join(tmp_dir, "classes")
-                os.makedirs(classes_dir, exist_ok=True)
-                compile_started_at = time.time()
-                print(f"[WS-TERMINAL] compile_start request_id={request_id} exercise_id={exercise_id} language=Java file_count={len(java_files)}", flush=True)
-                compiled = subprocess.run(
-                    [javac_path, "-encoding", "UTF-8", "-d", classes_dir, *java_files],
-                    capture_output=True,
-                    text=True,
-                    timeout=20,
-                    cwd=tmp_dir,
-                )
-                compile_finished_at = time.time()
-                print(
-                    f"[WS-TERMINAL] compile_end request_id={request_id} exercise_id={exercise_id} "
-                    f"return_code={compiled.returncode} duration_ms={int((compile_finished_at - compile_started_at) * 1000)}",
-                    flush=True,
-                )
-                if compiled.returncode != 0:
-                    raw_error = (compiled.stderr or compiled.stdout or "编译失败").strip()
-                    await ws.send_text(json.dumps({"type": "compile_error", "message": f"编译错误：{raw_error[:500]}", "technical_details": raw_error[:8000]}, ensure_ascii=False))
-                    await ws.send_text(json.dumps({"type": "exit", "exit_code": compiled.returncode, "run_session_id": run_session_id}, ensure_ascii=False))
-                    exit_sent = True
-                    return
-                runtime_command = [java_path, "-cp", classes_dir, main_class]
-        if use_docker:
-            # The backend is managed by systemd and does not have a real
-            # terminal.  Passing Docker's ``-t`` flag makes the CLI reject
-            # the launch with exit code 1 ("the input device is not a TTY")
-            # even though the host-side PTY is valid.  ``-i`` is sufficient
-            # here: the host PTY still streams stdin/stdout to the browser.
-            launch_command = ["docker", "run", "--rm", "-i", "--network", "none", "--memory", memory,
-                              "--cpus", str(DOCKER_CPU_LIMIT), "--pids-limit", str(DOCKER_PIDS_LIMIT), "--read-only", "--tmpfs", "/tmp:rw,exec,nosuid,size=128m",
-                              "-v", f"{tmp_dir}:/code:ro", runtime_image, *runtime_command]
-        else:
-            if language == "Python":
-                runtime_command = [_get_python_project_runner(), os.path.join(tmp_dir, safe_project_path(entry_file))]
-            launch_command = runtime_command
+            runtime_image = "eclipse-temurin:21-jdk"
+            runtime_command = ["sh", "-lc", f"cp -a /code /tmp/work && cd /tmp/work && javac $(find . -name '*.java') && java {main_class}"]
+        # The backend is managed by systemd and does not have a real
+        # terminal.  Passing Docker's ``-t`` flag makes the CLI reject
+        # the launch with exit code 1 ("the input device is not a TTY")
+        # even though the host-side PTY is valid.  ``-i`` is sufficient
+        # here: the host PTY still streams stdin/stdout to the browser.
+        launch_command = ["docker", "run", "--rm", "-i", "--network", "none", "--memory", memory,
+                          "--cpus", str(DOCKER_CPU_LIMIT), "--pids-limit", str(DOCKER_PIDS_LIMIT), "--read-only", "--tmpfs", "/tmp:rw,exec,nosuid,size=128m",
+                          "-v", f"{tmp_dir}:/code:ro", runtime_image, *runtime_command]
         import threading
         use_pty = hasattr(os, "openpty")
         master_fd = None
@@ -35933,6 +35913,13 @@ async def interactive_run(ws: WebSocket):
     if not code.strip():
         await ws.send_text(json.dumps({"type": "error", "message": "代码为空，请先编写代码再运行。"}))
         await ws.close()
+        return
+
+    # SECURITY_S0: this entry point runs the learner's code in a container. Refuse
+    # unless a verified sandbox is available — there is no host fallback here.
+    if not is_secure_code_execution_available():
+        await ws.send_text(json.dumps({"type": "error", "message": code_execution_unavailable_detail()["message"]}, ensure_ascii=False))
+        await ws.close(code=1013)
         return
 
     if not _check_code_run_rate(username, CODE_RUN_RATE_EXECUTE):
