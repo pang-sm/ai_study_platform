@@ -361,7 +361,11 @@ def test_traversal_and_bad_filenames_are_rejected(client, bank_paper):
 
 
 def test_every_advertised_resource_actually_serves(client, bank_paper, db_session):
-    """The contract must never hand the frontend a URL that 404s."""
+    """The contract must never hand the frontend a URL that 404s — or a scraped raster.
+
+    Reported as one check because they are one guarantee: an advertised figure is a drawn SVG
+    that resolves. Anything else means a watermark-capable file became reachable again.
+    """
     register_and_login(client, "bc6_advertised")
     checked = 0
     for subject_key in exam_past_paper.SUBJECT_NAMES:
@@ -374,11 +378,30 @@ def test_every_advertised_resource_actually_serves(client, bank_paper, db_sessio
                     f"-> {public.missing_resources}")
                 for resource in public.resources:
                     filename = resource.url.rsplit("/", 1)[-1]
+                    assert filename.endswith(".svg"), (
+                        f"advertised a non-drawn figure: {resource.url}")
                     response = client.get(
                         f"/exam/11408/past-paper-images/{subject_key}/{paper.year}/{filename}")
                     assert response.status_code == 200, resource.url
                     checked += 1
     assert checked > 0, "no resource was exercised"
+
+
+def test_no_paper_advertises_a_raster_extension(bank_paper, db_session):
+    """No stored reference — wherever it lives — may put a raster back on the wire.
+
+    The scraped trees are gone from the served roots, so this is the belt to that braces: it
+    sweeps every question of every paper and fails on any advertised ``.jpg``/``.jpeg``/
+    ``.png``/``.webp``, which is how a resurrected ``image_mapping.json`` entry would surface.
+    """
+    raster = (".jpg", ".jpeg", ".png", ".webp")
+    for subject_key in exam_past_paper.SUBJECT_NAMES:
+        for paper in exam_past_paper.available_papers(db_session, subject_key):
+            resolved = exam_past_paper.resolve_paper(db_session, subject_key, paper.year)
+            for question in resolved.questions:
+                for name in question.resource_filenames:
+                    assert not name.lower().endswith(raster), (
+                        f"{subject_key} {paper.year} Q{question.question_number}: {name}")
 
 
 def test_missing_resources_surfaces_a_reference_that_cannot_resolve(bank_paper):

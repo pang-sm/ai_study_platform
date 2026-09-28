@@ -89,6 +89,56 @@ def svg(width, height, body, caption=""):
     return f'{head}{DEFS}<rect width="{width}" height="{height}" fill="#ffffff"/>{body}{cap}</svg>'
 
 
+def table(x, y, widths, header, rows, row_h=42, size=14, first_col_anchor="middle"):
+    """A plain ruled table — the carrier for every 表 question in this paper.
+
+    Cells are drawn, not transcribed: the numbers come from the question's own data (the stored
+    stem, or a verified external transcription), never from a screenshot of one.
+    """
+    total = sum(widths)
+    out = []
+    height = row_h * (len(rows) + 1)
+    # header band
+    out.append(f'<rect x="{x}" y="{y}" width="{total}" height="{row_h}" fill="#eef2f6"/>')
+    for index in range(len(rows) + 1):
+        line_y = y + row_h * index
+        out.append(f'<line x1="{x}" y1="{line_y}" x2="{x + total}" y2="{line_y}" '
+                   f'stroke="{LINE}" stroke-width="1.2"/>')
+    cursor = x
+    out.append(f'<line x1="{x}" y1="{y}" x2="{x}" y2="{y + height}" stroke="{LINE}" stroke-width="1.2"/>')
+    for width in widths:
+        cursor += width
+        out.append(f'<line x1="{cursor}" y1="{y}" x2="{cursor}" y2="{y + height}" '
+                   f'stroke="{LINE}" stroke-width="1.2"/>')
+    for col, cell in enumerate(header):
+        left = x + sum(widths[:col])
+        out.append(text(left + widths[col] / 2, y + row_h / 2 + 5, cell, size=size, weight="600"))
+    for row_index, row in enumerate(rows):
+        top = y + row_h * (row_index + 1)
+        for col, cell in enumerate(row):
+            left = x + sum(widths[:col])
+            anchor = first_col_anchor if col == 0 else "middle"
+            out.append(text(left + widths[col] / 2, top + row_h / 2 + 5, cell, size=size,
+                            weight="600" if col == 0 else "400", anchor=anchor))
+    return "".join(out)
+
+
+def bitfields(x, y, parts, height=64, size=14):
+    """A horizontal bit-field strip — the address split of a paged system, or an instruction word."""
+    out = []
+    cursor = x
+    for label, bits, sub in parts:
+        width = max(64, 22 + 7 * bits)
+        fill = "#eef3f8" if sub else "#f5f7fa"
+        out.append(f'<rect x="{cursor}" y="{y}" width="{width}" height="{height}" fill="{fill}" '
+                   f'stroke="{LINE}" stroke-width="1.4"/>')
+        out.append(text(cursor + width / 2, y + height / 2 + 1, label, size=size, weight="600"))
+        out.append(text(cursor + width / 2, y + height / 2 + 20, f"{bits} 位", size=12, fill=MUTED))
+        cursor += width
+    return "".join(out), cursor - x
+
+
+
 def chain(width, hops, caption="", height=190):
     """A left-to-right chain: host — router(s) — host, each hop labelled with its bandwidth.
 
@@ -144,10 +194,6 @@ def _nat(width=660):
     ]
     body.append(text(288, y + 74, "NAT", size=13, fill=ACCENT, weight="600"))
     return svg(730, 200, "".join(body), "")
-
-
-def cn_2022_q38():
-    return _nat()
 
 
 def cn_2023_q38():
@@ -356,6 +402,122 @@ def os_2025_q46():
     return svg(430, y + 44, "".join(body), "")
 
 
+# ------------------------------------------------- tables verified against the paper + answer
+#
+# A table is drawn here only when its numbers were (a) cross-checked against an independent
+# transcription of the SAME (year, subject, question number) and (b) shown to REPRODUCE the
+# answer this bank already stores for that question. (b) is what rules out the near-miss: a
+# plausible-looking table that yields a different answer is not this question's table.
+
+def os_2022_q25():
+    """进程调度表 — three independent transcriptions agree; reproduces the stored answer C."""
+    rows = [["P0", "0 ms", "15", "100 ms"], ["P1", "10 ms", "20", "60 ms"],
+            ["P2", "10 ms", "10", "20 ms"], ["P3", "15 ms", "6", "10 ms"]]
+    body = table(60, 40, [110, 200, 130, 170],
+                 ["进程", "进入就绪队列的时刻", "优先级", "CPU 执行时间"], rows)
+    return svg(670, 40 + 42 * 5 + 40, body, "值越小优先权越高")
+
+
+def os_2022_q26():
+    """银行家算法资源表 — Available (1,3,2) with these Need values yields exactly the two safe
+    sequences the stored answer B counts."""
+    rows = [["P0", "2, 0, 1", "0, 2, 1"], ["P1", "0, 2, 0", "1, 2, 3"],
+            ["P2", "1, 0, 1", "0, 1, 3"]]
+    body = table(60, 40, [110, 180, 180],
+                 ["进程", "已分配资源数（A, B, C）", "尚需资源数（A, B, C）"], rows)
+    body += text(60, 40 + 42 * 4 + 36, "当前可用资源数（A, B, C）=（1, 3, 2）",
+                 size=14, anchor="start")
+    return svg(700, 40 + 42 * 4 + 76, body, "")
+
+
+def os_2023_q29():
+    """进程调度表 — the 13 ms burst is the value that reproduces the stored answer B:
+    (115 + 55 + 13) / 3 = 61 ms."""
+    rows = [["P1", "0 ms", "1", "60 ms"], ["P2", "20 ms", "10", "42 ms"],
+            ["P3", "30 ms", "100", "13 ms"]]
+    body = table(60, 40, [110, 200, 130, 170],
+                 ["进程", "进入就绪队列的时刻", "优先级", "CPU 执行时间"], rows)
+    return svg(670, 40 + 42 * 4 + 40, body, "值越大优先权越高")
+
+
+def os_2026_q28():
+    """三级页表地址划分 — 25 + 9 + 9 + 9 + 12 = 64 bits; 2^9 x 2^9 third-level tables is the
+    stored answer C."""
+    body = [text(40, 30, "64 位虚拟地址划分", size=15, anchor="start", weight="600")]
+    strip, width = bitfields(40, 46, [("补充位", 25, True), ("一级页表", 9, False),
+                                      ("二级页表", 9, False), ("三级页表", 9, False),
+                                      ("页内偏移", 12, False)])
+    body.append(strip)
+    body.append(text(40, 146, "页大小 4 KB（页内偏移 12 位）；每个页表项占 8 B",
+                     size=14, anchor="start", fill=MUTED))
+    return svg(width + 80, 186, "".join(body), "")
+
+
+def os_2026_q45():
+    """进程调度表（优先权 + 时间片轮转）— reproduces the stored answer: 10 time-slice
+    interrupts, 7 dispatches, first dispatches P2(10ms) P4(20ms) P1(90ms) P3(140ms)."""
+    rows = [["P1", "10", "3", "95"], ["P2", "10", "4", "20"],
+            ["P3", "12", "2", "40"], ["P4", "14", "5", "60"]]
+    body = table(60, 40, [110, 160, 130, 180],
+                 ["进程", "到达时间（ms）", "优先权", "CPU 运行时间（ms）"], rows)
+    body += text(60, 40 + 42 * 5 + 36, "时间片 50 ms；时间片中断间隔 10 ms",
+                 size=14, anchor="start")
+    return svg(660, 40 + 42 * 5 + 76, body, "优先权越大优先级越大")
+
+
+def ds_2025_q11():
+    """排序过程表 — these pass-by-pass sequences are what identify 希尔排序, the stored answer A."""
+    rows = [["初始序列", "5, 25, 40, 30, 10, 20, 45, 15, 35"],
+            ["第 1 趟排序后的序列", "5, 10, 20, 30, 15, 35, 45, 25, 40"],
+            ["第 2 趟排序后的序列", "5, 10, 15, 25, 20, 30, 40, 35, 45"]]
+    body = table(40, 40, [220, 400], ["序列", "关键字"], rows)
+    return svg(680, 40 + 42 * 4 + 40, body, "")
+
+
+def _tree_from_array(values):
+    """The level-order array the question prints, read back as an actual tree.
+
+    Node ``i`` (1-based) owns children ``2i`` and ``2i+1``, and ``-1`` means "no node here" —
+    which is exactly the storage rule the question defines. Nothing is inferred: the shape is a
+    function of the array.
+    """
+    def build(index):
+        if index > len(values) or values[index - 1] == -1:
+            return None
+        return (values[index - 1], build(2 * index), build(2 * index + 1))
+    return build(1)
+
+
+def _draw_tree(node, x0, x1, y, dy, out):
+    if node is None:
+        return
+    value, left, right = node
+    cx = (x0 + x1) / 2
+    if left is not None:
+        lx = (x0 + cx) / 2
+        out.append(link(cx, y + 22, lx, y + dy - 22, ""))
+        _draw_tree(left, x0, cx, y + dy, dy, out)
+    if right is not None:
+        rx = (cx + x1) / 2
+        out.append(link(cx, y + 22, rx, y + dy - 22, ""))
+        _draw_tree(right, cx, x1, y + dy, dy, out)
+    out.append(ellipse(cx, y, 23, 23, str(value), fill="#eef3f8", dy=5, size=14))
+
+
+def ds_2022_q41():
+    """两棵顺序存储的二叉树 T1 / T2 — both laid out from the arrays the stem itself prints."""
+    t1 = _tree_from_array([40, 25, 60, -1, 30, -1, 80, -1, -1, 27])
+    t2 = _tree_from_array([40, 50, 60, -1, 30, -1, -1, -1, -1, -1, 35])
+    body = [text(230, 30, "T1", size=16, weight="600"), text(650, 30, "T2", size=16, weight="600")]
+    _draw_tree(t1, 60, 400, 80, 88, body)
+    _draw_tree(t2, 480, 820, 80, 88, body)
+    body.append(text(40, 430, "T1.SqBiTNode = [40, 25, 60, -1, 30, -1, 80, -1, -1, 27]，ElemNum = 10",
+                     size=13, anchor="start", fill=MUTED))
+    body.append(text(40, 456, "T2.SqBiTNode = [40, 50, 60, -1, 30, -1, -1, -1, -1, -1, 35]，ElemNum = 11",
+                     size=13, anchor="start", fill=MUTED))
+    return svg(860, 484, "".join(body), "")
+
+
 # --------------------------------------------------------------------------------- registry
 
 FIGURES = {
@@ -366,8 +528,17 @@ FIGURES = {
     ("computer_network", 2026, 36): ("2026_q36_1.svg", cn_2026_q36),
     ("computer_network", 2025, 36): ("2025_q36_1.svg", cn_2025_q36),
     ("computer_network", 2025, 38): ("2025_q38_1.svg", cn_2025_q38),
-    ("computer_network", 2022, 38): ("2022_q38_1.svg", cn_2022_q38),
+    # NOTE: computer_network 2022 Q38 is deliberately ABSENT. That question is a TCP
+    # congestion-window calculation with no figure; an earlier revision attached a NAT diagram
+    # to it by mistake. Do not re-add a figure for a question whose stem does not ask for one.
     ("computer_network", 2023, 38): ("2023_q38_1.svg", cn_2023_q38),
+    ("operating_system", 2022, 25): ("2022_q25_1.svg", os_2022_q25),
+    ("operating_system", 2022, 26): ("2022_q26_1.svg", os_2022_q26),
+    ("operating_system", 2023, 29): ("2023_q29_1.svg", os_2023_q29),
+    ("operating_system", 2026, 28): ("2026_q28_1.svg", os_2026_q28),
+    ("operating_system", 2026, 45): ("2026_q45_1.svg", os_2026_q45),
+    ("data_structure", 2025, 11): ("2025_q11_1.svg", ds_2025_q11),
+    ("data_structure", 2022, 41): ("2022_q41_1.svg", ds_2022_q41),
     ("computer_network", 2024, 47): ("2024_q47_1.svg", cn_2024_q47),
     ("computer_network", 2026, 37): ("2026_q37_1.svg", cn_2026_q37),
     ("computer_organization", 2026, 43): ("2026_q43_1.svg", co_2026_q43),
