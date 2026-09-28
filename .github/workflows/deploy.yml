@@ -566,6 +566,53 @@ jobs:
           INNEREOF
           sudo systemctl daemon-reload
 
+          # ── SECURITY_NETWORK_BACKEND_PERIMETER: bind the backend to loopback ──
+          # The base ai-backend.service is provisioned on the host and is NOT in this
+          # repository; it starts uvicorn with `--host 0.0.0.0`, which made the API
+          # reachable directly from the internet on :8000 — bypassing nginx, TLS, the
+          # HTTP→HTTPS redirect, the security headers and client_max_body_size. nginx
+          # already proxies to 127.0.0.1:8000 for every location, so pinning the listener
+          # to loopback removes only the unsupported path.
+          #
+          # The override is derived from the unit's OWN current ExecStart rather than
+          # hardcoded here: the interpreter path, module and venv belong to the host's
+          # definition of how the app starts, and re-deriving them on every deploy means
+          # this cannot silently drift from it. ExecStart accumulates across drop-ins, so
+          # it must be cleared before it can be redefined.
+          BASE_EXEC="$(sudo systemctl cat ai-backend | grep -m1 '^ExecStart=' || true)"
+          if [ -z "$BASE_EXEC" ]; then
+            echo "[deploy] ERROR: ai-backend has no ExecStart to derive a loopback bind from"
+            exit 1
+          fi
+          case "$BASE_EXEC" in
+            *"--host 127.0.0.1"*)
+              LOOPBACK_EXEC="$BASE_EXEC"
+              echo "[deploy] ai-backend already binds loopback" ;;
+            *"--host 0.0.0.0"*)
+              LOOPBACK_EXEC="${BASE_EXEC/--host 0.0.0.0/--host 127.0.0.1}"
+              echo "[deploy] rewriting the wildcard bind to loopback" ;;
+            *)
+              echo "[deploy] ERROR: unexpected ExecStart host; refusing to guess a bind:"
+              echo "[deploy]        $BASE_EXEC"
+              exit 1 ;;
+          esac
+          sudo tee /etc/systemd/system/ai-backend.service.d/loopback-bind.conf > /dev/null <<INNEREOF
+          # SECURITY_NETWORK_BACKEND_PERIMETER — written by .github/workflows/deploy.yml.
+          # The API must not be reachable except through nginx on this same host.
+          [Service]
+          ExecStart=
+          ${LOOPBACK_EXEC}
+          INNEREOF
+          sudo chmod 644 /etc/systemd/system/ai-backend.service.d/loopback-bind.conf
+          sudo systemctl daemon-reload
+          if ! sudo systemctl show -p ExecStart --value ai-backend | grep -q -- '--host 127.0.0.1'; then
+            echo "[deploy] ERROR: the loopback bind did not take effect, so the API would stay"
+            echo "[deploy]        reachable from the internet. Not starting the application."
+            sudo systemctl show -p ExecStart ai-backend || true
+            exit 1
+          fi
+          echo "[deploy] Backend pinned to 127.0.0.1 (public :8000 closed at the listener)"
+
           # ── Retire the ADMIN_LOGIN_CODE drop-in ──
           # SECURITY_S0.5: ADMIN_LOGIN_CODE has no reader anywhere in the backend — no
           # admin authentication path depends on it. It was a dead secret kept in a
@@ -654,7 +701,11 @@ jobs:
           cd ..
           sudo systemctl restart ai-backend
 
-          echo "=== Waiting for backend health ==="
+          # INTERNAL_BACKEND_HEALTH — this reads the listener on loopback, which is the only
+          # address the backend serves. It is deliberately NOT an external probe: the
+          # EXTERNAL_NGINX_HEALTH check (public https://…/api/health) runs later, on the
+          # runner, and covers nginx + TLS. Neither of them may be moved onto public :8000.
+          echo "=== Waiting for backend health (internal, 127.0.0.1) ==="
           for i in {1..30}; do
             if curl -fsS http://127.0.0.1:8000/health >/dev/null; then
               echo "[deploy] backend health ok"
@@ -771,3 +822,27 @@ jobs:
           echo "$CERT_DETAILS" | grep -Eq 'IP Address:101\.32\.190\.42'
           echo "$CERT_DETAILS" | grep -qi "Let's Encrypt"
           rm -f /tmp/ai-study-platform-health.json
+
+      # SECURITY_NETWORK_BACKEND_PERIMETER. The backend is pinned to 127.0.0.1, so this
+      # probe must be refused from outside. It has to run here, on the runner: a check from
+      # the host itself would reach 127.0.0.1 and pass no matter what the listener binds.
+      # Nothing may be reopened on :8000 to satisfy a health check — the internal check
+      # stays on loopback and the external smoke stays on 443 (the step above).
+      - name: Guard backend is not publicly reachable
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "=== External :8000 exposure probe ==="
+          for attempt in {1..6}; do
+            if timeout 10 bash -c "cat < /dev/null > /dev/tcp/101.32.190.42/8000" 2>/dev/null; then
+              echo "[guard] attempt $attempt: public :8000 accepted a connection"
+            else
+              echo "[guard] public :8000 refused or blocked — loopback bind holds"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "[guard] ERROR: public :8000 still accepts connections after deployment, so the"
+          echo "[guard]        API is exposed without TLS, nginx security headers or the size cap."
+          echo "[guard]        The wildcard bind is still in force; treat this release as failed."
+          exit 1
