@@ -84,9 +84,16 @@ jobs:
             fi
           done
 
-          echo "[revoke] === local env files present on host ==="
+          echo "[revoke] === local env files on host: mode + variable NAMES (never values) ==="
           for f in backend/.env backend/.env.local .env; do
-            if [ -e "$f" ]; then echo "[revoke]   present: $f"; else echo "[revoke]   absent: $f"; fi
+            if [ -e "$f" ]; then
+              stat -c '[revoke]   mode %a  %n' "$f"
+              # Names only: everything left of the first '='. Values never leave the host.
+              grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$f" 2>/dev/null \
+                | sed -E 's/=$//' | sort -u | sed 's/^/[revoke]       var /' || true
+            else
+              echo "[revoke]   absent: $f"
+            fi
           done
 
           # Tighten the credential-bearing drop-in here as well as in deploy.yml, so the host
@@ -95,6 +102,16 @@ jobs:
             sudo chmod 600 "$UNIT_DIR/smtp.conf"
             stat -c '[revoke] smtp drop-in tightened -> %a %n' "$UNIT_DIR/smtp.conf"
           fi
+
+          # backend/.env is host-local (deploy rsync excludes it) and is where provider keys
+          # live when they are configured outside systemd. Owner-only is the correct mode for
+          # a file the service user reads and nobody else needs.
+          for f in backend/.env backend/.env.local; do
+            if [ -e "$f" ]; then
+              chmod 600 "$f" 2>/dev/null || true
+              stat -c '[revoke] env file tightened -> %a %n' "$f"
+            fi
+          done
 
           echo "[revoke] === session revocation ==="
           DATABASE_URL="sqlite:////var/lib/ai_study_platform/app.db" \
