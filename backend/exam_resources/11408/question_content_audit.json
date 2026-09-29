@@ -512,7 +512,7 @@
       ],
       "source": "bank",
       "verified": true,
-      "note": "SOURCE_AMBIGUOUS：原卷印刷的选项与题干 IP（123.4.5.11）互相矛盾，服务值自洽且与答案 C 一致，未改"
+      "note": "SOURCE_AMBIGUOUS：原卷印刷的选项与题干 IP（123.4.5.11）互相矛盾，单份材料无法判定哪一侧是原卷本意。当前数据库采用了服务原有取值——它自洽且与官方答案 C 一致。不自动修改，是因为改成扫描件一侧会改变题干或选项的原始语义，而现有材料不足以证明那才是原卷本意。future resolution requires independent source：只有取得第二份独立且完整的原卷，才能判定该题采用哪一版；在此之前保持 BLOCKED，不再改动。"
     },
     {
       "subject": "computer_network",
@@ -1170,7 +1170,7 @@
       ],
       "source": "bank",
       "verified": true,
-      "note": "SOURCE_AMBIGUOUS：原卷扫描件为 '000 01D H'，服务值为 '0000 01DH'；服务值位数更完整，判断为扫描件丢字，未改"
+      "note": "SOURCE_AMBIGUOUS：原始来源（原卷扫描件）显示 '000 01D H'，位数不足；当前数据库采用了服务原有取值 '0000 01DH'，位数完整，判断为原始来源丢字而非服务值有误。不自动修改，是因为按扫描件回改会把一个已确认的丢字错误固化为题库内容，而现有材料无法给出另一种可信写法。future resolution requires independent source：只有取得第二份独立且完整的原卷，才能确认该处编码；在此之前保持 BLOCKED，不再改动。"
     },
     {
       "subject": "computer_organization",
