@@ -20,11 +20,11 @@
         "D": "O(n^2)"
       },
       "answer": "B",
-      "stem": "下列程序段的时间复杂度是：\n\nint count=0, j;\nfor(i=1; i*i<=n; i++)\n    for(j=1; j<=i; j++)\n        count++;",
+      "stem": "下列程序段的时间复杂度是：\n\nint count=0,i,j;\nfor(i=1; i*i<=n; i++)\n    for(j=1; j<=i; j++)\n        count++;",
       "ocr_quality": "manual",
       "need_manual_check": false,
       "manual_fixed": true,
-      "fix_notes": "人工根据图片 2025_1_1.jpg 补录。"
+      "fix_notes": "代码声明行漏掉循环变量 i（原卷为 int count=0,i,j;）。source=2022-2026 数据结构原卷截图（DOCX 内嵌每题图片）"
     },
     {
       "id": "data_structure_2025_2",
@@ -36,15 +36,17 @@
         "/static/exam_papers/11408/data_structure/2025/img_45.jpg"
       ],
       "options": {
-        "A": "A、(a+[b+(c+d)/(e+f)]+g-h)",
-        "B": "B、[a*((b+c)/(d-e)+f/g)-h]",
-        "C": "C、$\\sqrt{a}*(b-(c-d)*c/(f+g)-h)$",
-        "D": "D、[a-(b+[c*(d+e)-f]+g+h)]"
+        "A": "（a+[b+(c+d)/e+f) +g-h",
+        "B": "[a*((b+c)/(d-e)+f/g)-h]",
+        "C": "√a*(b-(c-d)*e/(f+g)-h)",
+        "D": "[a-(b+[c*(d+e)-f]+g+h)]"
       },
       "answer": "D",
       "stem": "2.已知算法A用于检查字符串中各类括号是否匹配，A执行过程中使用初始为空的栈保存遇到的括号，若栈的容量是3，则下列选项中，A不能处理的事",
-      "ocr_quality": "high",
-      "need_manual_check": false
+      "ocr_quality": "manual",
+      "need_manual_check": false,
+      "manual_fixed": true,
+      "fix_notes": "选项去掉重复字母标号；且 A、C 两式与原文不符（A 原文为 (c+d)/e+f，C 原文为 *e/），按原卷截图更正。source=2022-2026 数据结构原卷截图（DOCX 内嵌每题图片）"
     },
     {
       "id": "data_structure_2025_3",
@@ -98,15 +100,17 @@
         "/static/exam_papers/11408/data_structure/2025/img_48.jpg"
       ],
       "options": {
-        "A": "A.2",
-        "B": "B.3",
-        "C": "C.4",
-        "D": "D.5"
+        "A": "2",
+        "B": "3",
+        "C": "4",
+        "D": "5"
       },
       "answer": "D",
       "stem": "5. 设字符集 S 包含 7 个字符、各字符出现的频次分别为 2, 3, 4, 6, 8, 10, 11。现为 S 中的各字符构造哈夫曼编码，编码长度不小于 3 的字符个数是（）",
-      "ocr_quality": "high",
-      "need_manual_check": false
+      "ocr_quality": "manual",
+      "need_manual_check": false,
+      "manual_fixed": true,
+      "fix_notes": "选项值内重复了自己的字母标号；去掉前缀。source=2022-2026 数据结构原卷截图（DOCX 内嵌每题图片）"
     },
     {
       "id": "data_structure_2025_6",
@@ -138,15 +142,17 @@
         "/static/exam_papers/11408/data_structure/2025/img_50.jpg"
       ],
       "options": {
-        "A": "A. 8",
-        "B": "B. 10",
-        "C": "C. 20",
-        "D": "D. 25"
+        "A": "8",
+        "B": "10",
+        "C": "20",
+        "D": "25"
       },
       "answer": "C",
       "stem": "7. 已知查找表中有 400 个元素，查找每个元素的概率相同，采用分块查找法进行查找，且均匀分布。若采用顺序查找法确定元素所在的块，且块内也采用顺序查找法，则查找成功时平均比较次数为：",
-      "ocr_quality": "high",
-      "need_manual_check": false
+      "ocr_quality": "manual",
+      "need_manual_check": false,
+      "manual_fixed": true,
+      "fix_notes": "选项值内重复了自己的字母标号；去掉前缀。source=2022-2026 数据结构原卷截图（DOCX 内嵌每题图片）"
     },
     {
       "id": "data_structure_2025_8",
@@ -158,17 +164,17 @@
         "/static/exam_papers/11408/data_structure/2025/img_51.jpg"
       ],
       "options": {
-        "A": "1",
-        "B": "2",
-        "C": "3",
-        "D": "5"
+        "A": "7",
+        "B": "8",
+        "C": "9",
+        "D": "10"
       },
       "answer": "C",
-      "stem": "在高度为 4 的平衡二叉树中，根的左、右子树结点数相差最多的是（ ）。",
+      "stem": "8. 给定 7 个不同的关键字，能够构造的不同 4 阶 B 树的个数最多是：",
       "ocr_quality": "manual",
       "need_manual_check": false,
       "manual_fixed": true,
-      "fix_notes": "人工根据两张异常图补录。"
+      "fix_notes": "题文错位：本条被写成 2026 年第 8 题（平衡二叉树）。原卷 2025 第 8 题为 B 树计数题，答案 C 与 docx 答案一致。source=2022-2026 数据结构原卷截图（DOCX 内嵌每题图片）"
     },
     {
       "id": "data_structure_2025_9",
@@ -239,16 +245,12 @@
       "image_urls": [
         "/static/exam_papers/11408/data_structure/2025/img_55.jpg"
       ],
-      "options": {
-        "A": "设有两个长度均为 n 的一维整型数组 A 和 res，对数组 A 中的每个元素 A[i]，计算 A[i] 与 A[j] (0 ≤ i ≤ j ≤ n-1) 乘积的最大值，并将其保存到 res[i] 中。例如，若 A[] = {1, 4, -9, 6}，则得到 res[] = {6, 24, 81, 36}。现给定数组 A，请设计一个时间和空间上尽可能高效的算法 calMulMax，求 res 中各元素的值。函数原型为：void calMulMax(int A[], int res[], int n)。要求如下。",
-        "B": ""
-      },
       "answer": "（1）此算法的核心思想是：对于每个位置i，找到一个在[i, n-1]区间内的值，使得A[i] * X 的",
       "stem": "设有两个长度均为 n 的一维整型数组 A 和 res，对数组 A 中的每个元素 A[i]，计算 A[i] 与 A[j]（0≤i≤j≤n-1）乘积的最大值，并将其保存到 res[i] 中。例如，若 A[] = {1, 4, -9, 6}，则得到 res[] = {6, 24, 81, 36}。现给定数组 A，请设计一个时间和空间上尽可能高效的算法 calMulMax，求 res 中各元素的值。函数原型为：void calMulMax(int A[], int res[], int n)。要求如下：\n\n（1）给出算法的基本设计思想。（4 分）\n（2）根据设计思想，采用 C 或 C++ 语言描述算法，关键之处给出注释。（7 分）\n（3）说明你所设计算法的时间复杂度和空间复杂度。（2 分）",
       "ocr_quality": "manual",
       "need_manual_check": false,
       "manual_fixed": true,
-      "fix_notes": "人工根据 2025 第41题图片补录。"
+      "fix_notes": "大题不该带选择题选项：当前服务出去的 A 是题干重复、B 为空。移除 options 字段。"
     },
     {
       "id": "data_structure_2025_42",
@@ -262,9 +264,11 @@
       ],
       "options": {},
       "answer": "完成该工程的最短时间是12。关键活动是a，e，m，n。",
-      "stem": "某工程包含12个活动，使用题42图所示的AOE网描述，图中各边上标注了活动及其持续时间。",
-      "ocr_quality": "medium",
-      "need_manual_check": true
+      "stem": "某工程包含12个活动，使用题42图所示的AOE网描述，图中各边上标注了活动及其持续时间。\n\n请回答下列问题（活动均用活动名表示）。\n（1）完成该工程的最短时间是多少？哪些活动是关键活动？（3 分）\n（2）若以最短时间完成工程，则与活动 e 同时进行的活动可能有哪些？（3 分）\n（3）时间余量最大的活动是哪个？其时间余量是多少？（2 分）\n（4）假设工程从时刻 0 启动，因某种原因，活动 b 在时刻 6 开始。为了保证工程不延期，在其他活动持续时间均不变的情况下，b 的持续时间最多是多少？若不改变 b 的持续时间，则压缩哪个活动的持续时间也能保证工程不延期？（2 分）",
+      "ocr_quality": "manual",
+      "need_manual_check": false,
+      "manual_fixed": true,
+      "fix_notes": "题干缺失引导语与 (1)(2)(3)(4) 四个小问；原文见原卷截图。source=2022-2026 数据结构原卷截图（DOCX 内嵌每题图片）"
     }
   ]
 }

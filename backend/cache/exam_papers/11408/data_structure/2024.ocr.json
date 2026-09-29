@@ -34,15 +34,17 @@
         "/static/exam_papers/11408/data_structure/2024/img_30.jpg"
       ],
       "options": {
-        "A": "A. xyzu-*v/+",
-        "B": "B. xyzu-v/*+",
-        "C": "C. +x/*y-zuv",
-        "D": "D. +x*y/-zuv"
+        "A": "xyzu-*v/+",
+        "B": "xyzu-v/*+",
+        "C": "+x/*y-zuv",
+        "D": "+x*y/-zuv"
       },
       "answer": "A",
       "stem": "2.与表达式x+y*(z-u)/v等价的后缀表达式是",
-      "ocr_quality": "high",
-      "need_manual_check": false
+      "ocr_quality": "manual",
+      "need_manual_check": false,
+      "manual_fixed": true,
+      "fix_notes": "选项值内重复了自己的字母标号；去掉前缀。source=2022-2026 数据结构原卷截图（DOCX 内嵌每题图片）"
     },
     {
       "id": "data_structure_2024_3",
@@ -117,17 +119,17 @@
         "/static/exam_papers/11408/data_structure/2024/img_35.jpg"
       ],
       "options": {
-        "A": "7",
-        "B": "8",
-        "C": "9",
-        "D": "10"
+        "A": "5",
+        "B": "4",
+        "C": "3",
+        "D": "2"
       },
       "answer": "A",
-      "stem": "给定 7 个不同的关键字，能够构造的不同 4 阶 B 树的个数最多是（ ）。",
+      "stem": "6.KMP 算法使用修正后的 next 数组进行模式匹配，模式串 S=aabaab，当主串中某字符与 S 中某字符失配时，S 将向右滑动的最长距离是",
       "ocr_quality": "manual",
       "need_manual_check": false,
       "manual_fixed": true,
-      "fix_notes": "人工根据异常图补录。"
+      "fix_notes": "题文错位：本条被写成了另一年的 B 树题。原卷 2024 第 6 题为 KMP 题，答案 A 与 docx 答案一致。source=2022-2026 数据结构原卷截图（DOCX 内嵌每题图片）"
     },
     {
       "id": "data_structure_2024_7",
@@ -179,15 +181,17 @@
         "/static/exam_papers/11408/data_structure/2024/img_38.jpg"
       ],
       "options": {
-        "A": "A. 20, 19, 15, 12, 8, 5",
-        "B": "B. 20, 19, 15, 5, 8, 12",
-        "C": "C. 20, 19, 12, 15, 8, 5",
-        "D": "D. 20, 19, 8, 12, 15, 5"
+        "A": "20, 19, 15, 12, 8, 5",
+        "B": "20, 19, 15, 5, 8, 12",
+        "C": "20, 19, 12, 15, 8, 5",
+        "D": "20, 19, 8, 12, 15, 5"
       },
       "answer": "B",
       "stem": "已知关键字序列 28, 22, 20, 19, 8, 12, 15, 5 是大根堆（最大堆），对该堆进行两次删除操作后，得到的新堆是",
-      "ocr_quality": "high",
-      "need_manual_check": false
+      "ocr_quality": "manual",
+      "need_manual_check": false,
+      "manual_fixed": true,
+      "fix_notes": "选项值内重复了自己的字母标号；去掉前缀。source=2022-2026 数据结构原卷截图（DOCX 内嵌每题图片）"
     },
     {
       "id": "data_structure_2024_10",
@@ -221,15 +225,17 @@
         "/static/exam_papers/11408/data_structure/2024/img_40.jpg"
       ],
       "options": {
-        "A": "A、最大关键字",
-        "B": "B、最小关键字",
-        "C": "C、最大关键字所在的归并段号",
-        "D": "D、最小关键字所在的归并段号"
+        "A": "最大关键字",
+        "B": "最小关键字",
+        "C": "最大关键字所在的归并段号",
+        "D": "最小关键字所在的归并段号"
       },
       "answer": "D",
       "stem": "在外排序中，利用败者树对初始为升序的归并段进行多路归并，败者树中记录“冠军”的结点保存的是",
-      "ocr_quality": "high",
-      "need_manual_check": false
+      "ocr_quality": "manual",
+      "need_manual_check": false,
+      "manual_fixed": true,
+      "fix_notes": "选项值内重复了自己的字母标号（A、）；去掉前缀。source=2022-2026 数据结构原卷截图（DOCX 内嵌每题图片）"
     },
     {
       "id": "data_structure_2024_41",
@@ -241,18 +247,12 @@
         "/static/exam_papers/11408/data_structure/2024/img_41.jpg",
         "/static/exam_papers/11408/data_structure/2024/img_42.jpg"
       ],
-      "options": {
-        "A": "",
-        "B": "",
-        "C": "",
-        "D": ""
-      },
       "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
       "stem": "2023 年 10 月 26 日，神舟十七号载人飞船发射取得圆满成功，再次彰显了中国航天事业的辉煌成就。载人航天工程是包含众多子工程的复杂系统工程，为了保证工程的有序开展，需要明确各子工程的前导工程，以协调各子工程的实施。该问题可以简化、抽象为有向图的拓扑序列问题。已知有向图 G 采用邻接矩阵存储，类型定义如下：\n\ntypedef struct {\n    int numVertices, numEdges;\n    char VerticesList[MAXV];\n    int Edge[MAXV][MAXV];\n} MGraph;\n\n请设计算法：int uniquely(MGraph G)，判定 G 是否存在唯一的拓扑序列，若是则返回 1，否则返回 0。\n\n要求：\n（1）给出算法的基本设计思想（4 分）。\n（2）根据设计思想，采用 C 或 C++ 语言描述算法，关键之处给出注释（9 分）。",
       "ocr_quality": "manual",
       "need_manual_check": false,
       "manual_fixed": true,
-      "fix_notes": "人工根据 2024 第41题两张图片补录。"
+      "fix_notes": "大题不该带选择题选项：当前服务出去的是四个空值选项。移除 options 字段。"
     },
     {
       "id": "data_structure_2024_42",
@@ -265,9 +265,11 @@
       ],
       "options": {},
       "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
-      "stem": "42（本题10分）将关键字序列20，3，11，18，9，14，7依次存储到初始值为空、长度为11的散列表HT中，散列函数H(key)= (key×3) %11。H(key) 计算机出初始散列地址为H0，发生冲突时探查地址序列是H1，H2，H3，…，其中，Hk=(H0+k²)%11，k=1，2，3，…。",
-      "ocr_quality": "medium",
-      "need_manual_check": true
+      "stem": "42（本题10分）将关键字序列20，3，11，18，9，14，7依次存储到初始值为空、长度为11的散列表HT中，散列函数H(key)= (key×3) %11。H(key) 计算机出初始散列地址为H0，发生冲突时探查地址序列是H1，H2，H3，…，其中，Hk=(H0+k²)%11，k=1，2，3，…。\n请回答下列问题。\n（1）画出所构造的 HT，并计算 HT 的填装因子（6分）\n（2）给出在 HT 中查找关键字 14 的关键字比较序列（2分）\n（3）在 HT 中查找关键字 8，确认查找失败时的散列地址是多少？（2分）",
+      "ocr_quality": "manual",
+      "need_manual_check": false,
+      "manual_fixed": true,
+      "fix_notes": "题干缺失「请回答下列问题。」与 (1)(2)(3) 三个小问；原文见原卷截图。source=2022-2026 数据结构原卷截图（DOCX 内嵌每题图片）"
     }
   ]
 }

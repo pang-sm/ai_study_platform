@@ -150,11 +150,13 @@ def bitfields(x, y, parts, height=64, size=14):
 
 
 
-def chain(width, hops, caption="", height=190):
+def chain(width, hops, caption="", height=190, endpoints=None):
     """A left-to-right chain: host — router(s) — host, each hop labelled with its bandwidth.
 
     ``hops`` is the list of edge labels; there are len(hops)+1 boxes, the ends being hosts and
     the middle being routers — which is what every link-bandwidth question in this paper shows.
+    ``endpoints`` optionally names the two end hosts (default H1 and H{len(hops)+1}); questions
+    whose ends are not consecutively numbered (e.g. H1 … H2) pass their real labels here.
     """
     body = []
     count = len(hops) + 1
@@ -164,7 +166,8 @@ def chain(width, hops, caption="", height=190):
     xs = [margin + index * step for index in range(count)]
     for index, x in enumerate(xs):
         if index in (0, count - 1):
-            body.append(rect(x - 40, y - 22, 80, 48, f"H{index + 1}", size=15))
+            label = (endpoints or (f"H1", f"H{count}"))[0 if index == 0 else 1]
+            body.append(rect(x - 40, y - 22, 80, 48, label, size=15))
         else:
             body.append(rect(x - 36, y - 20, 72, 44, f"R{index}", size=15))
     for index, label in enumerate(hops):
@@ -185,8 +188,8 @@ def cn_2024_q33():
 
 
 def cn_2025_q33():
-    """H1—R1 10 Mb/s, R1—R2 100 Mb/s, R2—H2 1000 Mb/s."""
-    return chain(640, ["10 Mb/s", "100 Mb/s", "1000 Mb/s"], "")
+    """H1—R1 10 Mb/s, R1—R2 100 Mb/s, R2—H2 1000 Mb/s (ends are H1 and H2, not H1/H4)."""
+    return chain(640, ["10 Mb/s", "100 Mb/s", "1000 Mb/s"], "", endpoints=("H1", "H2"))
 
 
 def _nat(width=660):
@@ -254,7 +257,8 @@ def cn_2026_q36():
 
 
 def cn_2025_q36():
-    """The DHCP exchange: DISCOVER/OFFER, then REQUEST; server 192.168.5.1, yiaddr .5.9."""
+    """The DHCP exchange the figure shows: DHCPOFFER then DHCPREQUEST, each carrying
+    yiaddr 192.168.5.9; server 192.168.5.1. (No DHCPDISCOVER is drawn in the paper.)"""
     left, right = 130, 600
     body = [
         text(left, 34, "主机 H", size=15, weight="600"),
@@ -263,24 +267,28 @@ def cn_2025_q36():
         f'<line x1="{left}" y1="66" x2="{left}" y2="292" stroke="{LINE}" stroke-width="1.6"/>',
         f'<line x1="{right}" y1="66" x2="{right}" y2="292" stroke="{LINE}" stroke-width="1.6"/>',
         text(left - 52, 300, "时间", size=12, fill=MUTED, anchor="start"),
-        arrow(left + 6, 120, right - 6, 120, "DHCPDISCOVER"),
-        arrow(right - 6, 186, left + 6, 186, "DHCPOFFER"),
-        text(right, 210, "yiaddr: 192.168.5.9", size=12, fill=MUTED),
-        arrow(left + 6, 262, right - 6, 262, "DHCPREQUEST"),
+        arrow(right - 6, 152, left + 6, 152, "DHCPOFFER"),
+        text(right, 176, "yiaddr: 192.168.5.9", size=12, fill=MUTED),
+        arrow(left + 6, 248, right - 6, 248, "DHCPREQUEST"),
+        text(right, 272, "yiaddr: 192.168.5.9", size=12, fill=MUTED),
     ]
     return svg(720, 330, "".join(body), "")
 
 
 def cn_2025_q38():
-    """甲 → 乙 with the acknowledged segment: ack_seq 3001, rcvwnd 4000 B."""
+    """甲 → 乙: at t0 two 1000 B data segments (both seq = 2001); acknowledged at t1 by a
+    segment with seq = 4001, ack_seq = 3001, rcvwnd = 4000 B."""
     left, right = 150, 590
     body = [
         text(left, 46, "主机甲", size=15, weight="600"),
         text(right, 46, "主机乙", size=15, weight="600"),
         f'<line x1="{left}" y1="62" x2="{left}" y2="270" stroke="{LINE}" stroke-width="1.6"/>',
         f'<line x1="{right}" y1="62" x2="{right}" y2="270" stroke="{LINE}" stroke-width="1.6"/>',
-        arrow(left + 6, 110, right - 6, 110, "t0 起：2 个 1000 B 数据段（seq 1 / seq 1001）"),
-        arrow(right - 6, 180, left + 6, 180, "t1：确认段 ack_seq = 3001，rcvwnd = 4000 B"),
+        text(left - 8, 110, "t0", size=13, fill=MUTED, anchor="end"),
+        arrow(left + 6, 116, right - 6, 116, "seq=2001，1000B数据"),
+        arrow(left + 6, 156, right - 6, 156, "seq=2001，1000B数据"),
+        arrow(right - 6, 226, left + 6, 226, "seq=4001，ack_seq=3001，rcvwnd=4000B"),
+        text(left - 8, 232, "t1", size=13, fill=MUTED, anchor="end"),
         text(left - 60, 286, "发送窗口 = 拥塞窗口 = 2000 B，阈值 8000 B，MSS = 1000 B",
              size=13, fill=MUTED, anchor="start"),
     ]
@@ -673,11 +681,15 @@ def cn_2024_q33():
         link(116, 204, 190, 204, "10 Mb/s", ly=194),
         link(280, 196, 370, 116, "1000 Mb/s", lx=322, ly=140),
         link(280, 214, 370, 300, "100 Mb/s", lx=318, ly=280),
-        link(460, 104, 560, 190, "1 Mb/s", lx=530, ly=132),
+        link(460, 104, 560, 190, "1000 Mb/s", lx=536, ly=132),
         link(460, 316, 560, 218, "100 Mb/s", lx=530, ly=300),
+        # The paper also draws a DIRECT link between the two side routers, straight through
+        # under the top one, labelled 1 Mb/s — that third path is what makes the access link
+        # (10 Mb/s) the real bottleneck.
+        link(280, 204, 560, 204, "1 Mb/s", lx=420, ly=224),
         link(650, 204, 700, 204, "10 Mb/s", ly=194),
     ]
-    return svg(820, 380, "".join(body), "瓶颈链路为 1 Mb/s")
+    return svg(820, 380, "".join(body), "")
 
 
 def co_2022_q43():
@@ -864,26 +876,27 @@ def cn_2024_q35():
 
 
 def cn_2024_q37():
-    """SR 滑动窗口时序图. Which frames were sent, which were acknowledged, and which two were
-    lost is the whole question — none of it is in the stem."""
+    """SR 滑动窗口时序图. Which frames were sent, which one never arrived, and which two the
+    learner must identify at t1/t2 is the whole question — none of it is in the stem.
+
+    The paper draws F0/F2/F3 as complete arrows and F1 as a stub that stops short with 丢失
+    beside its tip; only ACK0 and ACK3 are drawn on the return path."""
     left, right, top = 190, 640, 70
     body = [text(left, 44, "甲", size=15, weight="600"), text(right, 44, "乙", size=15, weight="600"),
             f'<line x1="{left}" y1="{top}" x2="{left}" y2="430" stroke="{LINE}" stroke-width="1.6"/>',
             f'<line x1="{right}" y1="{top}" x2="{right}" y2="430" stroke="{LINE}" stroke-width="1.6"/>',
             _darrow(left + 6, 100, right - 6, 110, ""), text(410, 96, "F0", size=13, fill=ACCENT),
-            _darrow(left + 6, 140, right - 6, 150, ""), text(410, 136, "F1", size=13, fill=ACCENT),
+            _darrow(left + 6, 140, left + 70, 146, ""), text(410, 136, "F1", size=13, fill=ACCENT),
+            text(280, 156, "丢失", size=13, fill=ACCENT, anchor="start"),
             _darrow(left + 6, 180, right - 6, 190, ""), text(410, 176, "F2", size=13, fill=ACCENT),
-            text(520, 196, "丢失", size=13, fill=ACCENT),
             _darrow(left + 6, 220, right - 6, 230, ""), text(410, 216, "F3", size=13, fill=ACCENT),
-            _darrow(right - 6, 250, left + 6, 260, ""), text(430, 268, "ACK0", size=13, fill=ACCENT),
-            _darrow(right - 6, 300, left + 6, 310, ""), text(430, 318, "ACK2", size=13, fill=ACCENT),
-            _darrow(right - 6, 340, left + 6, 350, ""), text(430, 368, "ACK3", size=13, fill=ACCENT),
-            text(520, 346, "丢失", size=13, fill=ACCENT),
+            _darrow(right - 6, 300, left + 6, 250, ""), text(470, 256, "ACK0", size=13, fill=ACCENT),
+            _darrow(right - 6, 350, left + 6, 330, ""), text(470, 356, "ACK3", size=13, fill=ACCENT),
             ellipse(left, 372, 8, 8, "", fill=ACCENT), text(left - 26, 376, "t1", size=12, fill=ACCENT),
-            _darrow(left + 6, 378, right - 6, 388, ""), text(420, 372, "?", size=15, fill=ACCENT),
-            text(left - 46, 406, "F1 超时", size=12, fill=ACCENT),
+            _darrow(left + 6, 378, left + 70, 384, ""), text(280, 366, "?", size=15, fill=ACCENT),
+            text(left - 80, 408, "F1 超时", size=12, fill=ACCENT),
             ellipse(left, 404, 8, 8, "", fill=ACCENT), text(left - 26, 408, "t2", size=12, fill=ACCENT),
-            _darrow(left + 6, 410, right - 6, 420, ""), text(420, 404, "?", size=15, fill=ACCENT),
+            _darrow(left + 6, 410, left + 70, 416, ""), text(280, 398, "?", size=15, fill=ACCENT),
             _darrow(left, 430, left, 462, ""), text(left, 484, "时间", size=13, fill=MUTED)]
     return svg(720, 500, "".join(body), "")
 

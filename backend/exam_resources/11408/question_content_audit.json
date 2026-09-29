@@ -1,0 +1,2820 @@
+{
+  "audit_id": "11408_question_content_audit_20260929",
+  "generated": "2026-09-29",
+  "authority": "每一道题都与其在 exam_resources/11408/<subject>/11408_2022_2026_<subject>_questions_answers.docx 中的原卷截图逐题比对；数据库与解析产物是被审计对象，不是判据。",
+  "total_questions": 235,
+  "counts": {
+    "total": 235,
+    "pass": 135,
+    "fixed": 98,
+    "blocked": 2
+  },
+  "issues_by_type": {
+    "ANSWER_MISMATCH": 1,
+    "BROKEN_OPTION": 13,
+    "MISSING_OPTION": 2,
+    "MISSING_REQUIRED_FIGURE": 5,
+    "MISSING_ROMAN_STATEMENT": 8,
+    "MISSING_STEM_CONTENT": 10,
+    "MISSING_SUBQUESTION": 5,
+    "OCR_CORRUPTION": 50,
+    "OTHER": 5,
+    "QUESTION_MISMATCH": 4,
+    "WRONG_FIGURE": 5
+  },
+  "entries": [
+    {
+      "subject": "computer_network",
+      "paper_year": 2022,
+      "question_number": 33,
+      "question_id": "computer_network/2022/Q33",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2022,
+      "question_number": 34,
+      "question_id": "computer_network/2022/Q34",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2022,
+      "question_number": 35,
+      "question_id": "computer_network/2022/Q35",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2022,
+      "question_number": 36,
+      "question_id": "computer_network/2022/Q36",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2022,
+      "question_number": 37,
+      "question_id": "computer_network/2022/Q37",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2022,
+      "question_number": 38,
+      "question_id": "computer_network/2022/Q38",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2022,
+      "question_number": 39,
+      "question_id": "computer_network/2022/Q39",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2022,
+      "question_number": 40,
+      "question_id": "computer_network/2022/Q40",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2022,
+      "question_number": 47,
+      "question_id": "computer_network/2022/Q47",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2023,
+      "question_number": 33,
+      "question_id": "computer_network/2023/Q33",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2023,
+      "question_number": 34,
+      "question_id": "computer_network/2023/Q34",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2023,
+      "question_number": 35,
+      "question_id": "computer_network/2023/Q35",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2023,
+      "question_number": 36,
+      "question_id": "computer_network/2023/Q36",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2023,
+      "question_number": 37,
+      "question_id": "computer_network/2023/Q37",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2023,
+      "question_number": 38,
+      "question_id": "computer_network/2023/Q38",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2023,
+      "question_number": 39,
+      "question_id": "computer_network/2023/Q39",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2023,
+      "question_number": 40,
+      "question_id": "computer_network/2023/Q40",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2023,
+      "question_number": 47,
+      "question_id": "computer_network/2023/Q47",
+      "status": "FIXED",
+      "issues": [
+        "MISSING_REQUIRED_FIGURE"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "题干引用题 47 图，但既无 SVG 也无图示信息；补图示信息"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2024,
+      "question_number": 33,
+      "question_id": "computer_network/2024/Q33",
+      "status": "FIXED",
+      "issues": [
+        "WRONG_FIGURE"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "SVG 丢掉了左—右直连 1 Mb/s 链路并把上—右标成 1 Mb/s，会把答案引向 A"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2024,
+      "question_number": 34,
+      "question_id": "computer_network/2024/Q34",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2024,
+      "question_number": 35,
+      "question_id": "computer_network/2024/Q35",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2024,
+      "question_number": 36,
+      "question_id": "computer_network/2024/Q36",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2024,
+      "question_number": 37,
+      "question_id": "computer_network/2024/Q37",
+      "status": "FIXED",
+      "issues": [
+        "WRONG_FIGURE"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "SVG 把丢失帧画成 F2 而不是 F1，选项里没有 F2，学生无法得到答案"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2024,
+      "question_number": 38,
+      "question_id": "computer_network/2024/Q38",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2024,
+      "question_number": 39,
+      "question_id": "computer_network/2024/Q39",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2024,
+      "question_number": 40,
+      "question_id": "computer_network/2024/Q40",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2024,
+      "question_number": 47,
+      "question_id": "computer_network/2024/Q47",
+      "status": "FIXED",
+      "issues": [
+        "MISSING_STEM_CONTENT"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "引子段落漏掉一句"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2025,
+      "question_number": 33,
+      "question_id": "computer_network/2025/Q33",
+      "status": "FIXED",
+      "issues": [
+        "WRONG_FIGURE"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "SVG 主机标号 H4 与原文 H1/H2 不符"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2025,
+      "question_number": 34,
+      "question_id": "computer_network/2025/Q34",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2025,
+      "question_number": 35,
+      "question_id": "computer_network/2025/Q35",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2025,
+      "question_number": 36,
+      "question_id": "computer_network/2025/Q36",
+      "status": "FIXED",
+      "issues": [
+        "WRONG_FIGURE"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "SVG 多画了 DHCPDISCOVER 且漏了 yiaddr"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2025,
+      "question_number": 37,
+      "question_id": "computer_network/2025/Q37",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2025,
+      "question_number": 38,
+      "question_id": "computer_network/2025/Q38",
+      "status": "FIXED",
+      "issues": [
+        "WRONG_FIGURE"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "SVG 的 seq/ack_seq 数值与原文不符"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2025,
+      "question_number": 39,
+      "question_id": "computer_network/2025/Q39",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2025,
+      "question_number": 40,
+      "question_id": "computer_network/2025/Q40",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2025,
+      "question_number": 47,
+      "question_id": "computer_network/2025/Q47",
+      "status": "FIXED",
+      "issues": [
+        "MISSING_REQUIRED_FIGURE"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "图示信息没有交代 S1/S2，子问 (1) 的跳数不可恢复"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2026,
+      "question_number": 33,
+      "question_id": "computer_network/2026/Q33",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2026,
+      "question_number": 34,
+      "question_id": "computer_network/2026/Q34",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2026,
+      "question_number": 35,
+      "question_id": "computer_network/2026/Q35",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2026,
+      "question_number": 36,
+      "question_id": "computer_network/2026/Q36",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2026,
+      "question_number": 37,
+      "question_id": "computer_network/2026/Q37",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2026,
+      "question_number": 38,
+      "question_id": "computer_network/2026/Q38",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2026,
+      "question_number": 39,
+      "question_id": "computer_network/2026/Q39",
+      "status": "BLOCKED",
+      "issues": [
+        "ANSWER_MISMATCH"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "SOURCE_AMBIGUOUS：原卷印刷的选项与题干 IP（123.4.5.11）互相矛盾，服务值自洽且与答案 C 一致，未改"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2026,
+      "question_number": 40,
+      "question_id": "computer_network/2026/Q40",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_network",
+      "paper_year": 2026,
+      "question_number": 47,
+      "question_id": "computer_network/2026/Q47",
+      "status": "FIXED",
+      "issues": [
+        "QUESTION_MISMATCH",
+        "MISSING_REQUIRED_FIGURE"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "子问 (2) '增加到多少' 与原文 '增加多少' 不符；题干引用的 47 图未提供"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2022,
+      "question_number": 12,
+      "question_id": "computer_organization/2022/Q12",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2022,
+      "question_number": 13,
+      "question_id": "computer_organization/2022/Q13",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2022,
+      "question_number": 14,
+      "question_id": "computer_organization/2022/Q14",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2022,
+      "question_number": 15,
+      "question_id": "computer_organization/2022/Q15",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2022,
+      "question_number": 16,
+      "question_id": "computer_organization/2022/Q16",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2022,
+      "question_number": 17,
+      "question_id": "computer_organization/2022/Q17",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2022,
+      "question_number": 18,
+      "question_id": "computer_organization/2022/Q18",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2022,
+      "question_number": 19,
+      "question_id": "computer_organization/2022/Q19",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2022,
+      "question_number": 20,
+      "question_id": "computer_organization/2022/Q20",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2022,
+      "question_number": 21,
+      "question_id": "computer_organization/2022/Q21",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2022,
+      "question_number": 22,
+      "question_id": "computer_organization/2022/Q22",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2022,
+      "question_number": 43,
+      "question_id": "computer_organization/2022/Q43",
+      "status": "FIXED",
+      "issues": [
+        "MISSING_STEM_CONTENT"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "共享材料段被截断，并混入一句原文没有的话"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2022,
+      "question_number": 44,
+      "question_id": "computer_organization/2022/Q44",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2023,
+      "question_number": 12,
+      "question_id": "computer_organization/2023/Q12",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2023,
+      "question_number": 13,
+      "question_id": "computer_organization/2023/Q13",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2023,
+      "question_number": 14,
+      "question_id": "computer_organization/2023/Q14",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2023,
+      "question_number": 15,
+      "question_id": "computer_organization/2023/Q15",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2023,
+      "question_number": 16,
+      "question_id": "computer_organization/2023/Q16",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2023,
+      "question_number": 17,
+      "question_id": "computer_organization/2023/Q17",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2023,
+      "question_number": 18,
+      "question_id": "computer_organization/2023/Q18",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2023,
+      "question_number": 19,
+      "question_id": "computer_organization/2023/Q19",
+      "status": "FIXED",
+      "issues": [
+        "MISSING_STEM_CONTENT"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "指令表的 // 语义注释全部丢失"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2023,
+      "question_number": 20,
+      "question_id": "computer_organization/2023/Q20",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2023,
+      "question_number": 21,
+      "question_id": "computer_organization/2023/Q21",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2023,
+      "question_number": 22,
+      "question_id": "computer_organization/2023/Q22",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2023,
+      "question_number": 43,
+      "question_id": "computer_organization/2023/Q43",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2023,
+      "question_number": 44,
+      "question_id": "computer_organization/2023/Q44",
+      "status": "FIXED",
+      "issues": [
+        "MISSING_STEM_CONTENT"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "机器码表的三行 C 源码表头丢失"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2024,
+      "question_number": 12,
+      "question_id": "computer_organization/2024/Q12",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2024,
+      "question_number": 13,
+      "question_id": "computer_organization/2024/Q13",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2024,
+      "question_number": 14,
+      "question_id": "computer_organization/2024/Q14",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2024,
+      "question_number": 15,
+      "question_id": "computer_organization/2024/Q15",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2024,
+      "question_number": 16,
+      "question_id": "computer_organization/2024/Q16",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2024,
+      "question_number": 17,
+      "question_id": "computer_organization/2024/Q17",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2024,
+      "question_number": 18,
+      "question_id": "computer_organization/2024/Q18",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2024,
+      "question_number": 19,
+      "question_id": "computer_organization/2024/Q19",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2024,
+      "question_number": 20,
+      "question_id": "computer_organization/2024/Q20",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2024,
+      "question_number": 21,
+      "question_id": "computer_organization/2024/Q21",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2024,
+      "question_number": 22,
+      "question_id": "computer_organization/2024/Q22",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2024,
+      "question_number": 43,
+      "question_id": "computer_organization/2024/Q43",
+      "status": "FIXED",
+      "issues": [
+        "MISSING_STEM_CONTENT"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "符号定义段整体丢失（子问依赖它）"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2024,
+      "question_number": 44,
+      "question_id": "computer_organization/2024/Q44",
+      "status": "FIXED",
+      "issues": [
+        "QUESTION_MISMATCH",
+        "MISSING_STEM_CONTENT"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "题干把 a[i] 写成 a[j]；指令序列的注释丢失"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2025,
+      "question_number": 12,
+      "question_id": "computer_organization/2025/Q12",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2025,
+      "question_number": 13,
+      "question_id": "computer_organization/2025/Q13",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2025,
+      "question_number": 14,
+      "question_id": "computer_organization/2025/Q14",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2025,
+      "question_number": 15,
+      "question_id": "computer_organization/2025/Q15",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2025,
+      "question_number": 16,
+      "question_id": "computer_organization/2025/Q16",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2025,
+      "question_number": 17,
+      "question_id": "computer_organization/2025/Q17",
+      "status": "FIXED",
+      "issues": [
+        "BROKEN_OPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "选项 D 与原文不符"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2025,
+      "question_number": 18,
+      "question_id": "computer_organization/2025/Q18",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2025,
+      "question_number": 19,
+      "question_id": "computer_organization/2025/Q19",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2025,
+      "question_number": 20,
+      "question_id": "computer_organization/2025/Q20",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2025,
+      "question_number": 21,
+      "question_id": "computer_organization/2025/Q21",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2025,
+      "question_number": 22,
+      "question_id": "computer_organization/2025/Q22",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2025,
+      "question_number": 43,
+      "question_id": "computer_organization/2025/Q43",
+      "status": "FIXED",
+      "issues": [
+        "MISSING_STEM_CONTENT"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "子问 (3) 漏掉作答格式要求"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2025,
+      "question_number": 44,
+      "question_id": "computer_organization/2025/Q44",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2026,
+      "question_number": 12,
+      "question_id": "computer_organization/2026/Q12",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2026,
+      "question_number": 13,
+      "question_id": "computer_organization/2026/Q13",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2026,
+      "question_number": 14,
+      "question_id": "computer_organization/2026/Q14",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2026,
+      "question_number": 15,
+      "question_id": "computer_organization/2026/Q15",
+      "status": "BLOCKED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "SOURCE_AMBIGUOUS：原卷扫描件为 '000 01D H'，服务值为 '0000 01DH'；服务值位数更完整，判断为扫描件丢字，未改"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2026,
+      "question_number": 16,
+      "question_id": "computer_organization/2026/Q16",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2026,
+      "question_number": 17,
+      "question_id": "computer_organization/2026/Q17",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2026,
+      "question_number": 18,
+      "question_id": "computer_organization/2026/Q18",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2026,
+      "question_number": 19,
+      "question_id": "computer_organization/2026/Q19",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2026,
+      "question_number": 20,
+      "question_id": "computer_organization/2026/Q20",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2026,
+      "question_number": 21,
+      "question_id": "computer_organization/2026/Q21",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2026,
+      "question_number": 22,
+      "question_id": "computer_organization/2026/Q22",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2026,
+      "question_number": 43,
+      "question_id": "computer_organization/2026/Q43",
+      "status": "FIXED",
+      "issues": [
+        "MISSING_STEM_CONTENT"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "符号定义三条丢失、子问 (4) 漏条件从句；另有 SOURCE_AMBIGUOUS 两处（按字节/按字编址、子问 (3) 的 R0/R9 取值），服务值与官方答案自洽，未改"
+    },
+    {
+      "subject": "computer_organization",
+      "paper_year": 2026,
+      "question_number": 44,
+      "question_id": "computer_organization/2026/Q44",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2022,
+      "question_number": 1,
+      "question_id": "data_structure/2022/Q1",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2022,
+      "question_number": 2,
+      "question_id": "data_structure/2022/Q2",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2022,
+      "question_number": 3,
+      "question_id": "data_structure/2022/Q3",
+      "status": "FIXED",
+      "issues": [
+        "MISSING_ROMAN_STATEMENT"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "题干缺 I~IV 陈述块"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2022,
+      "question_number": 4,
+      "question_id": "data_structure/2022/Q4",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2022,
+      "question_number": 5,
+      "question_id": "data_structure/2022/Q5",
+      "status": "FIXED",
+      "issues": [
+        "BROKEN_OPTION"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "选项值内重复了自己的字母标号"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2022,
+      "question_number": 6,
+      "question_id": "data_structure/2022/Q6",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "选项 |E| 的右竖线丢失"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2022,
+      "question_number": 7,
+      "question_id": "data_structure/2022/Q7",
+      "status": "FIXED",
+      "issues": [
+        "BROKEN_OPTION"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "选项值内重复了自己的字母标号"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2022,
+      "question_number": 8,
+      "question_id": "data_structure/2022/Q8",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2022,
+      "question_number": 9,
+      "question_id": "data_structure/2022/Q9",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2022,
+      "question_number": 10,
+      "question_id": "data_structure/2022/Q10",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2022,
+      "question_number": 11,
+      "question_id": "data_structure/2022/Q11",
+      "status": "FIXED",
+      "issues": [
+        "MISSING_ROMAN_STATEMENT"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "题干缺 I~IV 陈述块"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2022,
+      "question_number": 41,
+      "question_id": "data_structure/2022/Q41",
+      "status": "FIXED",
+      "issues": [
+        "OTHER"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "大题误带 4 个空选项"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2022,
+      "question_number": 42,
+      "question_id": "data_structure/2022/Q42",
+      "status": "FIXED",
+      "issues": [
+        "MISSING_SUBQUESTION"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "题干缺 (1)(2)"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2023,
+      "question_number": 1,
+      "question_id": "data_structure/2023/Q1",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2023,
+      "question_number": 2,
+      "question_id": "data_structure/2023/Q2",
+      "status": "FIXED",
+      "issues": [
+        "BROKEN_OPTION"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "选项值内重复了自己的字母标号"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2023,
+      "question_number": 3,
+      "question_id": "data_structure/2023/Q3",
+      "status": "FIXED",
+      "issues": [
+        "MISSING_ROMAN_STATEMENT"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "题干缺 I~IV 陈述块"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2023,
+      "question_number": 4,
+      "question_id": "data_structure/2023/Q4",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2023,
+      "question_number": 5,
+      "question_id": "data_structure/2023/Q5",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2023,
+      "question_number": 6,
+      "question_id": "data_structure/2023/Q6",
+      "status": "FIXED",
+      "issues": [
+        "MISSING_ROMAN_STATEMENT"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "题干缺 I~III 陈述块"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2023,
+      "question_number": 7,
+      "question_id": "data_structure/2023/Q7",
+      "status": "FIXED",
+      "issues": [
+        "MISSING_ROMAN_STATEMENT"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "题干缺 I~IV 陈述块"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2023,
+      "question_number": 8,
+      "question_id": "data_structure/2023/Q8",
+      "status": "FIXED",
+      "issues": [
+        "BROKEN_OPTION"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "选项值内重复了自己的字母标号"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2023,
+      "question_number": 9,
+      "question_id": "data_structure/2023/Q9",
+      "status": "FIXED",
+      "issues": [
+        "BROKEN_OPTION",
+        "MISSING_STEM_CONTENT"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "题干首次提到散列表时漏掉表名 HT"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2023,
+      "question_number": 10,
+      "question_id": "data_structure/2023/Q10",
+      "status": "FIXED",
+      "issues": [
+        "MISSING_ROMAN_STATEMENT"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "题干缺 I~V 陈述块（用户报告）"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2023,
+      "question_number": 11,
+      "question_id": "data_structure/2023/Q11",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2023,
+      "question_number": 41,
+      "question_id": "data_structure/2023/Q41",
+      "status": "FIXED",
+      "issues": [
+        "OTHER"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "大题误带 4 个空选项"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2023,
+      "question_number": 42,
+      "question_id": "data_structure/2023/Q42",
+      "status": "FIXED",
+      "issues": [
+        "MISSING_SUBQUESTION"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "题干缺 (1)(2)"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2024,
+      "question_number": 1,
+      "question_id": "data_structure/2024/Q1",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2024,
+      "question_number": 2,
+      "question_id": "data_structure/2024/Q2",
+      "status": "FIXED",
+      "issues": [
+        "BROKEN_OPTION"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "选项值内重复了自己的字母标号"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2024,
+      "question_number": 3,
+      "question_id": "data_structure/2024/Q3",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2024,
+      "question_number": 4,
+      "question_id": "data_structure/2024/Q4",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2024,
+      "question_number": 5,
+      "question_id": "data_structure/2024/Q5",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2024,
+      "question_number": 6,
+      "question_id": "data_structure/2024/Q6",
+      "status": "FIXED",
+      "issues": [
+        "QUESTION_MISMATCH"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "该位置被写成 2025 年第 8 题的 B 树题；按原卷恢复为 KMP 题"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2024,
+      "question_number": 7,
+      "question_id": "data_structure/2024/Q7",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2024,
+      "question_number": 8,
+      "question_id": "data_structure/2024/Q8",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2024,
+      "question_number": 9,
+      "question_id": "data_structure/2024/Q9",
+      "status": "FIXED",
+      "issues": [
+        "BROKEN_OPTION"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "选项值内重复了自己的字母标号"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2024,
+      "question_number": 10,
+      "question_id": "data_structure/2024/Q10",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2024,
+      "question_number": 11,
+      "question_id": "data_structure/2024/Q11",
+      "status": "FIXED",
+      "issues": [
+        "BROKEN_OPTION"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "选项值内重复了自己的字母标号"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2024,
+      "question_number": 41,
+      "question_id": "data_structure/2024/Q41",
+      "status": "FIXED",
+      "issues": [
+        "OTHER"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "大题误带 4 个空选项"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2024,
+      "question_number": 42,
+      "question_id": "data_structure/2024/Q42",
+      "status": "FIXED",
+      "issues": [
+        "MISSING_SUBQUESTION"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "题干缺引导语与 (1)(2)(3)"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2025,
+      "question_number": 1,
+      "question_id": "data_structure/2025/Q1",
+      "status": "FIXED",
+      "issues": [
+        "MISSING_STEM_CONTENT"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "代码声明行漏掉循环变量 i"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2025,
+      "question_number": 2,
+      "question_id": "data_structure/2025/Q2",
+      "status": "FIXED",
+      "issues": [
+        "BROKEN_OPTION",
+        "OCR_CORRUPTION"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "选项 A/C 两式与原文不符（/e+f、*e/）"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2025,
+      "question_number": 3,
+      "question_id": "data_structure/2025/Q3",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2025,
+      "question_number": 4,
+      "question_id": "data_structure/2025/Q4",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2025,
+      "question_number": 5,
+      "question_id": "data_structure/2025/Q5",
+      "status": "FIXED",
+      "issues": [
+        "BROKEN_OPTION"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "选项值内重复了自己的字母标号"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2025,
+      "question_number": 6,
+      "question_id": "data_structure/2025/Q6",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2025,
+      "question_number": 7,
+      "question_id": "data_structure/2025/Q7",
+      "status": "FIXED",
+      "issues": [
+        "BROKEN_OPTION"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "选项值内重复了自己的字母标号"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2025,
+      "question_number": 8,
+      "question_id": "data_structure/2025/Q8",
+      "status": "FIXED",
+      "issues": [
+        "QUESTION_MISMATCH"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "该位置被写成 2026 年第 8 题；按原卷恢复为 B 树计数题"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2025,
+      "question_number": 9,
+      "question_id": "data_structure/2025/Q9",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2025,
+      "question_number": 10,
+      "question_id": "data_structure/2025/Q10",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2025,
+      "question_number": 11,
+      "question_id": "data_structure/2025/Q11",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2025,
+      "question_number": 41,
+      "question_id": "data_structure/2025/Q41",
+      "status": "FIXED",
+      "issues": [
+        "OTHER"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "大题误带选项（A 重复题干、B 为空）"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2025,
+      "question_number": 42,
+      "question_id": "data_structure/2025/Q42",
+      "status": "FIXED",
+      "issues": [
+        "MISSING_SUBQUESTION"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "题干缺引导语与 (1)(2)(3)(4)"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2026,
+      "question_number": 1,
+      "question_id": "data_structure/2026/Q1",
+      "status": "FIXED",
+      "issues": [
+        "MISSING_ROMAN_STATEMENT",
+        "MISSING_OPTION"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "陈述块缺失，且四个选项被填成陈述句本身"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2026,
+      "question_number": 2,
+      "question_id": "data_structure/2026/Q2",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2026,
+      "question_number": 3,
+      "question_id": "data_structure/2026/Q3",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2026,
+      "question_number": 4,
+      "question_id": "data_structure/2026/Q4",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2026,
+      "question_number": 5,
+      "question_id": "data_structure/2026/Q5",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2026,
+      "question_number": 6,
+      "question_id": "data_structure/2026/Q6",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2026,
+      "question_number": 7,
+      "question_id": "data_structure/2026/Q7",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2026,
+      "question_number": 8,
+      "question_id": "data_structure/2026/Q8",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2026,
+      "question_number": 9,
+      "question_id": "data_structure/2026/Q9",
+      "status": "FIXED",
+      "issues": [
+        "BROKEN_OPTION"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "选项值内重复了自己的字母标号"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2026,
+      "question_number": 10,
+      "question_id": "data_structure/2026/Q10",
+      "status": "PASS",
+      "issues": [],
+      "source": "document",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2026,
+      "question_number": 11,
+      "question_id": "data_structure/2026/Q11",
+      "status": "FIXED",
+      "issues": [
+        "MISSING_ROMAN_STATEMENT",
+        "MISSING_OPTION"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "陈述块缺失，且 A/B/C 被填成陈述句本身"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2026,
+      "question_number": 41,
+      "question_id": "data_structure/2026/Q41",
+      "status": "FIXED",
+      "issues": [
+        "OTHER"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "大题误带 4 个空选项"
+    },
+    {
+      "subject": "data_structure",
+      "paper_year": 2026,
+      "question_number": 42,
+      "question_id": "data_structure/2026/Q42",
+      "status": "FIXED",
+      "issues": [
+        "MISSING_SUBQUESTION"
+      ],
+      "source": "document",
+      "verified": true,
+      "note": "题干缺 (1)(2)(3)(4)（用户报告）"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2022,
+      "question_number": 23,
+      "question_id": "operating_system/2022/Q23",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2022,
+      "question_number": 24,
+      "question_id": "operating_system/2022/Q24",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2022,
+      "question_number": 25,
+      "question_id": "operating_system/2022/Q25",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2022,
+      "question_number": 26,
+      "question_id": "operating_system/2022/Q26",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2022,
+      "question_number": 27,
+      "question_id": "operating_system/2022/Q27",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2022,
+      "question_number": 28,
+      "question_id": "operating_system/2022/Q28",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2022,
+      "question_number": 29,
+      "question_id": "operating_system/2022/Q29",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2022,
+      "question_number": 30,
+      "question_id": "operating_system/2022/Q30",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2022,
+      "question_number": 31,
+      "question_id": "operating_system/2022/Q31",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2022,
+      "question_number": 32,
+      "question_id": "operating_system/2022/Q32",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2022,
+      "question_number": 45,
+      "question_id": "operating_system/2022/Q45",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2022,
+      "question_number": 46,
+      "question_id": "operating_system/2022/Q46",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2023,
+      "question_number": 23,
+      "question_id": "operating_system/2023/Q23",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2023,
+      "question_number": 24,
+      "question_id": "operating_system/2023/Q24",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2023,
+      "question_number": 25,
+      "question_id": "operating_system/2023/Q25",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2023,
+      "question_number": 26,
+      "question_id": "operating_system/2023/Q26",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2023,
+      "question_number": 27,
+      "question_id": "operating_system/2023/Q27",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2023,
+      "question_number": 28,
+      "question_id": "operating_system/2023/Q28",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2023,
+      "question_number": 29,
+      "question_id": "operating_system/2023/Q29",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2023,
+      "question_number": 30,
+      "question_id": "operating_system/2023/Q30",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2023,
+      "question_number": 31,
+      "question_id": "operating_system/2023/Q31",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2023,
+      "question_number": 32,
+      "question_id": "operating_system/2023/Q32",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2023,
+      "question_number": 45,
+      "question_id": "operating_system/2023/Q45",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2023,
+      "question_number": 46,
+      "question_id": "operating_system/2023/Q46",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2024,
+      "question_number": 23,
+      "question_id": "operating_system/2024/Q23",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2024,
+      "question_number": 24,
+      "question_id": "operating_system/2024/Q24",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2024,
+      "question_number": 25,
+      "question_id": "operating_system/2024/Q25",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2024,
+      "question_number": 26,
+      "question_id": "operating_system/2024/Q26",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2024,
+      "question_number": 27,
+      "question_id": "operating_system/2024/Q27",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2024,
+      "question_number": 28,
+      "question_id": "operating_system/2024/Q28",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2024,
+      "question_number": 29,
+      "question_id": "operating_system/2024/Q29",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2024,
+      "question_number": 30,
+      "question_id": "operating_system/2024/Q30",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2024,
+      "question_number": 31,
+      "question_id": "operating_system/2024/Q31",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2024,
+      "question_number": 32,
+      "question_id": "operating_system/2024/Q32",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2024,
+      "question_number": 45,
+      "question_id": "operating_system/2024/Q45",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION",
+        "MISSING_REQUIRED_FIGURE"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2024,
+      "question_number": 46,
+      "question_id": "operating_system/2024/Q46",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2025,
+      "question_number": 23,
+      "question_id": "operating_system/2025/Q23",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2025,
+      "question_number": 24,
+      "question_id": "operating_system/2025/Q24",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2025,
+      "question_number": 25,
+      "question_id": "operating_system/2025/Q25",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2025,
+      "question_number": 26,
+      "question_id": "operating_system/2025/Q26",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2025,
+      "question_number": 27,
+      "question_id": "operating_system/2025/Q27",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2025,
+      "question_number": 28,
+      "question_id": "operating_system/2025/Q28",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2025,
+      "question_number": 29,
+      "question_id": "operating_system/2025/Q29",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2025,
+      "question_number": 30,
+      "question_id": "operating_system/2025/Q30",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2025,
+      "question_number": 31,
+      "question_id": "operating_system/2025/Q31",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2025,
+      "question_number": 32,
+      "question_id": "operating_system/2025/Q32",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2025,
+      "question_number": 45,
+      "question_id": "operating_system/2025/Q45",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2025,
+      "question_number": 46,
+      "question_id": "operating_system/2025/Q46",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2026,
+      "question_number": 23,
+      "question_id": "operating_system/2026/Q23",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2026,
+      "question_number": 24,
+      "question_id": "operating_system/2026/Q24",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2026,
+      "question_number": 25,
+      "question_id": "operating_system/2026/Q25",
+      "status": "PASS",
+      "issues": [],
+      "source": "bank",
+      "verified": true,
+      "note": "与原卷截图逐题核对一致"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2026,
+      "question_number": 26,
+      "question_id": "operating_system/2026/Q26",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2026,
+      "question_number": 27,
+      "question_id": "operating_system/2026/Q27",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2026,
+      "question_number": 28,
+      "question_id": "operating_system/2026/Q28",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2026,
+      "question_number": 29,
+      "question_id": "operating_system/2026/Q29",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2026,
+      "question_number": 30,
+      "question_id": "operating_system/2026/Q30",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2026,
+      "question_number": 31,
+      "question_id": "operating_system/2026/Q31",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2026,
+      "question_number": 32,
+      "question_id": "operating_system/2026/Q32",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2026,
+      "question_number": 45,
+      "question_id": "operating_system/2026/Q45",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    },
+    {
+      "subject": "operating_system",
+      "paper_year": 2026,
+      "question_number": 46,
+      "question_id": "operating_system/2026/Q46",
+      "status": "FIXED",
+      "issues": [
+        "OCR_CORRUPTION",
+        "MISSING_REQUIRED_FIGURE"
+      ],
+      "source": "bank",
+      "verified": true,
+      "note": "扫描件 OCR 错字/漏句/选项错位，按原卷截图逐条校正"
+    }
+  ]
+}

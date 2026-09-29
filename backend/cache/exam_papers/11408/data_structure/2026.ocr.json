@@ -14,15 +14,17 @@
         "/static/exam_papers/11408/data_structure/2026/img_58.jpg"
       ],
       "options": {
-        "A": "表头插入一个元素",
-        "B": "表头删除一个元素",
-        "C": "表尾插入一个元素",
-        "D": "表尾删除一个元素"
+        "A": "I、II",
+        "B": "I、III",
+        "C": "II、IV",
+        "D": "III、IV"
       },
       "answer": "A",
-      "stem": "当存储空间有足够的空闲空间时，在保持表内元素顺序，相对不变的情况下，下列哪些操作会必然导致产生移动次数（）。",
-      "ocr_quality": "high",
-      "need_manual_check": false
+      "stem": "当存储空间有足够的空闲空间时，在保持表内元素顺序，相对不变的情况下，下列哪些操作会必然导致产生移动次数（）。\n\nI. 表头插入一个元素\nII. 表头删除一个元素\nIII. 表尾插入一个元素\nIV. 表尾删除一个元素",
+      "ocr_quality": "manual",
+      "need_manual_check": false,
+      "manual_fixed": true,
+      "fix_notes": "题干缺失 I~IV 陈述块，且四个选项被错误填成了陈述句本身；按原卷恢复为组合选项。source=2022-2026 数据结构原卷截图（DOCX 内嵌每题图片）"
     },
     {
       "id": "data_structure_2026_2",
@@ -183,15 +185,17 @@
         "/static/exam_papers/11408/data_structure/2026/img_69.jpg"
       ],
       "options": {
-        "A": "A. 30, 27, 56, 41, 80, 95, 69",
-        "B": "B. 31, 43, 26, 55, 63, 99, 77",
-        "C": "C. 61, 84, 51, 23, 34, 91, 40",
-        "D": "D. 93, 32, 48, 81, 50, 21, 72"
+        "A": "30, 27, 56, 41, 80, 95, 69",
+        "B": "31, 43, 26, 55, 63, 99, 77",
+        "C": "61, 84, 51, 23, 34, 91, 40",
+        "D": "93, 32, 48, 81, 50, 21, 72"
       },
       "answer": "B",
       "stem": "使用直接插入排序对序列进行升序排序，以下比较次数最少的是（）。",
-      "ocr_quality": "high",
-      "need_manual_check": false
+      "ocr_quality": "manual",
+      "need_manual_check": false,
+      "manual_fixed": true,
+      "fix_notes": "选项值内重复了自己的字母标号；去掉前缀。source=2022-2026 数据结构原卷截图（DOCX 内嵌每题图片）"
     },
     {
       "id": "data_structure_2026_10",
@@ -223,15 +227,17 @@
         "/static/exam_papers/11408/data_structure/2026/img_71.jpg"
       ],
       "options": {
-        "A": "增大 k 可以减少 d 的值",
-        "B": "并归趟数 d 不受初始归并段影响",
-        "C": "可用内存的大小限制初始归并段的长度",
-        "D": "Ⅱ、Ⅲ"
+        "A": "I",
+        "B": "II",
+        "C": "I、III",
+        "D": "II、III"
       },
       "answer": "C",
-      "stem": "使用 k 路归并对外存中的数据进行排序，归并趟数为 d。以下说法正确的是（ ）。",
-      "ocr_quality": "high",
-      "need_manual_check": false
+      "stem": "使用 k 路归并对外存中的数据进行排序，归并趟数为 d。以下说法正确的是（ ）。\n\nI. 增大 k 可以减少 d 的值\nII. 并归趟数 d 不受初始归并段影响\nIII. 可用内存的大小限制初始归并段的长度",
+      "ocr_quality": "manual",
+      "need_manual_check": false,
+      "manual_fixed": true,
+      "fix_notes": "题干缺失 I~III 陈述块，且 A/B/C 被错误填成了陈述句本身；按原卷恢复为组合选项。source=2022-2026 数据结构原卷截图（DOCX 内嵌每题图片）"
     },
     {
       "id": "data_structure_2026_41",
@@ -242,18 +248,12 @@
       "image_urls": [
         "/static/exam_papers/11408/data_structure/2026/img_72.jpg"
       ],
-      "options": {
-        "A": "",
-        "B": "",
-        "C": "",
-        "D": ""
-      },
       "answer": "（1）",
       "stem": "假定二叉搜索树使用二叉链表存储，存储结构如下：\n\ntypedef struct BSTNode {\n    int data;\n    struct BSTNode *left, *right;\n} BSTNode;\n\ntypedef BSTNode BTNode;\n\n给一棵二叉搜索树 T 和整数 K，查找树中关键字与 K 之差的绝对值最小的所有结点，并输出该绝对值与结点中的关键字。\n\n（1）给出算法的基本思想。（4 分）\n（2）使用 C/C++ 描述算法思想。（8 分）",
       "ocr_quality": "manual",
       "need_manual_check": false,
       "manual_fixed": true,
-      "fix_notes": "人工根据 2026 第41题图片补录。"
+      "fix_notes": "大题不该带选择题选项：当前服务出去的是四个空值选项。移除 options 字段。"
     },
     {
       "id": "data_structure_2026_42",
@@ -266,9 +266,11 @@
       ],
       "options": {},
       "answer": "（1）不能",
-      "stem": "栈的基本操作有入栈和出栈。将序列 1,2,3,...,n 依次入栈，回答下列问题:",
-      "ocr_quality": "medium",
-      "need_manual_check": true
+      "stem": "栈的基本操作有入栈和出栈。将序列 1,2,3,...,n 依次入栈，回答下列问题:\n\n（1）当 n=9 时，可以得到出栈序列 {2,3,1,6,4,7,5,8,9} 吗？可以得到出栈序列吗？（2 分）\n（2）假设 1,2,3,...,n 组成任意排列的出栈序列 P₁,P₂,...,Pₖ，在序列中有 Pᵢ、Pⱼ、Pₖ（i<j<k）。若该出栈序列不能由栈得到，则 Pᵢ、Pⱼ、Pₖ 的大小关系是？（2 分）\n（3）若 n=4，则 2 开头的出栈序列个数有多少个？（2 分）\n（4）若 n=k-1 时，出栈序列总共有 M 个。如果 n=k，那么以 1 开头的出栈序列有多少个？以 2 开头的出栈序列有多少个？总共的出栈序列有多少个？（4 分）",
+      "ocr_quality": "manual",
+      "need_manual_check": false,
+      "manual_fixed": true,
+      "fix_notes": "题干缺失 (1)(2)(3)(4) 四个小问；原文见原卷截图。(1) 末句「可以得到出栈序列吗？」按原卷逐字保留，未按常识补写。source=2022-2026 数据结构原卷截图（DOCX 内嵌每题图片）"
     }
   ]
 }

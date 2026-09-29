@@ -66,6 +66,11 @@ def apply_fixes(subject_key, fix_file):
                 q["stem"] = fix["stem"].strip()
                 changed.append("stem")
             # Options
+            if fix.get("remove_options"):
+                # A question that carries no options at all (a 大题) must not keep a stray
+                # options block: the served payload would show a duplicate of the stem.
+                if q.pop("options", None) is not None:
+                    changed.append("options.removed")
             opts_fix = fix.get("options", {})
             if opts_fix:
                 for lbl in ["A", "B", "C", "D"]:

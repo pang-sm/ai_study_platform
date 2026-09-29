@@ -47,7 +47,7 @@
     {
       "ref": "2024-Q44",
       "type": "big",
-      "stem": "对于 2024 年第 43 题中的计算机 M，C 语言程序 P 包含语句“sum += a[j];”，在 M 中对应的指令序列 S 如下：slli r4,r2,2；add r4,r3,r4；lw r5,0(r4)；add r1,r1,r5。",
+      "stem": "对于 2024 年第 43 题中的计算机 M，C 语言程序 P 包含语句“sum += a[i];”，在 M 中对应的指令序列 S 如下：\n\nslli    r4, r2, 2      //R[r4] ← R[r2] << 2\nadd  ",
       "opts_keys": [],
       "ans": "（1）由指令序列可知：slli r4, r2, 2 用 r2 左移 2 位计算 i*4，因此变量 i 存放在 r2 中，编号为 02H。add r4, r3, r4 用 r3 加偏移量得到数组元素地址，因此数组 a 的首地址存放在 r3 中",
       "has_forbidden": false,

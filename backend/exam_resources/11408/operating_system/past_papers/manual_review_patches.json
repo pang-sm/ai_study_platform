@@ -1,270 +1,742 @@
 {
   "_description": "Manual patches from OCR text + docx verification. Options extracted from raw OCR lines where parser regex failed.",
-  "_sources": ["local docx", "noobdream.com (2022-2026)", "zhihu.com (2022 OS)"],
-  "_note": "All answers confirmed against both local docx and noobdream.com",
-
+  "_sources": [
+    "local docx",
+    "noobdream.com (2022-2026)",
+    "zhihu.com (2022 OS)"
+  ],
+  "_note": "All answers confirmed against both local docx and noobdream.com 2026-09-29 全量审计：按原卷截图逐题校正；同题条目按字段合并，未复核的字段保持原值。",
   "patches": [
     {
-      "year": 2022, "number": 25, "fix": "options_and_stem",
+      "year": 2022,
+      "number": 25,
+      "fix": "options_and_stem",
       "stem_cleanup": "25.进程P0、P1、P2和P3进入就绪队列的时刻、优先级（值越小优先权越高）及CPU执行时间如下表所示。若系统采用基于优先权的抢占式进程调度算法，则从0ms时刻开始调度，到4个进程都运行结束为止，发生进程调度的总次数为",
-      "options": {"A":"4","B":"5","C":"6","D":"7"},
+      "options": {
+        "A": "4",
+        "B": "5",
+        "C": "6",
+        "D": "7"
+      },
       "answer": "C",
       "review_notes": "",
       "quality": "ready",
       "source": "OCR text + noobdream"
     },
     {
-      "year": 2022, "number": 26, "fix": "options_and_stem",
+      "year": 2022,
+      "number": 26,
+      "fix": "options_and_stem",
       "stem_cleanup": "26.系统中有三个进程P0、P1、P2及三类资源A、B、C。若某时刻系统分配资源的情况如下表所示，则此时系统中存在的安全序列的个数为",
-      "options": {"A":"1","B":"2","C":"3","D":"4"},
+      "options": {
+        "A": "1",
+        "B": "2",
+        "C": "3",
+        "D": "4"
+      },
       "answer": "B",
       "review_notes": "",
       "quality": "ready",
       "source": "OCR text + noobdream"
     },
     {
-      "year": 2022, "number": 28, "fix": "options_and_stem",
-      "stem_cleanup": "28.下列事件或操作中，可能导致进程P由执行态变为阻塞态的原因是\nI.进程P读文件  II.进程P的时间片用完\nIII.进程P申请外设  IV.进程P执行信号量的wait()操作",
-      "options": {"A":"仅I、IV","B":"仅I、II、III","C":"仅I、II、IV","D":"I、III、IV"},
+      "year": 2022,
+      "number": 27,
+      "fix": "stem",
+      "stem_cleanup": "27.下列关于 CPU 模式的叙述中，正确的是 （）",
+      "review_notes": "线上题干漏了「中」后的逗号与右括号（线上为「…叙述中正确的是 （」），按截图补全；四个选项与卷面一致，未改动。",
+      "quality": "ready"
+    },
+    {
+      "year": 2022,
+      "number": 28,
+      "fix": "stem_and_options",
+      "stem_cleanup": "28.下列事件或操作中，可能导致进程 P 由执行态变为阻塞态的原因可能是\nI.进程 P 读文件  II.进程 P 的时间片用完\nIII.进程 P 申请外设  IV.进程 P 执行信号量的 wait() 操作",
+      "options": {
+        "A": "仅 I、IV",
+        "B": "仅 II、III",
+        "C": "仅 III、IV",
+        "D": "仅 I、III、IV"
+      },
       "answer": "D",
       "quality": "ready",
-      "source": "OCR text reconstruction + noobdream"
+      "source": "OCR text reconstruction + noobdream",
+      "review_notes": "线上题干漏「可能」（线上为「…变为阻塞态的原因是」）；选项 B/C/D 与卷面不符：线上 B=仅 I、II、III、C=仅 I、II、IV、D=I、III、IV，卷面 B=仅 II、III、C=仅 III、IV、D=仅 I、III、IV。"
     },
     {
-      "year": 2022, "number": 31, "fix": "options_and_stem",
-      "stem_cleanup": "31.执行系统调用的过程涉及下列操作，其中由操作系统完成的是\nI.保存断点和程序状态字  II.保存通用寄存器的内容\nIII.执行系统调用服务程序  IV.将CPU模式改为内核态",
-      "options": {"A":"仅I、II","B":"仅II、III","C":"仅III、IV","D":"I、II、IV"},
+      "year": 2022,
+      "number": 31,
+      "fix": "stem_and_options",
+      "stem_cleanup": "31.执行系统调用的过程涉及下列操作，其中由操作系统完成的是\nI.保存断点和程序状态字  II.保存通用寄存器的内容\nIII.执行系统调用服务例程  IV.将 CPU 模式改为内核态",
+      "options": {
+        "A": "仅 I、III",
+        "B": "仅 II、III",
+        "C": "仅 II、IV",
+        "D": "仅 II、III、IV"
+      },
       "answer": "B",
       "quality": "ready",
-      "source": "OCR text reconstruction + noobdream"
+      "source": "OCR text reconstruction + noobdream",
+      "review_notes": "线上陈述 Ⅲ 误作「执行系统调用服务程序」，卷面为「执行系统调用服务例程」；选项 A/C/D 与卷面不符：线上 A=仅 I、II、C=仅 III、IV、D=I、II、IV，卷面 A=仅 I、III、C=仅 II、IV、D=仅 II、III、IV。"
     },
     {
-      "year": 2022, "number": 45, "fix": "answer",
+      "year": 2022,
+      "number": 32,
+      "fix": "options",
+      "options": {
+        "A": "驱动程序与 I/O 控制方式无关",
+        "B": "初始化设备是由驱动程序控制完成的",
+        "C": "进程在执行驱动程序时可能进入阻塞态",
+        "D": "读/写设备的操作是由驱动程序控制完成的"
+      },
+      "review_notes": "线上 A 选项作「驱动程序与 1O 控制方式无关」，「1O」为「I/O」的 OCR 误读；题干与 B/C/D 与卷面一致。",
+      "quality": "ready"
+    },
+    {
+      "year": 2022,
+      "number": 45,
+      "fix": "stem",
       "answer": "（1）stu目录项：(course, 2) 和 (doc, 10)。（2）x = 30，doc与course1共享索引节点号10，磁盘块号相同。（3）打开course1需读2个磁盘块：第1块读索引节点所在磁盘块，第2块读内容所在磁盘块（30号块）。（4）6MB = 1536个磁盘块，直接地址项10块，一级间接10+1024=1034块不足，需使用一级和二级间接地址项。",
       "quality": "ready",
-      "source": "https://zhuanlan.zhihu.com/p/666335788"
+      "source": "https://zhuanlan.zhihu.com/p/666335788",
+      "stem_cleanup": "45.（7 分）某文件系统的磁盘块大小为 4 KB，目录项由文件名和索引节点号构成，每个索引节点占 256 字节，其中包含直接地址项 10 个，一级、二级和三级间接地址项各 1 个，每个地址项占 4 字节。该文件系统中子目录 stu 的结构如题 45(a)图所示，stu 包含子目录 course 和文件 doc，course 子目录包含文件 course1 和 course2。各文件的文件名、索引节点号、占用磁盘块的块号如题 45(b)图所示。请回答下列问题。(1) 目录文件 stu 中每个目录项的内容是什么？(2) 文件 doc 占用的磁盘块的块号 x 的值是多少？(3) 若目录文件 course 的内容已在内存，则打开文件 course1 并将其读入内存，需要读几个磁盘块？说明理由。(4) 若文件 course2 的大小增长到 6 MB，则为了存取 course2 需要使用该文件索引节点的哪几级间接地址项？说明理由。",
+      "review_notes": "线上题干混入 OCR 垃圾（图片/页脚/表格残片）：「每 = 9 秆圭国局工WWT罗十扣填写 ) See 个索引节点占 256 字节」中间的乱码、以及「如题 45(b)图所示。 Su 文件名 . 2 请回答下列问题。」中的「Su 文件名 . 2 」；子问错字：(3)「车目录文件」应为「若目录文件」、「coursel」应为「course1」、「需要 读几个」多空格，(4)「索引节 占的」应为「索引节点的」。题 45(a) 目录结构图与题 45(b) 文件名/索引节点号/磁盘块号表格均已由 SVG 资源（2022_q45_1.svg）覆盖，未在题干内伪造。"
     },
     {
-      "year": 2022, "number": 46, "fix": "answer",
+      "year": 2022,
+      "number": 46,
+      "fix": "stem",
       "answer": "信号量：semaphore S_AC=0（控制A→C跨线程同步）；semaphore S_CE=0（控制C→E跨线程同步）。T1：完成A → V(S_AC) → P(S_CE) → 完成E → 完成F。T2：完成B → P(S_AC) → 完成C → V(S_CE) → 完成D。同一线程内B→C、C→D、E→F的顺序由程序顺序保证，无需信号量。",
       "quality": "ready",
-      "source": "https://zhuanlan.zhihu.com/p/666335788"
+      "source": "https://zhuanlan.zhihu.com/p/666335788",
+      "stem_cleanup": "46.（8 分）某进程的两个线程 T1 和 T2 并发执行 A、B、C、D、E 和 F 共 6 个操作，其中 T1 执行 A、E 和 F，T2 执行 B、C 和 D。题 46 图表示上述 6 个操作的执行顺序所必须满足的约束：C 在 A 和 B 完成后执行，D 和 E 在 C 完成后行执行，F 在 E 完成后执行。请使用信号量的 wait( )、signal ()操作描述 T1 和 T2 之间的同步关系，并说明所用信号量的作用及其初值。",
+      "review_notes": "线上题干多处 OCR 错字：「线秤Tl」→「线程 T1」、「和下共 6个操作」→「和 F 共 6 个操作」、「Tl执行」→「T1 执行」、「D 和EE在完成后行执行」→「D 和 E 在 C 完成后行执行」、「下在FE完成后 执行」→「F 在 E 完成后执行」、「signal 0操作」→「signal ()操作」、「Tl 和T2」→「T1 和 T2」；并混入页脚残片「Ail 46 图」。原卷笔误（照抄未改）：约束句作「D 和 E 在 C 完成后行执行」（疑为「并行执行」或「后执行」），已按截图逐字保留。题 46 图（A、B→C→D/E，E→F 的约束图）已由 SVG 资源（2022_q46_1.svg）覆盖。"
     },
     {
-      "year": 2023, "number": 23, "fix": "options_and_stem",
-      "stem_cleanup": "23.与宏内核操作系统相比，下列特征中，微内核操作系统具有的是\nI.较好的性能  II.较高的可靠性\nIII.较高的安全性  IV.较强的可扩展性",
-      "options": {"A":"仅I、IV","B":"仅II、III","C":"仅I、II、IV","D":"II、III、IV"},
+      "year": 2023,
+      "number": 23,
+      "fix": "stem_and_options",
+      "stem_cleanup": "23. 与宏内核操作系统相比，下列特征中，微内核操作系统具有的是（ ）\nI. 较好的性能  II. 较高的可靠性\nIII. 较高的安全性  IV. 较强的可扩展性",
+      "options": {
+        "A": "II、IV",
+        "B": "I、II、III",
+        "C": "I、III、IV",
+        "D": "II、III、IV"
+      },
       "answer": "D",
       "quality": "ready",
-      "source": "OCR text + noobdream"
+      "source": "OCR text + noobdream",
+      "review_notes": "选项 A/B/C 与截图不符（线上原为「仅I、IV」「仅II、III」「仅I、II、IV」，均多了「仅」且内容错位）。题干仅缺句末「（ ）」，已按截图补齐。docx 答案 D 与修正后选项一致。"
     },
     {
-      "year": 2023, "number": 29, "fix": "options_and_stem",
-      "stem_cleanup": "29.进程P1、P2和P3进入就绪队列的时刻、优先级（值越大优先权越高）及CPU执行时间如下表所示。若系统采用基于优先权的抢占式CPU调度算法，从0ms时刻开始进行调度，则P1、P2和P3的平均周转时间为",
-      "options": {"A":"60ms","B":"61ms","C":"70ms","D":"71ms"},
+      "year": 2023,
+      "number": 24,
+      "fix": "stem_and_options",
+      "stem_cleanup": "24. 在操作系统内核中，中断向量表适合采用的数据结构是（ ）",
+      "review_notes": "题干括号内混入多余的「。」（线上为「是 (。 )」），已按截图改为「（ ）」。四个选项（数组/队列/单向链表/双向链表）与截图一致，未改。",
+      "quality": "ready"
+    },
+    {
+      "year": 2023,
+      "number": 26,
+      "fix": "stem_and_options",
+      "stem_cleanup": "26. 下列操作完成时，导致 CPU 从内核态转为用户态的是（ ）",
+      "options": {
+        "A": "阻塞过程",
+        "B": "执行 CPU 调度",
+        "C": "唤醒进程",
+        "D": "执行系统调用"
+      },
+      "review_notes": "选项 C 线上为乱码「M ARBUT RE」，按截图为「唤醒进程」。A/B/D 与截图一致。",
+      "quality": "ready"
+    },
+    {
+      "year": 2023,
+      "number": 27,
+      "fix": "stem_and_options",
+      "stem_cleanup": "27. 下列由当前线程引起的事件或执行的操作中，可能导致该线程由执行态变为就绪态的是（）",
+      "options": {
+        "A": "键盘输入",
+        "B": "缺页异常",
+        "C": "主动出让 CPU",
+        "D": "执行信号量的 wait()操作"
+      },
+      "review_notes": "题干「就结态」按截图改为「就绪态」。选项 C 线上「主动中让 CPU」改为「主动出让 CPU」；选项 D 线上「执行信号量的 wait( EVE」改为「执行信号量的 wait()操作」。",
+      "quality": "ready"
+    },
+    {
+      "year": 2023,
+      "number": 28,
+      "fix": "stem_and_options",
+      "stem_cleanup": "28. 对于采用虚拟内存管理方式的系统，下列关于进程虚拟地址空间的叙述中，错误的是（ ）",
+      "options": {
+        "A": "每个进程都有自己独立的虚拟地址空间",
+        "B": "C 语言中 malloc()函数返回的是虚拟地址",
+        "C": "进程对数据段和代码段可以有不同的访问权限",
+        "D": "虚拟地址空间的大小由内存和硬盘的大小决定"
+      },
+      "review_notes": "选项 B 线上为空，按截图补为「C 语言中 malloc()函数返回的是虚拟地址」。选项 D 线上「三闪」按截图改为「硬盘」。A/C 与截图一致。",
+      "quality": "ready"
+    },
+    {
+      "year": 2023,
+      "number": 29,
+      "fix": "stem_and_options",
+      "stem_cleanup": "29. 进程 P1、P2 和 P3 进入就绪队列的的时刻、优先级（值越大优先权越高）及 CPU 执行时间如下表所示：若系统采用基于优先权的抢占式 CPU 调度算法，从 0ms 时刻开始进行调度，则 P1、P2 和 P3 的平均周转时间为（ ）",
+      "options": {
+        "A": "60ms",
+        "B": "61ms",
+        "C": "70ms",
+        "D": "71ms"
+      },
       "answer": "B",
-      "review_notes": "",
+      "review_notes": "题干按截图恢复：原卷此处写作「进入就绪队列的的时刻」（叠字「的的」系原卷自身笔误，按规范照抄未作订正）；句末「（ ）」补齐。题目所引表格为原卷表格图，线上已有对应 SVG 资源（RESOURCES 中的 2023_q29_1.svg），故未把表格文字写入题干。四个选项（60ms/61ms/70ms/71ms）与截图一致，未改。",
       "quality": "ready",
       "source": "OCR text + noobdream"
     },
     {
-      "year": 2023, "number": 32, "fix": "options_and_stem",
-      "stem_cleanup": "32.下列因素中，设备分配需要考虑的是\nI.设备的类型  II.设备的访问权限\nIII.设备的占用状态  IV.逻辑设备与物理设备的映射关系",
-      "options": {"A":"仅I","B":"I、III","C":"I、IV","D":"I、II、III、IV"},
+      "year": 2023,
+      "number": 30,
+      "fix": "stem_and_options",
+      "stem_cleanup": "30. 进程 R 和 S 共享数据 data，若 date 在 R 和 S 中所在页的页号分别为 p1 和 p2，两个页所对应的页框号分别为 f1 和 f2，则下列叙述中，正确的是（ ）",
+      "options": {
+        "A": "p1 和 p2 一定相等，f1 和 f2 一定相等",
+        "B": "p1 和 p2 一定相等，f1 和 f2 不一定相等",
+        "C": "p1 和 p2 不一定相等，f1 和 f2 一定相等",
+        "D": "p1 和 p2 不一定相等，f1 和 f2 不一定相等"
+      },
+      "review_notes": "题干线上严重串行（「R Al S」「pl」「和和 £2, WPA, TEM CD」），已按截图逐字恢复；其中原卷把 data 误写作 date（原卷自身笔误，按规范照抄）。四个选项线上全部乱码（缺失/错字），均已按截图恢复。",
+      "quality": "ready"
+    },
+    {
+      "year": 2023,
+      "number": 31,
+      "fix": "stem_and_options",
+      "stem_cleanup": "31. 若文件 F 仅被进程 P 打开并访问，则当进程 P 关闭 F 时，下列操作中，文件系统需要完成的是（ ）",
+      "options": {
+        "A": "删除目录中文件 F 的目录项",
+        "B": "释放 F 的索引节点所占的内存空间",
+        "C": "释放 F 的索引节点所占的外存空间",
+        "D": "将文件磁盘索引节点中的链接计数器减 1"
+      },
+      "review_notes": "题干「着」改「若」、「关闭五」改「关闭 F」，句末「（ ）」补齐。选项 B 线上「释放下的索引节点…」改为「释放 F 的索引节点所占的内存空间」；选项 D 线上乱码「将文件磁租圳引节占中的链接计数妈减 1]」按截图改为「将文件磁盘索引节点中的链接计数器减 1」。A/C 与截图一致。",
+      "quality": "ready"
+    },
+    {
+      "year": 2023,
+      "number": 32,
+      "fix": "stem_and_options",
+      "stem_cleanup": "32. 下列因素中，设备分配需要考虑的是（ ）\nI. 设备的类型  II. 设备的访问权限\nIII. 设备的占用状态  IV. 逻辑设备与物理设备的映射关系",
+      "options": {
+        "A": "I、II",
+        "B": "II、III",
+        "C": "III、IV",
+        "D": "I、II、III、IV"
+      },
       "answer": "D",
       "quality": "ready",
-      "source": "OCR text + noobdream"
+      "source": "OCR text + noobdream",
+      "review_notes": "选项 A/B/C 与截图不符（线上原为「仅I」「I、III」「I、IV」），已按截图改为「I、II」「II、III」「III、IV」。D 与截图一致。"
     },
     {
-      "year": 2023, "number": 45, "fix": "answer",
+      "year": 2023,
+      "number": 45,
+      "fix": "stem_and_options",
       "answer": "（1）两个错误：①if应改为while（忙等待需要循环检查）；②退出区应设置lock=FALSE而非TRUE。（2）不能。函数调用newSwap()不是原子操作，并发执行时可能导致多个线程同时进入临界区。硬件swap指令是原子指令，执行过程中不会被中断。",
       "quality": "ready",
-      "source": "https://noobdream.com/Practice/exam_solution/38225/"
+      "source": "https://noobdream.com/Practice/exam_solution/38225/",
+      "stem_cleanup": "45. （7 分）现要求学生使用 swap 指令和布尔型变量 lock 实现临界区互斥。lock 为线程间共享的变量。 lock 的值为 TRUE 时线程不能进入临界区。为 FALSE 时线程能够进入临界区。某同学编写的实现临界区互斥的伪代码如题 45（a）图所示。\n某同学编写的伪代码\nBool lock = FALSE;      //共享变量\n……\nbool key = TRUE;      进入区\nif  (key==TRUE)\n    swap key,lock; //交换 key 和 lock 的值\n临界区;\nlock = TRUE;      退出区\n……\n(a)\nnewSwap()的代码\nVoid newSwap(bool *a,bool *b)\n{\n    bool temp=*a;\n    *a=*b;\n    *b=temp;\n}\n(b)\n题 45 图\n请回答下列问题\n（1）题 45（a）图的伪代码中哪些语句存在错误？将其改为正确的语句（不增加语句条数）。\n（2）题 45（b）图给出了两个变量值的函数 newSwap() 的代码，是否可以用函数调用语句“”newSwap(&key, &lock)”，代替指令“swap key, lock”以实现临界区互斥？为什么？",
+      "review_notes": "线上题干严重残缺/串行，已按截图逐行恢复 (a)(b) 两个伪代码框（含框内「进入区」「退出区」标注）与两个子问。原卷自身笔误照抄，未作订正：①框 (b) 写作「Void newSwap(...)」（应为 void）；②框 (a)「Bool lock = FALSE;」的 Bool 首字母大写而「bool key = TRUE;」小写（原卷大小写不一致）；③子问 (2) 中「语句“”newSwap(&key, &lock)”」开头的双引号“”为原卷排版原样（多出一个左引号）。框内「……」为原卷的省略点。"
     },
     {
-      "year": 2023, "number": 46, "fix": "answer",
+      "year": 2023,
+      "number": 46,
+      "fix": "stem_and_options",
       "answer": "（1）正确顺序：②(将进程P插入阻塞队列)→⑥(用户键入字符)→④(启动键盘中断服务程序)→③(将字符读入系统缓冲区)→①(将进程P插入就绪队列)→⑤(进程P从系统调用返回)。操作②之后CPU一定切换到其他进程。操作①之后CPU调度程序才能选中P执行。（2）操作③的代码属于键盘驱动程序。（3）键盘中断处理程序执行时，进程P处于阻塞态；CPU处于内核态。",
       "quality": "ready",
-      "source": "https://noobdream.com/Practice/exam_solution/38225/"
+      "source": "https://noobdream.com/Practice/exam_solution/38225/",
+      "stem_cleanup": "46. （8 分）进程 P 通过系统调用从键盘接收一个字符的输入。已知此过程中与进程 P 相关的操作包括：①将进程 P 插入就绪队列；②将进程 P 插入阻塞队列；③将字符从键盘控制器读入系统缓冲区；④启动键盘中断处理程序；⑤进程 P 从系统调用返回；⑥用户在键盘上输入字符。以上编号①~⑥仅用于标记操作，与操作的先后顺序无关。请回答下列问题。\n（1）按照正确的操作顺序，操作①的前一个和后一个操作分别是上述操作中的哪一个？操作⑥的后一个操作是上述操作中的哪一个？\n（2）在上述哪个操作之后 CPU 一定从进程 P 切换到其他进程？在上述哪个操作之后 CPU 调度程序才能选中进程 P 执行？\n（3）完成上述哪个操作的代码属于键盘驱动程序？\n（4）键盘中断处理程序执行时，进程 P 处于什么状态？CPU 处于内核态还是用户态？",
+      "review_notes": "线上题干被 OCR 破坏：圈号①②③④⑤⑥ 及子问里的操作引用（虽/加/@/OF 等）全部错乱，「进程 a 9」「进程了」等亦错。已按两张截图逐字恢复六个被编号的操作与四个子问。"
     },
     {
-      "year": 2024, "number": 23, "fix": "options",
-      "options": {"A":"中断或异常发生时，CPU处于内核态","B":"每个系统调用都有对应的内核服务例程","C":"中断处理程序开始执行时，CPU处于内核态","D":"异常是由正在执行的指令引发的"},
+      "year": 2024,
+      "number": 23,
+      "fix": "stem_and_options",
+      "stem_cleanup": "23. 下列关于中断、异常和系统调用的叙述中，错误的是",
+      "quality": "ready",
+      "source": "stem cleanup - remove OCR garbage",
+      "options": {
+        "A": "中断或异常发生时，CPU处于内核态",
+        "B": "每个系统调用都有对应的内核服务例程",
+        "C": "中断处理程序开始执行时，CPU处于内核态",
+        "D": "系统添加新类型设备时，需注册相应的中断服务例程"
+      },
+      "review_notes": "线上 D 为「异常是由正在执行的指令引发的」，不是本题选项（本题 D 应为「系统添加新类型设备时，需注册相应的中断服务例程」）；A/B/C 与截图一致。"
+    },
+    {
+      "year": 2024,
+      "number": 24,
+      "fix": "stem_and_options",
+      "stem_cleanup": "24. 下列选项中，操作系统在终止进程时不一定执行的是（ ）。",
+      "options": {
+        "A": "终止子进程",
+        "B": "回收进程占用的设备",
+        "C": "释放进程控制块",
+        "D": "回收为进程分配的内存"
+      },
       "answer": "A",
       "quality": "ready",
-      "source": "OCR text + noobdream (answer confirmed)"
+      "source": "OCR text reconstruction + noobdream",
+      "review_notes": "线上 C/D 内容互换：C 原为「回收为进程分配的内存」、D 原为「释放进程的进程控制块」；截图 C=释放进程控制块、D=回收为进程分配的内存。"
     },
     {
-      "year": 2024, "number": 24, "fix": "options_and_stem",
-      "stem_cleanup": "24.下列选项中，操作系统在终止进程时不一定执行的是",
-      "options": {"A":"终止子进程","B":"回收进程占用的设备","C":"回收为进程分配的内存","D":"释放进程的进程控制块"},
-      "answer": "A",
-      "quality": "ready",
-      "source": "OCR text reconstruction + noobdream"
-    },
-    {
-      "year": 2024, "number": 25, "fix": "options_and_stem",
-      "stem_cleanup": "25.在支持页式存储管理的系统中，进程切换时操作系统需要执行的操作是\nI.更新程序计数器的值  II.更新栈基址寄存器的值\nIII.更新页表基地址寄存器的值",
-      "options": {"A":"仅I、II","B":"仅II、III","C":"仅I、III","D":"I、II、III"},
+      "year": 2024,
+      "number": 25,
+      "fix": "stem_and_options",
+      "stem_cleanup": "25. 在支持页式存储管理的系统中，进程切换时操作系统需要执行的操作是\nI. 更新程序计数器的值          II. 更新栈基址寄存器的值\nIII. 更新页表基地址寄存器的值",
+      "options": {
+        "A": "仅III",
+        "B": "仅I、II",
+        "C": "仅I、III",
+        "D": "I、II、III"
+      },
       "answer": "D",
       "quality": "ready",
-      "source": "OCR text + noobdream"
+      "source": "OCR text + noobdream",
+      "review_notes": "线上 A 为「仅I、II」、B 为「仅II、III」，均与截图不符；截图 A=仅 III、B=仅 I、II，C/D 与截图一致。"
     },
     {
-      "year": 2024, "number": 28, "fix": "options_and_stem",
-      "stem_cleanup": "28.若进程P中的线程T先打开文件，得到文件描述符fd，再创建两个线程Ta和Tb，则下列资源中，Ta与Tb可共享的是\nI.进程P的地址空间  II.线程T的栈\nIII.文件描述符fd",
-      "options": {"A":"仅I","B":"I、III","C":"I、II","D":"I、II、III"},
+      "year": 2024,
+      "number": 26,
+      "fix": "options",
+      "options": {
+        "A": "位图法",
+        "B": "空闲表法",
+        "C": "成组链接法",
+        "D": "空闲链表法"
+      },
+      "answer": "A",
+      "quality": "ready",
+      "source": "OCR text correction"
+    },
+    {
+      "year": 2024,
+      "number": 27,
+      "fix": "stem_and_options",
+      "stem_cleanup": "27. 下列算法中，每次回收分区时仅合并大小相等的空闲分区的是",
+      "options": {
+        "A": "伙伴算法",
+        "B": "最佳适应算法",
+        "C": "最坏适应算法",
+        "D": "首次适应算法"
+      },
+      "review_notes": "线上选项 C 为 OCR 乱码「BIEN EE」，截图 C=最坏适应算法；A/B/D 与截图一致。",
+      "quality": "ready"
+    },
+    {
+      "year": 2024,
+      "number": 28,
+      "fix": "stem_and_options",
+      "stem_cleanup": "28. 若进程 P 中的线程 T 先打开文件，得到文件描述符 fd，再创建两个线程 Ta 和 Tb，则下列资源中，Ta 与 Tb 可共享的是\nI.进程 P 的地址空间          II.线程 T 的栈\nIII.文件描述符 fd",
+      "options": {
+        "A": "仅I",
+        "B": "仅I、III",
+        "C": "仅II、III",
+        "D": "I、II、III"
+      },
       "answer": "B",
       "quality": "ready",
-      "source": "OCR text + noobdream"
+      "source": "OCR text + noobdream",
+      "review_notes": "线上 B 为「I、III」（漏「仅」字）、C 为「I、II」，与截图不符；截图 B=仅 I、III，C=仅 II、III，A/D 与截图一致。该题两张截图（035 题干 + 036 选项）均已核对。"
     },
     {
-      "year": 2024, "number": 45, "fix": "answer",
+      "year": 2024,
+      "number": 29,
+      "fix": "options",
+      "options": {
+        "A": "open()",
+        "B": "read()",
+        "C": "write()",
+        "D": "close()"
+      },
+      "answer": "A",
+      "quality": "ready",
+      "source": "OCR text correction"
+    },
+    {
+      "year": 2024,
+      "number": 30,
+      "fix": "stem",
+      "options": {
+        "A": "200ms",
+        "B": "205ms",
+        "C": "250ms",
+        "D": "295ms"
+      },
+      "answer": "C",
+      "quality": "ready",
+      "source": "OCR text correction",
+      "stem_cleanup": "30. 假设某系统使用时间片轮转调度算法进行 CPU 调度，时间片大小为 5ms，系统共有 10 个进程，初始时均处于就绪队列，执行结束前仅处于执行态或就绪态。若队尾的进程 P 所需 CPU 时间最短，时间为 25ms，在不考虑系统开销的情况下，则进程 P 的周转时间为",
+      "review_notes": "线上时间片大小被 OCR 成「Sms」，按截图为「5ms」（数字参数损坏）；顺带把半角逗号还原为截图的全角逗号。选项 200/205/250/295ms 与截图一致，未改。"
+    },
+    {
+      "year": 2024,
+      "number": 31,
+      "fix": "stem_and_options",
+      "stem_cleanup": "31. 键盘中断服务例程执行结束时，所输入数据的存放位置是",
+      "options": {
+        "A": "用户缓冲区",
+        "B": "CPU 中的通用寄存器",
+        "C": "内核缓冲区",
+        "D": "键盘控制器的数据寄存器"
+      },
+      "review_notes": "线上 C「内核绥冲区」、D「键盘控制器的数据寄存哄」为 OCR 错字，按截图为「内核缓冲区」「键盘控制器的数据寄存器」；A/B 与截图一致。",
+      "quality": "ready"
+    },
+    {
+      "year": 2024,
+      "number": 32,
+      "fix": "options",
+      "options": {
+        "A": "599",
+        "B": "619",
+        "C": "788",
+        "D": "799"
+      },
+      "answer": "C",
+      "quality": "ready",
+      "source": "OCR text correction (lines 460-466)"
+    },
+    {
+      "year": 2024,
+      "number": 45,
+      "fix": "stem",
       "answer": "（1）页表项的虚拟地址：B8C0 0120H；物理地址：6540 0120H；更新后的页框号：2EAH。（2）页表所在页的页号：2E3H；对应页表项的虚拟地址：B8C0 0B8CH；该页表项中的页框号：195H。",
       "quality": "ready",
-      "source": "https://noobdream.com/Practice/exam_solution/40794/"
+      "source": "https://noobdream.com/Practice/exam_solution/40794/",
+      "stem_cleanup": "45（本题 7分）某计算机按字节编址，采用页式虚拟存储管理方式，虚拟地址和物理地址的长度均为 32 位，页表项的大小为 4 字节，页大小为 4MB，虚拟地址结构如下：\n页号（10 位）          页内偏移量（22 位）\n进程 P 的页表起始虚拟地址为 B8C0 0000H，被装载到从物理地址 6540 0000H 开始的连续主存空间中。\n请回答下列，要求答案用十六进制表示。\n（1）若 CPU 在执行进程 P 的过程中，访问虚拟地址 1234 5678H 时发生了缺页异常，经过缺页异常处理和 MMU 地址转换后得到的物理地址是 BAB4 5678H，在此次缺页异常处理过程中，需要为所缺页分配页框并更新相应的页表项，则该页表项的虚拟地址和物理地址分别是什么？该页表项中的页框号更新后的值是什么？（3 分）\n（2）进程 P 的页表所在页的页号是什么？该页对应的页表项的虚拟地址是什么？该页表项中的页框号是多少？（4 分）",
+      "review_notes": "线上题干把「虚拟地址结构」表 OCR 成乱码「PERE」并整行丢失，已按截图补回表头「页号（10 位）/ 页内偏移量（22 位）」（该内容本身是表格文字，按要求写成文本，非 MISSING_FIGURE）。另修：「B8C0 OOOOH」「6540 OOOOH」的字母 O→数字 0；(1) 中「车 CPU」→「若 CPU」；(2) 中「该页表项中的页框旦是多人少」→「该页表项中的页框号是多少」；题干除截图笔误照抄外未补写内容。"
     },
     {
-      "year": 2024, "number": 46, "fix": "answer",
+      "year": 2024,
+      "number": 46,
+      "fix": "stem",
       "answer": "（1）C1是临界区。多个进程同时执行C1可能试图同时写入数据分组到缓冲区B，导致数据不一致。（2）需两个信号量：mutex（互斥信号量，初值1，保护对B的互斥访问）和full（同步信号量，初值0，表示B中是否有数据）。P1：执行C1→V(full)；P2：P(full)→执行C2→V(mutex)。（3）需一个信号量mutex（互斥，初值1）。P1和P2各执行C3时，均通过P(mutex)/V(mutex)保护对B的修改操作。",
       "quality": "ready",
-      "source": "https://noobdream.com/Practice/exam_solution/40794/"
+      "source": "https://noobdream.com/Practice/exam_solution/40794/",
+      "stem_cleanup": "46（本题 8分）计算机系统中的进程之间往往需要相互协作以完成一个任务。在某网络系统中缓冲区 B 用于存放一个数据分组，对 B 的操作有 C1、C2 和 C3。C1 将一个数据分组写入 B 中，C2 从 B 中读出一个数据分组，C3 对 B 中的数据分组进行修改。要求 B 为空时才能执行 C1，B 非空时才能执行 C2 和 C3。请回答下列问题。\n（1）假设进程 P1 和 P2 均需执行 C1，实现 C1 的代码是否为临界区？为什么？（2 分）\n（2）假设 B 初始为空，进程 P1 执行 C1 一次，进程 P2 执行 C2 一次。请定义尽可能少的信号量，并用 wait（）、signal（）操作描述进程 P1 和 P2 之间的同步或互斥关系，说明所用信号量的作用及其初值。（3 分）\n（3）假设 B 初始不为空，进程 P1 和 P2 各执行 C3 一次，请定义尽可能少的信号量，并用 wait（）、signal（）操作描述进程 P1 和 P2 之间的同步或互斥关系，说明所用信号量的作用及初值。（3 分）",
+      "review_notes": "线上题干多处损坏，已按截图逐字修正：「对 B 的操作有 Cl」→ C1；漏掉的「要求 B 为空时才能执行 C1」补回「要求 B」；(1)「WHA?」→「为什么？」；「进程 Pl」→ 进程 P1；「wait( )、signal ©)」→ wait（）、signal（）；「(3 分》」→（3 分）；「(3 a)」→（3 分）；句尾粘入的页码「10」删除。三个子问 (1)(2)(3) 及分值均已补齐。"
     },
     {
-      "year": 2025, "number": 23, "fix": "options",
-      "options": {"A":"通用寄存器","B":"页表基址寄存器","C":"栈基址寄存器","D":"内核中断向量表基址寄存器"},
+      "year": 2025,
+      "number": 23,
+      "fix": "options",
+      "options": {
+        "A": "通用寄存器",
+        "B": "页表基址寄存器",
+        "C": "程序计数器",
+        "D": "内核中断向量表基址寄存器"
+      },
       "answer": "D",
       "quality": "ready",
-      "source": "OCR text"
+      "source": "OCR text",
+      "review_notes": "线上选项 C 为「栈基址寄存器」，截图实为「程序计数器」。"
     },
     {
-      "year": 2025, "number": 24, "fix": "options_and_stem",
+      "year": 2025,
+      "number": 24,
+      "fix": "options",
       "stem_cleanup": "24.下列关于虚拟化技术的叙述中，错误的是",
-      "options": {"A":"操作系统可以运行在虚拟机上","B":"虚拟化技术支持在一台计算机上构建多个虚拟机","C":"虚拟机监控程序(VMM)与操作系统的特权级相同","D":"通过虚拟机技术可以用一台主机模拟多种ISA"},
+      "options": {
+        "A": "操作系统可以运行在虚拟机上",
+        "B": "虚拟化技术支持在一台计算机上构建多个虚拟机",
+        "C": "虚拟机监控程序（VMM）与操作系统的特权级相同",
+        "D": "虚拟化技术支持在一台计算机上模拟不同的指令集体系结构"
+      },
       "answer": "C",
       "quality": "ready",
-      "source": "OCR text + CSDN blog"
+      "source": "OCR text + CSDN blog",
+      "review_notes": "线上选项 D 为意译「通过虚拟机技术可以用一台主机模拟多种ISA」，截图原文为「虚拟化技术支持在一台计算机上模拟不同的指令集体系结构」。"
     },
     {
-      "year": 2025, "number": 25, "fix": "options",
-      "options": {"A":"O(1)、O(1)","B":"O(1)、O(n)","C":"O(n)、O(1)","D":"O(n)、O(n)"},
+      "year": 2025,
+      "number": 25,
+      "fix": "stem",
+      "options": {
+        "A": "O(1)、O(1)",
+        "B": "O(1)、O(n)",
+        "C": "O(n)、O(1)",
+        "D": "O(n)、O(n)"
+      },
       "answer": "C",
       "quality": "ready",
-      "source": "OCR text + noobdream"
+      "source": "OCR text + noobdream",
+      "stem_cleanup": "25. 某基于优先权的进程调度程序中，进程就绪队列采用优先权由高到低的有序单链表实现。若就绪队列长度为 n，则就绪队列的插入操作和从就绪队列中选出将要执行进程的操作的时间复杂度分别是",
+      "review_notes": "线上题干末尾混入 OCR 垃圾「NT B. O(1).O(n) C. O(n).O11) D. O(n).O(n)」（选项行被粘入题干），且题号「25-」应为「25.」。截图题干止于「…时间复杂度分别是」。选项文字与截图一致，未改选项。"
     },
     {
-      "year": 2025, "number": 26, "fix": "options",
-      "options": {"A":"5","B":"6","C":"7","D":"8"},
+      "year": 2025,
+      "number": 26,
+      "fix": "stem",
+      "options": {
+        "A": "5",
+        "B": "6",
+        "C": "7",
+        "D": "8"
+      },
       "answer": "B",
       "quality": "ready",
-      "source": "OCR text (AS B6 C7 D8 → A:5 B:6 C:7 D:8)"
+      "source": "OCR text (AS B6 C7 D8 → A:5 B:6 C:7 D:8)",
+      "stem_cleanup": "26. 某页式虚拟存储管理系统采用固定分配局部置换的 LRU 算法。若系统为进程 P 分配了 3 个页框，P 从某时刻开始的页访问序列为 0, 1, 2, 0, 5, 1, 4, 3, 0, 2, 3, 2, 0，且 0, 1, 2 三个页已在内存中，则完成上述页序列的访问时，系统执行缺页异常处理程序的次数为",
+      "review_notes": "线上题干「3 个 THE」应为「3 个页框」；末尾混入 OCR 垃圾「AS B6 C7 D8」。选项与截图一致。"
     },
     {
-      "year": 2025, "number": 27, "fix": "options",
-      "options": {"A":"代码段长度","B":"进程的虚拟地址空间大小","C":"物理内存大小","D":"指令系统支持的寻址方式"},
+      "year": 2025,
+      "number": 27,
+      "fix": "options",
+      "options": {
+        "A": "代码段长度",
+        "B": "进程的虚拟地址空间大小",
+        "C": "物理内存大小",
+        "D": "指令系统支持的寻址方式"
+      },
       "answer": "D",
       "quality": "ready",
       "source": "OCR text reconstruction + noobdream"
     },
     {
-      "year": 2025, "number": 28, "fix": "options",
-      "options": {"A":"VFS是在虚拟内存中建立的文件系统","B":"VFS能提高不同文件系统中文件的访问速度","C":"VFS定义了可以访问不同文件系统的统一接口","D":"通过VFS只能访问本地文件，不能访问网络文件"},
+      "year": 2025,
+      "number": 28,
+      "fix": "stem",
+      "options": {
+        "A": "VFS是在虚拟内存中建立的文件系统",
+        "B": "VFS能提高不同文件系统中文件的访问速度",
+        "C": "VFS定义了可以访问不同文件系统的统一接口",
+        "D": "通过VFS只能访问本地文件，不能访问网络文件"
+      },
       "answer": "C",
       "quality": "ready",
-      "source": "OCR text (complete)"
+      "source": "OCR text (complete)",
+      "stem_cleanup": "28. 下列关于虚拟文件系统（VFS）的叙述中，正确的是",
+      "review_notes": "线上题干末尾混入 OCR 垃圾「ALVES 是在虚拟内存中建立的文件系统」（为选项 A 文字被粘入）。选项与截图一致。"
     },
     {
-      "year": 2025, "number": 29, "fix": "options",
-      "options": {"A":"对F的索引节点进行初始化","B":"在目录文件中写入F的索引节点号","C":"在目录文件中写入F的访问权限信息","D":"在目录文件中添加一条目录项"},
+      "year": 2025,
+      "number": 29,
+      "fix": "stem_and_options",
+      "options": {
+        "A": "对 F 的索引节点进行初始化",
+        "B": "在目录文件中写入 F 的索引节点号",
+        "C": "在目录文件中写入 F 的访问权限信息",
+        "D": "在目录文件中增加一条 F 对应的目录项"
+      },
       "answer": "C",
       "quality": "ready",
-      "source": "OCR text"
+      "source": "OCR text",
+      "stem_cleanup": "29. 某文件系统采用目录和索引节点管理文件，当用户在目录中新建文件 F 时，下列操作中，文件系统不会做的是",
+      "review_notes": "线上题干「新建文件时」漏「F」（应为「新建文件 F 时」），末尾混入 OCR 垃圾「AL 对的索引节点进行初始化」；选项 D 线上为「在目录文件中添加一条目录项」，截图原文为「在目录文件中增加一条 F 对应的目录项」。"
     },
     {
-      "year": 2025, "number": 30, "fix": "options_and_stem",
-      "stem_cleanup": "30.下列关于内存映射文件(memory-mapped files)机制的叙述中，正确的是\nI.可实现进程之间的通信  II.可实现页到磁盘块的映射\nIII.将文件映射到进程的虚拟地址空间  IV.将文件映射到系统的物理地址空间",
-      "options": {"A":"仅I、III","B":"仅IV","C":"I、II、III","D":"I、II、III、IV"},
+      "year": 2025,
+      "number": 30,
+      "fix": "stem_and_options",
+      "stem_cleanup": "30. 下列关于内存映射文件（memory-mapped files）机制的叙述中，正确的是\nI. 可实现进程之间的通信\nII. 可实现页到磁盘块的映射\nIII. 将文件映射到进程的虚拟地址空间\nIV. 将文件映射到系统的物理地址空间",
+      "options": {
+        "A": "仅 I、III",
+        "B": "仅 I、IV",
+        "C": "仅 II、III",
+        "D": "仅 I、II、III"
+      },
       "answer": "D",
       "quality": "ready",
-      "source": "OCR text + noobdream (answer D confirmed)"
+      "source": "OCR text + noobdream (answer D confirmed)",
+      "review_notes": "线上选项 B「仅IV」、C「I、II、III」、D「I、II、III、IV」与截图不符，截图依次为「仅 I、IV」「仅 II、III」「仅 I、II、III」；线上题干以字面「\\n」拼接，已按截图分行。"
     },
     {
-      "year": 2025, "number": 32, "fix": "options_and_stem",
+      "year": 2025,
+      "number": 31,
+      "fix": "options",
+      "options": {
+        "A": "目录",
+        "B": "系统打开文件表",
+        "C": "文件分配表(FAT)",
+        "D": "文件控制块(FCB)"
+      },
+      "answer": "C",
+      "quality": "ready",
+      "source": "OCR text correction"
+    },
+    {
+      "year": 2025,
+      "number": 32,
+      "fix": "options",
       "stem_cleanup": "32.下列选项中，文件系统需要为温彻斯特硬盘和固态硬盘都提供的功能是",
-      "options": {"A":"划分扇区","B":"确定盘块大小","C":"降低寻道时间","D":"磨损均衡"},
+      "options": {
+        "A": "划分扇区",
+        "B": "确定盘块大小",
+        "C": "降低寻道时间",
+        "D": "实现均衡磨损"
+      },
       "answer": "B",
       "quality": "ready",
-      "source": "OCR text + noobdream"
+      "source": "OCR text + noobdream",
+      "review_notes": "线上选项 D 为「磨损均衡」，截图原文为「实现均衡磨损」。"
     },
     {
-      "year": 2026, "number": 24, "fix": "options",
-      "options": {"A":"地址转换由操作系统完成","B":"页表项的内容由编译器确定","C":"缺页异常由硬件处理","D":"异常由操作系统处理"},
+      "year": 2025,
+      "number": 45,
+      "fix": "stem",
+      "stem_cleanup": "45. （本题 7 分）甲、乙、丙三人一起植树，甲负责挖树坑，乙负责将树苗放入树坑中并填土，丙负责为新种的树苗浇水。植树的步骤依次为：挖树坑、放树苗、填土和浇水。现有铁锹和水桶各 1 个，铁锹用于挖树坑和填土，水桶用于浇水。当树坑的数量小于 3 时，甲才可以挖树坑。假设初始时树坑的数量为 0，铁锹和水桶均可用。请定义尽可能少的信号量，用 wait()、signal() 操作描述植树过程中三人之间的同步或互斥关系，并说明所用信号量的作用及其初值。",
+      "review_notes": "线上题干多处 OCR 错字：「志负责」应为「乙负责」，「植树的步又依次为;」应为「植树的步骤依次为：」，「挖树坑s放树苗」应为「挖树坑、放树苗」，「铁鳅」「铁铬」应为「铁锹」，「互太关系」应为「互斥关系」。截图题干标注 7 分。",
+      "quality": "ready"
+    },
+    {
+      "year": 2025,
+      "number": 46,
+      "fix": "stem",
+      "stem_cleanup": "46. （本题 8 分）某系统中进程的虚拟地址空间包括内核区、用户栈、运行时堆、可读写数据段、只读代码段等区域，其布局如题 46 图所示，图中阴影部分表示未占用区域。现有 C 语言程序的部分代码如下。\nchar*ptr;\nvoid main ()\n{\n    int length;\n    ptr=(char*)malloc(100);\n    scant(\"%s\",ptr);\n    length=strlen(ptr);\n    printf(\"length=%d\\n\",length);\n    free(ptr);\n}\n请回答下列问题。\n（1）上述程序执行时，其进程控制块位于哪个区域？执行 scanf() 等待键盘输入时，该进程处于什么状态？（2 分）\n（2）main() 函数的代码位于哪个区域？其直接调用的哪些函数的功能需要通过执行驱动程序实现？（3 分）\n（3）变量 ptr 被分配在哪个区域？若变量 length 没有被分配在寄存器中，则会被分配在哪个区域？ptr 指向的字符串位于哪个区域？（3 分）",
+      "review_notes": "线上题干、内嵌代码与三个子问均严重 OCR 乱码，已按截图重写。代码框含原卷笔误：`scant(` 应为 `scanf(`（照抄原卷）；`printf(\"length=%d\\n\",length);` 中 \\n 为反斜杠 n（照抄）。题 46 布局图（内核区/用户栈/运行时堆/可读写数据段/只读代码段）已以 SVG 提供（2025_q46_1.svg），非缺失图。",
+      "quality": "ready"
+    },
+    {
+      "year": 2026,
+      "number": 23,
+      "fix": "stem_cleanup",
+      "stem_cleanup": "23. 下列操作中，在内核态执行的是（ ）",
+      "review_notes": "OCR 错字：题干「申」应为「中」。四个选项与线上一致，未改动。",
+      "quality": "ready"
+    },
+    {
+      "year": 2026,
+      "number": 24,
+      "fix": "stem_and_options",
+      "options": {
+        "A": "地址转换由操作系统完成",
+        "B": "页表项的内容由编译器确定",
+        "C": "异常由操作系统处理",
+        "D": "异常由操作系统处理"
+      },
       "answer": "D",
       "quality": "ready",
-      "source": "OCR text + noobdream"
+      "source": "OCR text + noobdream",
+      "stem_cleanup": "24. 在支持虚拟存储器系统下的指令执行过程中，正确的是（ ）",
+      "review_notes": "题干末尾误粘答案串「D; 异常由操作系统处理」，已删除。原卷 C 与 D 文字完全相同（均为「异常由操作系统处理」），系原卷自身笔误，按规范逐字照抄（原卷扫描件的 OCR 原始记录 image60.jpg 亦为 C/D 相同）。线上 C「缺页异常由硬件处理」来自外部来源，与原卷不符。"
     },
     {
-      "year": 2026, "number": 26, "fix": "options_and_stem",
-      "stem_cleanup": "26.系统中有8个进程，执行右图的操作，资源S的初始值为5。若此时S的值为-2，m表示执行到访问资源操作的进程个数，n表示阻塞的进程个数，则m和n的值是",
-      "options": {"A":"5,2","B":"5,1","C":"6,2","D":"7,1"},
+      "year": 2026,
+      "number": 26,
+      "fix": "stem_cleanup",
+      "stem_cleanup": "26.系统中有8个进程，执行右图的操作，资源S的初始值为5。若此时S的值为-2，m表示执行到访问资源的进程个数，n表示阻塞的进程个数，则m和n的值是（ ）",
+      "options": {
+        "A": "5,2",
+        "B": "5,1",
+        "C": "6,2",
+        "D": "7,1"
+      },
       "answer": "A",
-      "review_notes": "图示（PV操作流程和等待进程队列）需从原题截图查看",
+      "review_notes": "线上题干的「执行到访问资源操作」多出「操作」二字，原卷为「执行到访问资源」；末尾补回原卷的「（ ）」。右图（wait(S)/访问资源/signal(S) 表）已由 SVG 提供，未写入题干。四个选项与线上一致，未改动。",
       "quality": "ready",
       "source": "OCR text + noobdream"
     },
     {
-      "year": 2026, "number": 28, "fix": "options_and_stem",
-      "stem_cleanup": "28.某64位系统采用三级虚拟分页存储管理方式，其结构如下图所示。若第三级页表每个页表项占8B，则第三级页表所占用的页框数是",
-      "options": {"A":"128K","B":"255K","C":"256K","D":"512K"},
+      "year": 2026,
+      "number": 27,
+      "fix": "stem_and_options",
+      "stem_cleanup": "27. 假设进程P的读、写进程集合分别是R(P)和W(P)，进程Q的读写进程集合分别为R(Q)和W(Q)，则进程P和Q并发执行中，不会发生错误的并发执行冲要充分条件是（ ）\nI. R(Q)∩W(P)=∅\nII. R(P)∩R(Q)=∅\nIII. W(P)∩W(Q)=∅\nIV. R(P)∩W(Q)=∅",
+      "options": {
+        "A": "I, II",
+        "B": "II, III",
+        "C": "I, III, IV",
+        "D": "II, III"
+      },
+      "review_notes": "题干陈述 I–IV 与四个选项全部被 OCR 串行为乱码（LR(O NWEP)=0、RN RQ=9、WP) N W(Q)=@、6、L ILIV 等），已按原卷重写。原卷「冲要充分条件」照抄，疑为「充要条件」的原卷笔误（原卷扫描件 OCR 记录 image63.jpg 同此）。选项 B 与 D 文字相同（均为「II, III」），系原卷自身情况，照抄。",
+      "quality": "ready"
+    },
+    {
+      "year": 2026,
+      "number": 28,
+      "fix": "stem_and_options",
+      "stem_cleanup": "28.某64位的系统采用三级虚拟分页存储管理方式，其结构如下图所示：\n第三级页表所占用的页框数是（ ）",
+      "options": {
+        "A": "1",
+        "B": "256",
+        "C": "256K",
+        "D": "256M"
+      },
       "answer": "C",
-      "review_notes": "三级页表结构图（页目录、页表层级关系及各字段位数）需从原题截图查看",
+      "review_notes": "线上题干插入了原卷没有的条件「若第三级页表每个页表项占8B，则」，已删除；「某64位系统」原卷为「某64位的系统」；末尾补回原卷的「（ ）」。四个选项与线上完全不同，已按原卷更正。图（位段划分表：补充位(25)/一级页表(9)/二级页表(9)/三级页表(9)/页内偏移(12)）已由 SVG 提供，未写入题干。",
       "quality": "ready",
       "source": "OCR text + noobdream"
     },
     {
-      "year": 2026, "number": 31, "fix": "options_and_stem",
-      "stem_cleanup": "31.下列关于驱动程序的描述中，错误的是",
-      "options": {"A":"驱动程序与I/O控制方式相关","B":"设备初始化由驱动程序完成","C":"进程执行驱动程序时可能进入阻塞态","D":"字符设备和块设备使用同一种I/O方式"},
+      "year": 2026,
+      "number": 29,
+      "fix": "stem_and_options",
+      "stem_cleanup": "29. 下列方法中能够有效降低系统平均访存时间的是（ ）\nI. TLB\nII. 多级页表\nIII. 工作集概念\nIV. 页表缓冲队列",
+      "options": {
+        "A": "I, II",
+        "B": "II, III",
+        "C": "I, III, IV",
+        "D": "II, IV"
+      },
+      "review_notes": "题干陈述 I–IV 与四个选项均被 OCR 串行（LTLB、IL、@、L ILIV、I, IV 等），已按原卷重写；删除题干末尾误粘的页码「. 2」。",
+      "quality": "ready"
+    },
+    {
+      "year": 2026,
+      "number": 30,
+      "fix": "stem_and_options",
+      "stem_cleanup": "30. 进程P1和P2共享一个文件R。该文件的页表项分别是R1和R2。其在2个进程中的虚拟地址分别是W1和W2。则下列说法中正确的是（ ）",
+      "options": {
+        "A": "页表项R1和R2的内容完全不同",
+        "B": "W1和W2映射的物理地址相同",
+        "C": "进程P1对W1的修改不会影响P2对W2的访问",
+        "D": "W1和W2虚拟地址相同"
+      },
+      "review_notes": "线上题干把数字 1 误作字母 I/l（PI、RI、Wl），题干末尾误粘答案字母「CB」，选项 C 严重乱码（「HERE Pl 对-WI1」），已按原卷全部更正为数字 1。",
+      "quality": "ready"
+    },
+    {
+      "year": 2026,
+      "number": 31,
+      "fix": "stem_and_options",
+      "stem_cleanup": "31.下列关于驱动程序的描述中，错误的是（ ）",
+      "options": {
+        "A": "驱动程序是硬件与操作系统之间的接口程序",
+        "B": "驱动程序需根据硬件特性定制开发",
+        "C": "驱动程序需要设置统一的接口",
+        "D": "字符设备、块设备都是同一种I/O方式"
+      },
       "answer": "D",
       "quality": "ready",
-      "source": "OCR text + noobdream"
+      "source": "OCR text + noobdream",
+      "review_notes": "选项 A/B/C 与线上完全不同（线上三项来自外部来源，非原卷），选项 D 措辞亦与原卷不同，四个选项均按原卷重写；题干按原卷补回「（ ）」。"
     },
     {
-      "year": 2024, "number": 23, "fix": "stem_cleanup",
-      "stem_cleanup": "23.下列关于中断、异常和系统调用的叙述中，错误的是",
-      "quality": "ready", "source": "stem cleanup - remove OCR garbage"
+      "year": 2026,
+      "number": 32,
+      "fix": "stem_cleanup",
+      "stem_cleanup": "32. 下列操作中，鼠标中断处理程序完成的是（ ）",
+      "review_notes": "题干末尾误粘页码「13」，已删除。四个选项与线上一致，未改动。",
+      "quality": "ready"
     },
     {
-      "year": 2024, "number": 26, "fix": "options",
-      "options": {"A":"位图法","B":"空闲表法","C":"成组链接法","D":"空闲链表法"},
-      "answer": "A", "quality": "ready", "source": "OCR text correction"
-    },
-    {
-      "year": 2024, "number": 29, "fix": "options",
-      "options": {"A":"open()","B":"read()","C":"write()","D":"close()"},
-      "answer": "A", "quality": "ready", "source": "OCR text correction"
-    },
-    {
-      "year": 2024, "number": 30, "fix": "options",
-      "options": {"A":"200ms","B":"205ms","C":"250ms","D":"295ms"},
-      "answer": "C", "quality": "ready", "source": "OCR text correction"
-    },
-    {
-      "year": 2024, "number": 32, "fix": "options",
-      "options": {"A":"599","B":"619","C":"788","D":"799"},
-      "answer": "C", "quality": "ready", "source": "OCR text correction (lines 460-466)"
-    },
-    {
-      "year": 2025, "number": 31, "fix": "options",
-      "options": {"A":"目录","B":"系统打开文件表","C":"文件分配表(FAT)","D":"文件控制块(FCB)"},
-      "answer": "C", "quality": "ready", "source": "OCR text correction"
-    },
-    {
-      "year": 2026, "number": 45, "fix": "stem_cleanup",
-      "stem_cleanup": "45.（7分）系统采用优先权（优先权越大优先级越大）和时间片轮转调度算法，只有在发生中断的时候才进行抢占CPU，时间片中断间隔是10ms。当进程进入就绪队列时，时间片赋为50ms；若在时间片用完前重新回到就绪队列，则优先权值减1。设有4个进程P1、P2、P3、P4，其到达时间、优先权如题45表所示。请回答下列问题。\n（1）从0ms到所有进程运行结束，共发生多少次时间片中断？CPU调度了几次？各进程首次被调度执行的时刻分别是多少？\n（2）若将时间片从50ms改为100ms，CPU调度次数会如何变化？若将中断间隔从10ms改为1ms，系统开销会如何变化？",
+      "year": 2026,
+      "number": 45,
+      "fix": "stem_cleanup",
+      "stem_cleanup": "45.（7分）系统采用优先权（优先权越大优先级越大）和时间片轮转调度算法，只有在发生中断的时候才进行抢占CPU，时间片中断间隔是10ms。当进程进入就绪队列时，时间片是50ms。当进程时间片用完重新回到就绪队列时，优先权值的大小减1；当进程是被更高优先级抢占回到就绪队列时，优先权值的大小不变。优先权相等的时候，先进入就绪队列的被优先调度。4个进程的到达时刻、初始优先权、CPU运行时间如下表所示：\n（1）在10ms的时候开始进行进程调度，4个进程调度结束，中断次数和CPU调度次数分别是？P1,P2,P3,P4在什么时候进行第一次调度？（5分）\n（2）时间片由50ms改为100ms，CPU的调度次数增大，不变或减少？如果中断间隔从10ms变为1ms，系统开销会增大、不变还是减少？（2分）",
       "answer": "（1）10ms时产生第1次时间中断，P1和P2都在就绪队列中，P2优先权最高，调度P2；20ms时第2次时间中断，P4优先权最高，调度P4；90ms时第9次时间中断，P4运行结束，调度P1；140ms时第14次时间中断，P1优先权值减1变为2，回到就绪队列；P3先进入就绪队列，共发生22次时间中断，7次CPU调度。各进程首次调度：P2(10ms)、P4(20ms)、P1(90ms)、P3(140ms)。（2）时间片增大，调度次数减少；中断间隔缩短，系统开销增大。",
       "quality": "ready",
-      "source": "docx answer + noobdream"
+      "source": "docx answer + noobdream",
+      "review_notes": "线上题干漏掉两句关键调度规则（「当进程时间片用完重新回到就绪队列时，优先权值的大小减1；当进程是被更高优先级抢占回到就绪队列时，优先权值的大小不变。」）以及「优先权相等的时候，先进入就绪队列的被优先调度。」，并把子问(1)改写为「从0ms到所有进程运行结束……」，已按原卷恢复；「时间片赋为50ms」原卷为「时间片是50ms」。题45表（进程/到达时刻/初始优先权/CPU运行时间）已由 SVG 提供，未写入题干。"
+    },
+    {
+      "year": 2026,
+      "number": 46,
+      "fix": "stem_cleanup",
+      "stem_cleanup": "46.（8分）文件系统的目录项包括文件名或索引节点号，磁盘包含索引节点表、位图、目录、文件数据等元数据。若盘块大小为4KB，盘块中索引节点占128B，索引节点表存放了系统的所有索引节点，从0开始编号，存放在盘块大小100开始连续的4096个盘块中；索引节点占128B，包含直接地址项5个、一级间接地址项、二级间接地址项、三级间接地址项各1个。磁盘位图和索引节点位图分别记录磁盘和索引节点的使用情况，0表示未使用，1表示使用。其中目录结构图和文件的索引节点如下所示，file文件占30KB。\n目录结构图：dir 是根目录，dir 目录下含 dir1 目录，dir1 目录下含 file 文件。\n文件\t索引节点号\ndir\t100\ndir1\t201\nFile\t1000\n（1）file的索引节点所在的盘块号是多少？若file的索引节点已经读取到内存，要访问file文件中偏移地址21460的一个字节数据，则最多需要读多少个盘块？如果文件系统中有足够的磁盘空间，则最多可以存放多少个文件？（3分）\n（2）如果要删除目录dir1，则需要对元数据进行哪些操作？（5分）",
+      "review_notes": "题干 OCR 严重损坏：「（8）」应为「（8分）」、「盘块大小为-级B」应为「4KB」、缺「各1个」后的句号、「多少个 SHE? C3 Fh)」应为「多少个文件？（3分）」，另混入垃圾「ja [oo」「A」「25」，均已按原卷重写。原卷「存放在盘块大小100」（应为「盘块号100」）照抄。索引节点号表（dir=100、dir1=201、File=1000）属表格文字，已按截图写为文本。MISSING_FIGURE: 该题引用的目录结构图（dir→dir1→file 目录树）未随题提供 SVG，题干中未伪造。 目录结构图（dir→dir1→file）以文字补录，未新增 SVG。",
+      "quality": "ready"
     }
   ]
 }

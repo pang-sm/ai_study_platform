@@ -34,15 +34,17 @@
         "/static/exam_papers/11408/data_structure/2023/img_15.jpg"
       ],
       "options": {
-        "A": "A. s->next->prev=p; s->prev=p;",
-        "B": "B. p->next->prev=s; s->prev=p;",
-        "C": "C. s-> prev =s->next->prev; s->next ->prev=s;",
-        "D": "D. p->next->prev=s->prev; s->next->prev=p;"
+        "A": "s->next->prev=p; s->prev=p;",
+        "B": "p->next->prev=s; s->prev=p;",
+        "C": "s-> prev =s->next->prev; s->next ->prev=s;",
+        "D": "p->next->prev=s->prev; s->next->prev=p;"
       },
       "answer": "C",
       "stem": "2. 现有非空双向链表 L，其结点结构为：prer data next\nprer 是指向前直接前驱结点的指针，next 是指向直接后继结点的指针。若要在 L 中指针 p 所指向的结点（非尾结点）之后插入指针 s 指向的新结点，则在执行了语句序列：“s->next=p->next; p->next=s”后，下列语句序列中还需要执行的是（）",
-      "ocr_quality": "high",
-      "need_manual_check": false
+      "ocr_quality": "manual",
+      "need_manual_check": false,
+      "manual_fixed": true,
+      "fix_notes": "选项值内重复了自己的字母标号；去掉前缀。source=2022-2026 数据结构原卷截图（DOCX 内嵌每题图片）"
     },
     {
       "id": "data_structure_2023_3",
@@ -54,15 +56,17 @@
         "/static/exam_papers/11408/data_structure/2023/img_16.jpg"
       ],
       "options": {
-        "A": "Ⅰ、Ⅲ",
-        "B": "Ⅰ、Ⅳ",
-        "C": "Ⅱ、Ⅳ",
-        "D": "Ⅰ、Ⅱ、Ⅲ、Ⅳ"
+        "A": "I、III",
+        "B": "I、IV",
+        "C": "II、IV",
+        "D": "I、II、III、IV"
       },
       "answer": "A",
-      "stem": "3.若采用三元组表存储结构存储稀疏矩阵M，则除三元组表外，下列数据中还需要保存的是（）",
-      "ocr_quality": "high",
-      "need_manual_check": false
+      "stem": "3.若采用三元组表存储结构存储稀疏矩阵M，则除三元组表外，下列数据中还需要保存的是（）\n\nI.M 的行数\nII.M 中包含非零元素的行数\nIII.M 的列数\nIV.M 中包含非零元素的列数",
+      "ocr_quality": "manual",
+      "need_manual_check": false,
+      "manual_fixed": true,
+      "fix_notes": "题干缺失 I~IV 陈述块（原文见原卷截图）；选项里的罗马数字字形统一为原卷使用的 ASCII I/II/III/IV。source=2022-2026 数据结构原卷截图（DOCX 内嵌每题图片）"
     },
     {
       "id": "data_structure_2023_4",
@@ -123,9 +127,11 @@
         "D": "I、II、III"
       },
       "answer": "B",
-      "stem": "已知无向连通图 G 中各边的权值均为 1。下列算法中，一定能够求出图 G 中从某顶点到其余各个顶点最短路径的是（）",
-      "ocr_quality": "high",
-      "need_manual_check": false
+      "stem": "已知无向连通图 G 中各边的权值均为 1。下列算法中，一定能够求出图 G 中从某顶点到其余各个顶点最短路径的是（）\n\nI.普里姆（Prim）算法\nII.克鲁斯卡尔（Kruskal）算法\nIII.图的广度优先搜索算法",
+      "ocr_quality": "manual",
+      "need_manual_check": false,
+      "manual_fixed": true,
+      "fix_notes": "题干缺失 I~III 陈述块；原文见原卷截图。source=2022-2026 数据结构原卷截图（DOCX 内嵌每题图片）"
     },
     {
       "id": "data_structure_2023_7",
@@ -143,9 +149,11 @@
         "D": "I、II、IV"
       },
       "answer": "B",
-      "stem": "7. 下面关于非空 B 树的叙述中，正确的是（）",
-      "ocr_quality": "high",
-      "need_manual_check": false
+      "stem": "7. 下面关于非空 B 树的叙述中，正确的是（）\n\nI. 插入操作可能会增加树的高度\nII. 删除操作一定会导致叶节点的变化\nIII. 查找某关键字总是要查找到叶节点\nIV. 插入的新关键字最终位于叶节点中",
+      "ocr_quality": "manual",
+      "need_manual_check": false,
+      "manual_fixed": true,
+      "fix_notes": "题干缺失 I~IV 陈述块；原文见原卷截图。source=2022-2026 数据结构原卷截图（DOCX 内嵌每题图片）"
     },
     {
       "id": "data_structure_2023_8",
@@ -157,15 +165,17 @@
         "/static/exam_papers/11408/data_structure/2023/img_22.jpg"
       ],
       "options": {
-        "A": "A. 9",
-        "B": "B. 10",
-        "C": "C. 30",
-        "D": "D. 300"
+        "A": "9",
+        "B": "10",
+        "C": "30",
+        "D": "300"
       },
       "answer": "B",
       "stem": "对含600个元素的有序顺序表进行折半查找，关键字间的比较次数最多是（）",
-      "ocr_quality": "high",
-      "need_manual_check": false
+      "ocr_quality": "manual",
+      "need_manual_check": false,
+      "manual_fixed": true,
+      "fix_notes": "选项值内重复了自己的字母标号；去掉前缀。source=2022-2026 数据结构原卷截图（DOCX 内嵌每题图片）"
     },
     {
       "id": "data_structure_2023_9",
@@ -177,15 +187,17 @@
         "/static/exam_papers/11408/data_structure/2023/img_23.jpg"
       ],
       "options": {
-        "A": "A. 1",
-        "B": "B. 1.6",
-        "C": "C. 1.8",
-        "D": "D. 2.2"
+        "A": "1",
+        "B": "1.6",
+        "C": "1.8",
+        "D": "2.2"
       },
       "answer": "C",
-      "stem": "现有长度为5、初始为空的散列表，散列函数 $H(k) = (k+4) \\% 5$，用线性探查再散列法解决冲突。若将关键字序列 2022, 12, 25 依次插入 HT 中，然后删除关键字 25，则 HT 中查找失败的平均查找长度为（）",
-      "ocr_quality": "high",
-      "need_manual_check": false
+      "stem": "现有长度为 5、初始为空的散列表 HT，散列函数 $H(k) = (k+4) \\% 5$，用线性探查再散列法解决冲突。若将关键字序列 2022, 12, 25 依次插入 HT 中，然后删除关键字 25，则 HT 中查找失败的平均查找长度为（）",
+      "ocr_quality": "manual",
+      "need_manual_check": false,
+      "manual_fixed": true,
+      "fix_notes": "题干首次提到散列表时漏掉表名 HT（后文却引用 HT）；选项去掉重复字母标号。source=2022-2026 数据结构原卷截图（DOCX 内嵌每题图片）"
     },
     {
       "id": "data_structure_2023_10",
@@ -197,15 +209,17 @@
         "/static/exam_papers/11408/data_structure/2023/img_24.jpg"
       ],
       "options": {
-        "A": "Ⅰ、Ⅱ",
-        "B": "Ⅱ、Ⅴ",
-        "C": "Ⅰ、Ⅲ、Ⅳ",
-        "D": "Ⅲ、Ⅳ、Ⅴ"
+        "A": "I、II",
+        "B": "II、V",
+        "C": "I、III、IV",
+        "D": "III、IV、V"
       },
       "answer": "C",
-      "stem": "下列排序算法中，不稳定的是（）",
-      "ocr_quality": "high",
-      "need_manual_check": false
+      "stem": "下列排序算法中，不稳定的是（）\n\nI. 希尔排序\nII. 归并排序\nIII. 快速排序\nIV. 堆排序\nV. 基数排序",
+      "ocr_quality": "manual",
+      "need_manual_check": false,
+      "manual_fixed": true,
+      "fix_notes": "题干缺失 I~V 陈述块，导致选项（Ⅰ、Ⅱ 等）无所指；原文见原卷截图。source=2022-2026 数据结构原卷截图（DOCX 内嵌每题图片）"
     },
     {
       "id": "data_structure_2023_11",
@@ -256,9 +270,11 @@
       ],
       "options": {},
       "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
-      "stem": "42.（10分）对含有n(n>0)个记录的文件进行外部排序，采用置换-选择排序生成初始归并段时需要使用一个工作区，工作区中能保存m个记录。请回答下列问题。",
-      "ocr_quality": "medium",
-      "need_manual_check": true
+      "stem": "42.（10分）对含有n(n>0)个记录的文件进行外部排序，采用置换-选择排序生成初始归并段时需要使用一个工作区，工作区中能保存m个记录。请回答下列问题。\n\n（1）若文件中含有 19 个记录，其关键字依次是 51，94，37，92，14，63，15，99，48，56，23，60，31，17，43，8，90，166，100，当 m=4 时，可生成几个初始归并段？各是什么？\n（2）对任意的 m（n>>m>0），生成的第一个初始归并段的长度最大值和最小值分别是多少？",
+      "ocr_quality": "manual",
+      "need_manual_check": false,
+      "manual_fixed": true,
+      "fix_notes": "题干缺失 (1)(2) 两个小问；原文见原卷截图。source=2022-2026 数据结构原卷截图（DOCX 内嵌每题图片）"
     }
   ]
 }
