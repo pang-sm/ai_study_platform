@@ -233,11 +233,9 @@
     "chapter_title": "计算机网络体系结构",
     "text_quality": "ready",
     "review_notes": "",
-    "image_required": true,
+    "image_required": false,
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/computer_network/past-paper-images/2022/2022_q47_1.jpg"
-    ]
+    "image_urls": []
   },
   {
     "exam_type": "11408",
@@ -473,11 +471,9 @@
     "chapter_title": "计算机网络体系结构",
     "text_quality": "ready",
     "review_notes": "",
-    "image_required": true,
+    "image_required": false,
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/computer_network/past-paper-images/2023/2023_q47_1.jpg"
-    ]
+    "image_urls": []
   },
   {
     "exam_type": "11408",
@@ -713,11 +709,9 @@
     "chapter_title": "网络层",
     "text_quality": "ready",
     "review_notes": "",
-    "image_required": true,
+    "image_required": false,
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/computer_network/past-paper-images/2024/2024_q47_1.jpg"
-    ]
+    "image_urls": []
   },
   {
     "exam_type": "11408",
@@ -953,11 +947,9 @@
     "chapter_title": "计算机网络体系结构",
     "text_quality": "ready",
     "review_notes": "",
-    "image_required": true,
+    "image_required": false,
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/computer_network/past-paper-images/2025/2025_q47_1.jpg"
-    ]
+    "image_urls": []
   },
   {
     "exam_type": "11408",
@@ -1193,11 +1185,8 @@
     "chapter_title": "计算机网络体系结构",
     "text_quality": "ready",
     "review_notes": "",
-    "image_required": true,
+    "image_required": false,
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/computer_network/past-paper-images/2026/2026_q47_1.jpg",
-      "/api/exam/11408/computer_network/past-paper-images/2026/2026_q47_2.jpg"
-    ]
+    "image_urls": []
   }
 ]

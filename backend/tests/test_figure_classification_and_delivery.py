@@ -40,6 +40,13 @@ CLASSIFICATION: dict[str, str] = json.loads(
 # become "nothing is ever checked".
 WITHDRAWN: set[str] = set()
 
+# The withdrawal count is DECLARED, not derived. `test_a_withdrawn_figure_is_gone_from_both_disk
+# _and_delivery` is parametrised over WITHDRAWN, so an empty set makes it SKIP — and a skip looks
+# exactly like "the mechanism was deleted" or "someone emptied the list by accident". Declaring
+# the number makes emptying or filling it a deliberate, visible act: withdrawing a figure means
+# changing this number, not just deleting a line.
+CURRENT_WITHDRAWN_FIGURE_COUNT = 0
+
 REQUIRED = sorted(k for k, v in CLASSIFICATION.items() if v == "FIGURE_REQUIRED")
 OPTIONAL = sorted(k for k, v in CLASSIFICATION.items() if v == "FIGURE_OPTIONAL")
 NO_FIGURE = sorted(k for k, v in CLASSIFICATION.items() if v == "NO_FIGURE")
@@ -117,6 +124,24 @@ def test_every_figure_on_disk_belongs_to_a_classified_question():
         if key not in CLASSIFICATION:
             unclassified.append(key)
     assert sorted(set(unclassified)) == []
+
+
+def test_the_required_figure_set_is_complete():
+    """27/27 as a single, non-parametrised fact.
+
+    The per-question test is parametrised, so a question silently dropping out of REQUIRED would
+    remove its own case rather than fail one. This asserts the set itself.
+    """
+    missing = [key for key in REQUIRED if not _served(key)]
+    assert missing == [], f"FIGURE_REQUIRED but serving no figure: {missing}"
+
+
+def test_the_withdrawn_figure_count_is_zero():
+    """States the intended current fact, so an empty parametrisation cannot read as a design."""
+    assert len(WITHDRAWN) == CURRENT_WITHDRAWN_FIGURE_COUNT, (
+        f"WITHDRAWN holds {sorted(WITHDRAWN)} but the declared count is "
+        f"{CURRENT_WITHDRAWN_FIGURE_COUNT}; withdrawing is deliberate, so update the declaration")
+    assert CURRENT_WITHDRAWN_FIGURE_COUNT == 0
 
 
 def test_the_classification_uses_only_the_three_defined_values():

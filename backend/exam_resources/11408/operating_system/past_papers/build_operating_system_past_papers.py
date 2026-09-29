@@ -13,14 +13,7 @@ OCR_TXT = BASE / "exam_resources/11408/operating_system/past_papers/raw/11408_20
 CHKD = BASE / "exam_resources/11408/operating_system/past_papers/checked"
 RPT = BASE / "exam_resources/11408/operating_system/past_papers/import_reports"
 PATCHES_FILE = BASE / "exam_resources/11408/operating_system/past_papers/manual_review_patches.json"
-IMG_MAPPING = BASE / "exam_resources/11408/operating_system/past_papers/image_mapping.json"
 STATIC_IMG_DIR = BASE / "exam_resources/11408/operating_system/past_papers/images"
-
-# Load image mapping
-def load_image_mapping():
-    if not IMG_MAPPING.exists():
-        return {}
-    return json.loads(IMG_MAPPING.read_text(encoding="utf-8"))
 
 SUBJECT_KEY = "operating_system"
 SUBJECT_NAME = "操作系统"
@@ -323,16 +316,14 @@ def main():
         stem = q.get('question_text', '')
         return any(kw in stem for kw in TABLE_KEYWORDS)
 
-    # Load image mapping and attach to questions (only for questions that need images)
-    img_mapping = load_image_mapping()
+    # `image_required` stays a STEM-derived judgement; no image is attached to it any more.
+    # The scraped rasters this builder used to name via image_mapping.json were watermarked and
+    # belonged to other questions, so nothing may be published from them. Figures are drawn
+    # separately by exam_resources/11408/build_clean_figures.py and resolved from `figures/`.
     q_with_imgs = 0
     for q in questions:
-        key = f"{q['year']}-{q['question_number']:02d}"
         q['image_required'] = question_needs_image(q)
-        if q['image_required']:
-            q['image_urls'] = img_mapping.get(key, [])
-        else:
-            q['image_urls'] = []
+        q['image_urls'] = []
         if q['image_urls']:
             q_with_imgs += 1
             # If question has images, remove diagram-missing review notes

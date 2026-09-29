@@ -74,10 +74,7 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2022/2022_25_0.jpg",
-      "/api/exam/11408/operating_system/past-paper-images/2022/2022_25_1.jpg"
-    ],
+    "image_urls": [],
     "image_required": true
   },
   {
@@ -103,9 +100,7 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2022/2022_26_0.jpg"
-    ],
+    "image_urls": [],
     "image_required": true
   },
   {
@@ -282,10 +277,7 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2022/2022_45_0.jpg",
-      "/api/exam/11408/operating_system/past-paper-images/2022/2022_45_1.jpg"
-    ],
+    "image_urls": [],
     "image_required": true
   },
   {
@@ -488,10 +480,7 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2023/2023_29_0.jpg",
-      "/api/exam/11408/operating_system/past-paper-images/2023/2023_29_1.jpg"
-    ],
+    "image_urls": [],
     "image_required": true
   },
   {
@@ -590,9 +579,7 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2023/2023_45_0.jpg"
-    ],
+    "image_urls": [],
     "image_required": true
   },
   {
@@ -613,9 +600,7 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2023/2023_46_0.jpg"
-    ],
+    "image_urls": [],
     "image_required": true
   },
   {
@@ -693,9 +678,7 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2024/2024_25_0.jpg"
-    ],
+    "image_urls": [],
     "image_required": true
   },
   {
@@ -825,9 +808,7 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2024/2024_30_0.jpg"
-    ],
+    "image_urls": [],
     "image_required": true
   },
   {
@@ -879,9 +860,7 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2024/2024_32_0.jpg"
-    ],
+    "image_urls": [],
     "image_required": true
   },
   {
@@ -902,9 +881,7 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2024/2024_45_0.jpg"
-    ],
+    "image_urls": [],
     "image_required": true
   },
   {
@@ -925,10 +902,7 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2024/2024_46_0.jpg",
-      "/api/exam/11408/operating_system/past-paper-images/2024/2024_46_1.jpg"
-    ],
+    "image_urls": [],
     "image_required": true
   },
   {
@@ -1006,9 +980,7 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2025/2025_25_0.jpg"
-    ],
+    "image_urls": [],
     "image_required": true
   },
   {
@@ -1112,9 +1084,7 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2025/2025_29_0.jpg"
-    ],
+    "image_urls": [],
     "image_required": true
   },
   {
@@ -1213,9 +1183,7 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2025/2025_45_0.jpg"
-    ],
+    "image_urls": [],
     "image_required": true
   },
   {
@@ -1236,9 +1204,7 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2025/2025_46_0.jpg"
-    ],
+    "image_urls": [],
     "image_required": true
   },
   {
@@ -1342,9 +1308,7 @@
     "text_quality": "ready",
     "review_notes": "图示（PV操作流程和等待进程队列）需从原题截图查看",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2026/2026_26_0.jpg"
-    ],
+    "image_urls": [],
     "image_required": true
   },
   {
@@ -1396,9 +1360,7 @@
     "text_quality": "ready",
     "review_notes": "三级页表结构图（页目录、页表层级关系及各字段位数）需从原题截图查看",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2026/2026_28_0.jpg"
-    ],
+    "image_urls": [],
     "image_required": true
   },
   {
@@ -1424,10 +1386,7 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2026/2026_29_0.jpg",
-      "/api/exam/11408/operating_system/past-paper-images/2026/2026_29_1.jpg"
-    ],
+    "image_urls": [],
     "image_required": true
   },
   {
@@ -1453,9 +1412,7 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2026/2026_30_0.jpg"
-    ],
+    "image_urls": [],
     "image_required": true
   },
   {
@@ -1528,9 +1485,7 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2026/2026_45_0.jpg"
-    ],
+    "image_urls": [],
     "image_required": true
   },
   {
@@ -1551,10 +1506,7 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2026/2026_46_0.jpg",
-      "/api/exam/11408/operating_system/past-paper-images/2026/2026_46_1.jpg"
-    ],
+    "image_urls": [],
     "image_required": true
   }
 ]
