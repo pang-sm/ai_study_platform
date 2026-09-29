@@ -827,6 +827,210 @@ def co_2026_q44():
     return svg(990, 660, "".join(body), "")
 
 
+def cn_2024_q35():
+    """VLAN 交换机与各端口主机. Port membership and every IP/MAC are the paper's; the VLAN
+    dividers are what make the ARP question answerable at all."""
+    body = [rect(150, 60, 560, 130, "", rx=4),
+            text(730, 122, "交换机", size=14, weight="600", anchor="start")]
+    vlan_groups = [("VLAN1", 13, 17, 1, 5), ("VLAN2", 18, 20, 6, 8), ("VLAN3", 21, 24, 9, 12)]
+    for name, up_lo, up_hi, lo_lo, lo_hi in vlan_groups:
+        for port in range(up_lo, up_hi + 1):
+            body.append(rect(160 + (port - 13) * 46, 84, 36, 30, str(port), rx=2, size=11))
+        for port in range(lo_lo, lo_hi + 1):
+            body.append(rect(160 + (port - 1) * 46, 138, 36, 30, str(port), rx=2, size=11))
+        x = 160 + (up_lo - 13) * 46
+        body.append(text(x + 40, 56, name, size=12, weight="600", fill=ACCENT))
+    for after in (5, 8):  # the boundary after lower port 5 and after lower port 8
+        dx = 160 + after * 46
+        body.append(f'<line x1="{dx}" y1="70" x2="{dx}" y2="182" stroke="{ACCENT}" '
+                    f'stroke-width="1.4" stroke-dasharray="7 4"/>')
+    hosts = [("H1", "13", "192.168.3.91", "00-3E-C2-39-12-B5"),
+             ("H2", "1", "192.168.3.81", "00-18-A2-3B-36-21"),
+             ("H3", "2", "192.168.3.125", "00-E5-78-4A-09-B2"),
+             ("H4", "5", "192.168.3.12", "00-35-6A-B1-4C-92"),
+             ("H5", "8", "192.168.3.251", "00-1A-39-5B-E4-45"),
+             ("H6", "9", "192.168.3.129", "00-08-6E-05-A7-82"),
+             ("H7", "12", "192.168.3.190", "00-51-48-C9-63-A3")]
+    for index, (name, port, ip, mac) in enumerate(hosts):
+        px = int(port)
+        cx = 160 + (px - 13) * 46 + 18 if px >= 13 else 160 + (px - 1) * 46 + 18
+        cy = 99 if px >= 13 else 153
+        hx = 40 + index * 108
+        body.append(rect(hx, 300, 72, 40, name, size=13))
+        body.append(link(hx + 36, 300, cx, cy + 30, ""))
+        body.append(text(hx + 36, 360, ip, size=9, fill=MUTED))
+        body.append(text(hx + 36, 376, mac, size=9, fill=MUTED))
+    return svg(820, 400, "".join(body), "VLAN1 / VLAN2 / VLAN3 按端口划分")
+
+
+def cn_2024_q37():
+    """SR 滑动窗口时序图. Which frames were sent, which were acknowledged, and which two were
+    lost is the whole question — none of it is in the stem."""
+    left, right, top = 190, 640, 70
+    body = [text(left, 44, "甲", size=15, weight="600"), text(right, 44, "乙", size=15, weight="600"),
+            f'<line x1="{left}" y1="{top}" x2="{left}" y2="430" stroke="{LINE}" stroke-width="1.6"/>',
+            f'<line x1="{right}" y1="{top}" x2="{right}" y2="430" stroke="{LINE}" stroke-width="1.6"/>',
+            _darrow(left + 6, 100, right - 6, 110, ""), text(410, 96, "F0", size=13, fill=ACCENT),
+            _darrow(left + 6, 140, right - 6, 150, ""), text(410, 136, "F1", size=13, fill=ACCENT),
+            _darrow(left + 6, 180, right - 6, 190, ""), text(410, 176, "F2", size=13, fill=ACCENT),
+            text(520, 196, "丢失", size=13, fill=ACCENT),
+            _darrow(left + 6, 220, right - 6, 230, ""), text(410, 216, "F3", size=13, fill=ACCENT),
+            _darrow(right - 6, 250, left + 6, 260, ""), text(430, 268, "ACK0", size=13, fill=ACCENT),
+            _darrow(right - 6, 300, left + 6, 310, ""), text(430, 318, "ACK2", size=13, fill=ACCENT),
+            _darrow(right - 6, 340, left + 6, 350, ""), text(430, 368, "ACK3", size=13, fill=ACCENT),
+            text(520, 346, "丢失", size=13, fill=ACCENT),
+            ellipse(left, 372, 8, 8, "", fill=ACCENT), text(left - 26, 376, "t1", size=12, fill=ACCENT),
+            _darrow(left + 6, 378, right - 6, 388, ""), text(420, 372, "?", size=15, fill=ACCENT),
+            text(left - 46, 406, "F1 超时", size=12, fill=ACCENT),
+            ellipse(left, 404, 8, 8, "", fill=ACCENT), text(left - 26, 408, "t2", size=12, fill=ACCENT),
+            _darrow(left + 6, 410, right - 6, 420, ""), text(420, 404, "?", size=15, fill=ACCENT),
+            _darrow(left, 430, left, 462, ""), text(left, 484, "时间", size=13, fill=MUTED)]
+    return svg(720, 500, "".join(body), "")
+
+
+def co_2024_q43a():
+    """题 43 图(a) — 指令格式表. add / slli / lw 的字段划分与编码."""
+    body = [text(30, 30, "题 43 图（a）　指令格式", size=13, anchor="start", weight="600")]
+    widths = [100, 126, 92, 92, 84, 76, 134]
+    header = ["指令", "31　　25", "24　20", "19　15", "14　12", "11　7", "6　　　0"]
+    rows = [["add", "0000000", "rs2", "rs1", "000", "rd", "0110011"],
+            ["slli", "0000000", "shamt", "rs1", "010", "rd", "0010011"],
+            ["lw", "imm", "—", "rs1", "010", "rd", "0000011"]]
+    body.append(table(30, 46, widths, header, rows, row_h=34))
+    body.append(text(780, 74, "指令功能说明", size=12, anchor="start", weight="600"))
+    for index, desc in enumerate(["R[rd]←R[rs1]+R[rs2]", "R[rd]←R[rs1]<<shamt",
+                                  "R[rd]←M[R[rs1]+imm]"]):
+        body.append(text(780, 100 + index * 34, desc, size=12, anchor="start"))
+    return svg(1010, 190, "".join(body), "")
+
+
+def co_2024_q43b():
+    """题 43 图(b) — 数据通路. A/B 两条 32 位输入、IR[31:20] 经扩展器进 MUX、ALU 与四个标志."""
+    body = [text(30, 30, "题 43 图（b）　数据通路", size=13, anchor="start", weight="600"),
+            text(120, 186, "A", size=14, weight="600"), text(176, 186, "32", size=11, fill=MUTED),
+            link(130, 190, 480, 190, ""),
+            text(120, 258, "B", size=14, weight="600"), text(176, 258, "32", size=11, fill=MUTED),
+            link(130, 262, 380, 262, ""),
+            text(60, 322, "IR[31:20]", size=12, weight="600", anchor="start"),
+            text(60, 342, "12", size=11, fill=MUTED, anchor="start"),
+            link(130, 330, 240, 330, ""),
+            rect(240, 306, 96, 48, "扩展器", size=12),
+            text(288, 380, "Ext", size=11, fill=ACCENT),
+            link(288, 354, 288, 368, "", dashed=True),
+            link(288, 384, 288, 394, "", dashed=True),
+            text(348, 326, "32", size=11, fill=MUTED),
+            link(336, 330, 380, 330, ""),
+            _mux(380, 240, ["0", "1"], "ALUBsrc", w=58, h=110),
+            link(438, 296, 480, 296, ""),
+            f'<polygon points="480,150 580,170 580,340 480,360" fill="#f5f7fa" stroke="{LINE}" stroke-width="1.5"/>',
+            text(516, 244, "A", size=13, weight="600"), text(516, 266, "L", size=13, weight="600"),
+            text(516, 288, "U", size=13, weight="600"),
+            text(536, 386, "ALUCtr", size=11, fill=ACCENT),
+            link(530, 360, 530, 374, "", dashed=True),
+            text(566, 390, "3", size=11, fill=MUTED),
+            text(240, 424, "0：零扩展　　1：符号扩展", size=11, anchor="start", fill=MUTED),
+            text(240, 444, "ALUCtr：000 加　　001 减　　010 逻辑左移", size=11, anchor="start", fill=MUTED)]
+    for index, flag in enumerate(["OF", "SF", "ZF", "CF"]):
+        y = 194 + index * 34
+        body.append(link(580, y, 646, y, ""))
+        body.append(text(656, y + 5, flag, size=12, anchor="start", weight="600"))
+    body.append(link(580, 330, 720, 330, ""))
+    body.append(text(730, 335, "F", size=14, weight="600", anchor="start"))
+    body.append(text(670, 318, "32", size=11, fill=MUTED))
+    return svg(790, 470, "".join(body), "")
+
+
+def co_2024_q44():
+    """题 44 图 — 从 0013DFF0H 起的存储单元内容. The byte at 0013E004 is what the answer turns on."""
+    rows = [["0013 DFF0", "FF", "FF", "FF", "7C", "70", "FE", "FF", "FF"],
+            ["0013 DFF8", "00", "00", "00", "0C", "3C", "02", "01", "FF"],
+            ["0013 E000", "F0", "F1", "00", "00", "DC", "EC", "FF", "FF"],
+            ["0013 E008", "FF", "FF", "01", "02", "00", "00", "01", "02"]]
+    body = [text(40, 28, "题 44 图", size=13, anchor="start", weight="600")]
+    body.append(table(40, 44, [140] + [64] * 8,
+                      ["地址", "0", "1", "2", "3", "4", "5", "6", "7"], rows, row_h=38))
+    return svg(730, 44 + 38 * 5 + 40, "".join(body), "小端方式；页大小 4KB")
+
+
+def co_2025_q44a():
+    """题 44 图(a) — 机器级代码片段. The stem only points at it, so it has to be drawn."""
+    code = ["...", "//x 在 R2 中，i 在 R4 中", "//数组 d 的首地址在 R3 中",
+            "mov   R1, (R3+R4*4)   //R1←d[i]",
+            "sccov R1              //{R0, R1}←SEXT(R1)",
+            "idiv  R1, R2          //R1←{R0, R1}/R2", "..."]
+    body = [text(40, 28, "题 44 图（a）", size=13, anchor="start", weight="600")]
+    for index, line in enumerate(code):
+        body.append(text(40, 58 + index * 26, line, size=12, anchor="start"))
+    return svg(520, 58 + len(code) * 26 + 26, "".join(body), "")
+
+
+def co_2025_q44b():
+    """题 44 图(b) — 补码除法器逻辑结构. 控制逻辑 holds the counter, which is part of the question."""
+    body = [text(40, 28, "题 44 图（b）", size=13, anchor="start", weight="600"),
+            rect(300, 50, 150, 36, "除数寄存器 Y", size=12),
+            text(285, 92, "32", size=11, fill=MUTED, anchor="end"),
+            link(375, 86, 375, 120, ""),
+            f'<polygon points="290,120 460,120 430,190 320,190" fill="#f5f7fa" stroke="{LINE}" stroke-width="1.5"/>',
+            text(375, 158, "32 位 ALU", size=12, weight="600"),
+            text(455, 106, "32", size=11, fill=MUTED, anchor="start"),
+            link(240, 120, 290, 132, ""), text(238, 116, "32", size=11, fill=MUTED, anchor="end"),
+            text(500, 128, "ALUop", size=11, fill=ACCENT, anchor="start"),
+            link(470, 128, 600, 128, "", dashed=True),
+            text(363, 206, "32", size=11, fill=MUTED, anchor="end"),
+            link(375, 190, 375, 226, ""),
+            rect(180, 226, 190, 40, "余数寄存器 R", size=12),
+            rect(370, 226, 190, 40, "余数/商寄存器 Q", size=12),
+            text(375, 286, "32 位", size=11, fill=MUTED),
+            text(600, 236, "左移", size=12, fill=ACCENT, anchor="start"),
+            text(600, 260, "写使能", size=12, fill=ACCENT, anchor="start"),
+            link(600, 226, 565, 230, ""), link(600, 250, 565, 248, ""),
+            ellipse(660, 300, 62, 40, "控制逻辑", fill="#eef3f8", dy=5, size=12),
+            link(660, 340, 660, 366, ""), text(660, 384, "时钟", size=12, fill=ACCENT),
+            link(600, 128, 660, 128, ""), link(660, 128, 660, 260, "", dashed=True),
+            link(180, 246, 100, 246, ""), link(100, 246, 100, 132, ""),
+            link(100, 132, 240, 132, ""), text(120, 122, "32", size=11, fill=MUTED, anchor="start"),
+            link(370, 286, 370, 320, ""), link(370, 320, 620, 320, ""),
+            link(620, 320, 620, 296, "")]
+    return svg(760, 410, "".join(body), "")
+
+
+def ds_2023_q5():
+    """二叉树的树型. The paper draws it UNLABELLED — the shape is the information, and the
+    letters come from the traversal in the stem, so labelling it would give the answer away."""
+    body = [ellipse(260, 60, 28, 28, "", fill="#eef3f8"),
+            ellipse(170, 165, 28, 28, "", fill="#eef3f8"),
+            ellipse(360, 165, 28, 28, "", fill="#eef3f8"),
+            ellipse(110, 270, 28, 28, "", fill="#eef3f8"),
+            ellipse(240, 270, 28, 28, "", fill="#eef3f8"),
+            ellipse(170, 375, 28, 28, "", fill="#eef3f8"),
+            link(240, 82, 190, 142, ""), link(280, 82, 340, 142, ""),
+            link(152, 188, 124, 246, ""), link(190, 188, 224, 246, ""),
+            link(126, 296, 152, 350, "")]
+    return svg(480, 440, "".join(body), "树型如图；后序遍历为 f，d，b，e，c，a")
+
+
+def ds_2025_q42():
+    """AOE 网. The wiring is confirmed by the paper's own ve/vl tables: this graph reproduces
+    ve = 0,9,2,5,12,6,9 and vl = 0,10,2,5,12,8,9 exactly."""
+    v = {3: (110, 260), 1: (280, 150), 2: (560, 140), 4: (420, 250),
+         5: (700, 250), 6: (280, 360), 7: (560, 360)}
+    body = [_darrow(*v[3], *v[1], "a=2", lx=190, ly=196),
+            _darrow(*v[1], *v[2], "b=5", lx=420, ly=136),
+            _darrow(*v[3], *v[6], "c=1", lx=190, ly=330),
+            _darrow(*v[1], *v[4], "d=3", lx=352, ly=186),
+            _darrow(*v[3], *v[4], "e=3", lx=260, ly=246),
+            _darrow(*v[4], *v[2], "f=4", lx=500, ly=182),
+            _darrow(*v[4], *v[6], "g=1", lx=356, ly=314),
+            _darrow(*v[6], *v[7], "h=1", lx=420, ly=384),
+            _darrow(*v[4], *v[5], "j=1", lx=560, ly=258),
+            _darrow(*v[2], *v[5], "k=2", lx=644, ly=176),
+            _darrow(*v[4], *v[7], "m=4", lx=492, ly=330),
+            _darrow(*v[7], *v[5], "n=3", lx=634, ly=318)]
+    for number, (x, y) in v.items():
+        body.append(ellipse(x, y, 22, 22, str(number), fill="#eef3f8", dy=5, size=14))
+    return svg(800, 430, "".join(body), "共 12 个活动")
+
+
 # --------------------------------------------------------------------------------- registry
 
 FIGURES = {
@@ -864,6 +1068,20 @@ FIGURES = {
     # question's figure when it did not, so it was withdrawn.
     ("computer_organization", 2026, 44): ("2026_q44_1.svg", co_2026_q44),
     ("operating_system", 2026, 26): ("2026_q26_1.svg", os_2026_q26),
+    # --- figures read from the official papers, second batch (2026-09-29) ---
+    ("computer_network", 2024, 35): ("2024_q35_1.svg", cn_2024_q35),
+    ("computer_network", 2024, 37): ("2024_q37_1.svg", cn_2024_q37),
+    ("computer_organization", 2024, 43): [("2024_q43_1.svg", co_2024_q43a),
+                                           ("2024_q43_2.svg", co_2024_q43b)],
+    ("computer_organization", 2024, 44): ("2024_q44_1.svg", co_2024_q44),
+    ("computer_organization", 2025, 44): [("2025_q44_1.svg", co_2025_q44a),
+                                          ("2025_q44_2.svg", co_2025_q44b)],
+    ("data_structure", 2023, 5): ("2023_q5_1.svg", ds_2023_q5),
+    # NOTE: data_structure 2024 Q4 is deliberately ABSENT. The adjacency multilist is drawn
+    # again here only once its ilink / jlink chains can be transcribed exactly: the links ARE the
+    # structure, and a multilist rendered without them shows the edge nodes but not the thing the
+    # question is about. An approximation is not shipped in its place.
+    ("data_structure", 2025, 42): ("2025_q42_1.svg", ds_2025_q42),
     ("operating_system", 2022, 46): ("2022_q46_1.svg", os_2022_q46),
     ("operating_system", 2025, 46): ("2025_q46_1.svg", os_2025_q46),
 }
@@ -871,11 +1089,15 @@ FIGURES = {
 
 def main() -> int:
     written = 0
-    for (subject, year, _number), (filename, builder) in FIGURES.items():
+    for (subject, year, _number), entry in FIGURES.items():
+        # A question with several sub-figures ((a) / (b)) registers a list; the resolver already
+        # accepts more than one file per question, so the registry just has to allow it too.
+        parts = entry if isinstance(entry, list) else [entry]
         directory = HERE / subject / "past_papers" / "figures" / str(year)
         directory.mkdir(parents=True, exist_ok=True)
-        (directory / filename).write_text(builder(), encoding="utf-8")
-        written += 1
+        for filename, builder in parts:
+            (directory / filename).write_text(builder(), encoding="utf-8")
+            written += 1
     print(f"[figures] wrote {written} clean figures")
     return 0
 
