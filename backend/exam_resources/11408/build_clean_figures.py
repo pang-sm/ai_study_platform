@@ -11,6 +11,17 @@ fixes the figure completely, the figure below is drawn from it.
 These are VECTOR drawings written here, not traced or cropped scans: no third-party watermark
 can survive, nothing is hot-linked, and the text stays crisp at any zoom.
 
+YEAR CONVENTION — read this before looking for a source. Every ``year`` in this project, in the
+database and in every filename here, is the **paper / admission year** (`paper_year`), NOT the
+calendar year the exam was sat. The two differ by one:
+
+    held_year = paper_year - 1
+
+so the paper everyone calls "2026 考研 408" — the one the DB stores as ``year=2026`` — was sat in
+**December 2025**. Searching for a "2026" paper as a December-2026 exam finds nothing, because
+that exam is still in the future. Search "2026 考研 408 真题" / "2025年12月 408 真题" instead.
+Do not rename the database column: its values are correct; only the search phrasing has to match.
+
 Run (from ``backend/``):  python exam_resources/11408/build_clean_figures.py
 Idempotent: it only writes the files listed in ``FIGURES``.
 """
@@ -337,29 +348,6 @@ def cn_2026_q37():
 
 
 # ------------------------------------------------------------------ computer_organization
-
-def co_2026_q43():
-    """The three instruction formats C defines — R / I / M — with their field widths."""
-    rows = [
-        ("R 型", ["0000", "rt", "rs / num", "op1"], "4 位", "4 位", "4 位", "4 位"),
-        ("I 型", ["op2", "rt", "imm8"], "4 位", "4 位", "8 位", None),
-        ("M 型", ["op3", "offset"], "4 位", "12 位", None, None),
-    ]
-    body = [text(30, 34, "指令格式（16 位定长指令字）", size=15, anchor="start", weight="600")]
-    y = 56
-    for name, fields, *widths in rows:
-        body.append(text(30, y + 30, name, size=14, anchor="start", weight="600"))
-        x = 110
-        for index, field in enumerate(fields):
-            width = 90 if widths[index] and widths[index] == "8 位" else (90 if widths[index] == "12 位" else 74)
-            body.append(rect(x, y, width, 42, "", rx=4))
-            body.append(text(x + width / 2, y + 26, field, size=13, weight="600"))
-            if widths[index]:
-                body.append(text(x + width / 2, y + 58, widths[index], size=12, fill=MUTED))
-            x += width
-        y += 84
-    return svg(520, 320, "".join(body), "")
-
 
 # ------------------------------------------------------------------------ operating_system
 
@@ -745,6 +733,100 @@ def co_2022_q43():
     return svg(740, 420, "".join(body), "")
 
 
+def _mux(x, y, inputs, control, size=13, w=54, h=44):
+    """A trapezoid multiplexer with the signal that drives it drawn underneath."""
+    body = [f'<polygon points="{x},{y} {x + w},{y + 8} {x + w},{y + h - 8} {x},{y + h}" '
+            f'fill="#f5f7fa" stroke="{LINE}" stroke-width="1.5"/>']
+    body.append(text(x + w / 2, y - 6, "MUX", size=10, fill=MUTED))
+    for index, label in enumerate(inputs):
+        ly = y + 10 + index * ((h - 20) / max(1, len(inputs) - 1) if len(inputs) > 1 else 0)
+        body.append(text(x - 8, ly + 4, label, size=11, fill=MUTED, anchor="end"))
+    body.append(text(x + w / 2, y + h + 16, control, size=11, fill=ACCENT))
+    return "".join(body)
+
+
+def os_2026_q26():
+    """每个进程执行的操作. The figure is the operation block the question points at; with S = -2
+    it gives n = 2 blocked and m = 5 at the resource, matching the stored answer A (5,2)."""
+    steps = ["wait(S)", "访问资源", "signal(S)"]
+    body = [text(240, 34, "进程执行的操作", size=14, weight="600")]
+    for index, step in enumerate(steps):
+        y = 60 + index * 76
+        body.append(rect(150, y, 180, 52, step, rx=4, size=14))
+        if index < len(steps) - 1:
+            body.append(arrow(240, y + 52, 240, y + 76, ""))
+    body.append(text(240, 60 + 3 * 76 + 22, "资源 S 的初值为 5", size=13, fill=MUTED))
+    return svg(480, 60 + 3 * 76 + 60, "".join(body), "")
+
+
+def co_2026_q44():
+    """计算机 C 的部分数据通路. Every component and every control signal is the one the paper
+    labels — most importantly ① and ②, which sit immediately above the general register file and
+    hold the register NUMBER to write, i.e. they are multiplexers (the stored answer for (1))."""
+    body = [
+        text(470, 30, "题 44 图　数据通路", size=14, weight="600"),
+        # ── register file and its two write-number selectors ──
+        rect(150, 250, 200, 110, "", rx=4),
+        text(250, 292, "GPRs", size=15, weight="600"),
+        text(250, 314, "通用寄存器组", size=12, fill=MUTED),
+        text(196, 240, "Ra", size=12, weight="600"),
+        text(306, 240, "Rb", size=12, weight="600"),
+        rect(175, 130, 62, 44, "", rx=3), text(206, 158, "①", size=15, weight="600"),
+        rect(285, 130, 62, 44, "", rx=3), text(316, 158, "②", size=15, weight="600"),
+        link(206, 174, 206, 250, "", dashed=True), link(316, 174, 316, 250, "", dashed=True),
+        text(206, 118, "IR.rt", size=11, fill=ACCENT), text(316, 118, "IR.rs", size=11, fill=ACCENT),
+        text(120, 112, "RegWr", size=11, fill=ACCENT, anchor="end"),
+        link(128, 118, 150, 150, ""),
+        # ── the register-number multiplexer driven by RegDst ──
+        _mux(30, 268, ["0", "IR.rt"], "RegDst"),
+        link(84, 290, 150, 290, ""),
+        # ── operand buses into the ALU's two source multiplexers ──
+        link(350, 276, 420, 276, "bus A", ly=268, size=11),
+        link(350, 334, 420, 334, "bus B", ly=326, size=11),
+        _mux(420, 250, ["0", "1", "2"], "ALUBsrc", w=52, h=64),
+        _mux(420, 360, ["0", "1"], "ARLAsrc"),
+        # ── ALU ──
+        f'<polygon points="540,250 640,268 640,392 540,410" fill="#f5f7fa" stroke="{LINE}" stroke-width="1.5"/>',
+        text(578, 320, "A", size=13, weight="600"), text(578, 350, "L", size=13, weight="600"),
+        text(578, 380, "U", size=13, weight="600"),
+        link(472, 282, 540, 300, ""), link(472, 382, 540, 360, ""),
+        text(590, 430, "ALUCtr", size=11, fill=ACCENT),
+        link(590, 410, 590, 424, "", dashed=True),
+        # ── MAR / MDR / memory ──
+        link(640, 330, 700, 330, ""),
+        _mux(700, 300, ["0", "1"], "MARSrc"),
+        rect(780, 306, 74, 44, "MAR", size=12), link(754, 322, 780, 322, ""),
+        rect(880, 190, 84, 210, "", rx=3),
+        text(922, 282, "主", size=13, weight="600"), text(922, 302, "存", size=13, weight="600"),
+        text(922, 322, "储", size=13, weight="600"), text(922, 342, "器", size=13, weight="600"),
+        link(854, 322, 880, 322, "ABus", ly=312, size=11),
+        rect(780, 400, 74, 44, "MDR", size=12), link(854, 422, 880, 422, ""),
+        # ── PC, IR, CU ──
+        rect(560, 110, 74, 44, "PC", size=13), text(597, 100, "PCin", size=11, fill=ACCENT),
+        link(597, 104, 597, 110, "", dashed=True),
+        link(634, 132, 700, 132, ""), link(700, 132, 700, 300, ""),
+        rect(700, 110, 62, 40, "IR", size=13), text(731, 100, "IRin", size=11, fill=ACCENT),
+        link(731, 104, 731, 110, "", dashed=True),
+        link(762, 130, 800, 130, ""),
+        rect(800, 110, 62, 40, "CU", size=13),
+        text(831, 92, "控制信号", size=11, fill=ACCENT),
+        link(831, 110, 831, 96, "", dashed=True),
+        link(862, 130, 900, 130, ""),
+        # ── extender and the write-data multiplexer ──
+        rect(300, 470, 96, 46, "扩展器", size=12),
+        text(300, 462, "IR11-0", size=11, fill=ACCENT, anchor="end"),
+        link(348, 498, 348, 512, "", dashed=True),
+        text(348, 526, "ExtOp", size=11, fill=ACCENT),
+        link(240, 470, 300, 492, ""), text(262, 512, "12", size=10, fill=MUTED),
+        text(412, 492, "16", size=10, fill=MUTED),
+        _mux(300, 546, ["1", "0"], "Regwsrc"),
+        link(348, 516, 340, 546, ""),
+        link(327, 590, 327, 630, ""), link(327, 630, 250, 630, ""), link(250, 630, 250, 360, ""),
+        link(640, 330, 640, 460, ""), link(640, 460, 780, 460, ""), link(780, 460, 780, 444, ""),
+    ]
+    return svg(990, 660, "".join(body), "")
+
+
 # --------------------------------------------------------------------------------- registry
 
 FIGURES = {
@@ -774,7 +856,14 @@ FIGURES = {
     ("computer_organization", 2022, 43): ("2022_q43_1.svg", co_2022_q43),
     ("computer_network", 2024, 47): ("2024_q47_1.svg", cn_2024_q47),
     ("computer_network", 2026, 37): ("2026_q37_1.svg", cn_2026_q37),
-    ("computer_organization", 2026, 43): ("2026_q43_1.svg", co_2026_q43),
+    # NOTE: computer_organization 2026 Q43 is deliberately ABSENT. An earlier revision drew the
+    # R/I/M instruction-format diagram there, but the stem already states those formats verbatim —
+    # it was a redundant figure, not the one the question needs. The figure that question actually
+    # depends on is the I1~I4 instruction TABLE, which is not yet available in a form that can be
+    # transcribed with confidence. Showing the format diagram made the page look like it had the
+    # question's figure when it did not, so it was withdrawn.
+    ("computer_organization", 2026, 44): ("2026_q44_1.svg", co_2026_q44),
+    ("operating_system", 2026, 26): ("2026_q26_1.svg", os_2026_q26),
     ("operating_system", 2022, 46): ("2022_q46_1.svg", os_2022_q46),
     ("operating_system", 2025, 46): ("2025_q46_1.svg", os_2025_q46),
 }
