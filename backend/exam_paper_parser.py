@@ -297,6 +297,56 @@ def _run_ocr_for_question(image_path: str, q_number: int) -> dict | None:
         return None
 
 
+def has_source_image(question: dict) -> bool:
+    """Does the SOURCE document carry an image for this question?
+
+    A property of how the source material represents the question — NOT of what a learner is
+    shown. The figures learners see are decided by
+    ``exam_resources/11408/figure_classification.json`` and delivered as SVG from ``figures/``;
+    the images this flag is about are OCR inputs under ``static/exam_papers``. Keeping the two
+    apart is the point: nothing here may ever be served to a learner.
+    """
+    return bool(question.get("image_urls") or [])
+
+
+def resolve_source_image(subject_key: str, year: int, question: dict) -> str | None:
+    """The readable local file for this question's source image, or None if it is not on disk."""
+    for url in question.get("image_urls") or []:
+        local = STATIC_DIR / subject_key / str(year) / os.path.basename(str(url))
+        if local.exists():
+            return str(local)
+    return None
+
+
+def requires_image_ocr(subject_key: str, year: int, question: dict) -> bool:
+    """Must OCR run over this question's source image to recover its text?
+
+    True only when the source carries an image AND that image is readable. The three outcomes this
+    and :func:`has_source_image` distinguish are genuinely different, which is why one boolean
+    cannot carry them:
+
+      * no source image          -> no OCR, text taken from the document, NOT flagged
+      * source image unreadable  -> no OCR, text taken from the document, FLAGGED for review
+      * source image readable    -> OCR runs
+
+    Collapsing the middle case into the first would silently drop a review flag; that is the
+    behaviour this function exists to keep explicit.
+    """
+    return has_source_image(question) and \
+        resolve_source_image(subject_key, year, question) is not None
+
+
+def _legacy_ocr_decision(subject_key: str, year: int, question: dict) -> bool:
+    """The decision as it was expressed before the split, kept for the shadow comparison.
+
+    It is ``bool(image_urls)`` AND a readable file — i.e. exactly what the old branch structure
+    effectively did, since an unreadable image fell through to the same no-OCR path.
+    """
+    if not question.get("image_urls"):
+        return False
+    return resolve_source_image(subject_key, year, question) is not None
+
+
 def _ocr_year_questions(subject_key: str, year: int, force: bool = False) -> list[dict]:
     """OCR all images for a year's questions, returning merged question dicts.
     Results are cached to {cache}/exam_papers/{subject_key}/{year}.ocr.json"""
@@ -322,21 +372,18 @@ def _ocr_year_questions(subject_key: str, year: int, force: bool = False) -> lis
     logger.info("[ocr] Starting OCR for %s year=%s (%d questions)", subject_key, year, len(questions))
     success_count = 0
     for q in questions:
-        img_urls = q.get("image_urls", [])
-        if not img_urls:
+        if not has_source_image(q):
+            # No source image at all: the document's own text is the whole question.
             q["stem"] = q.get("content", "")
             q["options"] = q.get("options", {"A": "", "B": "", "C": "", "D": ""})
             q["ocr_quality"] = "none"
             q["need_manual_check"] = False
             continue
-        # Find first local image
-        img_path = None
-        for url in img_urls:
-            local = STATIC_DIR / subject_key / str(year) / os.path.basename(url)
-            if local.exists():
-                img_path = str(local)
-                break
-        if not img_path:
+
+        img_path = resolve_source_image(subject_key, year, q)
+        if img_path is None:
+            # The source HAS an image but it is not readable — a different situation from
+            # "no image", so it stays flagged rather than being quietly treated as text-only.
             q["stem"] = q.get("content", f"第 {q['number']} 题")
             q["options"] = q.get("options", {"A": "", "B": "", "C": "", "D": ""})
             q["ocr_quality"] = "none"
