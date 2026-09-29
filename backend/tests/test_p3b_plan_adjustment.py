@@ -446,6 +446,44 @@ def test_no_learning_record_at_all_says_so_instead_of_failing(client, db_session
     assert body["can_apply"] is False
 
 
+def test_an_ai_bookkeeping_event_is_not_learning_history(client, db_session, monkeypatch):
+    """REGRESSION. The production acceptance account answered `no_change_suggested` — "your plan
+    needs no adjustment" — while holding no plan, no review items and no practice at all.
+
+    The only thing it DID hold was a `plan_adjustment_proposed` event left over from an earlier
+    acceptance round: bookkeeping about the assistant having spoken, not evidence that anyone
+    learned anything. `recent_events` is what the MODEL reads; it is not a learner-state signal,
+    and treating it as one told a learner with nothing to plan around the answer meant for a
+    learner who already had a plan.
+    """
+    register_and_login(client, "p3b_plan_bookkeeping")
+    grant_unified_tier(db_session, "p3b_plan_bookkeeping", "standard")
+    user = _user(db_session, "p3b_plan_bookkeeping")
+
+    from data_plane.models import LearningEvent
+    for index, event_type in enumerate(("plan_adjustment_proposed", "ai_called")):
+        db_session.add(LearningEvent(
+            event_id=f"bookkeeping-{index}", event_schema_version=2, event_type=event_type,
+            event_granularity="ITEM_LEVEL", source_type="ai_request",
+            source_attempt_id=f"bookkeeping-{index}", source_item_key=f"bookkeeping-{index}:0",
+            source_item_index=0, user_id=user.id,
+            source_user_ref=user.username, service_key="exam_prep",
+            occurred_at=1000.0 + index, ingested_at=1000.0 + index,
+            source_payload_version=1, idempotency_key=f"bookkeeping:{index}",
+            snapshot_capture_mode="LIVE_EMITTER", snapshot_completeness="FULL",
+            snapshot_missing_fields_json="[]"))
+    db_session.commit()
+
+    monkeypatch.setattr("ai.orchestrator.default_provider_factory",
+                        _raw_provider('{"changes":[]}'))
+    body = _propose(client, service_key="exam_11408", course_id="",
+                    exam_module_id="data_structure").json()
+
+    assert body["outcome"] == "no_learning_record", body
+    assert body["message"] == "还没有足够学习记录。你可以先添加一个学习任务。"
+
+
+
 # The bodies the DEPLOYED provider actually returned, recorded verbatim on 2026-09-29 against
 # `deepseek-flash` (the cheapest qualified candidate for `planning.adjust`). A FakeProvider that
 # answers the shape we wish for is exactly how the empty-proposal outage reached production, so

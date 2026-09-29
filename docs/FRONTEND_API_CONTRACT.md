@@ -978,11 +978,16 @@ FastAPI 路由表直接生成，可重跑比对漂移）。
 | `outcome` | `proposed`（有可应用变更）/ `no_learning_record` / `no_change_suggested` / `suggestion_not_applicable` |
 | `message` | **学习者可见的一句话**；`outcome = proposed` 时为空串 |
 
-`outcome` 的判定全部由服务端依据**已经交给模型的那份上下文**得出，不额外查询：
+`outcome` 的判定全部由服务端依据**已经交给模型的那份上下文**得出，不额外查询。
+判据是**计划、复习清单、练习事实**这三样——建议本身就是从这三样推出来的（`_evidence` 读的也是它们），
+因此「没有可依据的记录」不可能与建议本身的口径打架。
+**`recent_events` 不算**：它是给模型看的上下文，却不是「学习过」的证据，里面会积累
+`plan_adjustment_proposed` 这类记账事件——把它算进来的结果是，一个什么都没学的空计划用户
+得到的是「你有计划，计划无需调整」这句写给已有计划的人的话。
 
 | `outcome` | 条件 | `message` |
 |---|---|---|
-| `no_learning_record` | 计划 / 复习 / 练习 / 近期事件**全为空** | 还没有足够学习记录。你可以先添加一个学习任务。 |
+| `no_learning_record` | 计划 / 复习 / 练习**全为空** | 还没有足够学习记录。你可以先添加一个学习任务。 |
 | `no_change_suggested` | 有记录，但模型没有提出任何变更 | 当前计划没有需要调整的地方。 |
 | `suggestion_not_applicable` | 模型提了变更，但全部未通过校验 | 这次的建议里没有可以应用的内容，计划保持不变。 |
 

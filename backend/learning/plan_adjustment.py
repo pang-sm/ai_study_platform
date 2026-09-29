@@ -521,18 +521,25 @@ def _rationale(evidence: list[dict]) -> str:
 
 
 def _has_learner_history(context_facts: dict) -> bool:
-    """Does this learner hold ANY record a plan suggestion could reason over?
+    """Does this learner hold ANY record a plan suggestion could act on?
 
-    Read from the SAME context the model was given, so "there is nothing here yet" is a statement
-    about the payload the model actually saw rather than a second, drifting query. A plan task,
-    a review item, a past attempt or any recent event counts.
+    Judged from the same three surfaces a suggestion is built from — the plan, the review list and
+    the practice facts — so this answer cannot disagree with what the proposal itself reasons over
+    (``_evidence`` reads exactly these).
+
+    ``recent_events`` is deliberately NOT part of it. It is the model's context, but it is not
+    evidence of LEARNING: it accumulates bookkeeping events, and a previous
+    ``plan_adjustment_proposed`` is one of them. Counting it meant a learner with an empty plan and
+    nothing studied yet was told their plan needed no adjustment — the answer for someone who HAS
+    a plan — instead of being told there is nothing to plan around yet. Measured on the production
+    acceptance account, 2026-09-29: plan 0, review 0, practice 0, and a plan_adjustment_proposed
+    event left over from an earlier acceptance round.
     """
     plan = context_facts.get("plan") or {}
     review = context_facts.get("review") or {}
     practice = context_facts.get("practice") or {}
     return bool(int(plan.get("total") or 0) or int(review.get("total") or 0)
-                or int(practice.get("attempts") or 0)
-                or (context_facts.get("recent_events") or []))
+                or int(practice.get("attempts") or 0))
 
 
 def _nothing_to_apply(context_facts: dict, *, requested: bool) -> tuple[str, str]:
