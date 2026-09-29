@@ -1031,6 +1031,50 @@ def ds_2025_q42():
     return svg(800, 430, "".join(body), "共 12 个活动")
 
 
+def co_2026_q43():
+    """题 43 表 — the four-instruction table the question's part (4) depends on.
+
+    This is the ONLY figure this question needs. An earlier revision drew the R/I/M instruction
+    formats instead, which the stem already states verbatim; that figure was withdrawn. What is
+    missing is this table.
+
+    It is drawn with the BLANKS IN PLACE. The published answers (①=1110, ②=0000 0100,
+    ③=1111 1011, ④=0000 0000 0010) were used only to check that the layout is right — they are
+    deliberately NOT rendered, because the learner's task is to fill ①–④.
+    """
+    x0, col_w = 40, 132
+    groups_x = [x0 + 150 + index * col_w for index in range(4)]
+    body = [text(x0, 30, "题 43 表", size=14, anchor="start", weight="600"),
+            text(x0, 56, "指令", size=12, weight="600", anchor="start")]
+    for index, label in enumerate(["15 ~ 12", "11 ~ 8", "7 ~ 4", "3 ~ 0"]):
+        body.append(text(groups_x[index] + col_w / 2, 56, label, size=11, fill=MUTED))
+
+    # (指令, [(text, spans_columns), ...]) — a blank spans the bit width the answer needs, which
+    # is what tells the learner how wide the field is.
+    rows = [("I1", [("①", 1), ("0000", 1), ("0000", 1), ("0000", 1)]),
+            ("I2", [("0000", 1), ("②", 2), ("0010", 1)]),
+            ("I3", [("0100", 1), ("0000", 1), ("③", 2)]),
+            ("I4", [("1111", 1), ("④", 3)])]
+    y = 72
+    for name, cells in rows:
+        body.append(text(x0, y + 32, name, size=13, weight="600", anchor="start"))
+        col = 0
+        for value, span in cells:
+            left = groups_x[col]
+            width = col_w * span
+            blank = value in ("①", "②", "③", "④")
+            body.append(rect(left, y, width, 44, "", rx=3,
+                             fill="#ffffff" if blank else FILL))
+            if blank:
+                body.append(f'<line x1="{left + 14}" y1="{y + 30}" x2="{left + width - 14}" '
+                            f'y2="{y + 30}" stroke="{LINE}" stroke-width="1.2"/>')
+            body.append(text(left + width / 2, y + 27, value, size=13, weight="600"))
+            col += span
+        y += 52
+    body.append(text(x0, y + 12, "①～④ 待填写", size=11, anchor="start", fill=MUTED))
+    return svg(1000, y + 36, "".join(body), "")
+
+
 # --------------------------------------------------------------------------------- registry
 
 FIGURES = {
@@ -1060,13 +1104,10 @@ FIGURES = {
     ("computer_organization", 2022, 43): ("2022_q43_1.svg", co_2022_q43),
     ("computer_network", 2024, 47): ("2024_q47_1.svg", cn_2024_q47),
     ("computer_network", 2026, 37): ("2026_q37_1.svg", cn_2026_q37),
-    # NOTE: computer_organization 2026 Q43 is deliberately ABSENT. An earlier revision drew the
-    # R/I/M instruction-format diagram there, but the stem already states those formats verbatim —
-    # it was a redundant figure, not the one the question needs. The figure that question actually
-    # depends on is the I1~I4 instruction TABLE, which is not yet available in a form that can be
-    # transcribed with confidence. Showing the format diagram made the page look like it had the
-    # question's figure when it did not, so it was withdrawn.
     ("computer_organization", 2026, 44): ("2026_q44_1.svg", co_2026_q44),
+    # The table that 2026 Q43 part (4) depends on — the format diagram that used to live here was
+    # withdrawn, not this.
+    ("computer_organization", 2026, 43): ("2026_q43_1.svg", co_2026_q43),
     ("operating_system", 2026, 26): ("2026_q26_1.svg", os_2026_q26),
     # --- figures read from the official papers, second batch (2026-09-29) ---
     ("computer_network", 2024, 35): ("2024_q35_1.svg", cn_2024_q35),

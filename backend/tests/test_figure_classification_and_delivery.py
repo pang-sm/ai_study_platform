@@ -33,11 +33,8 @@ CLASSIFICATION: dict[str, str] = json.loads(
 
 # Figures deliberately WITHDRAWN: the page must not advertise one for these questions.
 WITHDRAWN = {
-    # drew the R/I/M formats the stem already states verbatim, not the I1~I4 table the question
-    # actually depends on
-    "computer_organization/2026/Q43",
-    # the adjacency multilist's ilink/jlink chains are its structure; not shipping an
-    # approximation of them
+    # the adjacency multilist's ilink/jlink chains ARE its structure, and they cannot be
+    # transcribed from the paper with confidence; an approximation is not shipped in their place.
     "data_structure/2024/Q4",
 }
 
