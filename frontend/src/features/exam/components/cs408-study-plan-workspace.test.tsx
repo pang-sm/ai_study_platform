@@ -44,6 +44,14 @@ vi.mock('@/features/learning-intelligence/learning-intelligence-surfaces', () =>
   DynamicPlanSurface: (props: Record<string, unknown>) => { surfaces.props.push(props); return null; },
 }));
 
+/** The LAST field with this label — the existing row is also editable, so index 0 is not it. */
+function lastField(label: string): HTMLElement {
+  const fields = screen.getAllByLabelText(label);
+  const field = fields[fields.length - 1];
+  if (!field) throw new Error(`no field labelled ${label}`);
+  return field;
+}
+
 describe('Cs408StudyPlanWorkspace', () => {
   hooks.useCs408StudyPlans.mockImplementation(() => plans);
   beforeEach(() => {
@@ -93,11 +101,9 @@ describe('Cs408StudyPlanWorkspace', () => {
     await user.click(screen.getByRole('button', { name: '编辑计划' }));
     await user.click(screen.getByRole('button', { name: '添加一条任务' }));
     // the existing row is also editable now, so the NEW task is the last set of fields
-    const titleFields = screen.getAllByLabelText('任务名称');
-    await user.type(titleFields[titleFields.length - 1], '复习进程调度');
-    const dateFields = screen.getAllByLabelText('计划日期');
-    await user.clear(dateFields[dateFields.length - 1]);
-    await user.type(dateFields[dateFields.length - 1], '2026-10-02');
+    await user.type(lastField('任务名称'), '复习进程调度');
+    await user.clear(lastField('计划日期'));
+    await user.type(lastField('计划日期'), '2026-10-02');
     await user.click(screen.getByRole('button', { name: '保存计划' }));
 
     expect(writes.create).toHaveBeenCalledWith(expect.objectContaining({
@@ -111,10 +117,8 @@ describe('Cs408StudyPlanWorkspace', () => {
     render(<Cs408StudyPlanWorkspace />);
     await user.click(screen.getByRole('button', { name: '编辑计划' }));
     await user.click(screen.getByRole('button', { name: '添加一条任务' }));
-    const titleFields = screen.getAllByLabelText('任务名称');
-    await user.type(titleFields[titleFields.length - 1], '没有日期的任务');
-    const dateFields = screen.getAllByLabelText('计划日期');
-    await user.clear(dateFields[dateFields.length - 1]);
+    await user.type(lastField('任务名称'), '没有日期的任务');
+    await user.clear(lastField('计划日期'));
 
     expect(screen.getByText('请先为每个任务选择计划日期。')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '保存计划' }));

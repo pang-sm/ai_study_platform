@@ -214,6 +214,11 @@ beforeEach(() => {
     if (url === '/exam/11408/subjects/{subject_key}/dashboard-summary') {
       return ok({ subject_key: 'data_structure', subject_name: '数据结构', overview: { total_chapters: 8, total_knowledge_points: 64, learned_percent: 25, study_minutes: 20 }, today_plan: [], materials: { total_materials: 0 }, quota: {} });
     }
+    // 学习状态 is built on the learner's own records, so these are the surfaces whose text the
+    // page repeats and which must not carry an internal vocabulary either.
+    if (url === '/exam/prep/records') return ok({ records: [], has_more: false, next_cursor: null });
+    if (url === '/wrong-answers') return ok({ items: [], total: 0 });
+    if (url === '/review/summary') return ok({ total: 0, by_status: {}, by_namespace: {}, by_source: {}, has_stored_due_dates: false, semantics: '' });
     if (url === '/exam/11408/chapter-practice/outline') return ok({ module_key: 'data_structure', chapters: [] });
     if (url === '/exam/11408/subjects/data_structure/study-plan') return ok({ tasks: [] });
 

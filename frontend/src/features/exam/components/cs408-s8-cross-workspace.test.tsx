@@ -161,6 +161,9 @@ describe('Cs408LearningRecordsWorkspace → source', () => {
 vi.mock('@/features/exam/api/cs408-study-plan', () => ({
   useExamPlanEntitlement: () => ({ data: { service_key: 'exam_11408', current_tier: 'free', policy_version: 'v1', features: { learning_plan: { allowed: false, required_tier: 'standard', required_capability: 'planning.generate' } } }, isPending: false, isError: false, refetch: vi.fn() }),
   useCs408StudyPlans: () => [],
+  useCreateCs408PlanTask: () => ({ mutateAsync: vi.fn(), isPending: false, isError: false }),
+  useUpdateCs408PlanTask: () => ({ mutateAsync: vi.fn(), isPending: false, isError: false }),
+  useDeleteCs408PlanTask: () => ({ mutateAsync: vi.fn(), isPending: false, isError: false }),
 }));
 
 import { Cs408StudyPlanWorkspace } from './cs408-study-plan-workspace';
