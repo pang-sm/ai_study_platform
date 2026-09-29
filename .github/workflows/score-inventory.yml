@@ -1,0 +1,61 @@
+name: Score — Past-paper Denominator Inventory
+
+# SCORE_S1 follow-up: a READ-ONLY count of the past-paper attempts whose persisted denominator
+# was computed under the old hard-coded rule (2 for a choice question, 10 for a big one).
+#
+# It runs scripts/deploy/past_paper_score_inventory.py on the host: the database is opened with
+# SQLite `mode=ro`, it takes no input of any kind, runs only fixed literal queries, and prints
+# counts and category labels — never a username, stem, answer or analysis. It writes nothing.
+#
+# Fixed logic only: no SQL, path or shell parameter is accepted.
+on:
+  workflow_dispatch:
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare SSH
+        shell: bash
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_SSH_KEY: ${{ secrets.TENCENT_SSH_KEY }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          : "${TENCENT_HOST:?TENCENT_HOST secret required}"
+          : "${TENCENT_SSH_KEY:?TENCENT_SSH_KEY secret required}"
+          SSH_PORT="${SSH_PORT:-22}"
+          HOST_CLEAN="${TENCENT_HOST#*@}"
+          HOST_CLEAN="${HOST_CLEAN%%:*}"
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$TENCENT_SSH_KEY" | tr -d '\r' > "$HOME/.ssh/tencent_deploy_key"
+          chmod 600 "$HOME/.ssh/tencent_deploy_key"
+          ssh-keygen -y -f "$HOME/.ssh/tencent_deploy_key" >/dev/null 2>/tmp/score-keygen.err
+          ssh-keyscan -T 20 -p "$SSH_PORT" -H "$HOST_CLEAN" >> "$HOME/.ssh/known_hosts" 2>/dev/null || true
+          echo "[score] SSH ready"
+
+      - name: Run the read-only inventory
+        shell: bash
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_USER: ${{ secrets.TENCENT_USER }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          HOST_CLEAN="${TENCENT_HOST#*@}"
+          HOST_CLEAN="${HOST_CLEAN%%:*}"
+          SSH_PORT="${SSH_PORT:-22}"
+          ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=10 \
+            -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" \
+            "$TENCENT_USER@$HOST_CLEAN" 'bash -se' <<'SCOREEOF'
+          set -euo pipefail
+          cd "$HOME/ai_study_platform"
+          DATABASE_URL="sqlite:////var/lib/ai_study_platform/app.db" \
+            backend/.venv/bin/python scripts/deploy/past_paper_score_inventory.py
+          echo "[score] done"
+          SCOREEOF
