@@ -341,10 +341,12 @@ describe('LEARNER_METADATA_LEAKAGE_GUARD · 11408', () => {
   it('renders the state preview without the runtime’s internal fields', async () => {
     const { container } = renderApp('/exam/cs408/state');
 
-    // 学习状态 is the tab above; the page body is the learner's own state and its evidence.
+    // 学习状态 is the tab above; the page body is the learner's own figures, read from records
+    // the product holds. The engine's payload carried an internal quantity, the learner's
+    // reference and its own state object — none of which is a fact the page may print, so the
+    // guard checks the figures are there and none of that vocabulary came with them.
     expect(await screen.findByRole('heading', { name: '学习状态' })).toBeInTheDocument();
-    expect(await screen.findByText('涉及知识点')).toBeInTheDocument();
-    // The internal quantity and the learner's reference are absent even though the payload had them.
+    expect(await screen.findByText('已学习')).toBeInTheDocument();
     expect(container.textContent).not.toContain('0.8125');
     expectNothingLeaked(container);
   });

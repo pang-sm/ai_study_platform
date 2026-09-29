@@ -4627,7 +4627,17 @@ export interface paths {
         /** Get Question Bank Questions */
         get: operations["get_question_bank_questions_exam_11408__subject_key__question_bank_questions_get"];
         put?: never;
-        /** Create Question Bank Question */
+        /**
+         * Create Question Bank Question
+         * @description Author an official row in the shared CS408 question bank.
+         *
+         *     SECURITY_S1B: this is official-content authoring, not a learner feature. The bank is static
+         *     server-owned content per the SSOT (9,333 rows built by the offline importers), no client
+         *     ever called this endpoint, and while it was open to any authenticated learner it let them
+         *     write ``visibility=public, source_type=chapter`` rows that every other learner then saw and
+         *     was graded against. It is now admin-only through the existing RBAC, with a dedicated
+         *     ``question_bank.manage`` permission so a read-only auditor cannot author shared content.
+         */
         post: operations["create_question_bank_question_exam_11408__subject_key__question_bank_questions_post"];
         delete?: never;
         options?: never;
@@ -12730,6 +12740,16 @@ export interface components {
             summary: string;
             /** Rationale */
             rationale: string;
+            /**
+             * Outcome
+             * @default proposed
+             */
+            outcome: string;
+            /**
+             * Message
+             * @default
+             */
+            message: string;
             /** Adjustment Types */
             adjustment_types?: string[];
             /** Evidence */
@@ -22866,6 +22886,7 @@ export interface operations {
                     "image/png": unknown;
                     "image/webp": unknown;
                     "image/gif": unknown;
+                    "image/svg+xml": unknown;
                 };
             };
             /** @description Image not found */

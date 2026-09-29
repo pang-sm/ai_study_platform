@@ -95,6 +95,26 @@ MAX_EVIDENCE = 2
 EARLIER = "earlier"
 LATER = "later"
 
+# ---------------------------------------------------------------- nothing to propose
+
+# A model that proposes NOTHING has answered the question, and the answer is "your plan is fine".
+# This used to be raised as `empty_proposal` and returned as HTTP 400, which read as an outage:
+# the client could only map an unrecognised 400 onto "请求暂时不可用，请稍后重试。", so a learner
+# whose plan needed no change — and, worse, a learner with no records at all — was told the
+# service was broken. The real provider answers `{"changes": []}` routinely (measured 2026-09-29
+# against the deployed model, for both an empty plan and a plan that was already on schedule), so
+# this is the COMMON path, not an edge case.
+#
+# The outcome is therefore a successful response carrying a code and one learner-facing line.
+OUTCOME_PROPOSED = "proposed"
+OUTCOME_NO_RECORD = "no_learning_record"
+OUTCOME_NO_CHANGE = "no_change_suggested"
+OUTCOME_NOT_APPLICABLE = "suggestion_not_applicable"
+
+MESSAGE_NO_RECORD = "还没有足够学习记录。你可以先添加一个学习任务。"
+MESSAGE_NO_CHANGE = "当前计划没有需要调整的地方。"
+MESSAGE_NOT_APPLICABLE = "这次的建议里没有可以应用的内容，计划保持不变。"
+
 
 class PlanAdjustmentRefusal(ValueError):
     def __init__(self, reason: str, message: str):
@@ -500,6 +520,30 @@ def _rationale(evidence: list[dict]) -> str:
     return f"{evidence[0]['text']}。"
 
 
+def _has_learner_history(context_facts: dict) -> bool:
+    """Does this learner hold ANY record a plan suggestion could reason over?
+
+    Read from the SAME context the model was given, so "there is nothing here yet" is a statement
+    about the payload the model actually saw rather than a second, drifting query. A plan task,
+    a review item, a past attempt or any recent event counts.
+    """
+    plan = context_facts.get("plan") or {}
+    review = context_facts.get("review") or {}
+    practice = context_facts.get("practice") or {}
+    return bool(int(plan.get("total") or 0) or int(review.get("total") or 0)
+                or int(practice.get("attempts") or 0)
+                or (context_facts.get("recent_events") or []))
+
+
+def _nothing_to_apply(context_facts: dict, *, requested: bool) -> tuple[str, str]:
+    """(outcome, the one line the learner reads) when a validated proposal holds no change."""
+    if not _has_learner_history(context_facts):
+        return OUTCOME_NO_RECORD, MESSAGE_NO_RECORD
+    if not requested:
+        return OUTCOME_NO_CHANGE, MESSAGE_NO_CHANGE
+    return OUTCOME_NOT_APPLICABLE, MESSAGE_NOT_APPLICABLE
+
+
 def _adjustment_types(changes: list[dict]) -> list[str]:
     """The proposal's meanings, in the canonical order — never a type it did not produce."""
     present = {change["type"] for change in changes}
@@ -600,18 +644,28 @@ def propose_adjustment(db: DbSession, user, *, service_key: str, goal: str = "",
 
     parsed = _extract_json_object(result.content or "")
     if parsed is None:
-        raise PlanAdjustmentRefusal("unusable_proposal", "模型未返回可用的计划建议")
-    accepted, dropped = _clean_changes(parsed.get("changes"), _task_index(tasks),
-                                       plan_task_types(space))
-    if not accepted:
-        raise PlanAdjustmentRefusal("empty_proposal", "模型没有给出可应用的调整")
+        raise PlanAdjustmentRefusal("unusable_proposal", "这次没有生成可用的建议")
+    requested = parsed.get("changes")
+    accepted, dropped = _clean_changes(requested, _task_index(tasks), plan_task_types(space))
+
+    # Nothing survived validation. That is a normal outcome of asking, not a failure of asking, so
+    # it is returned as a proposal with no changes (which `can_apply: false` already forbids
+    # applying) rather than as an error status.
+    if accepted:
+        outcome, message = OUTCOME_PROPOSED, ""
+    else:
+        outcome, message = _nothing_to_apply(context_facts, requested=bool(requested))
 
     evidence = _evidence(context_facts, accepted)
     proposal_id = uuid.uuid4().hex
     identity = context_facts["plan"]["identity"]
-    _emit_proposed(user, proposal_id=proposal_id, change_count=len(accepted),
-                   identity=identity, space=space, context=execution_context,
-                   request_id=result.request_id)
+    # An empty proposal is not something that happened TO the learner's plan, so it is not
+    # recorded as one: `plan_adjustment_proposed` is a learner-facing record type, and
+    # "0 changes were proposed" is a row that says nothing.
+    if accepted:
+        _emit_proposed(user, proposal_id=proposal_id, change_count=len(accepted),
+                       identity=identity, space=space, context=execution_context,
+                       request_id=result.request_id)
     usage = result.usage or {}
     return {
         "proposal_id": proposal_id,
@@ -622,12 +676,14 @@ def propose_adjustment(db: DbSession, user, *, service_key: str, goal: str = "",
                                         exam_module_id=exam_module_id, language=language),
         "plan_identity": identity,
         "summary": _summary(accepted),
-        "rationale": _rationale(evidence),
+        "rationale": _rationale(evidence) if accepted else "",
+        "outcome": outcome,
+        "message": message,
         "adjustment_types": _adjustment_types(accepted),
         "evidence": evidence,
         "proposed_changes": accepted,
         "impact": _impact(context_facts, accepted, tasks),
-        "can_apply": True,
+        "can_apply": bool(accepted),
         "affected_tasks": [change["task_id"] for change in accepted
                            if change.get("task_id") is not None],
         "dropped_changes": dropped,
@@ -677,7 +733,7 @@ def apply_adjustment(db: DbSession, user, *, service_key: str, plan_identity_val
         dated.append(change)
     accepted = dated
     if not accepted:
-        raise PlanAdjustmentRefusal("empty_proposal", "没有可应用的调整")
+        raise PlanAdjustmentRefusal("empty_proposal", "这次没有可以应用到计划的改动")
 
     applied = 0
     for change in accepted:

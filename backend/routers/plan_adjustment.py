@@ -94,6 +94,11 @@ class PlanAdjustmentProposal(BaseModel):
     plan_identity: str
     summary: str
     rationale: str
+    # `proposed` when there is something to apply, otherwise why there is not — with the one line
+    # the learner reads. A proposal that holds no change is a 200, not an error: the assistant
+    # answered, and its answer was "nothing to adjust".
+    outcome: str = "proposed"
+    message: str = ""
     adjustment_types: list[str] = Field(default_factory=list)
     evidence: list[PlanEvidence] = Field(default_factory=list)
     proposed_changes: list[ProposedChange] = Field(default_factory=list)

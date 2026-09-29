@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { components } from '@/types/api';
+import { ApiRequestError } from '@/features/exam/api/content-status';
 import type { LearningScope } from './presentation';
 import { DynamicPlanSurface } from './learning-intelligence-surfaces';
 
@@ -35,6 +36,8 @@ const proposal: PlanProposal = {
   plan_identity: 'bcaaf4ffb20e8081',
   summary: '把「进程调度复习」提前 5 天，并另外调整 1 项',
   rationale: '当前有 2 项任务已逾期。',
+  outcome: 'proposed',
+  message: '',
   adjustment_types: ['RESCHEDULE', 'INSERT', 'INCREASE_LOAD'],
   evidence: [{ code: 'plan_overdue', text: '当前有 2 项任务已逾期', metric: 2 }],
   proposed_changes: [
@@ -231,5 +234,69 @@ describe('DynamicPlanSurface', () => {
     expect(screen.queryByRole('heading', { name: '建议调整' })).not.toBeInTheDocument();
     expect(applyMutate).not.toHaveBeenCalled();
     void user;
+  });
+
+  // ---------------------------------------------- a proposal that proposes nothing
+
+  /** What the route returns when the model looked and had nothing to change. */
+  const nothingToChange: PlanProposal = {
+    ...proposal,
+    summary: '',
+    rationale: '',
+    outcome: 'no_change_suggested',
+    message: '当前计划没有需要调整的地方。',
+    adjustment_types: [],
+    evidence: [],
+    proposed_changes: [],
+    can_apply: false,
+    affected_tasks: [],
+    impact: {
+      inserted: 0, rescheduled: 0, moved_earlier: 0, moved_later: 0, replaced: 0,
+      task_count_before: 1, task_count_after: 1, overdue_before: 0, overdue_after: 0,
+      text: '本次调整。',
+    },
+  };
+
+  it('states that there was nothing to change instead of failing the request', async () => {
+    // REGRESSION. The deployed model answers `{"changes": []}` routinely, and the route used to
+    // turn that into HTTP 400 — which this page could only render as 「请求暂时不可用，请稍后重试。」,
+    // i.e. an outage message for a plan that was already fine.
+    const { view } = await showProposal(nothingToChange);
+    const page = view.container.textContent ?? '';
+
+    expect(screen.getByText('当前计划没有需要调整的地方。')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '应用调整' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '建议调整' })).not.toBeInTheDocument();
+    expect(page).not.toContain('请求暂时不可用');
+  });
+
+  it('tells a learner with no records at all what to do next', async () => {
+    await showProposal({
+      ...nothingToChange,
+      outcome: 'no_learning_record',
+      message: '还没有足够学习记录。你可以先添加一个学习任务。',
+    });
+
+    expect(screen.getByText('还没有足够学习记录。你可以先添加一个学习任务。')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '应用调整' })).not.toBeInTheDocument();
+  });
+
+  it('names a rejected request as a rejected request, not as an unavailable service', () => {
+    hooks.usePlanProposal.mockReturnValue({
+      mutate: generate, isPending: false, isError: true,
+      error: new ApiRequestError(400, { detail: { code: 'unusable_proposal' } }),
+    });
+    renderSurface();
+    expect(screen.getByText('这次没有生成可用的结果，可以再试一次。')).toBeInTheDocument();
+    expect(screen.queryByText('请求暂时不可用，请稍后重试。')).not.toBeInTheDocument();
+  });
+
+  it('still reports a genuinely unavailable service as one', () => {
+    hooks.usePlanProposal.mockReturnValue({
+      mutate: generate, isPending: false, isError: true,
+      error: new ApiRequestError(502, null),
+    });
+    renderSurface();
+    expect(screen.getByText('服务暂时不可用，请稍后重试。')).toBeInTheDocument();
   });
 });

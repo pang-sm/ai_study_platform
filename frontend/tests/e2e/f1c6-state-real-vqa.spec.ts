@@ -108,16 +108,22 @@ test('student twin preview is a real read-only experiment with module scope', as
   await page.request.post(`${API}/login`, { data: USER });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/exam/cs408/state');
-  await expect(page.getByRole('heading', { name: '学习状态' })).toBeAttached();
-  await expect(page.getByRole('heading', { name: '你的学习概况' })).toBeVisible();
-  await expect(page.getByText('基于你的真实学习记录计算。它不参与判分，也不会改写你的知识状态、错题或学习计划。')).toBeVisible();
-  await expect(page.getByRole('heading', { name: '最近学习' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '学习状态' })).toBeVisible();
+  // The page is a status, not a directory: four figures, and the sections that used to repeat
+  // "there is no data yet" or offer navigation the strip above already carries are gone.
+  await expect(page.getByText('已学习')).toBeVisible();
+  await expect(page.getByText('待复习')).toBeVisible();
+  await expect(page.getByText('错题')).toBeVisible();
+  await expect(page.getByText('今日计划')).toBeVisible();
+  for (const removed of ['基于你的真实学习记录计算', '最近学习', '查看学习记录', '查看学习报告',
+                         '学习状态摘要', '你的学习概况', '学习状态服务暂时不可用']) {
+    await expect(page.getByText(removed, { exact: false })).toHaveCount(0);
+  }
   await expect(page.getByText(/learner_state|misconception_v2|tutor_policy|evidence_reliability|SCIENTIFIC_RUNTIME_UNAVAILABLE/i)).toHaveCount(0);
   await page.screenshot({ path: path.join(SCREENSHOTS, 'desktop-state.png'), fullPage: true });
   await page.getByLabel('切换 408 学习科目').selectOption('data_structure');
   await expect(page).toHaveURL(/\/exam\/cs408\/state\?module=data_structure/);
-  await expect(page.getByRole('heading', { name: '学习状态摘要' })).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByRole('link', { name: '查看学习记录' })).toHaveAttribute('href', '/exam/cs408/records?module=data_structure');
+  await expect(page.getByRole('heading', { name: '学习状态' })).toBeVisible({ timeout: 20_000 });
   await page.screenshot({ path: path.join(SCREENSHOTS, 'desktop-state-module.png'), fullPage: true });
   expect(traffic.filter((item) => /scientific\/(capabilities|student-twin)/.test(item.url)).every((item) => item.method === 'GET')).toBe(true);
   expect(traffic.some((item) => item.url.includes('/exam/prep/scientific/capabilities') && item.method === 'GET')).toBe(true);
@@ -139,7 +145,7 @@ test('student twin unavailable is bounded while records remain usable', async ({
   await page.goto('/exam/cs408/state');
   // The engine having nothing to replay is a statement about the RECORD, not the service: the
   // learner's own figures stay, and no outage copy is shown for it.
-  await expect(page.getByRole('heading', { name: '你的学习概况' })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText('已学习')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText('学习状态服务暂时不可用')).toHaveCount(0);
   await expect(page.getByText(/SCIENTIFIC_RUNTIME_UNAVAILABLE|NO_ELIGIBLE_PRACTICE_EVENTS_IN_SCOPE/)).toHaveCount(0);
   await page.screenshot({ path: path.join(SCREENSHOTS, 'desktop-state-unavailable.png'), fullPage: true });

@@ -373,9 +373,11 @@ def test_a_change_that_changes_nothing_is_never_shown(client, db_session, monkey
 
     monkeypatch.setattr("ai.orchestrator.default_provider_factory", _provider(
         [{"op": "update_task", "task_id": task.id, "due_date": "2026-09-01"}]))
-    refused = _propose(client)
-    assert refused.status_code == 400, refused.text
-    assert refused.json()["detail"]["code"] == "empty_proposal"
+    body = _propose(client).json()
+    assert body["proposed_changes"] == []
+    assert body["can_apply"] is False
+    assert body["outcome"] == "suggestion_not_applicable"
+    assert body["message"]
 
 
 def test_a_suggestion_cannot_write_learner_progress(client, db_session, monkeypatch):
@@ -387,10 +389,110 @@ def test_a_suggestion_cannot_write_learner_progress(client, db_session, monkeypa
 
     monkeypatch.setattr("ai.orchestrator.default_provider_factory", _provider(
         [{"op": "update_task", "task_id": task.id, "status": "completed"}]))
-    refused = _propose(client)
-    assert refused.status_code == 400, refused.text
-    assert refused.json()["detail"]["code"] == "empty_proposal"
+    body = _propose(client).json()
+    assert body["proposed_changes"] == []
+    assert body["can_apply"] is False
     assert _task_state(db_session, task.id)[2] == "not_started"
+
+
+# ------------------------------------------------ nothing to propose is an ANSWER, not an error
+
+def test_an_empty_change_list_is_a_result_and_not_a_service_error(client, db_session, monkeypatch):
+    """REGRESSION. The deployed planning model answers `{"changes": []}` routinely — for a plan
+    that is already on schedule, and for a learner with no records at all.
+
+    This used to be `empty_proposal` → HTTP 400, which the client can only render as
+    「请求暂时不可用，请稍后重试。」: a learner whose plan simply needed no adjustment was told
+    the service was down. Nothing about the plan may change, and the answer must be a 200 that
+    says what happened.
+    """
+    register_and_login(client, "p3b_plan_empty_list")
+    grant_unified_tier(db_session, "p3b_plan_empty_list", "standard")
+    user = _user(db_session, "p3b_plan_empty_list")
+    task = _task(db_session, user.username, title="按计划进行中", due_date="2026-12-01")
+    before = _task_state(db_session, task.id)
+
+    monkeypatch.setattr("ai.orchestrator.default_provider_factory",
+                        _raw_provider('{"changes":[]}'))
+    response = _propose(client)
+    assert response.status_code == 200, response.text
+    body = response.json()
+
+    assert body["proposed_changes"] == []
+    assert body["can_apply"] is False
+    assert body["adjustment_types"] == []
+    # the learner has a plan, so this is "nothing to adjust", not "no records yet"
+    assert body["outcome"] == "no_change_suggested"
+    assert body["message"] == "当前计划没有需要调整的地方。"
+    # and the plan is untouched
+    assert _task_state(db_session, task.id) == before
+
+
+def test_no_learning_record_at_all_says_so_instead_of_failing(client, db_session, monkeypatch):
+    """A clean account (no plan, no review, no practice, no events) is not a service failure.
+
+    The honest answer is that there is not enough to reason over yet, plus the one action the
+    learner can take — never an error the page has to apologise for.
+    """
+    register_and_login(client, "p3b_plan_no_record")
+    grant_unified_tier(db_session, "p3b_plan_no_record", "standard")
+
+    monkeypatch.setattr("ai.orchestrator.default_provider_factory",
+                        _raw_provider('{"changes":[]}'))
+    body = _propose(client).json()
+
+    assert body["outcome"] == "no_learning_record"
+    assert body["message"] == "还没有足够学习记录。你可以先添加一个学习任务。"
+    assert body["can_apply"] is False
+
+
+# The bodies the DEPLOYED provider actually returned, recorded verbatim on 2026-09-29 against
+# `deepseek-flash` (the cheapest qualified candidate for `planning.adjust`). A FakeProvider that
+# answers the shape we wish for is exactly how the empty-proposal outage reached production, so
+# these are the shapes the suite is pinned to instead.
+RECORDED_PROVIDER_ANSWERS = (
+    # an empty plan, and a plan already on schedule — the two production cases
+    '{"changes":[]}',
+    # what the same model answered when it DID have an overdue task to move
+    '{"changes":[{"op":"update_task","task_id":1,"due_date":"2026-09-06"}]}',
+    # the dateless new task it offers when it has nothing to date it from
+    '{"changes":[{"op":"create_task","title":"完成到期的知识复习","task_type":"review",'
+    '"due_date":null}]}',
+)
+
+
+def test_every_recorded_provider_shape_answers_without_a_service_error(
+        client, db_session, monkeypatch):
+    """REGRESSION SAMPLE (the rule this round establishes).
+
+    Whatever the deployed model answers, the endpoint answers the learner — it never turns the
+    model's own output shape into 「请求暂时不可用」. An empty list is a result; a dateless task
+    is a suggestion the learner completes. Neither is a transport failure.
+    """
+    register_and_login(client, "p3b_plan_recorded")
+    grant_unified_tier(db_session, "p3b_plan_recorded", "standard")
+    user = _user(db_session, "p3b_plan_recorded")
+    task = _task(db_session, user.username, title="按计划进行中", due_date="2026-12-01")
+    before = _task_state(db_session, task.id)
+
+    for content in RECORDED_PROVIDER_ANSWERS:
+        monkeypatch.setattr("ai.orchestrator.default_provider_factory", _raw_provider(content))
+        response = _propose(client)
+        assert response.status_code == 200, f"{content} -> {response.status_code}: {response.text}"
+        body = response.json()
+        assert body["plan_identity"]
+        if content == RECORDED_PROVIDER_ANSWERS[2]:      # the dateless new task
+            assert body["can_apply"] is True
+            assert body["proposed_changes"][0]["needs_due_date"] is True
+        elif content == RECORDED_PROVIDER_ANSWERS[0]:    # the empty list
+            assert body["can_apply"] is False
+            assert body["proposed_changes"] == []
+            assert body["message"]
+        # the update against a task id that may not be this learner's is either accepted or
+        # dropped by ownership — both are answers, and neither may be a status code
+
+    # none of them wrote anything
+    assert _task_state(db_session, task.id) == before
 
 
 # ================================================ 5. unsupported kinds are refused
@@ -426,7 +528,7 @@ def test_remove_and_reorder_are_refused_by_name(client, db_session, monkeypatch)
     assert _task_state(db_session, keep.id)[1] == "2026-09-29"
 
 
-def test_a_proposal_of_only_unsupported_changes_is_refused(client, db_session, monkeypatch):
+def test_a_proposal_of_only_unsupported_changes_applies_nothing(client, db_session, monkeypatch):
     register_and_login(client, "p3b_plan_only_unsupported")
     grant_unified_tier(db_session, "p3b_plan_only_unsupported", "standard")
     user = _user(db_session, "p3b_plan_only_unsupported")
@@ -435,9 +537,10 @@ def test_a_proposal_of_only_unsupported_changes_is_refused(client, db_session, m
     monkeypatch.setattr("ai.orchestrator.default_provider_factory", _provider(
         [{"op": "remove_task", "task_id": task.id},
          {"op": "reorder_tasks", "task_id": task.id}]))
-    refused = _propose(client)
-    assert refused.status_code == 400, refused.text
-    assert refused.json()["detail"]["code"] == "empty_proposal"
+    body = _propose(client).json()
+    assert body["proposed_changes"] == []
+    assert body["can_apply"] is False
+    assert body["outcome"] == "suggestion_not_applicable"
     assert _task_state(db_session, task.id)[0] == "任务"
 
 
@@ -519,15 +622,19 @@ def test_an_unusable_proposal_never_reaches_the_plan(client, db_session, monkeyp
     assert unusable.json()["detail"]["code"] == "unusable_proposal"
 
     # JSON, but with nothing this endpoint can act on: a non-list, an empty list, and a task that
-    # is not in this plan.
+    # is not in this plan. Every one of these is a 200 that proposes nothing — the endpoint was
+    # asked a question and answered it — never a status the client reads as an outage.
     for content in ('{"changes": "不是数组"}', '{"changes": []}',
                     '{"changes": [{"op": "update_task", "task_id": 999999,'
                     ' "due_date": "2026-09-30"}]}',
                     '{"changes": [{"op": "update_task", "task_id": null}]}'):
         monkeypatch.setattr("ai.orchestrator.default_provider_factory", _raw_provider(content))
-        refused = _propose(client)
-        assert refused.status_code == 400, f"{content} -> {refused.status_code}"
-        assert refused.json()["detail"]["code"] == "empty_proposal"
+        response = _propose(client)
+        assert response.status_code == 200, f"{content} -> {response.status_code}"
+        body = response.json()
+        assert body["proposed_changes"] == []
+        assert body["can_apply"] is False
+        assert body["message"]
 
     assert _task_state(db_session, task.id) == before
 
@@ -641,3 +748,59 @@ def test_a_suggestion_without_a_date_is_offered_for_the_learner_to_date_rather_t
         "proposed_changes": body["proposed_changes"]})
     assert applied.status_code == 400, applied.text
     assert own() == before
+
+
+def test_the_day_the_learner_picks_is_the_day_the_task_gets(client, db_session, monkeypatch):
+    """The other half of the dateless-suggestion rule, and the one the UI actually performs.
+
+    The model could not choose a day, so the learner chose one and the client sent it back. That
+    completes the suggestion — it does not re-derive it, and it must land on the plan exactly as
+    chosen.
+    """
+    register_and_login(client, "p3b_plan_chosen_date")
+    grant_unified_tier(db_session, "p3b_plan_chosen_date", "standard")
+    user = _user(db_session, "p3b_plan_chosen_date")
+
+    body = _propose_body(client, monkeypatch, [
+        {"op": "create_task", "title": "补做线性表练习", "task_type": "review"}])
+    assert body["proposed_changes"][0]["needs_due_date"] is True
+
+    chosen = [dict(change, due_date="2026-10-20") for change in body["proposed_changes"]]
+    applied = client.post(APPLY, json={
+        "service_key": "course_learning", "course_id": COURSE,
+        "plan_identity": body["plan_identity"],
+        "proposed_changes": chosen,
+        "proposal_id": body["proposal_id"]})
+    assert applied.status_code == 200, applied.text
+    assert applied.json()["applied_count"] == 1
+
+    # It persisted, with the learner's own day — read back through a fresh query, not the
+    # response.
+    db_session.expire_all()
+    rows = (db_session.query(ExamStudyPlanTask)
+            .filter(ExamStudyPlanTask.username == user.username).all())
+    assert [(row.title, row.due_date, row.task_type) for row in rows] == [
+        ("补做线性表练习", "2026-10-20", "review")]
+
+
+def test_a_provider_outage_keeps_the_plan_and_says_so(client, db_session, monkeypatch):
+    """A real failure is still a failure — reported as one, with the learner's plan intact.
+
+    The point of the change above is NOT that every outcome becomes a 200: when the model cannot
+    be reached at all, the route must still fail. What it must never do is fail because the model
+    gave a perfectly good answer with nothing in it.
+    """
+    register_and_login(client, "p3b_plan_outage")
+    grant_unified_tier(db_session, "p3b_plan_outage", "standard")
+    user = _user(db_session, "p3b_plan_outage")
+    task = _task(db_session, user.username, title="按计划进行中", due_date="2026-12-01")
+    before = _task_state(db_session, task.id)
+
+    monkeypatch.setattr("ai.orchestrator.default_provider_factory",
+                        lambda name: FakeProvider(provider=name, behavior="raise_auth"))
+    refused = _propose(client)
+    assert refused.status_code in (429, 502), refused.text
+    assert "detail" in refused.json()
+    # the learner keeps their plan, and can try again
+    assert _task_state(db_session, task.id) == before
+

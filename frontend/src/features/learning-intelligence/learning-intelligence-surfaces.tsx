@@ -32,6 +32,10 @@ const REPORT_BLOCKS: ReadonlyArray<{ key: string; label: string; note: string }>
 
 function FailureCopy({ error, unavailable = false }: { error: unknown; unavailable?: boolean }) {
   const status = error instanceof ApiRequestError ? error.status : undefined;
+  // A rejected REQUEST and an unavailable SERVICE are different things, and only the second is
+  // worth telling a learner to try again later. Everything used to collapse into
+  // 「请求暂时不可用，请稍后重试。」, which is how a 400 reporting "the model sent nothing usable"
+  // was read as an outage.
   const message =
     unavailable && status === 409
       ? '这一题的题面还没有核对过，深度分析暂时不可用。'
@@ -39,7 +43,9 @@ function FailureCopy({ error, unavailable = false }: { error: unknown; unavailab
         ? '该能力当前不可用，需要相应权限。'
         : status === 429
           ? '本次额度不足，未发起请求。'
-          : '请求暂时不可用，请稍后重试。';
+          : status === 400 || status === 422
+            ? '这次没有生成可用的结果，可以再试一次。'
+            : '服务暂时不可用，请稍后重试。';
   return (
     <StatusNote tone="danger" className="mt-3">
       {message}
@@ -463,7 +469,15 @@ export function DynamicPlanSurface({ scope, scopeSelect }: { scope: LearningScop
         </StatusNote>
       ) : null}
 
-      {proposal ? (
+      {proposal && (proposal.proposed_changes?.length ?? 0) === 0 ? (
+        // The assistant looked and had nothing to change. That is an answer, and the server sends
+        // it as one — so it is stated here, with no apply button and no error styling, rather than
+        // being dressed up as a failed request.
+        <StatusNote tone="info" className="mt-4">
+          {text(proposal.message) ?? '当前计划没有需要调整的地方。'}
+        </StatusNote>
+      ) : null}
+      {proposal && (proposal.proposed_changes?.length ?? 0) > 0 ? (
         <ProposalView
           proposal={proposal}
           onApply={accept}
@@ -575,17 +589,13 @@ function ProposalView({ proposal, onApply, onDismiss, applying }: { proposal: Pl
     <section className="mt-8" aria-label="计划调整建议">
       <h3 className="text-heading font-semibold text-text-primary">建议调整</h3>
 
-      {changes.length ? (
-        <ul className="mt-3 space-y-3">
-          {changes.map((change, index) => (
-            <SuggestionRow key={`${String(change.type ?? change.op ?? 'change')}-${index}`} change={change}
-                           chosenDate={chosen[index]}
-                           onChooseDate={undated.has(index) ? (value) => setChosen((current) => ({ ...current, [index]: value })) : undefined} />
-          ))}
-        </ul>
-      ) : (
-        <p className="mt-2 text-body text-text-secondary">当前计划无需调整</p>
-      )}
+      <ul className="mt-3 space-y-3">
+        {changes.map((change, index) => (
+          <SuggestionRow key={`${String(change.type ?? change.op ?? 'change')}-${index}`} change={change}
+                         chosenDate={chosen[index]}
+                         onChooseDate={undated.has(index) ? (value) => setChosen((current) => ({ ...current, [index]: value })) : undefined} />
+        ))}
+      </ul>
 
       {reason ? (
         <div className="mt-5">

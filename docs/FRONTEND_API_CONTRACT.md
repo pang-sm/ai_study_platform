@@ -963,6 +963,39 @@ FastAPI 路由表直接生成，可重跑比对漂移）。
 （早先的实现直接在 propose 阶段丢掉这类建议，结果模型给出的建议几乎全是新增任务、
 整份建议因此变空、路由返回 `empty_proposal`，AI 建议功能实际不可用。）
 
+### `POST /ai/plan-adjustment` 的「没有可调整内容」是 200，不是 400
+
+**触发原因（2026-09-29 生产实测）**：真实模型对「空计划」与「计划本来就正常」这两种状态
+一律回答 `{"changes":[]}`。这既不是解析失败，也不是 provider 故障，而是模型对问题的回答。
+旧实现把它当成错误，`propose` 抛 `empty_proposal` → HTTP **400**；前端只能把无法识别的 400
+渲染成「请求暂时不可用，请稍后重试。」——一个计划本来就正常的用户被告知服务坏了，
+公网验收账号（`event_count = 0`）点「生成建议」必然踩中。
+
+新增响应字段：
+
+| 字段 | 含义 |
+|---|---|
+| `outcome` | `proposed`（有可应用变更）/ `no_learning_record` / `no_change_suggested` / `suggestion_not_applicable` |
+| `message` | **学习者可见的一句话**；`outcome = proposed` 时为空串 |
+
+`outcome` 的判定全部由服务端依据**已经交给模型的那份上下文**得出，不额外查询：
+
+| `outcome` | 条件 | `message` |
+|---|---|---|
+| `no_learning_record` | 计划 / 复习 / 练习 / 近期事件**全为空** | 还没有足够学习记录。你可以先添加一个学习任务。 |
+| `no_change_suggested` | 有记录，但模型没有提出任何变更 | 当前计划没有需要调整的地方。 |
+| `suggestion_not_applicable` | 模型提了变更，但全部未通过校验 | 这次的建议里没有可以应用的内容，计划保持不变。 |
+
+配套语义：
+
+- 这三条路径的 `proposed_changes` 为 `[]`、`can_apply` 为 `false`（apply 的
+  `proposed_changes` 有 `min_length=1`，因此不可能被应用）；`plan_identity` 照常返回。
+- `plan_adjustment_proposed` **不再为 0 变更的建议写学习记录**（`plan_adjustment_proposed`
+  是用户可见记录类型，「提出了 0 条变更」是没有信息量的一行）。
+- **真正**的失败仍然是失败：解析不出 JSON 仍是 `400 unusable_proposal`；provider 不可达 /
+  无可用模型仍是 502，额度不足仍是 429，权限不足仍是 403。前端必须按状态码区分
+  「请求被拒绝」与「服务不可用」，只有后者才提示「服务暂时不可用，请稍后重试。」
+
 ### 建议文案的产品化（响应字段语义微调，字段名不变）
 
 - `rationale`：从「依据你当前的记录：<全部证据>」改为**一句话**，取排序第一的证据文本。

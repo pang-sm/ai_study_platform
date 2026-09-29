@@ -1,37 +1,20 @@
-.student-twin { max-width: 74rem; color: var(--color-lab-ink); }
-.student-twin__header { border-bottom: 2px solid var(--color-lab-ink); padding: 1.5rem 0 1.25rem; }
-.student-twin__header p { margin: 0; color: var(--color-primary-hover); font-size: var(--text-metadata); font-weight: 700; letter-spacing: .08em; }
-.student-twin__header h1 { margin: .35rem 0; font-size: var(--text-page-title); line-height: 1.2; letter-spacing: -.02em; }
-.student-twin__header span { color: var(--color-text-secondary); font-size: var(--text-card-title); }
-.student-twin__technical { margin-top: 1.5rem; border: 1px solid var(--color-lab-grid-light); background: var(--color-primary-soft); padding: 1rem; }
-.student-twin__technical dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin: 0; }
-.student-twin__technical dt { color: var(--color-text-secondary); font-size: var(--text-metadata); font-weight: 700; }
-.student-twin__technical dd { margin: .25rem 0 0; font-weight: 700; line-height: 1.45; }
-.student-twin__authority { margin-top: 1.5rem; border-left: 1px solid var(--color-primary); padding: .35rem 0 .35rem 1rem; color: var(--color-text-secondary); line-height: 1.65; }
-.student-twin__authority p { margin: 0; }
-.student-twin__evidence { display: grid; gap: .25rem; margin-top: 1.5rem; border-top: 2px solid var(--color-lab-ink); border-bottom: 1px solid var(--color-lab-grid-light); padding: 1rem 0; }
-.student-twin__evidence p, .student-twin__evidence span { margin: 0; color: var(--color-text-secondary); }
-.student-twin__evidence strong { font-size: var(--text-section-title); }
-.student-twin__output, .student-twin__unavailable, .student-twin__loading, .student-twin__records-link { margin-top: 1.5rem; }
-.student-twin__overview, .student-twin__recent { margin-top: 1.75rem; }
-.student-twin__overview h2, .student-twin__recent h2 { margin: 0 0 .75rem; font-size: var(--text-section-title); }
-.student-twin__facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 1rem; margin: 0; border-top: 2px solid var(--color-lab-ink); }
-.student-twin__fact { display: grid; gap: .25rem; border-bottom: 1px solid var(--color-lab-grid-light); padding: .85rem 0; }
+/* 学习状态 — four figures and one sentence, on a narrow measure so the page reads as a status
+   rather than as a dashboard. The width is what keeps four numbers from being spread across the
+   whole canvas and read as five columns of nothing. */
+.student-twin { max-width: 44rem; color: var(--color-lab-ink); }
+.student-twin__title { margin: 0; font-size: var(--text-page-title); line-height: 1.2; letter-spacing: -.02em; }
+.student-twin__loading, .student-twin__note { margin-top: 1.75rem; }
+.student-twin__note { color: var(--color-text-secondary); line-height: 1.7; }
+
+.student-twin__facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.5rem; margin: 1.75rem 0 0; border-top: 2px solid var(--color-lab-ink); padding-top: 1.25rem; }
+.student-twin__fact { display: grid; gap: .3rem; }
 .student-twin__fact dt { color: var(--color-text-secondary); font-size: var(--text-metadata); font-weight: 700; }
 .student-twin__fact dd { margin: 0; font-size: var(--text-section-title); font-weight: 700; font-variant-numeric: tabular-nums; }
 .student-twin__fact dd span { margin-left: .35rem; color: var(--color-text-secondary); font-size: var(--text-metadata); font-weight: 400; }
-.student-twin__recent-list { margin: 0; padding: 0; list-style: none; border-top: 2px solid var(--color-lab-ink); }
-.student-twin__recent-list li { display: flex; flex-wrap: wrap; gap: .25rem 1rem; justify-content: space-between; border-bottom: 1px solid var(--color-lab-grid-light); padding: .75rem 0; }
-.student-twin__recent-list span { color: var(--color-text-secondary); font-size: var(--text-metadata); }
-.student-twin__output h2, .student-twin__unavailable h2 { margin: 0 0 .75rem; font-size: var(--text-section-title); }
-.student-twin__state-fields { margin: 0; border-top: 2px solid var(--color-lab-ink); }
-.student-twin__state-fields div { display: grid; grid-template-columns: minmax(12rem, .8fr) minmax(0, 2fr); gap: 1rem; border-bottom: 1px solid var(--color-lab-grid-light); padding: .85rem 0; }
-.student-twin__state-fields dt { color: var(--color-text-secondary); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--text-metadata); }
-.student-twin__state-fields dd { margin: 0; overflow-wrap: anywhere; }
-.student-twin__unavailable { border-left: 1px solid var(--color-visual-coral); padding: 1rem; background: var(--color-primary-soft); }
-.student-twin__unavailable p, .student-twin__empty { color: var(--color-text-secondary); }
-.student-twin__unavailable button { border: 1px solid var(--color-lab-ink); background: transparent; color: var(--color-lab-ink); font: inherit; font-weight: 700; padding: .65rem 1rem; }
-.student-twin__records-link { display: inline-flex; color: var(--color-primary-hover); font-weight: 700; text-decoration-thickness: 1px; text-underline-offset: .2em; }
-.student-twin__records-link + .student-twin__records-link { margin-left: 1.25rem; }
-@media (max-width: 48rem) { .student-twin__technical dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }.student-twin__state-fields div { grid-template-columns: 1fr; gap: .3rem; } }
-@media (max-width: 40rem) { .student-twin__header { padding-top: 1rem; }.student-twin__technical dl { grid-template-columns: 1fr; } }
+
+.student-twin__status { margin-top: 2.25rem; }
+.student-twin__status h2 { margin: 0 0 .5rem; color: var(--color-text-secondary); font-size: var(--text-metadata); font-weight: 700; letter-spacing: .08em; }
+.student-twin__status p { margin: 0; max-width: 46ch; line-height: 1.75; }
+.student-twin__caption { margin-top: .5rem !important; color: var(--color-text-secondary); font-size: var(--text-metadata); }
+
+@media (max-width: 40rem) { .student-twin__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; } }
