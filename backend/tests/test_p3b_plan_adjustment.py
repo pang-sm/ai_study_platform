@@ -604,9 +604,14 @@ def test_the_impact_never_reports_the_plan_total_before_and_after(
     assert body["impact"]["inserted"] == 1
 
 
-def test_a_suggestion_without_a_date_is_dropped_instead_of_becoming_a_dateless_task(
+def test_a_suggestion_without_a_date_is_offered_for_the_learner_to_date_rather_than_dropped(
         client, db_session, monkeypatch):
-    """A plan task with no day can never be due and never be today's work."""
+    """A plan holds dated work, so a dateless task is not written — but it is not thrown away.
+
+    The model usually has no basis for choosing the day, so the suggestion is kept and told to
+    the learner as "this still needs a date". Discarding it here would leave the whole feature
+    with nothing to show, which is what an earlier revision of this rule did.
+    """
     register_and_login(client, "p3b_plan_nodate")
     grant_unified_tier(db_session, "p3b_plan_nodate", "standard")
     user = _user(db_session, "p3b_plan_nodate")
@@ -616,12 +621,23 @@ def test_a_suggestion_without_a_date_is_dropped_instead_of_becoming_a_dateless_t
                    .filter(ExamStudyPlanTask.username == user.username).all()}
     before = own()
 
-    monkeypatch.setattr("ai.orchestrator.default_provider_factory", _provider(
-        [{"op": "create_task", "title": "没有日期的任务", "task_type": "review"}]))
-    response = _propose(client)
+    body = _propose_body(client, monkeypatch, [
+        {"op": "create_task", "title": "没有日期的任务", "task_type": "review"}])
 
-    # Nothing survives validation, and the route says exactly that rather than proposing a
-    # write it cannot make.
-    assert response.status_code == 400, response.text
-    assert response.json()["detail"]["code"] == "empty_proposal"
+    assert len(body["proposed_changes"]) == 1
+    change = body["proposed_changes"][0]
+    assert change["type"] == "INSERT"
+    assert change["due_date"] is None
+    assert change["needs_due_date"] is True
+    assert body["can_apply"] is True
+
+    # The proposal itself changed nothing.
+    assert own() == before
+
+    # And applying it WITHOUT a date writes nothing, because a dateless task is not a task.
+    applied = client.post(APPLY, json={
+        "service_key": "course_learning", "course_id": COURSE,
+        "plan_identity": body["plan_identity"],
+        "proposed_changes": body["proposed_changes"]})
+    assert applied.status_code == 400, applied.text
     assert own() == before

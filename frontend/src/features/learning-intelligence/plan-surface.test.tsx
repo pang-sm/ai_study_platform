@@ -149,6 +149,35 @@ describe('DynamicPlanSurface', () => {
     }
   });
 
+  it('asks the learner for the day of a suggested task the model could not date', async () => {
+    // REGRESSION GUARD. The model usually cannot choose a day. Discarding those suggestions left
+    // the feature with nothing to show (the route answered empty_proposal); writing them as-is
+    // produced 计划日期：未设定. Both are wrong: the learner picks the day, and until they do the
+    // suggestion is shown but not applyable.
+    const undated: PlanProposal = {
+      ...proposal,
+      proposed_changes: [{ op: 'create_task', task_id: null, title: '到期知识点复习',
+                           task_type: 'review', due_date: null, needs_due_date: true,
+                           type: 'INSERT', task_title: '到期知识点复习', field: 'task',
+                           before: null, after: null }],
+    };
+    const { user } = await showProposal(undated);
+
+    expect(screen.getByText('到期知识点复习')).toBeInTheDocument();
+    expect(screen.getByText('请先为上面每一项选择计划日期，再应用调整。')).toBeInTheDocument();
+    const apply = screen.getByRole('button', { name: '应用调整' });
+    expect(apply).toBeDisabled();
+    expect(applyMutate).not.toHaveBeenCalled();
+
+    await user.type(screen.getByLabelText(/建议时间/), '2026-10-05');
+    expect(screen.getByRole('button', { name: '应用调整' })).toBeEnabled();
+
+    await user.click(screen.getByRole('button', { name: '应用调整' }));
+    expect(applyMutate).toHaveBeenCalledTimes(1);
+    const sent = applyMutate.mock.calls[0]?.[0] as PlanProposal;
+    expect(sent.proposed_changes?.[0]?.due_date).toBe('2026-10-05');
+  });
+
   it('rates the SUGGESTION with the plan-adjustment vocabulary', async () => {
     await showProposal();
     expect(screen.getByTestId('ai-feedback')).toHaveAttribute('data-target', 'plan_adjustment');

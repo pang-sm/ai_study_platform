@@ -949,11 +949,19 @@ FastAPI 路由表直接生成，可重跑比对漂移）。
 只会永久留在列表里（前端此前显示为「计划日期：未设定」）。
 校验在**身份校验之后**执行，未授权调用仍得到 401/403 而不是 400。
 
-### `POST /ai/plan-adjustment` 的 `create_task` 同样要求日期
+### `POST /ai/plan-adjustment` 的新增任务：日期由学习者补齐，但绝不以无日期写入
 
-模型提出的新增任务若没有合法 `due_date`，该变更被丢弃并记
-`dropped_changes.reason = "missing_due_date"`，不会写成无期限任务。
-整份建议若因此为空，路由返回 `400 empty_proposal`（既有行为），不产生空写入。
+模型通常没有依据选择具体日期。**建议不被丢弃**：`proposed_changes` 里该条保留，
+`due_date` 为 `null`、并带 `needs_due_date: true`，`can_apply` 仍为 `true`。
+客户端必须让学习者选一个日期，并把选定的 `due_date` 随 `proposed_changes` 一起回传。
+
+若 `POST /ai/plan-adjustment/apply` 收到仍无 `due_date` 的新增任务，该条被丢掉并记
+`dropped_changes.reason = "missing_due_date"`；全部被丢掉时返回
+`400 empty_proposal`。也就是说：**无日期的正式任务在任何路径上都不会被创建**，
+但学习者始终看得见这条建议并知道要补什么。
+
+（早先的实现直接在 propose 阶段丢掉这类建议，结果模型给出的建议几乎全是新增任务、
+整份建议因此变空、路由返回 `empty_proposal`，AI 建议功能实际不可用。）
 
 ### 建议文案的产品化（响应字段语义微调，字段名不变）
 

@@ -322,16 +322,15 @@ def _clean_changes(raw, tasks_by_id: dict, allowed_task_types: tuple) -> tuple[l
                                 "allowed": list(allowed_task_types)})
                 continue
             due = _bounded(item.get("due_date"), 30) or None
-            if due is None:
-                # A plan holds dated work. A task with no date cannot be "due", cannot be
-                # overdue, and cannot be placed on the learner's day — it would sit in the list
-                # permanently and mean nothing. The learner picks the date instead.
-                dropped.append({"reason": "missing_due_date", "title": title})
-                continue
-            if _parse_due(due) is None:
+            if due is not None and _parse_due(due) is None:
                 dropped.append({"reason": "invalid_due_date", "due_date": due})
                 continue
+            # A plan holds dated work, so a task with no day is not a task the plan can hold.
+            # The model often has no basis for choosing one — so the change is KEPT as a
+            # suggestion the learner completes, not silently discarded: the client is told the
+            # date is still needed and must supply one before this can be applied.
             _keep({"op": OP_CREATE, "title": title, "task_type": task_type, "due_date": due,
+                   "needs_due_date": due is None,
                    "type": TYPE_INSERT, "task_title": title, "field": "task",
                    "before": None, "after": due})
             continue
@@ -667,6 +666,16 @@ def apply_adjustment(db: DbSession, user, *, service_key: str, plan_identity_val
     # the identity matched, `before` is re-read as the same value the learner was shown, so the
     # write cannot differ from the preview even if a client edits the payload on the way back.
     accepted, dropped = _clean_changes(changes, _task_index(tasks), plan_task_types(space))
+    # A proposal may carry a task whose day the MODEL could not choose — the learner picks it in
+    # the client. Applied without one, the row would never be due and never be today's work, so
+    # the write is refused here rather than the suggestion being discarded earlier.
+    dated = []
+    for change in accepted:
+        if change["op"] == OP_CREATE and not change.get("due_date"):
+            dropped.append({"reason": "missing_due_date", "title": change["title"]})
+            continue
+        dated.append(change)
+    accepted = dated
     if not accepted:
         raise PlanAdjustmentRefusal("empty_proposal", "没有可应用的调整")
 

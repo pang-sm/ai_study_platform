@@ -396,9 +396,11 @@ export function DynamicPlanSurface({ scope, scopeSelect }: { scope: LearningScop
     setStale(false);
     proposalMutation.mutate({ scope, goal }, { onSuccess: setProposal });
   };
-  const accept = () =>
-    proposal &&
-    apply.mutate(proposal, {
+  // What is applied is what the learner CONFIRMED, which is the proposal unless they supplied a
+  // date the model could not choose. Applying the original would write a dateless task.
+  const accept = (confirmed: PlanProposal = proposal as PlanProposal) =>
+    confirmed &&
+    apply.mutate(confirmed, {
       onError: (error) => {
         if (error instanceof ApiRequestError && error.status === 409) setStale(true);
       },
@@ -515,7 +517,11 @@ function appliedNote(appliedCount: number, droppedCount: number): string {
  * `direction`); printing those would ask a learner to read an API. The old date is shown only for
  * a reschedule, where "which day it moves to" is meaningless without "which day it moves from".
  */
-function SuggestionRow({ change }: { change: Record<string, unknown> }) {
+function SuggestionRow({ change, chosenDate, onChooseDate }: {
+  change: Record<string, unknown>;
+  chosenDate?: string;
+  onChooseDate?: (value: string) => void;
+}) {
   const title = text(change.task_title) ?? '计划中的一项任务';
   const date = planDateFrom(change);
   const was = planDateBefore(change);
@@ -523,7 +529,16 @@ function SuggestionRow({ change }: { change: Record<string, unknown> }) {
   return (
     <li className="border-b border-border-default pb-3 last:border-b-0 last:pb-0">
       <p className="text-body text-text-primary">{title}</p>
-      {date ? (
+      {onChooseDate ? (
+        // The model could not choose a day for this task. A plan holds dated work, so the
+        // learner supplies the day here rather than the suggestion being thrown away.
+        <label className="mt-1 block text-metadata text-text-secondary">
+          建议时间：请选择日期
+          <input type="date" value={chosenDate ?? ''} className="ml-2 rounded-control border border-border-default bg-surface px-2 py-1 text-body text-text-primary"
+                 onChange={(event) => onChooseDate(event.target.value)} />
+        </label>
+      ) : null}
+      {!onChooseDate && date ? (
         <p className="mt-1 text-metadata text-text-secondary">
           建议时间：<span className="text-text-primary">{date}</span>
           {was && was !== date ? <span className="text-text-secondary">（原定 {was}）</span> : null}
@@ -533,13 +548,28 @@ function SuggestionRow({ change }: { change: Record<string, unknown> }) {
   );
 }
 
-function ProposalView({ proposal, onApply, onDismiss, applying }: { proposal: PlanProposal; onApply: () => void; onDismiss: () => void; applying: boolean }) {
+function ProposalView({ proposal, onApply, onDismiss, applying }: { proposal: PlanProposal; onApply: (proposal: PlanProposal) => void; onDismiss: () => void; applying: boolean }) {
   const changes = proposal.proposed_changes ?? [];
   const usage = usageCreditsText(proposal.usage);
-  const canApply = proposal.can_apply !== false && changes.length > 0;
+  const [chosen, setChosen] = useState<Record<number, string>>({});
   // The reason the suggestion rests on. It is one sentence, not the evidence list restated:
   // showing both would be this panel saying the same thing twice.
   const reason = text(proposal.rationale);
+
+  // A suggested task the model offered no day for. The learner picks one; until they do, the
+  // suggestion is shown but cannot be applied — never written as a task that no day will surface.
+  const undated = new Set(changes.map((change, index) => ({ change, index }))
+    .filter(({ change }) => change.type === 'INSERT' && !change.due_date)
+    .map(({ index }) => index));
+  const missingDay = [...undated].some((index) => !chosen[index]);
+  const canApply = proposal.can_apply !== false && changes.length > 0 && !missingDay;
+
+  const apply = () => onApply({
+    ...proposal,
+    proposed_changes: changes.map((change, index) => undated.has(index)
+      ? { ...change, due_date: chosen[index] }
+      : change),
+  });
 
   return (
     <section className="mt-8" aria-label="计划调整建议">
@@ -548,7 +578,9 @@ function ProposalView({ proposal, onApply, onDismiss, applying }: { proposal: Pl
       {changes.length ? (
         <ul className="mt-3 space-y-3">
           {changes.map((change, index) => (
-            <SuggestionRow key={`${String(change.type ?? change.op ?? 'change')}-${index}`} change={change} />
+            <SuggestionRow key={`${String(change.type ?? change.op ?? 'change')}-${index}`} change={change}
+                           chosenDate={chosen[index]}
+                           onChooseDate={undated.has(index) ? (value) => setChosen((current) => ({ ...current, [index]: value })) : undefined} />
           ))}
         </ul>
       ) : (
@@ -562,9 +594,10 @@ function ProposalView({ proposal, onApply, onDismiss, applying }: { proposal: Pl
         </div>
       ) : null}
 
+      {missingDay ? <StatusNote tone="danger" className="mt-4">请先为上面每一项选择计划日期，再应用调整。</StatusNote> : null}
       <p className="mt-4 text-metadata text-text-secondary">这份建议还没有应用到你的计划。</p>
       <div className="mt-4 flex flex-wrap items-center gap-3">
-        <Button disabled={applying || !canApply} onClick={onApply}>
+        <Button disabled={applying || !canApply} onClick={apply}>
           {applying ? '正在应用…' : '应用调整'}
         </Button>
         <Button variant="secondary" disabled={applying} onClick={onDismiss}>暂不调整</Button>
