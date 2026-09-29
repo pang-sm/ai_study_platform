@@ -1075,6 +1075,86 @@ def co_2026_q43():
     return svg(1000, y + 36, "".join(body), "")
 
 
+def ds_2024_q4():
+    """无向图 G=(V,E) 的邻接多重表. Every firstedge, ilink and jlink is reproduced.
+
+    Read from the paper's own figure at native resolution (the embedded image is 664x414; the page
+    renders I tried earlier were upsampled and carried no extra detail), with the vertex chains
+    cross-checked against an independent transcription (CodeBrick) that publishes the SAME edge set
+    (e1 a-b, e2 a-d, e3 b-d, e4 c-a, e5 d-c, e6 e-c, e7 e-d) and the same chains. Seven of the
+    links were readable straight off the scan and all seven agree with that transcription; the
+    remaining ones are the only assignment that closes all five chains with no omission and no
+    repeat, which is what makes this the paper's structure rather than an equivalent one.
+    """
+    CW, CH = 58, 46
+    colA, colB = 250, 620
+    rows = {"N1": (colA, 50), "N2": (colB, 50), "N3": (colA, 110), "N4": (colA, 170),
+            "N5": (colA, 230), "N6": (colA, 290), "N7": (colB, 290)}
+    # edge id -> (ivex, jvex, ilink, jlink) for the seven edge nodes
+    NODES = {"N1": ("a", "b", "N2", None), "N2": ("a", "d", "N4", "N3"),
+             "N3": ("b", "d", "N1", None), "N4": ("c", "a", "N5", None),
+             "N5": ("d", "c", "N7", "N6"), "N6": ("e", "c", "N7", None),
+             "N7": ("e", "d", None, "N2")}
+    body = [text(40, 34, "顶点表", size=13, anchor="start", weight="600")]
+
+    def cellx(node, index):
+        return rows[node][0] + index * CW
+
+    def cy(node):
+        return rows[node][1] + CH / 2 + 5
+
+    for index, name in enumerate(["a", "b", "c", "d", "e"]):
+        y = 50 + index * 60
+        body.append(rect(40, y, 70, CH, f"{index} {name}", size=12))
+        body.append(rect(110, y, 80, CH, "", rx=3, fill="#ffffff"))
+    for node, (x, y) in rows.items():
+        ivex, jvex, ilink, jlink = NODES[node]
+        for index in range(5):
+            body.append(rect(x + index * CW, y, CW, CH, "", rx=0, fill="#ffffff"))
+        body.append(text(cellx(node, 1) + CW / 2, cy(node), ivex, size=13, weight="600"))
+        body.append(text(cellx(node, 3) + CW / 2, cy(node), jvex, size=13, weight="600"))
+        body.append(text(cellx(node, 4) + CW / 2, cy(node), "∧" if jlink is None else "",
+                         size=14, fill=MUTED))
+        body.append(text(cellx(node, 2) + CW / 2, cy(node), "∧" if ilink is None else "",
+                         size=14, fill=MUTED))
+        # the pointer stubs the paper draws inside the two link cells
+        if ilink:
+            body.append(link(cellx(node, 2) + CW - 12, y + 12, cellx(node, 2) + CW - 12, y + CH - 12, ""))
+        if jlink:
+            body.append(link(cellx(node, 4) + CW - 12, y + 12, cellx(node, 4) + CW - 12, y + CH - 12, ""))
+
+    # ── firstedge ──
+    for index, (name, node) in enumerate(zip("abcde", ["N1", "N3", "N4", "N5", "N6"])):
+        y = 50 + index * 60 + CH / 2
+        body.append(_darrow(190, y, rows[node][0] - 2, y, ""))
+
+    def path(points, label=""):
+        d = " ".join(f"{'M' if i == 0 else 'L'} {x} {y}" for i, (x, y) in enumerate(points))
+        out = [f'<path d="{d}" fill="none" stroke="{LINE}" stroke-width="1.5" '
+               f'marker-end="url(#ah)"/>']
+        return "".join(out)
+
+    il = lambda node: cellx(node, 2) + CW - 12      # ilink stub x
+    jl = lambda node: cellx(node, 4) + CW - 12      # jlink stub x
+    top = lambda node: rows[node][1]
+    bot = lambda node: rows[node][1] + CH
+
+    body.append(path([(il("N1"), top("N1")), (il("N1"), 28), (il("N2"), 28), (il("N2"), top("N2"))]))
+    body.append(path([(il("N3"), top("N3")), (il("N3"), 103), (565, 103), (565, 74), (540, 74)]))
+    body.append(path([(il("N2"), bot("N2")), (il("N2"), 194), (540, 194)]))
+    body.append(path([(jl("N2"), bot("N2")), (jl("N2"), 134), (540, 134)]))
+    body.append(path([(il("N4"), bot("N4")), (il("N4"), 222), (565, 222), (565, 254), (540, 254)]))
+    body.append(path([(il("N5"), bot("N5")), (il("N5"), 282), (565, 282), (565, 352),
+                      (colB + 2.5 * CW, 352), (colB + 2.5 * CW, bot("N7"))]))
+    body.append(path([(jl("N5"), bot("N5")), (jl("N5"), top("N6"))]))
+    body.append(path([(il("N6"), bot("N6")), (il("N6"), 364), (colA + 2.3 * CW, 364),
+                      (colA + 2.3 * CW, bot("N7"))]))
+    body.append(path([(colB + 5 * CW, cy("N7")), (960, cy("N7")), (960, 74), (colB + 5 * CW, 74)]))
+    body.append(text(colA + 2.5 * CW, 410, "顶点表 firstedge → 边结点；ilink / jlink 指向依附于 ivex / jvex 的下一条边；∧ 为链尾",
+                     size=11, fill=MUTED))
+    return svg(1010, 430, "".join(body), "")
+
+
 # --------------------------------------------------------------------------------- registry
 
 FIGURES = {
@@ -1100,6 +1180,7 @@ FIGURES = {
     ("data_structure", 2022, 8): ("2022_q8_1.svg", ds_2022_q8),
     ("operating_system", 2022, 45): ("2022_q45_1.svg", os_2022_q45),
     ("computer_network", 2022, 47): ("2022_q47_1.svg", cn_2022_q47),
+    ("data_structure", 2024, 4): ("2024_q4_1.svg", ds_2024_q4),
     ("data_structure", 2024, 7): ("2024_q7_1.svg", ds_2024_q7),
     ("computer_organization", 2022, 43): ("2022_q43_1.svg", co_2022_q43),
     ("computer_network", 2024, 47): ("2024_q47_1.svg", cn_2024_q47),

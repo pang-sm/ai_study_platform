@@ -32,11 +32,13 @@ CLASSIFICATION: dict[str, str] = json.loads(
     CLASSIFICATION_FILE.read_text(encoding="utf-8"))["classification"]
 
 # Figures deliberately WITHDRAWN: the page must not advertise one for these questions.
-WITHDRAWN = {
-    # the adjacency multilist's ilink/jlink chains ARE its structure, and they cannot be
-    # transcribed from the paper with confidence; an approximation is not shipped in their place.
-    "data_structure/2024/Q4",
-}
+#
+# Currently EMPTY. `data_structure/2024/Q4` was here until its pointer chains could be reproduced
+# in full (firstedge + every ilink/jlink, all five vertex chains closing with no omission and no
+# repeat). The mechanism is kept because withdrawing an accurate-but-wrong figure is the correct
+# response when a figure cannot be reproduced faithfully — and an empty set must not silently
+# become "nothing is ever checked".
+WITHDRAWN: set[str] = set()
 
 REQUIRED = sorted(k for k, v in CLASSIFICATION.items() if v == "FIGURE_REQUIRED")
 OPTIONAL = sorted(k for k, v in CLASSIFICATION.items() if v == "FIGURE_OPTIONAL")
