@@ -34,7 +34,7 @@ const proposal: PlanProposal = {
   subject_key: 'data_structure',
   plan_identity: 'bcaaf4ffb20e8081',
   summary: '把「进程调度复习」提前 5 天，并另外调整 1 项',
-  rationale: '依据你当前的记录：当前有 2 项任务已逾期。',
+  rationale: '当前有 2 项任务已逾期。',
   adjustment_types: ['RESCHEDULE', 'INSERT', 'INCREASE_LOAD'],
   evidence: [{ code: 'plan_overdue', text: '当前有 2 项任务已逾期', metric: 2 }],
   proposed_changes: [
@@ -48,7 +48,7 @@ const proposal: PlanProposal = {
   impact: {
     inserted: 1, rescheduled: 1, moved_earlier: 1, moved_later: 0, replaced: 0,
     task_count_before: 2, task_count_after: 3, overdue_before: 2, overdue_after: 1,
-    text: '本次调整，新增 1 项任务，提前 1 项。计划中的逾期任务由 2 项变为 1 项。',
+    text: '本次调整，新增 1 项任务，提前 1 项。调整后还有 1 项任务已逾期。',
   },
   can_apply: true,
   affected_tasks: [1],
@@ -105,88 +105,48 @@ describe('DynamicPlanSurface', () => {
     expect(scopeSelect.onChange).toHaveBeenCalledWith('operating_system');
   });
 
-  it('answers why, what, and what it costs the plan — with no API field on the page', async () => {
+  it('answers what changes and why — with no API field on the page', async () => {
     const { view } = await showProposal();
     const page = view.container.textContent ?? '';
 
-    // WHY: a reason built from the learner's own recorded numbers
-    expect(screen.getByRole('heading', { name: '为什么建议这样调整' })).toBeInTheDocument();
-    expect(screen.getByText('依据你当前的记录：当前有 2 项任务已逾期。')).toBeInTheDocument();
-
-    // WHAT: the headline, then one labelled pair per change
-    expect(screen.getByText('把「进程调度复习」提前 5 天，并另外调整 1 项')).toBeInTheDocument();
+    // WHAT: the task itself, and the day it is planned for
+    expect(screen.getByRole('heading', { name: '建议调整' })).toBeInTheDocument();
     expect(screen.getByText('进程调度复习')).toBeInTheDocument();
-    expect(screen.getByText('原计划：')).toBeInTheDocument();
-    expect(screen.getByText('2026 年 10 月 5 日')).toBeInTheDocument();
-    expect(screen.getByText('2026 年 9 月 30 日')).toBeInTheDocument();
+    expect(screen.getByText('进程调度专项练习')).toBeInTheDocument();
+    expect(screen.getAllByText('建议时间：')).toHaveLength(2);
+    expect(screen.getAllByText('2026 年 9 月 30 日')).toHaveLength(2);
+    // a date is only worth repeating when it CHANGED, so only the reschedule carries the old one
+    expect(screen.getByText(/原定 2026 年 10 月 5 日/)).toBeInTheDocument();
 
-    // IMPACT: counted, not forecast
-    expect(screen.getByRole('heading', { name: '调整后影响' })).toBeInTheDocument();
-    expect(screen.getByText(/逾期任务由 2 项变为 1 项/)).toBeInTheDocument();
+    // WHY: the one reason the suggestion rests on, stated once — not an evidence list restated
+    expect(screen.getByRole('heading', { name: '原因' })).toBeInTheDocument();
+    expect(screen.getAllByText('当前有 2 项任务已逾期。')).toHaveLength(1);
+
+    expect(screen.getByText('这份建议还没有应用到你的计划。')).toBeInTheDocument();
 
     // no arrow to misread, and no machine field in sight
     expect(page).not.toContain('→');
     for (const field of ['update_task', 'create_task', 'task_id', 'plan_identity', 'proposal_id',
                          'bcaaf4ffb20e8081', 'capability', 'planning.adjust', 'applies_to',
-                         'RESCHEDULE', 'INSERT']) {
+                         'RESCHEDULE', 'INSERT', '计划任务总数']) {
       expect(page, `leaked ${field}`).not.toContain(field);
     }
-    expect(screen.getByText('这份建议还没有应用到你的计划。')).toBeInTheDocument();
   });
 
-  it('names an inserted task by its own type, never by another type or a fallback', async () => {
-    await showProposal();
-    // `chapter_practice` is a real plan task kind (the exam space's); it must be shown as its own
-    // label rather than falling back to 任务 or being relabelled as another kind.
-    expect(screen.getByText('章节练习')).toBeInTheDocument();
-    expect(screen.queryByText('知识点学习')).not.toBeInTheDocument();
-    expect(screen.queryByText('任务')).not.toBeInTheDocument();
-  });
-
-  it('shows a REPLACE as the old title and the new one', async () => {
-    await showProposal({
-      ...proposal,
-      summary: '把「完成章节阅读」替换为「完成对应练习」',
-      adjustment_types: ['REPLACE'],
-      proposed_changes: [{ op: 'update_task', task_id: 1, title: '完成对应练习', type: 'REPLACE',
-                           task_title: '完成章节阅读', field: 'title', before: '完成章节阅读',
-                           after: '完成对应练习' }],
-    });
-    expect(screen.getByText('替换')).toBeInTheDocument();
-    expect(screen.getByText('原任务：')).toBeInTheDocument();
-    expect(screen.getByText('完成章节阅读')).toBeInTheDocument();
-    expect(screen.getByText('完成对应练习')).toBeInTheDocument();
-  });
-
-  it('never renders a REMOVE or a REORDER, because the server cannot produce one', async () => {
-    const { view } = await showProposal();
-    for (const word of ['移除', '删除', '重新排序', '调整顺序', 'REMOVE', 'REORDER']) {
-      expect(view.container.textContent, `rendered ${word}`).not.toContain(word);
-    }
-  });
-
-  it('keeps the diff short, and puts the rest behind 查看调整详情', async () => {
+  it('lists every suggested task rather than hiding some behind a disclosure', async () => {
     const many: PlanProposal = {
       ...proposal,
-      summary: '把「A」提前 1 天，并另外调整 5 项',
       proposed_changes: Array.from({ length: 6 }, (_, index) => ({
         op: 'update_task', task_id: index + 1, due_date: '2026-09-30', type: 'RESCHEDULE',
         task_title: `任务 ${index + 1}`, field: 'due_date', before: '2026-10-05',
         after: '2026-09-30', direction: 'earlier',
       })),
     };
-    const { user } = await showProposal(many);
-
-    expect(screen.getByText('任务 1')).toBeInTheDocument();
-    expect(screen.getByText('任务 4')).toBeInTheDocument();
-    expect(screen.queryByText('任务 5')).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: '查看调整详情（还有 2 项）' }));
-    expect(screen.getByText('任务 5')).toBeInTheDocument();
-    expect(screen.getByText('任务 6')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: '收起调整详情' }));
-    expect(screen.queryByText('任务 5')).not.toBeInTheDocument();
+    await showProposal(many);
+    // Every suggestion is part of the decision, so none is behind "查看调整详情".
+    for (const label of ['任务 1', '任务 4', '任务 5', '任务 6']) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
   });
 
   it('rates the SUGGESTION with the plan-adjustment vocabulary', async () => {
@@ -199,7 +159,7 @@ describe('DynamicPlanSurface', () => {
     const { user } = await showProposal();
     expect(applyMutate).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole('button', { name: '保留当前计划' }));
+    await user.click(screen.getByRole('button', { name: '暂不调整' }));
     expect(applyMutate).not.toHaveBeenCalled();
     expect(screen.queryByRole('heading', { name: '建议调整' })).not.toBeInTheDocument();
   });

@@ -13,7 +13,7 @@ import { eventTypeLabel } from '@/features/records/event-labels';
 import { useApplyPlanProposal, useLearningReport, usePlanProposal, useWrongAnalysis, type LearningReport, type PlanProposal, type WrongAnalysis } from './api';
 import { safeActionHref, type LearningScope } from './presentation';
 import { AiFeedback } from '@/components/learning/ai-feedback';
-import { REASON_LABELS, TASK_TYPE_LABELS, originLabel } from '@/lib/fact-labels';
+import { REASON_LABELS, originLabel } from '@/lib/fact-labels';
 import { usageCreditsText, vocabularyText } from '@/lib/learner-safe';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -472,26 +472,27 @@ export function DynamicPlanSurface({ scope, scopeSelect }: { scope: LearningScop
     </section>
   );
 }
-
-/**
- * A task type, in the learner's words — from the shared label registry rather than a second list
- * here, so a kind is spelled the same wherever it appears. A kind the registry does not know is
- * shown as a plain `任务` rather than silently relabelled as something it is not.
- */
-const FALLBACK_TASK_TYPE = '任务';
-
+/** A non-empty string, or nothing — the guard every machine field passes through before display. */
 const text = (value: unknown) => (typeof value === 'string' && value.trim() ? value : undefined);
 
-/** `2026-10-05` → `2026 年 10 月 5 日`. Anything unparseable is shown as it came. */
+/**
+ * `2026-10-05` → `2026 年 10 月 5 日`. Anything unparseable is shown as it came.
+ */
 function formatPlanDate(value: unknown): string {
   const raw = text(value);
-  if (!raw) return '未设定';
+  if (!raw) return '';
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
   if (!match) return raw;
   return `${match[1]} 年 ${Number(match[2])} 月 ${Number(match[3])} 日`;
 }
 
-const MAX_VISIBLE_CHANGES = 4;
+function planDateFrom(change: Record<string, unknown>): string {
+  return formatPlanDate(change.due_date ?? change.after);
+}
+
+function planDateBefore(change: Record<string, unknown>): string {
+  return formatPlanDate(change.before);
+}
 
 /**
  * What to say once the plan has actually been written.
@@ -508,144 +509,56 @@ function appliedNote(appliedCount: number, droppedCount: number): string {
 }
 
 /**
- * What kind of change this is, in one word.
+ * One suggestion, in the shape a learner decides with: what the task is, and when it is for.
  *
- * `type` is DERIVED by the backend from the mutation it validated, so this label and the write
- * that happens cannot disagree. REMOVE and REORDER are not among the possible values: the server
- * refuses to produce them, so there is nothing here to render.
+ * Nothing here is a field name. The route hands back a machine-shaped change (`op` / `due_date` /
+ * `direction`); printing those would ask a learner to read an API. The old date is shown only for
+ * a reschedule, where "which day it moves to" is meaningless without "which day it moves from".
  */
-function changeAction(change: Record<string, unknown>): string {
-  const type = text(change.type);
-  if (type === 'INSERT') return '新增';
-  if (type === 'REPLACE') return '替换';
-  if (type === 'RESCHEDULE') {
-    if (change.direction === 'earlier') return '提前';
-    if (change.direction === 'later') return '推迟';
-    return '调整日期';
-  }
-  return '调整';
-}
-
-/**
- * One change as a before/after pair.
- *
- * The route hands back a machine-shaped change (`op` / `due_date`). Printing those keys would ask
- * a learner to read an API, and printing two dates joined by an arrow would ask them to guess
- * which is which. Each change is therefore written as its own labelled pair — "原计划" above
- * "调整后" — so there is no arrow to misread.
- */
-function ChangeRow({ change }: { change: Record<string, unknown> }) {
-  const action = changeAction(change);
-  const field = text(change.field);
-  const before = text(change.before);
-  const after = text(change.after);
+function SuggestionRow({ change }: { change: Record<string, unknown> }) {
   const title = text(change.task_title) ?? '计划中的一项任务';
-
-  if (field === 'task') {
-    const kind = TASK_TYPE_LABELS[text(change.task_type) ?? ''] ?? FALLBACK_TASK_TYPE;
-    return (
-      <li className="border-b border-border-default pb-3">
-        <p className="flex flex-wrap items-center gap-2 text-body text-text-primary">
-          <Badge tone="brand">{action}</Badge>
-          {title}
-          <span className="text-metadata text-text-secondary">{kind}</span>
-        </p>
-        <dl className="mt-2 text-metadata text-text-secondary">
-          <dt className="sr-only">计划日期</dt>
-          <dd>计划日期：{formatPlanDate(change.due_date)}</dd>
-        </dl>
-      </li>
-    );
-  }
-
-  const labels = field === 'title'
-    ? { before: '原任务', after: '调整后' }
-    : { before: '原计划', after: '调整后' };
-  const render = (value?: string) => (field === 'due_date' ? formatPlanDate(value) : (value ?? '—'));
-  // A renamed task is its own heading: "完成章节阅读" is already the row's first line, so naming
-  // it again under 原任务 would say the same thing twice. The pair carries the change instead.
-  const heading = field === 'title' ? null : title;
+  const date = planDateFrom(change);
+  const was = planDateBefore(change);
 
   return (
-    <li className="border-b border-border-default pb-3">
-      <p className="flex flex-wrap items-center gap-2 text-body text-text-primary">
-        <Badge tone="neutral">{action}</Badge>
-        {heading}
-      </p>
-      <dl className="mt-2 space-y-0.5 text-metadata text-text-secondary">
-        <div>
-          <dt className="inline">{labels.before}：</dt>
-          <dd className="inline text-text-primary">{render(before)}</dd>
-        </div>
-        <div>
-          <dt className="inline">{labels.after}：</dt>
-          <dd className="inline text-text-primary">{render(after)}</dd>
-        </div>
-      </dl>
+    <li className="border-b border-border-default pb-3 last:border-b-0 last:pb-0">
+      <p className="text-body text-text-primary">{title}</p>
+      {date ? (
+        <p className="mt-1 text-metadata text-text-secondary">
+          建议时间：<span className="text-text-primary">{date}</span>
+          {was && was !== date ? <span className="text-text-secondary">（原定 {was}）</span> : null}
+        </p>
+      ) : null}
     </li>
   );
 }
 
 function ProposalView({ proposal, onApply, onDismiss, applying }: { proposal: PlanProposal; onApply: () => void; onDismiss: () => void; applying: boolean }) {
   const changes = proposal.proposed_changes ?? [];
-  const evidence = proposal.evidence ?? [];
-  const [showDetails, setShowDetails] = useState(false);
   const usage = usageCreditsText(proposal.usage);
-
-  const visible = showDetails ? changes : changes.slice(0, MAX_VISIBLE_CHANGES);
-  const hidden = changes.length - visible.length;
   const canApply = proposal.can_apply !== false && changes.length > 0;
+  // The reason the suggestion rests on. It is one sentence, not the evidence list restated:
+  // showing both would be this panel saying the same thing twice.
+  const reason = text(proposal.rationale);
 
   return (
     <section className="mt-8" aria-label="计划调整建议">
       <h3 className="text-heading font-semibold text-text-primary">建议调整</h3>
-      {proposal.summary ? (
-        <p className="mt-2 max-w-prose text-body text-text-primary">{proposal.summary}</p>
-      ) : null}
 
-      {proposal.rationale ? (
+      {changes.length ? (
+        <ul className="mt-3 space-y-3">
+          {changes.map((change, index) => (
+            <SuggestionRow key={`${String(change.type ?? change.op ?? 'change')}-${index}`} change={change} />
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-body text-text-secondary">当前计划无需调整</p>
+      )}
+
+      {reason ? (
         <div className="mt-5">
-          <h4 className="text-body font-medium text-text-primary">为什么建议这样调整</h4>
-          <p className="mt-1 max-w-prose text-body text-text-secondary">{proposal.rationale}</p>
-          {evidence.length ? (
-            <ul className="mt-2 space-y-1">
-              {evidence.map((item) => (
-                <li key={item.code} className="text-metadata text-text-secondary">{item.text}</li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-      ) : null}
-
-      <div className="mt-5">
-        <h4 className="text-body font-medium text-text-primary">具体变更</h4>
-        {changes.length ? (
-          <>
-            <ol className="mt-2 space-y-4">
-              {visible.map((change, index) => (
-                <ChangeRow key={`${String(change.type ?? change.op ?? 'change')}-${index}`} change={change} />
-              ))}
-            </ol>
-            {hidden > 0 || showDetails ? (
-              <Button
-                variant="ghost"
-                className="mt-3"
-                aria-expanded={showDetails}
-                onClick={() => setShowDetails((open) => !open)}
-              >
-                {showDetails ? '收起调整详情' : `查看调整详情（还有 ${hidden} 项）`}
-              </Button>
-            ) : null}
-          </>
-        ) : (
-          <p className="mt-2 text-body text-text-secondary">当前计划无需调整</p>
-        )}
-      </div>
-
-      {proposal.impact?.text ? (
-        <div className="mt-5">
-          <h4 className="text-body font-medium text-text-primary">调整后影响</h4>
-          <p className="mt-1 max-w-prose text-body text-text-secondary">{proposal.impact.text}</p>
+          <h4 className="text-body font-medium text-text-primary">原因</h4>
+          <p className="mt-1 max-w-prose text-body text-text-secondary">{reason}</p>
         </div>
       ) : null}
 
@@ -654,7 +567,7 @@ function ProposalView({ proposal, onApply, onDismiss, applying }: { proposal: Pl
         <Button disabled={applying || !canApply} onClick={onApply}>
           {applying ? '正在应用…' : '应用调整'}
         </Button>
-        <Button variant="secondary" disabled={applying} onClick={onDismiss}>保留当前计划</Button>
+        <Button variant="secondary" disabled={applying} onClick={onDismiss}>暂不调整</Button>
         <AiFeedback requestId={proposal.request_id} workflowId={proposal.proposal_id}
                     target="plan_adjustment" />
       </div>

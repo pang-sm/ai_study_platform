@@ -557,3 +557,71 @@ def test_keep_current_plan_leaves_no_trace_in_the_plan(client, db_session, monke
                .filter(LearningEvent.user_id == user.id,
                        LearningEvent.event_type == "plan_adjustment_applied").all())
     assert applied == []
+
+
+# ── what the learner is shown, and what a dateless suggestion may do ─────────────────
+#
+# Two things this product got wrong in front of a real learner:
+#   * the reason printed the evidence list a second time, right above the evidence list;
+#   * the impact counted "计划任务总数由 0 项变为 1 项" — a counter about the PANEL's own
+#     emptiness that read as a defect and decided nothing.
+# Both are now asserted directly, and so is the rule that a plan task is dated.
+
+
+def test_the_reason_is_one_sentence_and_does_not_restate_the_evidence(
+        client, db_session, monkeypatch):
+    register_and_login(client, "p3b_plan_reason")
+    grant_unified_tier(db_session, "p3b_plan_reason", "standard")
+    user = _user(db_session, "p3b_plan_reason")
+    _task(db_session, user.username, title="逾期任务", due_date="2026-09-01")
+
+    body = _propose_body(client, monkeypatch, [
+        {"op": "update_task", "task_id": _task(db_session, user.username,
+                                               title="第二个", due_date="2026-09-01").id,
+         "due_date": "2026-09-30"}])
+
+    assert body["evidence"], "an overdue plan has something real to cite"
+    assert body["rationale"] == f"{body['evidence'][0]['text']}。"
+    # the rest of the evidence is still available — it simply is not repeated in the reason
+    assert (len(body["evidence"]) == 1
+            or body["rationale"] != "；".join(item["text"] for item in body["evidence"]) + "。")
+
+
+def test_the_impact_never_reports_the_plan_total_before_and_after(
+        client, db_session, monkeypatch):
+    """A total that only moved because the panel was empty told the learner nothing."""
+    register_and_login(client, "p3b_plan_impact")
+    grant_unified_tier(db_session, "p3b_plan_impact", "standard")
+    user = _user(db_session, "p3b_plan_impact")
+
+    body = _propose_body(client, monkeypatch, [
+        {"op": "create_task", "title": "到期知识点复习", "task_type": "review",
+         "due_date": "2026-09-30"}])
+
+    text = body["impact"]["text"]
+    assert "计划任务总数" not in text
+    assert "由 0 项变为" not in text
+    assert body["impact"]["inserted"] == 1
+
+
+def test_a_suggestion_without_a_date_is_dropped_instead_of_becoming_a_dateless_task(
+        client, db_session, monkeypatch):
+    """A plan task with no day can never be due and never be today's work."""
+    register_and_login(client, "p3b_plan_nodate")
+    grant_unified_tier(db_session, "p3b_plan_nodate", "standard")
+    user = _user(db_session, "p3b_plan_nodate")
+
+    own = lambda: {row.id: _task_state(db_session, row.id) for row in
+                   db_session.query(ExamStudyPlanTask)
+                   .filter(ExamStudyPlanTask.username == user.username).all()}
+    before = own()
+
+    monkeypatch.setattr("ai.orchestrator.default_provider_factory", _provider(
+        [{"op": "create_task", "title": "没有日期的任务", "task_type": "review"}]))
+    response = _propose(client)
+
+    # Nothing survives validation, and the route says exactly that rather than proposing a
+    # write it cannot make.
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"]["code"] == "empty_proposal"
+    assert own() == before

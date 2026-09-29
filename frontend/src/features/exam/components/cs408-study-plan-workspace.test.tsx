@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { components } from '@/types/api';
 import { Cs408StudyPlanWorkspace } from './cs408-study-plan-workspace';
 
@@ -20,10 +21,15 @@ const refetch = vi.fn();
 let entitlement = { isPending: false, isError: false, data: { service_key: 'exam_11408', current_tier: 'free', policy_version: 'v1', features: {} }, refetch };
 let plans: Array<{ isPending: boolean; isError: boolean; data?: Plan; refetch: typeof refetch }> = [];
 const hooks = vi.hoisted(() => ({ useCs408StudyPlans: vi.fn() }));
+/** Mutable so one case can hold a mutation "in flight" and check the submit is locked out. */
+const writes = vi.hoisted(() => ({ create: vi.fn(), update: vi.fn(), remove: vi.fn(), pending: false, failed: false }));
 
 vi.mock('@/features/exam/api/cs408-study-plan', () => ({
   useExamPlanEntitlement: () => entitlement,
   useCs408StudyPlans: hooks.useCs408StudyPlans,
+  useCreateCs408PlanTask: () => ({ mutateAsync: writes.create, isPending: writes.pending, isError: writes.failed }),
+  useUpdateCs408PlanTask: () => ({ mutateAsync: writes.update, isPending: writes.pending, isError: writes.failed }),
+  useDeleteCs408PlanTask: () => ({ mutateAsync: writes.remove, isPending: writes.pending, isError: writes.failed }),
 }));
 vi.mock('@tanstack/react-router', () => ({ Link: ({ children, to, search }: { children: React.ReactNode; to: string; search?: Record<string, string | number | undefined> }) => {
   const parameters = new URLSearchParams(); Object.entries(search ?? {}).forEach(([key, value]) => { if (value !== undefined) parameters.set(key, String(value)); });
@@ -40,6 +46,118 @@ vi.mock('@/features/learning-intelligence/learning-intelligence-surfaces', () =>
 
 describe('Cs408StudyPlanWorkspace', () => {
   hooks.useCs408StudyPlans.mockImplementation(() => plans);
+  beforeEach(() => {
+    writes.create.mockReset().mockResolvedValue({});
+    writes.update.mockReset().mockResolvedValue({});
+    writes.remove.mockReset().mockResolvedValue(undefined);
+    writes.pending = false;
+    writes.failed = false;
+    // Back to the locked default every case starts from; a case opts into access with unlocked().
+    entitlement = { isPending: false, isError: false, data: { service_key: 'exam_11408', current_tier: 'free', policy_version: 'v1', features: {} }, refetch };
+    plans = [];
+  });
+
+  function unlocked() {
+    entitlement = { isPending: false, isError: false, data: { service_key: 'exam_11408', current_tier: 'standard', policy_version: 'v1', features: { learning_plan: { allowed: true, required_tier: 'standard', required_capability: 'planning.generate' } } }, refetch };
+    plans = [{ isPending: false, isError: false, data: plan('operating_system', '操作系统', [task]), refetch }];
+  }
+
+  it('saves a manual edit through the real task endpoint', async () => {
+    unlocked();
+    const user = userEvent.setup();
+    render(<Cs408StudyPlanWorkspace />);
+
+    // The current plan is read-only until the learner says they are editing it.
+    expect(screen.queryByLabelText('任务名称')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '编辑计划' }));
+    const title = screen.getByLabelText('任务名称');
+    await user.clear(title);
+    await user.type(title, '理解虚拟内存（重做）');
+    await user.clear(screen.getByLabelText('计划日期'));
+    await user.type(screen.getByLabelText('计划日期'), '2026-10-09');
+    await user.click(screen.getByRole('button', { name: '保存计划' }));
+
+    expect(writes.update).toHaveBeenCalledTimes(1);
+    expect(writes.update).toHaveBeenCalledWith(expect.objectContaining({
+      subject_key: 'operating_system', task_id: 7, title: '理解虚拟内存（重做）', due_date: '2026-10-09',
+    }));
+    // A save that writes nothing else is not a save.
+    expect(writes.create).not.toHaveBeenCalled();
+    expect(writes.remove).not.toHaveBeenCalled();
+  });
+
+  it('adds a task with the day it is planned for', async () => {
+    unlocked();
+    const user = userEvent.setup();
+    render(<Cs408StudyPlanWorkspace />);
+    await user.click(screen.getByRole('button', { name: '编辑计划' }));
+    await user.click(screen.getByRole('button', { name: '添加一条任务' }));
+    // the existing row is also editable now, so the NEW task is the last set of fields
+    const titleFields = screen.getAllByLabelText('任务名称');
+    await user.type(titleFields[titleFields.length - 1], '复习进程调度');
+    const dateFields = screen.getAllByLabelText('计划日期');
+    await user.clear(dateFields[dateFields.length - 1]);
+    await user.type(dateFields[dateFields.length - 1], '2026-10-02');
+    await user.click(screen.getByRole('button', { name: '保存计划' }));
+
+    expect(writes.create).toHaveBeenCalledWith(expect.objectContaining({
+      subject_key: 'operating_system', title: '复习进程调度', due_date: '2026-10-02',
+    }));
+  });
+
+  it('refuses to save a task with no day, and says why', async () => {
+    unlocked();
+    const user = userEvent.setup();
+    render(<Cs408StudyPlanWorkspace />);
+    await user.click(screen.getByRole('button', { name: '编辑计划' }));
+    await user.click(screen.getByRole('button', { name: '添加一条任务' }));
+    const titleFields = screen.getAllByLabelText('任务名称');
+    await user.type(titleFields[titleFields.length - 1], '没有日期的任务');
+    const dateFields = screen.getAllByLabelText('计划日期');
+    await user.clear(dateFields[dateFields.length - 1]);
+
+    expect(screen.getByText('请先为每个任务选择计划日期。')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '保存计划' }));
+    expect(writes.create).not.toHaveBeenCalled();
+    expect(writes.update).not.toHaveBeenCalled();
+  });
+
+  it('deletes a task only when the save is confirmed', async () => {
+    unlocked();
+    const user = userEvent.setup();
+    render(<Cs408StudyPlanWorkspace />);
+    await user.click(screen.getByRole('button', { name: '编辑计划' }));
+    await user.click(screen.getByRole('button', { name: '删除任务' }));
+    expect(writes.remove).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: '放弃修改' }));
+    expect(writes.remove).not.toHaveBeenCalled();
+    expect(screen.getByText('理解虚拟内存')).toBeInTheDocument();
+  });
+
+  it('does not accept a second submit while the first is in flight', async () => {
+    unlocked();
+    writes.pending = true;
+    const user = userEvent.setup();
+    render(<Cs408StudyPlanWorkspace />);
+    await user.click(screen.getByRole('button', { name: '编辑计划' }));
+    const save = screen.getByRole('button', { name: '正在保存…' });
+    expect(save).toBeDisabled();
+    await user.click(save);
+    expect(writes.update).not.toHaveBeenCalled();
+  });
+
+  it('reports a failed save and stays in the editor instead of pretending it worked', async () => {
+    unlocked();
+    writes.failed = true;
+    const user = userEvent.setup();
+    render(<Cs408StudyPlanWorkspace />);
+    await user.click(screen.getByRole('button', { name: '编辑计划' }));
+    expect(screen.getByText('保存失败，计划未改变。请检查网络后重试。')).toBeInTheDocument();
+    // still editing — the learner's unsaved work is not thrown away by a network error
+    expect(screen.getByRole('button', { name: '保存计划' })).toBeInTheDocument();
+  });
+
   it('treats a missing learning_plan feature as locked and does not mount plan content', () => {
     plans = [];
     render(<Cs408StudyPlanWorkspace />);

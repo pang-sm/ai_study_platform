@@ -147,6 +147,9 @@ def create_task(client, username: str, **kwargs) -> dict:
                "task_type": "knowledge", **kwargs}
     payload.setdefault("scope_type",
                        "single" if payload.get("knowledge_point_name") else "all")
+    # A plan task is dated (the route refuses one without a day), so the helper supplies one
+    # unless the case is specifically about the date.
+    payload.setdefault("due_date", "2026-10-01")
     r = client.post(PLAN + "/tasks", json=payload)
     assert r.status_code == 200, r.text
     return r.json()["task"]
@@ -603,17 +606,31 @@ def test_today_plan_is_not_a_calendar_day_boundary(client):
     assert due_dates[ancient["id"]] == "2020-01-01", "the factual date is carried through"
 
 
+def test_a_plan_task_must_carry_a_day(client):
+    """A plan is a schedule. A task with no day can never be due, so it is refused, not stored."""
+    username = entitled(client, "bc8_nodate")
+    refused = client.post(PLAN + "/tasks",
+                          json={"username": username, "subject_key": MODULE, "title": "没有日期",
+                                "scope_type": "all", "due_date": ""})
+    assert refused.status_code == 400, refused.text
+    assert client.get(PLAN).json()["tasks"] == []
+
+    malformed = client.post(PLAN + "/tasks",
+                            json={"username": username, "subject_key": MODULE, "title": "日期不对",
+                                  "scope_type": "all", "due_date": "下周三"})
+    assert malformed.status_code == 400, malformed.text
+
+
 def test_overdue_ordering_comes_from_the_backend(client):
     """The backend owns the only date comparison there is: due_date < today, server-local."""
     username = entitled(client, "bc8_urgency")
-    create_task(client, username, title="无期限")
     overdue = create_task(client, username, title="逾期", due_date="2020-01-01")
+    soon = create_task(client, username, title="近期", due_date="2026-10-02")
     future = create_task(client, username, title="将来", due_date="2099-01-01")
 
     order = [t["id"] for t in client.get(SUMMARY).json()["tasks"]]
     assert order[0] == overdue["id"], "overdue first"
-    assert order.index(future["id"]) < order.index(
-        next(t["id"] for t in client.get(SUMMARY).json()["tasks"] if t["title"] == "无期限"))
+    assert order.index(soon["id"]) < order.index(future["id"])
 
 
 # ================================================================ I. OpenAPI

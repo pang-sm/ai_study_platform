@@ -1,8 +1,13 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { StatusNote } from '@/components/ui/status-note';
 import { cs408Modules } from '@/features/exam/api/dashboard-summary';
-import { useCs408StudyPlans, useExamPlanEntitlement, type Cs408Plan } from '@/features/exam/api/cs408-study-plan';
+import {
+  useCreateCs408PlanTask, useCs408StudyPlans, useDeleteCs408PlanTask, useExamPlanEntitlement,
+  useUpdateCs408PlanTask, type Cs408Plan,
+} from '@/features/exam/api/cs408-study-plan';
 import { tierLabel } from '@/features/membership/view-models/membership';
 import { ExamPageShell } from './exam-page-shell';
 import './cs408-study-plan-workspace.css';
@@ -12,6 +17,19 @@ type PlanTask = Cs408Plan['tasks'][number];
 
 const statusLabels = { not_started: '未开始', in_progress: '进行中', completed: '已完成' } as const;
 const taskTypeLabels: Record<string, string> = { knowledge: '知识学习', chapter_practice: '章节练习', review: '复习' };
+const TASK_TYPE_OPTIONS = Object.entries(taskTypeLabels);
+
+/** The one identity a plan task keeps across every paper. */
+const taskKey = (task: { subject_key: string; id: number }) => `${task.subject_key}:${task.id}`;
+
+function todayIso(): string {
+  const now = new Date();
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+/** A draft line the learner is authoring; `id` is absent until it has been saved once. */
+type DraftTask = { subject_key: string; title: string; due_date: string; task_type: string };
 
 function actionFor(task: PlanTask) {
   if (task.action_target === 'knowledge_map') return { label: task.computed_status === 'in_progress' ? '继续学习' : '开始学习', to: '/exam/cs408/knowledge' as const, search: { module: task.subject_key } };
@@ -22,9 +40,40 @@ function actionFor(task: PlanTask) {
   return undefined;
 }
 
-function PlanTaskRow({ task, number }: { task: PlanTask; number: number }) {
+function PlanTaskRow({ task, number, editing, draft, onDraftTitle, onDraftDate, onToggleRemove, removed }: {
+  task: PlanTask;
+  number: number;
+  editing: boolean;
+  draft: { title: string; due_date: string };
+  onDraftTitle: (value: string) => void;
+  onDraftDate: (value: string) => void;
+  onToggleRemove: () => void;
+  removed: boolean;
+}) {
   const action = actionFor(task);
   const type = taskTypeLabels[task.task_type];
+
+  if (editing) {
+    return <li className="study-plan__row" data-removed={removed ? 'true' : undefined}>
+      <span className="study-plan__number">{String(number).padStart(2, '0')}</span>
+      <div className="study-plan__task">
+        <label className="study-plan__field">
+          <span>任务名称</span>
+          <input type="text" value={draft.title} maxLength={120} disabled={removed}
+                 onChange={(event) => onDraftTitle(event.target.value)} />
+        </label>
+        <label className="study-plan__field">
+          <span>计划日期</span>
+          <input type="date" value={draft.due_date} disabled={removed}
+                 onChange={(event) => onDraftDate(event.target.value)} />
+        </label>
+      </div>
+      <div className="study-plan__action">
+        <Button variant="ghost" onClick={onToggleRemove}>{removed ? '撤销删除' : '删除任务'}</Button>
+      </div>
+    </li>;
+  }
+
   return <li className="study-plan__row">
     <span className="study-plan__number">{String(number).padStart(2, '0')}</span>
     <div className="study-plan__task">
@@ -56,10 +105,6 @@ function LockedPlan({ requiredTier }: { requiredTier?: string }) {
   // vocabulary the membership page uses, so the lock names the exact thing the learner has
   // to change. It used to be a legacy plan code that had to be described in words because
   // showing it would have named no product tier.
-  //
-  // The lock is an <h2>, not the page's own title: 学习计划 is said once, by the tab strip
-  // this page lives under, and the region's own sr-only heading. Repeating it here would be
-  // the third time the learner reads the same word.
   return <section className="study-plan__state">
     <h2>当前档位暂未开放学习计划</h2>
     <p>
@@ -71,6 +116,16 @@ function LockedPlan({ requiredTier }: { requiredTier?: string }) {
   </section>;
 }
 
+/**
+ * The plan, in three states that must never be confused:
+ *
+ *   CURRENT PLAN     what the server holds — the ledger below, always read from the query
+ *   DRAFT EDIT       the learner's own unsaved edits — held here, applied only by 保存计划
+ *   AI SUGGESTION    what the assistant proposes — `DynamicPlanSurface`, applied only by 应用调整
+ *
+ * 保存计划 writes the draft. 生成建议/应用调整/暂不调整 never touch it. Keeping the three in
+ * separate stores is what makes each button mean exactly one thing.
+ */
 export function Cs408StudyPlanWorkspace({ moduleKey }: { moduleKey?: string } = {}) {
   const entitlement = useExamPlanEntitlement();
   // `features` is a mapping whose key set depends on the direction — index it only after a
@@ -82,15 +137,75 @@ export function Cs408StudyPlanWorkspace({ moduleKey }: { moduleKey?: string } = 
   const tasks = allPlans.flatMap((plan) => plan.tasks);
   const loadingPlans = plans.some((result) => result.isPending);
   const failedPlan = plans.some((result) => result.isError);
-  // 408 keeps FOUR plans, one per paper, and an adjustment names the one it is for — the API
-  // refuses a proposal without a subject. So the learner picks, and the pick opens in this order:
-  //   1. the paper they arrived with (the `?module=` the tab strip carries),
-  //   2. the paper they actually have work in,
-  //   3. a stable default.
-  // Never a silent crossing between papers: the pick is visible, and changing it discards any
-  // proposal that has not been applied (see DynamicPlanSurface).
+
+  const createTask = useCreateCs408PlanTask();
+  const updateTask = useUpdateCs408PlanTask();
+  const deleteTask = useDeleteCs408PlanTask();
+
+  const [editing, setEditing] = useState(false);
+  const [drafts, setDrafts] = useState<Record<string, { title: string; due_date: string }>>({});
+  const [removed, setRemoved] = useState<Record<string, true>>({});
+  const [added, setAdded] = useState<DraftTask[]>([]);
+
   const [chosenModule, setChosenModule] = useState<string>();
   const adjustModule = chosenModule ?? (moduleKey || undefined) ?? tasks[0]?.subject_key ?? cs408Modules[0].key;
+
+  const saving = createTask.isPending || updateTask.isPending || deleteTask.isPending;
+  // Only tasks whose draft differs from the server's copy are sent, so 保存计划 writes the
+  // learner's edits and nothing else.
+  const changedTasks = tasks
+    .map((task) => ({ task, draft: drafts[taskKey(task)] }))
+    .filter((row): row is { task: PlanTask; draft: { title: string; due_date: string } } =>
+      Boolean(row.draft) && (row.draft!.title.trim() !== row.task.title || row.draft!.due_date !== (row.task.due_date || '')));
+
+  // A plan is a schedule, so a task without a day is not saveable — the server refuses it too.
+  const incomplete = [
+    ...changedTasks.filter((row) => !row.draft.due_date),
+    ...added.filter((task) => !task.due_date),
+  ];
+  const emptyAdded = added.filter((task) => !task.title.trim());
+  const saveBlockedReason = incomplete.length
+    ? '请先为每个任务选择计划日期。'
+    : emptyAdded.length
+      ? '请先填写新任务的名称。'
+      : null;
+
+  const beginEdit = () => {
+    setDrafts(Object.fromEntries(tasks.map((task) => [taskKey(task), { title: task.title, due_date: task.due_date || '' }])));
+    setRemoved({});
+    setAdded([]);
+    setEditing(true);
+  };
+
+  const discardEdit = () => {
+    setDrafts({});
+    setRemoved({});
+    setAdded([]);
+    setEditing(false);
+  };
+
+  const save = async () => {
+    const removals = Object.keys(removed).map((key) => {
+      const task = tasks.find((item) => taskKey(item) === key)!;
+      return deleteTask.mutateAsync({ subject_key: task.subject_key, task_id: task.id });
+    });
+    const updates = changedTasks
+      .filter((row) => !removed[taskKey(row.task)])
+      .map((row) => updateTask.mutateAsync({
+        username: row.task.username, subject_key: row.task.subject_key, task_id: row.task.id,
+        title: row.draft.title.trim(), due_date: row.draft.due_date,
+      }));
+    const creations = added.map((task) => createTask.mutateAsync({
+      username: '', subject_key: task.subject_key, title: task.title.trim(),
+      due_date: task.due_date, task_type: task.task_type, scope_type: 'all',
+    }));
+    const results = await Promise.allSettled([...removals, ...updates, ...creations]);
+    if (results.some((result) => result.status === 'rejected')) return;
+    setDrafts({});
+    setRemoved({});
+    setAdded([]);
+    setEditing(false);
+  };
 
   // The page carries no visible title: the 学习计划 tab above already names it, and a second
   // "学习计划" headline would spend the first screen restating the learner's own click. What
@@ -103,17 +218,84 @@ export function Cs408StudyPlanWorkspace({ moduleKey }: { moduleKey?: string } = 
     {allowed ? <>
       {loadingPlans ? <div className="study-plan__loading"><Skeleton className="h-12 w-full" /><Skeleton className="h-28 w-full" /><Skeleton className="h-28 w-full" /></div> : null}
       {failedPlan ? <section className="study-plan__state"><h2>学习计划暂时无法加载</h2><p>请检查网络后重试。</p><button type="button" onClick={() => plans.forEach((result) => void result.refetch())}>重试</button></section> : null}
-      {!loadingPlans && !failedPlan && tasks.length === 0 ? <section className="study-plan__state"><h2>暂无学习计划</h2><p>完成实际学习后，相关任务状态会在这里更新。</p></section> : null}
-      {!loadingPlans && !failedPlan && tasks.length > 0 ? <ol className="study-plan__ledger">{tasks.map((task, index) => <PlanTaskRow key={`${task.subject_key}:${task.id}`} task={task} number={index + 1} />)}</ol> : null}
-      <DynamicPlanSurface
-        scope={{ service_key: 'exam_11408', course_id: '', exam_module_id: adjustModule, language: '' }}
-        scopeSelect={{
-          label: '调整科目',
-          value: adjustModule,
-          options: cs408Modules.map((module) => ({ value: module.key, label: module.name })),
-          onChange: setChosenModule,
-        }}
-      />
+      {!loadingPlans && !failedPlan ? <>
+        <div className="study-plan__toolbar">
+          <h2 className="study-plan__heading">当前计划</h2>
+          {editing
+            ? <div className="study-plan__toolbar-actions">
+              <Button onClick={() => void save()} disabled={saving || saveBlockedReason !== null}>{saving ? '正在保存…' : '保存计划'}</Button>
+              <Button variant="secondary" onClick={discardEdit} disabled={saving}>放弃修改</Button>
+            </div>
+            : <Button variant="secondary" onClick={beginEdit}>编辑计划</Button>}
+        </div>
+
+        {saveBlockedReason && editing ? <StatusNote tone="danger" className="mt-3">{saveBlockedReason}</StatusNote> : null}
+        {createTask.isError || updateTask.isError || deleteTask.isError ? (
+          <StatusNote tone="danger" className="mt-3">保存失败，计划未改变。请检查网络后重试。</StatusNote>
+        ) : null}
+
+        {!editing && tasks.length === 0 ? <section className="study-plan__state"><h2>暂无学习计划</h2><p>完成实际学习后，相关任务状态会在这里更新。也可以自己添加一条计划。</p></section> : null}
+        {tasks.length > 0 || editing ? <ol className="study-plan__ledger">{tasks.map((task, index) => <PlanTaskRow
+          key={taskKey(task)} task={task} number={index + 1} editing={editing}
+          draft={drafts[taskKey(task)] ?? { title: task.title, due_date: task.due_date || '' }}
+          removed={Boolean(removed[taskKey(task)])}
+          onDraftTitle={(value) => setDrafts((current) => ({ ...current, [taskKey(task)]: { ...(current[taskKey(task)] ?? { due_date: task.due_date || '' }), title: value } }))}
+          onDraftDate={(value) => setDrafts((current) => ({ ...current, [taskKey(task)]: { ...(current[taskKey(task)] ?? { title: task.title }), due_date: value } }))}
+          onToggleRemove={() => setRemoved((current) => {
+            const next = { ...current };
+            if (next[taskKey(task)]) delete next[taskKey(task)]; else next[taskKey(task)] = true;
+            return next;
+          })}
+        />)}</ol> : null}
+
+        {editing ? <section className="study-plan__add" aria-label="添加计划任务">
+          <h3>添加任务</h3>
+          {added.map((task, index) => <div className="study-plan__row" key={index}>
+            <div className="study-plan__task">
+              <label className="study-plan__field">
+                <span>任务名称</span>
+                <input type="text" value={task.title} maxLength={120} placeholder="例如：完成操作系统第 3 章复习"
+                       onChange={(event) => setAdded((current) => current.map((item, at) => at === index ? { ...item, title: event.target.value } : item))} />
+              </label>
+              <label className="study-plan__field">
+                <span>计划日期</span>
+                <input type="date" value={task.due_date}
+                       onChange={(event) => setAdded((current) => current.map((item, at) => at === index ? { ...item, due_date: event.target.value } : item))} />
+              </label>
+              <label className="study-plan__field">
+                <span>科目</span>
+                <select value={task.subject_key}
+                        onChange={(event) => setAdded((current) => current.map((item, at) => at === index ? { ...item, subject_key: event.target.value } : item))}>
+                  {cs408Modules.map((module) => <option key={module.key} value={module.key}>{module.name}</option>)}
+                </select>
+              </label>
+              <label className="study-plan__field">
+                <span>类型</span>
+                <select value={task.task_type}
+                        onChange={(event) => setAdded((current) => current.map((item, at) => at === index ? { ...item, task_type: event.target.value } : item))}>
+                  {TASK_TYPE_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </label>
+            </div>
+            <div className="study-plan__action">
+              <Button variant="ghost" onClick={() => setAdded((current) => current.filter((_, at) => at !== index))}>移除</Button>
+            </div>
+          </div>)}
+          <Button variant="secondary" onClick={() => setAdded((current) => [...current, { subject_key: adjustModule, title: '', due_date: todayIso(), task_type: 'knowledge' }])}>
+            添加一条任务
+          </Button>
+        </section> : null}
+
+        <DynamicPlanSurface
+          scope={{ service_key: 'exam_11408', course_id: '', exam_module_id: adjustModule, language: '' }}
+          scopeSelect={{
+            label: '调整科目',
+            value: adjustModule,
+            options: cs408Modules.map((module) => ({ value: module.key, label: module.name })),
+            onChange: setChosenModule,
+          }}
+        />
+      </> : null}
     </> : null}
   </section></ExamPageShell>;
 }

@@ -322,7 +322,13 @@ def _clean_changes(raw, tasks_by_id: dict, allowed_task_types: tuple) -> tuple[l
                                 "allowed": list(allowed_task_types)})
                 continue
             due = _bounded(item.get("due_date"), 30) or None
-            if due is not None and _parse_due(due) is None:
+            if due is None:
+                # A plan holds dated work. A task with no date cannot be "due", cannot be
+                # overdue, and cannot be placed on the learner's day — it would sit in the list
+                # permanently and mean nothing. The learner picks the date instead.
+                dropped.append({"reason": "missing_due_date", "title": title})
+                continue
+            if _parse_due(due) is None:
                 dropped.append({"reason": "invalid_due_date", "due_date": due})
                 continue
             _keep({"op": OP_CREATE, "title": title, "task_type": task_type, "due_date": due,
@@ -482,11 +488,17 @@ def _evidence(context: dict, changes: list[dict]) -> list[dict]:
 
 
 def _rationale(evidence: list[dict]) -> str:
+    """The ONE reason this proposal rests on — the top-ranked evidence item, not a list of all.
+
+    Joining every evidence item here would print the same sentence twice: the caller shows
+    `evidence` beside the proposal, so a rationale that restated them would be the page saying
+    one thing in two places. The learner needs the reason, once.
+    """
     if not evidence:
         # No stored number bears on this change. Saying so is the honest answer; inventing a
         # reason would be the one thing this module must never do.
         return "这次调整只依据你计划里现有的任务，系统没有可用于判断进度的记录。"
-    return "依据你当前的记录：" + "；".join(item["text"] for item in evidence) + "。"
+    return f"{evidence[0]['text']}。"
 
 
 def _adjustment_types(changes: list[dict]) -> list[str]:
@@ -542,10 +554,12 @@ def _impact(context: dict, changes: list[dict], tasks) -> dict:
         parts.append(f"替换 {replaced} 项")
 
     text = "本次调整" + ("。" if not parts else "，" + "，".join(parts) + "。")
+    # No "plan total went from N to M" sentence: the learner reads the plan itself right above
+    # this, so a before/after counter tells them nothing they cannot see, and a count that only
+    # moved because THIS panel is empty reads as a defect. The overdue line stays because a
+    # learner cannot compute it by looking at the list.
     if overdue_before != overdue_after:
-        text += f"计划中的逾期任务由 {overdue_before} 项变为 {overdue_after} 项。"
-    if inserted:
-        text += f"计划任务总数由 {count_before} 项变为 {count_before + inserted} 项。"
+        text += f"调整后还有 {overdue_after} 项任务已逾期。"
 
     return {
         "inserted": inserted,

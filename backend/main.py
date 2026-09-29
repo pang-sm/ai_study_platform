@@ -20966,6 +20966,15 @@ def create_exam_study_plan_task(
     if not (req.knowledge_point_name or "").strip() and (req.scope_type or "single") != "all":
         raise HTTPException(status_code=400, detail="knowledge_point_name is required when scope_type is not 'all'")
     request_username(req, current_user)
+    # A plan is a schedule, so every task in it carries the day it is planned for. A task with no
+    # date can never be due, can never be overdue, and can never appear in today's work — it
+    # would sit in the list forever meaning nothing, which is what "计划日期：未设定" was.
+    # Checked AFTER identity, so an unauthorised caller still gets 401/403 and not a 400.
+    due_date = (req.due_date or "").strip()
+    try:
+        date.fromisoformat(due_date)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="due_date must be a YYYY-MM-DD date")
     user = current_user
     now = utc_now()
     kp_name = req.knowledge_point_name or ""
@@ -20983,7 +20992,7 @@ def create_exam_study_plan_task(
         scope_type=req.scope_type or "single",
         task_type=task_type,
         status="not_started",
-        due_date=req.due_date or "",
+        due_date=due_date,
         note=req.note or "",
         created_at=now,
         updated_at=now,
@@ -21031,7 +21040,13 @@ def update_exam_study_plan_task(
             raise HTTPException(status_code=400, detail=f"Invalid task_type: {candidate}")
         task.task_type = candidate
     if req.due_date is not None:
-        task.due_date = req.due_date
+        # Same rule as create: a task in a plan is dated. Clearing the date would leave a row
+        # that no day can ever surface.
+        try:
+            date.fromisoformat((req.due_date or "").strip())
+        except ValueError:
+            raise HTTPException(status_code=400, detail="due_date must be a YYYY-MM-DD date")
+        task.due_date = req.due_date.strip()
     if req.note is not None:
         task.note = req.note
     task.updated_at = now
