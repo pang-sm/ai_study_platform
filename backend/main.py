@@ -21573,8 +21573,11 @@ EXAM_SUBJECT_DIRS = {
     "computer_network": "计算机网络",
 }
 
-# Static exam paper images — served via nginx, not FastAPI mount
-# (Mount conflicts with route matching on some configurations)
+# Historical OCR source images (``static/exam_papers``) are intentionally NOT exposed — neither by
+# a FastAPI mount nor by nginx, which has no ``location`` for this path. They exist only as OCR
+# input. Learner-facing exam figures are served solely from the canonical SVG figure pipeline
+# (``exam_resources/11408/**/past_papers/figures/``) via the past-paper-images route. The mount
+# stays disabled: enabling it would serve watermarked scrapes of the wrong question.
 # import exam_paper_parser as _ep
 # _exam_static = _ep.STATIC_DIR
 # if _exam_static.exists():
