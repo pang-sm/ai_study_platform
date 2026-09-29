@@ -21576,6 +21576,7 @@ def get_exam_subject_dashboard_summary(subject_key: str, username: str = "", db:
 # ── 11408 Past Papers ───────────────────────────────────────
 
 import exam_paper_parser
+import exam_paper_scores
 import exam_past_paper
 
 EXAM_RESOURCES_DIR = BASE_DIR / "exam_resources"
@@ -21903,13 +21904,15 @@ def submit_attempt(subject_key: str, attempt_id: int, req: exam_past_paper.PastP
                 # UNANSWERED != INCORRECT: a blank objective answer carries NO verdict. It is
                 # neither correct nor wrong, so it is not counted in either tally and never
                 # enters the wrong book (which is what the empty-string comparison used to do).
+                choice_score = exam_paper_scores.full_score(
+                    subject_key, attempt.year, item.question_number, "choice")
                 is_c = None if not ua else (ua.upper() == sa.upper())
                 if is_c: correct += 1
                 results_list.append({
                     "question_id": qnum, "number": item.question_number,
                     "type": "选择题", "correct": is_c,
                     "standard_answer": sa, "user_answer": ua,
-                    "score": 2 if is_c else 0, "full_score": 2,
+                    "score": choice_score if is_c else 0, "full_score": choice_score,
                 })
                 if is_c is False:
                     wrong_qs.append({
@@ -21925,7 +21928,9 @@ def submit_attempt(subject_key: str, attempt_id: int, req: exam_past_paper.PastP
                 results_list.append({
                     "question_id": qnum, "number": item.question_number,
                     "type": "大题", "judge": "self_review",
-                    "score": None, "full_score": 10,
+                    "score": None,
+                    "full_score": exam_paper_scores.full_score(
+                        subject_key, attempt.year, item.question_number, "big"),
                     "standard_answer": sa, "user_answer": ua,
                     "feedback": "请自行对照参考答案",
                 })
@@ -21938,8 +21943,8 @@ def submit_attempt(subject_key: str, attempt_id: int, req: exam_past_paper.PastP
             "total_questions": total,
             "choice_correct": correct,
             "choice_total": choice_total,
-            "total_score": correct * 2,
-            "max_score": choice_total * 2,
+            "total_score": correct * exam_paper_scores.choice_full_score(),
+            "max_score": choice_total * exam_paper_scores.choice_full_score(),
             "wrong_questions": wrong_qs,
             "wrong_count": len(wrong_qs),
         }
@@ -21964,17 +21969,23 @@ def submit_attempt(subject_key: str, attempt_id: int, req: exam_past_paper.PastP
             total_score += int(r.get("score") or 0)
             max_score += int(r.get("full_score") or 0)
             continue
+        # The denominator is the PAPER's score for this question. Until SCORE_S1 this fell back to
+        # a hard-coded 10, which is not what any of these questions is worth.
+        question_max = int(r.get("full_score")
+                           or exam_paper_scores.full_score(subject_key, attempt.year,
+                                                           r.get("number"), "big"))
+        r["full_score"] = question_max
         if grade_state.get("applied"):
             r["judge"] = "ai_graded"
             ai_graded_count += 1
             total_score += int(r.get("score") or 0)
-            max_score += int(r.get("full_score") or 10)
+            max_score += question_max
         else:
             r["judge"] = "self_review"
             r["score"] = None
             r["feedback"] = "请自行对照参考答案"
             self_review_count += 1
-            max_score += int(r.get("full_score") or 10)
+            max_score += question_max
     # An ungraded subjective answer is not a wrong answer, so it must not enter the wrong book.
     if not grade_state.get("applied"):
         result["wrong_questions"] = [w for w in result.get("wrong_questions", [])
@@ -22064,24 +22075,28 @@ def _paper_big_answer_grader(db, user, subject_key, attempt, grade_state):
 
     context = cs408_context(user, module_key=subject_key)
 
-    def _grade(q, user_answer, standard):
+    def _grade(q, user_answer, standard, max_score=None):
+        # The rubric maximum is the QUESTION's score (the parser passes the paper's value); it is
+        # never a fixed 10, or a 15-point question could not be graded out of 15.
+        question_max = int(max_score or exam_paper_scores.full_score(
+            subject_key, attempt.year, q.get("number"), "big"))
         try:
             score, feedback = grade_big_answer(
                 db, user, learning_context=context,
                 stem=q.get("content") or q.get("stem") or "",
                 standard_answer=standard, user_answer=user_answer,
                 subject_name=EXAM_SUBJECT_DIRS.get(subject_key, subject_key),
-                question_number=q.get("number"))
+                question_number=q.get("number"), max_score=question_max)
         except HTTPException as exc:
             grade_state["reason"] = f"answer_grade_unavailable_{exc.status_code}"
             grade_state["applied"] = False
-            return exam_paper_parser._ungraded_big_answer(user_answer, standard)
+            return exam_paper_parser._ungraded_big_answer(user_answer, standard, question_max)
         except GradeOutputError as exc:
             # The provider call HAPPENED and already settled its measured usage; only the
             # postprocessing failed, so the cost stands and the grade falls back.
             grade_state["reason"] = f"answer_grade_malformed_output"
             logger.warning("answer grade postprocessing failed: %s", str(exc)[:120])
-            return exam_paper_parser._ungraded_big_answer(user_answer, standard)
+            return exam_paper_parser._ungraded_big_answer(user_answer, standard, question_max)
         grade_state["applied"] = True
         grade_state["reason"] = None
         return score, feedback

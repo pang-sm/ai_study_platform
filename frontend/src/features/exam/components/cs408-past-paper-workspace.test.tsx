@@ -7,9 +7,9 @@ import { Cs408PastPaperWorkspace } from './cs408-past-paper-workspace';
 
 const questions: components['schemas']['PastPaperQuestion'][] = [
   { subject_key: 'operating_system', year: 2022, question_number: 23, question_type: 'choice', stem: '进程调度的主要目标是（ ）。', options: { A: 'A. 提高吞吐量', B: '增加存储' }, resources: [], full_score: 2 },
-  { subject_key: 'operating_system', year: 2022, question_number: 46, question_type: 'big', stem: '说明死锁的必要条件。', options: {}, resources: [{ url: '/exam/11408/past-paper-images/operating_system/2022/q46.jpg' }], full_score: 10 },
+  { subject_key: 'operating_system', year: 2022, question_number: 46, question_type: 'big', stem: '说明死锁的必要条件。', options: {}, resources: [{ url: '/exam/11408/past-paper-images/operating_system/2022/q46.jpg' }], full_score: 8 },
   // This one IS about its figure — 「如题 47 图所示」 — so its image is the question, not a copy of it.
-  { subject_key: 'operating_system', year: 2022, question_number: 47, question_type: 'big', stem: '某网络拓扑如题 47 图所示，R 为路由器。', options: {}, resources: [{ url: '/exam/11408/past-paper-images/operating_system/2022/q47.jpg' }], full_score: 10 },
+  { subject_key: 'operating_system', year: 2022, question_number: 47, question_type: 'big', stem: '某网络拓扑如题 47 图所示，R 为路由器。', options: {}, resources: [{ url: '/exam/11408/past-paper-images/operating_system/2022/q47.jpg' }], full_score: 9 },
 ];
 let attemptDetail: components['schemas']['PastPaperAttemptDetailResponse'] | undefined;
 const create = vi.fn((_input: unknown, options?: { onSuccess?: (value: { attempt_id: number }) => void }) => {
@@ -21,7 +21,7 @@ const submit = vi.fn((_input: unknown, options?: { onSuccess?: (value: component
   attempt_id: 21, attempt_no: 1, subject_key: 'operating_system', year: 2022, total_questions: 2, choice_total: 1, choice_correct: 1, self_review_count: 1, ai_graded_count: 0, total_score: 2, max_score: 12, answer_grade: { applied: false, reason: 'unavailable' },
   results: [
     { subject_key: 'operating_system', year: 2022, question_number: 23, question_type: 'choice', user_answer: 'A', correct: true, judge: null, standard_answer: 'A', analysis: null, score: 2, full_score: 2, feedback: null },
-    { subject_key: 'operating_system', year: 2022, question_number: 46, question_type: 'big', user_answer: '四个条件', correct: null, judge: 'self_review', standard_answer: '互斥、占有且等待、不可抢占、循环等待。', analysis: null, score: null, full_score: 10, feedback: null },
+    { subject_key: 'operating_system', year: 2022, question_number: 46, question_type: 'big', user_answer: '四个条件', correct: null, judge: 'self_review', standard_answer: '互斥、占有且等待、不可抢占、循环等待。', analysis: null, score: null, full_score: 8, feedback: null },
   ],
 }));
 
@@ -47,6 +47,24 @@ function renderWorkspace(props: Partial<React.ComponentProps<typeof Cs408PastPap
  */
 const desktopQuestionButton = (container: HTMLElement, name: string) =>
   within(container.querySelector<HTMLElement>('.past-paper__navigator')!).getByRole('button', { name });
+
+describe('a question states the marks the PAPER gives it', () => {
+  beforeEach(() => { attemptDetail = undefined; });
+
+  it("shows each question's own score, not a fixed 10", async () => {
+    // REGRESSION GUARD. `full_score` was hard-coded (2 / 10) before SCORE_S1, so a question the
+    // paper prices at 8 or 9 told the learner it was worth 10 — and graded them out of 10.
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+    await user.click(screen.getByRole('button', { name: /开始练习|继续作答|开始/ }));
+
+    expect(screen.getByText('选择题 · 满分 2 分 · 2022 年真题')).toBeInTheDocument();
+    // …and the 8-point 综合应用题 says 8, on its own page. Scoped to the desktop navigator:
+    // the responsive layout renders the same question buttons twice.
+    await user.click(desktopQuestionButton(container, '46'));
+    expect(screen.getByText('综合应用题 · 满分 8 分 · 2022 年真题')).toBeInTheDocument();
+  });
+});
 
 describe('Cs408PastPaperWorkspace', () => {
   beforeEach(() => { attemptDetail = undefined; create.mockClear(); save.mockClear(); });

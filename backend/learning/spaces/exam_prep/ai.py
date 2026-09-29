@@ -83,18 +83,21 @@ def _extract_json_object(text: str) -> dict | None:
 
 def grade_big_answer(db, user, *, learning_context: LearningContext, stem: str,
                      standard_answer: str, user_answer: str, subject_name: str = "",
-                     question_number=None, max_tokens: int = 300) -> tuple[int, str]:
+                     question_number=None, max_score: int = GRADE_MAX_SCORE,
+                     max_tokens: int = 300) -> tuple[int, str]:
     """Grade one subjective answer through the unified boundary.
 
-    Returns ``(score, feedback)`` with ``0 <= score <= GRADE_MAX_SCORE``. Raises
-    ``GradeOutputError`` when the model produced no usable grade — the CALLER decides what
-    to do about that, because what a malformed grade means for a learner's submission is a
-    domain decision, not this module's.
+    Returns ``(score, feedback)`` with ``0 <= score <= max_score``, which is the QUESTION's own
+    score as the paper prints it — a 15-point 组成原理 question must be gradeable out of 15, so
+    the rubric cannot be a fixed 10. Raises ``GradeOutputError`` when the model produced no usable
+    grade — the CALLER decides what to do about that, because what a malformed grade means for a
+    learner's submission is a domain decision, not this module's.
 
     The prompt and the parsing live here on purpose: this is the one place an exam answer
     is graded, so the parser module no longer holds a provider client or a model name.
     """
-    prompt = f"""你是11408考研阅卷老师。请评分(满分{GRADE_MAX_SCORE}分,按参考答案符合度)。
+    full_score = max(1, int(max_score))
+    prompt = f"""你是11408考研阅卷老师。请评分(满分{full_score}分,按参考答案符合度)。
 
 科目:{subject_name} 题号:第{question_number if question_number is not None else ''}题
 题目:{str(stem or '')[:300]}
@@ -114,7 +117,7 @@ def grade_big_answer(db, user, *, learning_context: LearningContext, stem: str,
         score = int(data.get("score"))
     except (TypeError, ValueError):
         raise GradeOutputError("score is not an integer") from None
-    if not 0 <= score <= GRADE_MAX_SCORE:
+    if not 0 <= score <= full_score:
         raise GradeOutputError(f"score {score} out of range")
     feedback = str(data.get("feedback") or "").strip()
     return score, feedback

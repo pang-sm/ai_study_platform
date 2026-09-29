@@ -28,6 +28,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+import exam_paper_scores
+
 BASE_DIR = Path(__file__).resolve().parent
 
 # Static paper images. NOTE: ``main.py`` deliberately leaves the ``/static/exam_papers`` mount
@@ -365,14 +367,15 @@ def _from_bank(db, subject_key: str, year: int, rows) -> list[ResolvedQuestion]:
             number = int(item.question_number)
         except (TypeError, ValueError):
             continue
+        qtype = "big" if item.question_type == "big" else "choice"
         out.append(ResolvedQuestion(
             question_number=number,
-            question_type="big" if item.question_type == "big" else "choice",
+            question_type=qtype,
             stem=item.stem or "",
             options=_parse_options(item.options_json),
             standard_answer=(item.standard_answer or "").strip(),
             analysis=(item.analysis or "").strip(),
-            full_score=10 if item.question_type == "big" else 2,
+            full_score=exam_paper_scores.full_score(subject_key, year, number, qtype),
             resource_filenames=_bank_resources(subject_key, year, number),
         ))
     return out
@@ -393,7 +396,7 @@ def _from_document(raw_questions, subject_key: str, year: int) -> list[ResolvedQ
             options=_parse_options(raw.get("options")),
             standard_answer=str(raw.get("answer") or raw.get("standard_answer") or "").strip(),
             analysis=str(raw.get("analysis") or "").strip(),
-            full_score=10 if qtype == "big" else 2,
+            full_score=exam_paper_scores.full_score(subject_key, year, number, qtype),
             resource_filenames=_clean_figure_filenames(subject_key, year, number),
         ))
     return out
@@ -604,7 +607,11 @@ def replay_results(attempt, subject_key: str, year: int,
             out.append(public_result(
                 subject_key=subject_key, year=year, question_number=number, question_type="choice",
                 user_answer=str(raw.get("user_answer") or ""),
-                correct=bool(raw.get("correct")),
+                # Tri-state, preserved: an unanswered objective question carries NO verdict, and
+                # `bool(None)` turned that into "wrong" on the way out of submit. Grading already
+                # kept them apart (the wrong book is fed from the internal None); only this
+                # projection collapsed them.
+                correct=None if raw.get("correct") is None else bool(raw.get("correct")),
                 judge=None,
                 standard_answer=str(raw.get("standard_answer") or ""),
                 analysis=analysis,

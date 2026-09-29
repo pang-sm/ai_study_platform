@@ -972,3 +972,29 @@ FastAPI 路由表直接生成，可重跑比对漂移）。
   `impact` 的数值字段（`inserted` / `rescheduled` / `moved_earlier` / `moved_later` /
   `replaced` / `task_count_before` / `task_count_after` / `overdue_before` / `overdue_after`）
   全部保留不变。
+
+## SCORE_CANONICAL：真题每题满分改为卷面真实分值（行为变化）
+
+### `PastPaperQuestion.full_score` / `PastPaperQuestionResult.full_score` 不再固定 2 / 10
+
+此前全站硬编码：选择题 2 分、综合应用题 10 分。真实卷面并非如此
+（2022 计算机组成原理 Q43 是 15 分，操作系统两题是 7 / 8 分，计算机网络 Q47 是 9 分或 8 分）。
+
+唯一权威 = `backend/exam_resources/11408/question_scores.json`，读取入口 =
+`backend/exam_paper_scores.py`（`choice_full_score()` / `big_full_score()` / `full_score()`）。
+每一道题的分值都逐题读自该题原卷截图题头；选择题的每题 2 分由 2022 年官方考试大纲交叉确认
+（满分 150 = 单选 80（40 小题，每小题 2 分）+ 综合 70），卷面自证为：2022–2026 每一年
+「四科选择题 80 分 + 四科大题之和 70 分」= 150 分。
+
+所有产出或消费分值的位置都改为读该表：两个投影（bank / document）、
+两条评分路径（bank 判定式评分、document 的关键词回退评分）、
+AI 阅卷的评分上限（`grade_big_answer(..., max_score=...)`，prompt 与区间校验同步）。
+`PastPaperAttempt.max_score` 因此不再少 5 分。
+
+**选择题 2 分、综合应用题按卷面分值**；`question_score_audit.json` 记录 235 题逐题结论。
+
+### `PastPaperAnswerGrade` 之外的既有一处缺陷同时修复
+
+`replay_results` 用 `bool(raw.get("correct"))` 投影判定，把「未作答」的三态 `null`
+压成了 `false` —— 提交响应把未作答的选择题报成答错（错题本与计分用的是内部三态，未受影响）。
+现在 `null` 原样透出。

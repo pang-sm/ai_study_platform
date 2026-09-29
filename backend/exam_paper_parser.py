@@ -10,6 +10,8 @@ from pathlib import Path
 
 from docx import Document
 
+import exam_paper_scores
+
 logger = logging.getLogger("exam_parser")
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -470,10 +472,11 @@ def grade_submission(subject_key: str, year: int, answers: list[dict], *,
         standard = (q.get("answer") or "").strip()
 
         if qtype == "选择题":
+            choice_max = exam_paper_scores.full_score(subject_key, year, q.get("number"), "choice")
             is_correct = user_answer.upper() == standard.upper()
             if is_correct:
                 correct += 1
-                total_score += 2
+                total_score += choice_max
             else:
                 wrong.append({
                     "question_id": qid, "number": q.get("number"), "type": qtype,
@@ -481,19 +484,23 @@ def grade_submission(subject_key: str, year: int, answers: list[dict], *,
                     "standard_answer": standard, "user_answer": user_answer,
                     "score": 0, "wrong_reason": "答案不匹配",
                 })
-            max_score += 2
+            max_score += choice_max
             results.append({
                 "question_id": qid, "number": q.get("number"), "type": qtype,
-                "correct": is_correct, "score": 2 if is_correct else 0,
-                "full_score": 2, "standard_answer": standard, "user_answer": user_answer,
+                "correct": is_correct, "score": choice_max if is_correct else 0,
+                "full_score": choice_max, "standard_answer": standard, "user_answer": user_answer,
             })
         else:
+            # The denominator is the PAPER's score for this question, not a hard-coded 10.
+            big_max = exam_paper_scores.full_score(subject_key, year, q.get("number"), "big")
             score, feedback = (
-                grade_big(q, user_answer, standard) if grade_big is not None
-                else _ungraded_big_answer(user_answer, standard))
+                grade_big(q, user_answer, standard, big_max) if grade_big is not None
+                else _ungraded_big_answer(user_answer, standard, big_max))
             total_score += score
-            max_score += 10
-            if score < 7:
+            max_score += big_max
+            # The wrong book takes an answer that did not reach 70% of the question's score —
+            # a SHARE, so a 7-of-15 answer is not filed as a poor one just because 7 < 10.
+            if score * 10 < 7 * big_max:
                 wrong.append({
                     "question_id": qid, "number": q.get("number"), "type": qtype,
                     "content": q.get("stem") or q.get("content", ""), "standard_answer": standard,
@@ -501,7 +508,7 @@ def grade_submission(subject_key: str, year: int, answers: list[dict], *,
                 })
             results.append({
                 "question_id": qid, "number": q.get("number"), "type": qtype,
-                "score": score, "full_score": 10,
+                "score": score, "full_score": big_max,
                 "standard_answer": standard, "user_answer": user_answer,
                 "feedback": feedback,
             })
@@ -520,16 +527,20 @@ def grade_submission(subject_key: str, year: int, answers: list[dict], *,
     }
 
 
-def _ungraded_big_answer(user_answer: str, standard: str) -> tuple[int, str]:
+def _ungraded_big_answer(user_answer: str, standard: str, max_score: int = 10) -> tuple[int, str]:
     """Provider-free fallback for a subjective answer.
 
     Used only when no AI grader is injected. It is a keyword-overlap heuristic, NOT a
     judgement of the learner, and it is labelled as such. Before STEP7H3 this heuristic
     ran only after a failed model call from inside this module; the model call is gone, so
     this module never reaches a provider at all.
+
+    ``max_score`` is the question's own score, so the heuristic returns a share of THAT rather
+    than of 10 — it never claims a question is worth more than the paper says.
     """
     if not (user_answer or "").strip():
         return 0, "未作答"
+    cap = max(1, int(max_score))
     overlap = set(user_answer.lower().split()) & set((standard or "").lower().split())
     denom = max(1, len(set((standard or "").lower().split())))
-    return min(9, max(1, len(overlap) * 10 // denom)), "AI暂不可用,基础评分"
+    return min(cap, max(1, len(overlap) * cap // denom)), "AI暂不可用,基础评分"

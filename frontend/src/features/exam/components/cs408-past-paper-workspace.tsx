@@ -27,7 +27,9 @@ function PaperQuestion({ question, answer, submitted, onChange, result, moduleKe
   const stemId = `past-paper-stem-${question.question_number}`;
   const figureRequired = questionNeedsFigure(question.stem);
   return <><fieldset className="past-paper-question" disabled={submitted} aria-labelledby={stemId}>
-    <div className="past-paper-question__identity"><strong>第 {question.question_number} 题</strong><span>{question.question_type === 'choice' ? '选择题' : '简答题'} · {question.year} 年真题</span></div>
+    {/* The score is the PAPER's, not a fixed 10: a 15-point 组成原理 question has to say so
+        before the learner answers it. `full_score` comes from the canonical per-question table. */}
+    <div className="past-paper-question__identity"><strong>第 {question.question_number} 题</strong><span>{question.question_type === 'choice' ? '选择题' : '综合应用题'} · 满分 {question.full_score} 分 · {question.year} 年真题</span></div>
     <p id={stemId} className="past-paper-question__stem">{question.stem}</p>
     {/* The paper's own figure is drawn ONLY when the question is about one. Most questions are
         stored twice — as text and as the scan they were read from — and the scan restates what
