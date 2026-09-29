@@ -148,13 +148,15 @@ def test_the_exam_route_accepts_its_own_vocabulary_and_refuses_the_rest(client, 
     for task_type in EXAM_PREP_TASK_TYPES:
         response = client.post(_exam_tasks(), json={
             "username": username, "subject_key": EXAM_MODULE,
-            "title": f"考试-{task_type}", "scope_type": "all", "task_type": task_type})
+            "title": f"考试-{task_type}", "scope_type": "all", "task_type": task_type,
+            "due_date": "2026-10-01"})
         assert response.status_code == 200, f"{task_type}: {response.text}"
 
     for dead in DEAD_TYPES:
         response = client.post(_exam_tasks(), json={
             "username": username, "subject_key": EXAM_MODULE,
-            "title": f"非法-{dead}", "scope_type": "all", "task_type": dead})
+            "title": f"非法-{dead}", "scope_type": "all", "task_type": dead,
+            "due_date": "2026-10-01"})
         assert response.status_code == 400, f"{dead} was accepted: {response.text}"
 
 
@@ -184,7 +186,7 @@ def test_the_update_paths_enforce_the_same_vocabulary_as_creation(client, db_ses
     # the exam update path, which previously accepted anything at all
     created = client.post(_exam_tasks(), json={
         "username": username, "subject_key": EXAM_MODULE, "title": "可编辑考试任务",
-        "scope_type": "all", "task_type": "knowledge"})
+        "scope_type": "all", "task_type": "knowledge", "due_date": "2026-10-01"})
     assert created.status_code == 200, created.text
     exam_task_id = created.json()["task"]["id"]
 
