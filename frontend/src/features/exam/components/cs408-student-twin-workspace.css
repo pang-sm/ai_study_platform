@@ -32,5 +32,6 @@
 .student-twin__unavailable p, .student-twin__empty { color: var(--color-text-secondary); }
 .student-twin__unavailable button { border: 1px solid var(--color-lab-ink); background: transparent; color: var(--color-lab-ink); font: inherit; font-weight: 700; padding: .65rem 1rem; }
 .student-twin__records-link { display: inline-flex; color: var(--color-primary-hover); font-weight: 700; text-decoration-thickness: 1px; text-underline-offset: .2em; }
+.student-twin__records-link + .student-twin__records-link { margin-left: 1.25rem; }
 @media (max-width: 48rem) { .student-twin__technical dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }.student-twin__state-fields div { grid-template-columns: 1fr; gap: .3rem; } }
 @media (max-width: 40rem) { .student-twin__header { padding-top: 1rem; }.student-twin__technical dl { grid-template-columns: 1fr; } }
