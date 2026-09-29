@@ -3,10 +3,10 @@ import { requiresHarness, signIn } from './support/session';
 
 // PRODUCT ACCEPTANCE — the Plan Adjustment surface, in a real Chromium against a real backend.
 //
-// What is being accepted: a proposal must be readable (a headline, a reason built from the
-// learner's own records, a counted impact), its changes must be written as labelled before/after
-// pairs rather than two dates joined by an arrow, and applying it must write exactly what was
-// shown. Findings live in the acceptance report; the assertions here are the durable part.
+// What is being accepted: a proposal must be readable — each suggested task with the day it is
+// planned for, and ONE reason built from the learner's own records, stated once — and applying it
+// must write exactly what was shown. Findings live in the acceptance report; the assertions here
+// are the durable part.
 //
 // The suite owns its preconditions: it creates the plan tasks it needs through the PRODUCT api
 // (POST /course-learning/study-plan/tasks), so nothing here depends on seeds other specs share.
@@ -102,19 +102,13 @@ function changeRow(page: Page, title: string) {
 }
 
 /**
- * Open the collapsed tail of a proposal.
+ * Every suggested task is rendered, so there is nothing to expand first.
  *
- * A proposal longer than the four the page shows at once hides the rest behind 查看调整详情 —
- * correct product behaviour, and it means a test that wants to read a particular change must ask
- * for the full diff first rather than assuming every change is on screen.
+ * Kept as a named no-op rather than deleted: the call sites read as "read the whole proposal",
+ * which is what the page now does by default — and if a disclosure ever comes back, this is the
+ * one place that has to learn about it again.
  */
-async function showAllChanges(page: Page): Promise<void> {
-  const more = page.getByRole('button', { name: /查看调整详情（还有 \d+ 项）/ });
-  if (await more.count()) {
-    await more.click();
-    await expect(page.getByRole('button', { name: '收起调整详情' })).toBeVisible();
-  }
-}
+async function showAllChanges(_page: Page): Promise<void> {}
 
 test('a generated proposal says why, what and what it costs — with no api field on the page', async ({ page }) => {
   await signIn(page);
@@ -124,20 +118,24 @@ test('a generated proposal says why, what and what it costs — with no api fiel
   const goal = unique('目标');
   const proposal = await generateProposal(page, goal);
 
-  // WHY — a reason built from stored numbers, and the evidence that carries them
-  await expect(page.getByRole('heading', { name: '为什么建议这样调整' })).toBeVisible();
+  // WHY — ONE reason, built from stored numbers. The evidence list is not repeated beside it.
+  await expect(page.getByRole('heading', { name: '原因' })).toBeVisible();
   await expect(page.getByText(proposal.rationale, { exact: true })).toBeVisible();
   expect(proposal.evidence.length).toBeGreaterThan(0);
   for (const item of proposal.evidence) {
     expect(item.metric, 'evidence must quote a stored number, never zero').toBeGreaterThan(0);
-    await expect(page.getByText(item.text, { exact: true })).toBeVisible();
   }
+  expect(proposal.rationale).toBe(`${proposal.evidence[0]!.text}。`);
 
-  // WHAT — headline, the changes section, and the impact it was NOT asked to forecast
-  await expect(page.getByText(proposal.summary, { exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: '具体变更' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: '调整后影响' })).toBeVisible();
-  await expect(page.getByText(proposal.impact.text, { exact: true })).toBeVisible();
+  // WHAT — each suggested task, and the day it is planned for. No headline sentence, no
+  // before/after field pairs, and no plan-total counter.
+  await expect(page.getByRole('heading', { name: '建议调整' })).toBeVisible();
+  for (const change of proposal.proposed_changes) {
+    await expect(page.getByText(change.task_title, { exact: true })).toBeVisible();
+  }
+  const surfaceText = await page.locator(SURFACE).innerText();
+  expect(surfaceText).not.toContain('计划任务总数');
+  expect(surfaceText).not.toContain('调整后影响');
 
   // The proposal is unapplied until the learner says otherwise
   await expect(page.getByText('这份建议还没有应用到你的计划。')).toBeVisible();
@@ -161,50 +159,39 @@ test('a reschedule reads as 原计划 / 调整后, and an insert names its own t
   await showAllChanges(page);
 
   // The expectation comes from the proposal the SERVER produced, not from a value written here:
-  // the page must render that change's own `before` under 原计划 and its `after` under 调整后.
+  // the row must carry that change's own `after` as 建议时间, and — only because the date MOVED —
+  // the `before` it moved from.
   const reschedule = proposal.proposed_changes.find((change) => change.type === 'RESCHEDULE');
   expect(reschedule, 'the fixture reschedules the plan it is handed').toBeTruthy();
   const row = changeRow(page, reschedule!.task_title);
   await expect(row).toBeVisible();
-  await expect(row).toContainText(reschedule!.after! < reschedule!.before! ? '提前' : '推迟');
-  await expect(row.locator('div', { hasText: '原计划：' }))
-    .toContainText(isoToCnDate(reschedule!.before!));
-  await expect(row.locator('div', { hasText: '调整后：' }))
-    .toContainText(isoToCnDate(reschedule!.after!));
+  await expect(row).toContainText(`建议时间：${isoToCnDate(reschedule!.after!)}`);
+  await expect(row).toContainText(`原定 ${isoToCnDate(reschedule!.before!)}`);
 
-  // INSERT: named, dated, and typed. The kind is one the course space can actually hold
-  // (learning.spaces.plan_task_types) and it reads as its own label, never another kind's.
+  // INSERT: named and dated. A suggestion is the task and the day it is for — not a type label
+  // and not a machine field.
   const insert = proposal.proposed_changes.find((change) => change.type === 'INSERT');
   expect(insert, 'a goal produces an insert').toBeTruthy();
   expect(insert!.task_type).toBe('review');
   const insertRow = changeRow(page, insert!.task_title);
-  await expect(insertRow).toContainText('新增');
-  await expect(insertRow).toContainText('复习');
-  await expect(insertRow).not.toContainText('知识点学习');
-  await expect(insertRow).toContainText('计划日期：');
+  await expect(insertRow).toContainText(`建议时间：${isoToCnDate(insert!.after!)}`);
+  // an insert has no earlier date to show, so it must not claim one
+  await expect(insertRow).not.toContainText('原定');
 });
 
-test('a long proposal is shortened, and the rest opens behind 查看调整详情', async ({ page }) => {
+test('a long proposal lists every change, because each one is part of the decision', async ({ page }) => {
   await signIn(page);
-  // Four more open tasks guarantee more changes than the page shows at once.
+  // Four more open tasks guarantee more changes than an earlier revision showed at once.
   for (let index = 0; index < 4; index += 1) await addPlanTask(page, unique('附加任务'));
   await page.goto(PLAN_PATH);
 
   const proposal = await generateProposal(page, unique('目标'));
   expect(proposal.proposed_changes.length).toBeGreaterThan(4);
 
-  const more = page.getByRole('button', { name: /查看调整详情（还有 \d+ 项）/ });
-  await expect(more).toBeVisible();
-  await expect(more).toHaveAttribute('aria-expanded', 'false');
-
-  const shown = (await page.locator(`${SURFACE} li`).count());
-  await more.click();
-  await expect(page.getByRole('button', { name: '收起调整详情' }))
-    .toHaveAttribute('aria-expanded', 'true');
-  expect(await page.locator(`${SURFACE} li`).count()).toBeGreaterThan(shown);
-
-  await page.getByRole('button', { name: '收起调整详情' }).click();
-  expect(await page.locator(`${SURFACE} li`).count()).toBe(shown);
+  await expect(page.locator(`${SURFACE} li`)).toHaveCount(proposal.proposed_changes.length);
+  for (const change of proposal.proposed_changes) {
+    await expect(changeRow(page, change.task_title)).toBeVisible();
+  }
 });
 
 test('the thumbs on a proposal offer the plan vocabulary and record the target', async ({ page }) => {
@@ -260,7 +247,7 @@ test('applying writes exactly the previewed change, once, and cannot be repeated
 
   // what the page actually SHOWS as the new date for that row
   const previewedAfter = cnDateToIso(
-    await changeRow(page, reschedule!.task_title).locator('div', { hasText: '调整后：' }).innerText());
+    await changeRow(page, reschedule!.task_title).locator('p', { hasText: '建议时间：' }).innerText());
   expect(previewedAfter).toBe(reschedule!.after);
 
   await page.getByRole('button', { name: '应用调整' }).click();
@@ -292,7 +279,7 @@ test('applying writes exactly the previewed change, once, and cannot be repeated
   expect(replayed.status()).toBe(409);
 });
 
-test('保留当前计划 closes the proposal and writes nothing', async ({ page }) => {
+test('暂不调整 closes the proposal and writes nothing', async ({ page }) => {
   await signIn(page);
   const title = unique('保留任务');
   await addPlanTask(page, title);
@@ -305,7 +292,7 @@ test('保留当前计划 closes the proposal and writes nothing', async ({ page 
   page.on('request', (request) => {
     if (request.url().endsWith('/ai/plan-adjustment/apply')) applyCalls.push(request.url());
   });
-  await page.getByRole('button', { name: '保留当前计划' }).click();
+  await page.getByRole('button', { name: '暂不调整' }).click();
 
   await expect(page.getByRole('heading', { name: '建议调整' })).toHaveCount(0);
   expect(applyCalls).toEqual([]);
@@ -337,7 +324,7 @@ test('desktop and narrow layouts keep the diff readable and reachable', async ({
   await signIn(page);
   for (let index = 0; index < 4; index += 1) await addPlanTask(page, unique('布局任务'));
   await page.goto(PLAN_PATH);
-  await generateProposal(page, unique('目标'));
+  const proposal = await generateProposal(page, unique('目标'));
 
   const artifacts = 'test-results/plan-adjustment';
   const surface = page.locator(SURFACE);
@@ -346,15 +333,12 @@ test('desktop and narrow layouts keep the diff readable and reachable', async ({
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(surface).toBeVisible();
   await expect(page.getByRole('button', { name: '应用调整' })).toBeVisible();
-  await expect(page.getByRole('button', { name: '保留当前计划' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '暂不调整' })).toBeVisible();
   await page.screenshot({ path: `${artifacts}/01-proposal-desktop.png`, fullPage: true });
 
-  // The extra changes are reachable, not clipped away
-  const more = page.getByRole('button', { name: /查看调整详情（还有 \d+ 项）/ });
-  if (await more.isVisible()) {
-    await more.click();
-    await page.screenshot({ path: `${artifacts}/02-details-expanded-desktop.png`, fullPage: true });
-    await page.getByRole('button', { name: '收起调整详情' }).click();
+  // Every suggested task is part of the decision, so none is hidden behind a disclosure
+  for (const change of proposal.proposed_changes) {
+    await expect(page.getByText(change.task_title, { exact: true })).toBeVisible();
   }
 
   // The feedback popover must fit inside the viewport, not hang off its edge
@@ -368,18 +352,15 @@ test('desktop and narrow layouts keep the diff readable and reachable', async ({
   await page.screenshot({ path: `${artifacts}/03-feedback-popover-desktop.png` });
   await page.keyboard.press('Escape');
 
-  // Narrow — with the full diff open, so a hidden row cannot pass the check by not existing
-  await showAllChanges(page);
+  // Narrow — every row is already visible, so a hidden row cannot pass by not existing
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(surface).toBeVisible();
-  const label = page.locator('div', { hasText: '原计划：' }).first();
-  await expect(label).toBeVisible();
-  // the labelled pair does not collapse into one unreadable line
-  const labelBox = await label.boundingBox();
-  expect(labelBox!.width).toBeLessThanOrEqual(390);
+  for (const change of proposal.proposed_changes) {
+    await expect(page.getByText(change.task_title, { exact: true })).toBeVisible();
+  }
   await page.screenshot({ path: `${artifacts}/04-proposal-narrow.png`, fullPage: true });
 
-  for (const button of ['应用调整', '保留当前计划']) {
+  for (const button of ['应用调整', '暂不调整']) {
     const target = page.getByRole('button', { name: button });
     await expect(target).toBeVisible();
     const box2 = await target.boundingBox();
