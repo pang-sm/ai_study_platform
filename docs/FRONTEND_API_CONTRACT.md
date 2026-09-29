@@ -934,3 +934,33 @@ FastAPI 路由表直接生成，可重跑比对漂移）。
 被评价请求的实际能力。未知原因仍是 schema 级 422（封闭词表行为不变）。
 存储无需迁移：`target_type` 进入既有 audit payload，`reason_taxonomy` 按目标选取
 （answer 档与历史值逐字相同）。
+
+## PLAN_TASK_DATED_AND_SUGGESTION_COPY：计划任务必须有日期，建议文案不再重复与计数
+
+### `POST` / `PATCH /exam/11408/subjects/{subject_key}/study-plan/tasks` 现在要求 `due_date`
+
+`due_date` 在 schema 里仍是可选字段（OpenAPI 未变，`api.ts` 无需重生成），但**运行时**要求
+它是合法的 `YYYY-MM-DD`：
+
+- 缺失或空串 → `400 due_date must be a YYYY-MM-DD date`
+- 格式不合法 → 同上
+
+理由：计划是日程。没有日期的任务永远不会到期、不会逾期、也不会进入「今天要做」，
+只会永久留在列表里（前端此前显示为「计划日期：未设定」）。
+校验在**身份校验之后**执行，未授权调用仍得到 401/403 而不是 400。
+
+### `POST /ai/plan-adjustment` 的 `create_task` 同样要求日期
+
+模型提出的新增任务若没有合法 `due_date`，该变更被丢弃并记
+`dropped_changes.reason = "missing_due_date"`，不会写成无期限任务。
+整份建议若因此为空，路由返回 `400 empty_proposal`（既有行为），不产生空写入。
+
+### 建议文案的产品化（响应字段语义微调，字段名不变）
+
+- `rationale`：从「依据你当前的记录：<全部证据>」改为**一句话**，取排序第一的证据文本。
+  证据列表本身仍在 `evidence` 里返回，因此不再出现同一句话在页面上说两遍。
+- `impact.text`：不再输出「计划任务总数由 N 项变为 M 项」。这个计数只反映当前面板里有多少任务，
+  学习者看得到列表，计数帮不上判断。逾期数量仍保留，表述改为「调整后还有 N 项任务已逾期。」
+  `impact` 的数值字段（`inserted` / `rescheduled` / `moved_earlier` / `moved_later` /
+  `replaced` / `task_count_before` / `task_count_after` / `overdue_before` / `overdue_after`）
+  全部保留不变。
