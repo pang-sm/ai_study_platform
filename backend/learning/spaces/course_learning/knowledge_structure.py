@@ -597,7 +597,7 @@ _MATERIAL_USER_PROMPT = """课程：{course}
     {{
       "title": "章节标题",
       "points": [
-        {{"title": "知识点标题", "description": "一句话说明", "source_hint": "来自哪个资料文件名"}}
+        {{"title": "知识点标题", "source_hint": "来自哪个资料文件名"}}
       ]
     }}
   ]
@@ -609,8 +609,9 @@ _MATERIAL_USER_PROMPT = """课程：{course}
 3. 只整理资料里有的内容。只在资料确实不足以覆盖该课程主要脉络时，才补充少量必要知识点，
    并把这些知识点的 source_hint 留空字符串。
 4. 不要把例题编号、页眉页脚、作业标题、页码、无意义的文字碎片当作知识点。
-5. 标题要短，适合列表展示。
-6. 严格输出 JSON，不要包含 ```json。"""
+5. 每个知识点只输出 title 和 source_hint 两个字段，不要写说明或描述。
+6. 标题要短，适合列表展示。
+7. 严格输出 JSON，不要包含 ```json。"""
 
 _AI_SYSTEM_PROMPT = (
     "你是大学课程知识结构整理助手。你要为学生生成一份「章节 → 知识点」两层知识结构，"
@@ -627,7 +628,7 @@ _AI_USER_PROMPT = """课程：{course}
   "chapters": [
     {{
       "title": "章节标题",
-      "points": [{{"title": "知识点标题", "description": "一句话说明"}}]
+      "points": [{{"title": "知识点标题"}}]
     }}
   ]
 }}
@@ -636,7 +637,7 @@ _AI_USER_PROMPT = """课程：{course}
 1. 生成 {min_chapters}-{max_chapters} 个章节，每章 {min_points}-{max_points} 个知识点。
 2. 知识结构必须符合这门课程公开、通用的知识体系，从基础到进阶排序。
 3. 不要编造某位老师特定的教材章节；不知道就用通用体系。
-4. 不要输出 source_hint 字段。
+4. 每个知识点只输出 title 一个字段，不要写说明或描述，也不要输出 source_hint。
 5. 严格输出 JSON，不要包含 ```json。"""
 
 
@@ -676,8 +677,10 @@ def _chapters_from_model(db, user, course_id, material_ids, system_prompt, user_
             return annotate(parse_structure_json(raw))
         except KnowledgeStructureError as exc:
             last = exc
-            logger.warning("knowledge structure answer unusable (attempt %s): %s",
-                           attempt + 1, type(exc).__name__)
+            # The answer's own shape is the only evidence of WHY it was unusable, and it is
+            # gone by the time anyone looks — so it is recorded here, truncated.
+            logger.warning("knowledge structure answer unusable (attempt %s, %s chars): %r",
+                           attempt + 1, len(raw or ""), (raw or "")[:200])
     raise last
 
 

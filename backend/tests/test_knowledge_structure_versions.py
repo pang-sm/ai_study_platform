@@ -913,3 +913,54 @@ def test_a_refusal_is_not_asked_again(db_session, monkeypatch):
         ks.generate_from_ai(db_session, user, COURSE)
     assert exc.value.status_code == 403
     assert calls["n"] == 1
+
+
+def test_the_answer_asks_only_for_what_the_page_renders(db_session, monkeypatch):
+    """``description`` was asked for on every point and rendered on NONE of them — two thirds of
+    the output budget spent on a field no learner ever saw. A structure answer that carries only
+    titles is the whole structure, and it fits a budget that can also hold the model's reasoning.
+    """
+    asked = {}
+
+    def fake_call(db, user, course_id, material_ids, system_prompt, user_prompt):
+        asked["system"] = system_prompt
+        asked["user"] = user_prompt
+        # A title-only answer, exactly as the prompt now requests.
+        return ('{"chapters": [{"title": "第一章 绪论", "points": '
+                '[{"title": "数据结构基本概念", "source_hint": "讲义.pdf"},'
+                '{"title": "算法与复杂度", "source_hint": "讲义.pdf"}]}]}')
+
+    monkeypatch.setattr(ks, "_call_ai", fake_call)
+    user = make_user(db_session, "ks_shape")
+    attach_course(db_session, user, COURSE)
+    material = make_material(db_session, user, COURSE, "讲义.pdf")
+
+    chapters = ks.generate_from_materials(db_session, user, COURSE, [material.id])
+    assert [p["title"] for p in chapters[0]["points"]] == ["数据结构基本概念", "算法与复杂度"]
+    assert all(p["description"] == "" for p in chapters[0]["points"])
+    assert "不要写说明或描述" in asked["user"]
+    assert '"description"' not in asked["user"]
+
+    structure = ks.create_draft(db_session, user, COURSE,
+                                source_mode=ks.SOURCE_MODE_SELECTED_MATERIALS,
+                                chapters=chapters)
+    assert structure.point_count == 2
+
+
+def test_a_title_only_answer_is_what_the_ai_prompt_asks_for(db_session, monkeypatch):
+    asked = {}
+
+    def fake_call(db, user, course_id, material_ids, system_prompt, user_prompt):
+        asked["user"] = user_prompt
+        return '{"chapters": [{"title": "第一章", "points": [{"title": "进程"}]}]}'
+
+    monkeypatch.setattr(ks, "_call_ai", fake_call)
+    user = make_user(db_session, "ks_ai_shape")
+    attach_course(db_session, user, COURSE)
+
+    chapters = ks.generate_from_ai(db_session, user, COURSE)
+    assert chapters[0]["points"][0]["title"] == "进程"
+    # The instruction is explicit that title is the ONLY field, and the example JSON carries
+    # neither of the two fields the model might otherwise add on its own.
+    assert "只输出 title 一个字段" in asked["user"]
+    assert '"source_hint"' not in asked["user"] and '"description"' not in asked["user"]
