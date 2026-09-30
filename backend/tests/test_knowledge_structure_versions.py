@@ -788,3 +788,69 @@ def test_draft_edits_are_rejected_on_a_structure_that_is_already_in_use(
     client.post(f"{base}/{structure_id}/confirm")
     assert client.patch(f"{base}/{structure_id}/points/{point_id}",
                         json={"title": "再改一次"}).status_code == 409
+
+
+# ══════════════════════════════════════════════════ the generation contract
+
+
+def test_the_reference_directory_is_the_one_the_app_serves():
+    """The seed path is read directly (importing the app module would run its startup), so
+    the two copies must be pinned together or they drift and AI generation silently loses the
+    canonical course system."""
+    import main
+
+    assert ks._knowledge_map_seed_path("data_structure") == main._knowledge_map_seed_path("data_structure")
+    assert ks._knowledge_map_seed_path("数据结构") == main._knowledge_map_seed_path("数据结构")
+
+
+def test_a_course_the_build_publishes_gets_its_canonical_outline():
+    """数据结构 is a 408 subject this product already ships a structure for — the model is
+    asked to organize by it rather than invent one."""
+    outline = ks._canonical_outline("data_structure")
+    assert outline.startswith("- ")
+    assert len(outline.splitlines()) >= 5
+
+
+def test_a_course_the_build_does_not_publish_gets_no_invented_reference():
+    assert ks._canonical_outline("量子力学导论") == ""
+
+
+def test_the_answer_asked_for_fits_the_budget_it_is_given():
+    """The ask and the ceiling have to agree: an answer longer than the budget comes back cut
+    off mid-object, which is not a smaller structure — it is no structure at all."""
+    worst_case_points = ks.PROMPT_MAX_CHAPTERS * ks.PROMPT_MAX_POINTS_PER_CHAPTER
+    # ~25 output tokens per point (title + description + JSON punctuation) plus chapter lines.
+    assert worst_case_points * 40 < ks.OUTPUT_TOKEN_BUDGET * 4
+
+
+def test_generation_reserves_its_own_output_budget(db_session, monkeypatch):
+    """A whole course structure is one long JSON object, so it does not ride the chat default."""
+    from learning.spaces.course_learning import ai as course_ai
+
+    seen = {}
+
+    class Result:
+        content = '{"chapters": [{"title": "第一章", "points": [{"title": "知识点"}]}]}'
+
+    def fake_execute(db, user, capability, messages, **kwargs):
+        seen["max_tokens"] = kwargs.get("max_tokens")
+        seen["capability"] = capability
+        return Result()
+
+    monkeypatch.setattr(course_ai, "execute_course_ai", fake_execute)
+    user = make_user(db_session, "ks_budget")
+    attach_course(db_session, user, COURSE)
+
+    ks.generate_from_ai(db_session, user, COURSE, goal="考研")
+    assert seen["capability"] == "knowledge.structure"
+    assert seen["max_tokens"] == ks.OUTPUT_TOKEN_BUDGET
+
+
+def test_a_cut_off_answer_fails_rather_than_becoming_a_partial_structure():
+    """Truncated JSON must NOT be half-recovered: a silently shorter course reads exactly like
+    a complete one, and the learner would accept it believing it was the whole structure."""
+    truncated = ('{"chapters": [{"title": "第一章", "points": [{"title": "数据结构基本概念"},'
+                 ' {"title": "算法与复杂度"}]}, {"title": "第二章", "points": [{"title": "顺序')
+    with pytest.raises(ks.KnowledgeStructureError) as exc:
+        ks.parse_structure_json(truncated)
+    assert exc.value.status_code == 502

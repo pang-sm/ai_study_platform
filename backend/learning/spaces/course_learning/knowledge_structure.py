@@ -68,10 +68,13 @@ ORIGIN_AI_INFERRED = "ai_inferred"
 GOALS = ("期末考试", "考研", "系统学习")
 
 # Generation granularity (§11). A course is neither "8 points" nor "800 fragments", so the
-# prompt asks for a range: wide on purpose, because the right size depends on the course and
-# one hard-coded number would be wrong for most of them.
-MIN_CHAPTERS, PROMPT_MAX_CHAPTERS = 3, 12
-MIN_POINTS_PER_CHAPTER, PROMPT_MAX_POINTS_PER_CHAPTER = 2, 16
+# prompt asks for a range. The range is bounded by what the response BUDGET can actually
+# deliver: a JSON answer is roughly 25 output tokens per point, so 8 chapters × 8 points sits
+# comfortably inside ``OUTPUT_TOKEN_BUDGET`` while 12 × 16 did not — that ask produced an
+# answer long enough to be cut off mid-object, which parses as nothing at all and surfaced to
+# the learner as a bare failure.
+PROMPT_MIN_CHAPTERS, PROMPT_MAX_CHAPTERS = 4, 8
+PROMPT_MIN_POINTS_PER_CHAPTER, PROMPT_MAX_POINTS_PER_CHAPTER = 3, 8
 
 # The HARD caps the parser enforces, kept above the range asked for so a model that
 # overshoots by a little is trimmed rather than thrown away — and set so that the total can
@@ -80,6 +83,11 @@ MIN_POINTS_PER_CHAPTER, PROMPT_MAX_POINTS_PER_CHAPTER = 2, 16
 MAX_CHAPTERS = 40
 MAX_POINTS_PER_CHAPTER = 40
 MAX_POINTS_TOTAL = 600
+
+# The output budget this module reserves and sends. Above the default chat ceiling because a
+# whole course structure is one long JSON object, and a structure cut off in the middle is not
+# a shorter structure — it is an unparseable answer.
+OUTPUT_TOKEN_BUDGET = 3000
 
 MAX_MATERIAL_CHARS = 18000
 MAX_CHUNKS_PER_MATERIAL = 12
@@ -457,7 +465,8 @@ def parse_structure_json(raw: str) -> list[dict]:
             except json.JSONDecodeError:
                 payload = None
     if payload is None:
-        raise KnowledgeStructureError("AI 返回的内容不是有效结构，请重试。", 502)
+        raise KnowledgeStructureError(
+            "AI 这次没有返回完整的结构，请再试一次。", 502)
 
     if isinstance(payload, list):
         raw_chapters = payload
@@ -523,32 +532,46 @@ def _canonical_outline(course_id) -> str:
     asking for 数据结构 gets chapters that match the canonical course rather than a
     plausible-sounding invention. For a course with no shipped structure the model is told
     nothing and must not pretend to know a particular textbook.
-    """
-    try:
-        from subjects import resolve_course_id_from_display
 
-        from main import _knowledge_map_seed_path
-    except Exception:  # noqa: BLE001 — a missing reference must not fail generation
-        return ""
-    for candidate in (course_id, resolve_course_id_from_display(course_id) or ""):
+    The directory is read directly rather than through ``main``: importing the application
+    module from a domain module would run the app's startup (including its schema preflight)
+    as a side effect of building a prompt. ``test_the_reference_directory_is_the_one_the_app_serves``
+    pins this path against ``main``'s constant so the two cannot drift apart unnoticed.
+    """
+    from subjects import resolve_course_id_from_display
+
+    candidates = [course_id, resolve_course_id_from_display(course_id) or ""]
+    for candidate in candidates:
         if not candidate:
             continue
-        try:
-            path = _knowledge_map_seed_path(candidate)
-        except Exception:  # noqa: BLE001
+        path = _knowledge_map_seed_path(candidate)
+        if not path.exists():
             continue
-        if path.exists():
-            try:
-                payload = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
-                return ""
-            titles = []
-            for chapter in payload.get("chapters") or []:
-                chapter_title = str(chapter.get("title") or "").strip()
-                if chapter_title:
-                    titles.append(chapter_title)
-            return "\n".join(f"- {title}" for title in titles[:20])
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            # The file IS there and could not be read — that is a broken asset, not "this
+            # course has no reference", and it must be visible rather than silently
+            # downgrading the prompt to an unpinned invention.
+            logger.warning("knowledge structure reference %s unreadable: %s",
+                           path.name, type(exc).__name__)
+            return ""
+        titles = []
+        for chapter in payload.get("chapters") or []:
+            chapter_title = str(chapter.get("title") or "").strip()
+            if chapter_title:
+                titles.append(chapter_title)
+        return "\n".join(f"- {title}" for title in titles[:20])
     return ""
+
+
+def _knowledge_map_seed_path(course_id: str):
+    """``seed_data/knowledge_maps/<course_id>.json`` — the same sanitizer ``main`` applies."""
+    from pathlib import Path
+
+    base = Path(__file__).resolve().parents[3]
+    safe = re.sub(r"[^a-zA-Z0-9_-]", "", course_id or "")
+    return base / "seed_data" / "knowledge_maps" / f"{safe}.json"
 
 
 _MATERIAL_SYSTEM_PROMPT = (
@@ -623,7 +646,8 @@ def _call_ai(db, user, course_id, material_ids, system_prompt, user_prompt) -> s
         learning_context=build_course_context(
             user, course_id=course_id,
             material_ids=material_ids or None),
-        temperature=0.2)
+        temperature=0.2,
+        max_tokens=OUTPUT_TOKEN_BUDGET)
     return result.content
 
 
@@ -646,8 +670,9 @@ def generate_from_materials(db, user, course_id, material_ids: list[int]) -> lis
     prompt = _MATERIAL_USER_PROMPT.format(
         course=key, names="\n".join(f"- {name}" for name in names),
         chunks="\n".join(lines),
-        min_chapters=MIN_CHAPTERS, max_chapters=PROMPT_MAX_CHAPTERS,
-        min_points=MIN_POINTS_PER_CHAPTER, max_points=PROMPT_MAX_POINTS_PER_CHAPTER)
+        min_chapters=PROMPT_MIN_CHAPTERS, max_chapters=PROMPT_MAX_CHAPTERS,
+        min_points=PROMPT_MIN_POINTS_PER_CHAPTER,
+        max_points=PROMPT_MAX_POINTS_PER_CHAPTER)
     raw = _call_ai(db, user, key, material_ids, _MATERIAL_SYSTEM_PROMPT, prompt)
     chapters = parse_structure_json(raw)
 
@@ -678,8 +703,9 @@ def generate_from_ai(db, user, course_id, goal: str = "", requirement: str = "")
     prompt = _AI_USER_PROMPT.format(
         course=key, goal=(goal or "系统学习"), requirement=(requirement or "无"),
         outline_block=outline_block,
-        min_chapters=MIN_CHAPTERS, max_chapters=PROMPT_MAX_CHAPTERS,
-        min_points=MIN_POINTS_PER_CHAPTER, max_points=PROMPT_MAX_POINTS_PER_CHAPTER)
+        min_chapters=PROMPT_MIN_CHAPTERS, max_chapters=PROMPT_MAX_CHAPTERS,
+        min_points=PROMPT_MIN_POINTS_PER_CHAPTER,
+        max_points=PROMPT_MAX_POINTS_PER_CHAPTER)
     raw = _call_ai(db, user, key, [], _AI_SYSTEM_PROMPT, prompt)
     chapters = parse_structure_json(raw)
     for chapter in chapters:
