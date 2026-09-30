@@ -115,6 +115,16 @@ MESSAGE_NO_RECORD = "还没有足够学习记录。你可以先添加一个学�
 MESSAGE_NO_CHANGE = "当前计划没有需要调整的地方。"
 MESSAGE_NOT_APPLICABLE = "这次的建议里没有可以应用的内容，计划保持不变。"
 
+# The drop reasons that mean "this change asked for NOTHING", as opposed to "this change asked
+# for something the system could not use".
+#
+# `no_supported_field` is what a change that repeats a value the plan already holds is reported
+# as (the model "reschedules" a task to the day it is already due, or "renames" it to its own
+# title). That is the model saying nothing, so the learner reads the same line they would read
+# had it sent no changes at all — not "your suggestion could not be used", which would describe
+# a failure that did not happen. Measured on the deployed provider 2026-09-29: 3 of 5 calls.
+NO_CHANGE_REASONS = frozenset({"no_supported_field"})
+
 
 class PlanAdjustmentRefusal(ValueError):
     def __init__(self, reason: str, message: str):
@@ -542,11 +552,17 @@ def _has_learner_history(context_facts: dict) -> bool:
                 or int(practice.get("attempts") or 0))
 
 
-def _nothing_to_apply(context_facts: dict, *, requested: bool) -> tuple[str, str]:
-    """(outcome, the one line the learner reads) when a validated proposal holds no change."""
+def _nothing_to_apply(context_facts: dict, *, dropped: list[dict]) -> tuple[str, str]:
+    """(outcome, the one line the learner reads) when a validated proposal holds no change.
+
+    The distinction that matters to the learner is not "did the model speak" but "did it ask for
+    anything this plan would act on": a proposal whose every change was a restatement of the
+    plan's own current values asked for nothing, and reads as "nothing to adjust".
+    """
     if not _has_learner_history(context_facts):
         return OUTCOME_NO_RECORD, MESSAGE_NO_RECORD
-    if not requested:
+    reasons = {item.get("reason") for item in dropped}
+    if reasons <= NO_CHANGE_REASONS:          # includes "no changes were sent at all"
         return OUTCOME_NO_CHANGE, MESSAGE_NO_CHANGE
     return OUTCOME_NOT_APPLICABLE, MESSAGE_NOT_APPLICABLE
 
@@ -661,7 +677,7 @@ def propose_adjustment(db: DbSession, user, *, service_key: str, goal: str = "",
     if accepted:
         outcome, message = OUTCOME_PROPOSED, ""
     else:
-        outcome, message = _nothing_to_apply(context_facts, requested=bool(requested))
+        outcome, message = _nothing_to_apply(context_facts, dropped=dropped)
 
     evidence = _evidence(context_facts, accepted)
     proposal_id = uuid.uuid4().hex

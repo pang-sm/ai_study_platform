@@ -493,7 +493,11 @@ def test_ssot_records_the_explicit_product_direction_change():
             / "ZHIXUE_AI_PRODUCT_REDESIGN_SSOT.md").read_text(encoding="utf-8")
 
     assert "MVP_TARGET = USER_VISIBLE_PREVIEW" in ssot
-    assert "MVP_USER_VISIBLE_FEATURE = 学习状态实验视图" in ssot
+    # 2026-09-30: the feature is a formal product surface, not an experimental view, and the
+    # runtime is an optional non-blocking enhancement. The OLD value must not survive as CURRENT.
+    assert "MVP_USER_VISIBLE_FEATURE = 学习状态" in ssot
+    assert "SCIENTIFIC_RUNTIME_ROLE = optional_non_blocking_enhancement" in ssot
+    assert "MVP_USER_VISIBLE_FEATURE = 学习状态实验视图" not in ssot
     # the old values survive ONLY as a record of what they used to be, never as CURRENT
     assert "CURRENT: RUNTIME_ONLY = 13" not in ssot
     assert "CURRENT = RUNTIME_ONLY" not in ssot

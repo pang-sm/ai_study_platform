@@ -376,8 +376,10 @@ def test_a_change_that_changes_nothing_is_never_shown(client, db_session, monkey
     body = _propose(client).json()
     assert body["proposed_changes"] == []
     assert body["can_apply"] is False
-    assert body["outcome"] == "suggestion_not_applicable"
-    assert body["message"]
+    # Restating the value the plan already holds asked for nothing — it is not an unusable
+    # suggestion, so the learner reads "nothing to adjust", not "your suggestion was rejected".
+    assert body["outcome"] == "no_change_suggested"
+    assert body["message"] == "当前计划没有需要调整的地方。"
 
 
 def test_a_suggestion_cannot_write_learner_progress(client, db_session, monkeypatch):
@@ -392,7 +394,100 @@ def test_a_suggestion_cannot_write_learner_progress(client, db_session, monkeypa
     body = _propose(client).json()
     assert body["proposed_changes"] == []
     assert body["can_apply"] is False
+    assert body["outcome"] == "no_change_suggested"
     assert _task_state(db_session, task.id)[2] == "not_started"
+
+
+# ------------------------------------------------ the four shapes the deployed model answers
+
+def test_the_four_recorded_provider_shapes_are_each_handled_as_a_result(
+        client, db_session, monkeypatch):
+    """REGRESSION CONTRACT for `planning.adjust`, pinned to what the DEPLOYED provider answers.
+
+    Measured 2026-09-29/30 against `deepseek-flash`, with one overdue task on the plan:
+
+        1. a change repeating the plan's own due_date  -> nothing was suggested
+        2. a change repeating the plan's own title     -> nothing was suggested
+        3. `{"changes":[]}`                            -> nothing was suggested
+        4. a genuinely different value                 -> a proposal that can be applied
+        5. a new task with no due_date                 -> a proposal the learner dates
+
+    Shapes 1–3 are the model saying "nothing to change" in three different ways, and a learner
+    must read ONE line for all three. Shape 4 is the feature still working. Shape 5 is the
+    learner completing the suggestion (covered end-to-end by
+    `test_a_suggestion_without_a_date_is_offered_for_the_learner_to_date_rather_than_dropped`).
+    The server derives all of this itself; it never takes the model's word for whether a change
+    changes anything.
+    """
+    register_and_login(client, "p3b_plan_shapes")
+    grant_unified_tier(db_session, "p3b_plan_shapes", "standard")
+    user = _user(db_session, "p3b_plan_shapes")
+    task = _task(db_session, user.username, title="线性表复习", due_date="2026-09-01")
+    before = _task_state(db_session, task.id)
+
+    def propose_raw(content):
+        monkeypatch.setattr("ai.orchestrator.default_provider_factory", _raw_provider(content))
+        response = _propose(client)
+        assert response.status_code == 200, f"{content} -> {response.status_code}: {response.text}"
+        return response.json()
+
+    def change(**fields):
+        return json.dumps({"changes": [dict(op="update_task", task_id=task.id, **fields)]},
+                          ensure_ascii=False)
+
+    # 1–3: every way of saying nothing reads the same
+    for content in ('{"changes":[]}',
+                    change(due_date="2026-09-01"),      # 1. the date it already has
+                    change(title="线性表复习")):        # 2. the title it already has
+        body = propose_raw(content)
+        assert body["outcome"] == "no_change_suggested", f"{content} -> {body['outcome']}"
+        assert body["message"] == "当前计划没有需要调整的地方。"
+        assert body["proposed_changes"] == []
+        assert body["can_apply"] is False
+        assert body["adjustment_types"] == []
+
+    # the "nothing to adjust" answers wrote nothing
+    assert _task_state(db_session, task.id) == before
+
+    # 4: a genuinely different value still becomes a suggestion the learner can apply
+    for fields in ({"due_date": "2026-09-08"}, {"title": "线性表复习（补做）"}):
+        body = propose_raw(change(**fields))
+        assert body["outcome"] == "proposed", f"{fields} -> {body['outcome']}"
+        assert body["can_apply"] is True
+        assert len(body["proposed_changes"]) == 1
+        assert body["proposed_changes"][0]["before"] == (
+            "2026-09-01" if "due_date" in fields else "线性表复习")
+
+    # ...and proposing still changed nothing (only APPLY writes)
+    assert _task_state(db_session, task.id) == before
+
+
+def test_the_prompt_carries_the_current_values_and_the_do_not_repeat_rule(
+        client, db_session):
+    """The rule is only followable if the model can see what the plan currently holds.
+
+    Both halves are asserted: the instruction says a restatement is not a change, and the payload
+    it is given actually contains each task's current `title` and `due_date` to compare against.
+    """
+    register_and_login(client, "p3b_plan_prompt")
+    grant_unified_tier(db_session, "p3b_plan_prompt", "standard")
+    user = _user(db_session, "p3b_plan_prompt")
+    task = _task(db_session, user.username, title="线性表复习", due_date="2026-09-01")
+
+    from learning import plan_adjustment as planning
+    from prompts import build_plan_adjustment_messages, plan_adjustment_system_prompt
+
+    system = plan_adjustment_system_prompt(("knowledge",))
+    assert "重复当前计划已有的值不算调整" in system
+    assert '{"changes":[]}' in system
+    assert "不要为了必须给出建议而重复已有内容" in system
+
+    context = planning.build_plan_context(db_session, user, "course_learning", course_id=COURSE)
+    payload = build_plan_adjustment_messages(context, goal="", task_types=("knowledge",))[1]["content"]
+    assert f'"task_id": {task.id}' in payload
+    assert '"title": "线性表复习"' in payload
+    assert '"due_date": "2026-09-01"' in payload
+
 
 
 # ------------------------------------------------ nothing to propose is an ANSWER, not an error

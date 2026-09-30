@@ -550,7 +550,7 @@
 
 | Method | Path | 认证 | 说明 |
 |---|---|---|---|
-| GET | `/exam/prep/scientific/student-twin` | 需登录 | 学习状态实验视图（PREVIEW，用户可见） |
+| GET | `/exam/prep/scientific/student-twin` | 需登录 | 学习状态页的可选增强层（PREVIEW，用户可见）；unavailable / zero-event 时页面不受影响 |
 | GET | `/exam/prep/scientific/learner-state` | 需登录 | learner_state 能力门报告（SHADOW_NOT_USER_VISIBLE，不产出数值） |
 | GET | `/exam/prep/scientific/evidence-reliability` | 需登录 | evidence_reliability 能力门报告（SHADOW_NOT_USER_VISIBLE，不产出数值） |
 | GET | `/exam/prep/scientific/capabilities` | 需登录 | 13 个科学组件的产品面就绪度汇总 |
@@ -988,8 +988,12 @@ FastAPI 路由表直接生成，可重跑比对漂移）。
 | `outcome` | 条件 | `message` |
 |---|---|---|
 | `no_learning_record` | 计划 / 复习 / 练习**全为空** | 还没有足够学习记录。你可以先添加一个学习任务。 |
-| `no_change_suggested` | 有记录，但模型没有提出任何变更 | 当前计划没有需要调整的地方。 |
-| `suggestion_not_applicable` | 模型提了变更，但全部未通过校验 | 这次的建议里没有可以应用的内容，计划保持不变。 |
+| `no_change_suggested` | 有记录，但模型**没有提出任何会改变计划的变更**（包括「返回空 changes」与「把某一项改写成它现在已有的值」） | 当前计划没有需要调整的地方。 |
+| `suggestion_not_applicable` | 模型提了变更，但全部是**系统无法采用的**（未知 op、不支持的类型、不属于本计划的 task_id、非法日期、空间不支持的 task_type ……） | 这次的建议里没有可以应用的内容，计划保持不变。 |
+
+`no_change_suggested` 与 `suggestion_not_applicable` 的区别是「模型什么都没要求」与
+「模型要求了系统做不到的事」。把某一项改写成它当前已有的值属于前者——它不是一次失败的
+建议，只是模型没有可说的，所以学习者读到的是同一句「没有需要调整的地方」。
 
 配套语义：
 
@@ -1000,6 +1004,26 @@ FastAPI 路由表直接生成，可重跑比对漂移）。
 - **真正**的失败仍然是失败：解析不出 JSON 仍是 `400 unusable_proposal`；provider 不可达 /
   无可用模型仍是 502，额度不足仍是 429，权限不足仍是 403。前端必须按状态码区分
   「请求被拒绝」与「服务不可用」，只有后者才提示「服务暂时不可用，请稍后重试。」
+
+### 提示词禁止「重复当前已有的值」
+
+**这是建议质量问题，不是故障。** 生产实测（2026-09-29/30，`deepseek-flash`，计划内 1 条
+逾期任务，5 次真实调用）：2 次给出可应用的调整，3 次把某一项的 `due_date` 或 `title`
+「改写」成它现在已有的值——服务端按 `no_supported_field` 丢掉，学习者因此得到
+「没有可调整的内容」。模型看不出「这不是一次调整」。
+
+`prompts.PLAN_ADJUSTMENT_INSTRUCTION` 因此新增：
+
+> 只有当新值与当前计划中该项的值不同、并且构成一次实际调整时，才输出这条 change。
+> 重复当前计划已有的值不算调整。
+> 如果没有有意义的调整，请返回 `{"changes":[]}`。不要为了必须给出建议而重复已有内容。
+
+可比较的前提是**模型看得见现值**：`build_plan_context` 的 `plan.tasks[]` 每一项都带有它当前的
+`title` / `task_type` / `status` / `due_date`，提示词显式指向这一点。
+
+**服务端校验一条都没有放松**：`_clean_changes` 仍然逐条对照计划本身判断「是否真的变了」，
+`before` 仍然从计划读出而非由调用方提供。提示词只是让模型少提无效变更，
+**不是**把判断权交给模型。
 
 ### 建议文案的产品化（响应字段语义微调，字段名不变）
 

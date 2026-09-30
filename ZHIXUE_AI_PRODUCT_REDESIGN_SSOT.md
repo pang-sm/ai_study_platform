@@ -3660,7 +3660,7 @@ CURRENT: USER_VISIBLE_PREVIEW = 1（student_twin）/ RUNTIME_ONLY = 12
 ```text
 MVP（USER_VISIBLE_PREVIEW）:
   student_twin        （ACCEL_SPRINT_S2：MVP_TARGET 由 SHADOW_ONLY 改为
-                       USER_VISIBLE_PREVIEW；用户可见功能 = 学习状态实验视图）
+                       USER_VISIBLE_PREVIEW；用户可见功能 = 学习状态）
 
 V1_CANDIDATES:
   evidence_reliability
@@ -3683,10 +3683,18 @@ RESEARCH_OR_INFRA:
 
 ## StudentTwin 冻结状态
 
+> **2026-09-30 修订（机制 §74-1：用户明确改变产品方向）。**
+> 学习状态页已被正式验收为**正式用户功能**，不再是「实验视图」。`MVP_USER_VISIBLE_FEATURE`
+> 原先取的那个「实验视图」值，以及「学生端允许的唯一一句说明（多一字不得，少一字不得）」
+> 这条文案约束，均与已验收的产品行为冲突，故一并删除。
+> 本块其余内容（HARD_INVARIANTS、FROZEN 科学语义命名、禁止表述、术语分层、输入域资格）
+> 一律不变；内部技术定义一条都不删。
+
 ```text
 CURRENT = USER_VISIBLE_PREVIEW
 MVP_TARGET = USER_VISIBLE_PREVIEW
-MVP_USER_VISIBLE_FEATURE = 学习状态实验视图
+MVP_USER_VISIBLE_FEATURE = 学习状态
+SCIENTIFIC_RUNTIME_ROLE = optional_non_blocking_enhancement
 MVP_ADVISORY = NO
 MVP_ACTIVE = NO
 
@@ -3711,13 +3719,28 @@ HARD_INVARIANTS（永久，不可被任何次级文件改写）
 
   学生端统一使用：
     学习状态
+  —— 这是一个**正式产品功能**页面，不是实验视图。页面的产品定位与它背后是否存在
+     可选增强层无关。（旧约束「学生端允许的唯一一句说明（多一字不得，少一字不得）」
+     已于 2026-09-30 删除：见本块上方的 §74-1 修订说明。）
 
-  学生端允许的唯一一句说明（多一字不得，少一字不得）：
-    基于你的真实学习记录计算。它不参与判分，也不会改写你的知识状态、错题或学习计划。
+  学生端**不得出现关于实现方式的说明句**（含加载态、空态、错误态、无障碍名与 alt）。
+  页面的职责是回答「我现在学到什么状态了？」，因此只显示**当前事实**与**需要注意什么**；
+  「这段内容是怎么算出来的」「它不参与判分」「它不会改写什么」属于内部实现解释，
+  对学习决策没有价值，因而不是学生端文案。
+  （历史曾要求逐字显示这样一句说明；该要求已被本次产品决策取代。）
 
   学生端禁止出现（含加载态、空态、错误态、无障碍名与 alt）：
     实验 / 实验视图 / 自研确定性学习状态引擎 / Student Twin / Scientific Runtime
     events_seen / controls_product_decision / writes_learner_fact / 内部模型名或科研术语
+
+  SCIENTIFIC_RUNTIME_ROLE = optional_non_blocking_enhancement
+    1. **页面可用性不依赖 scientific runtime。** unavailable / zero-event / 请求失败时，
+       页面仍然完整可用；不得出现任何「服务不可用」性质的文案，也不得因此丢掉任何
+       由业务数据得出的事实。
+    2. **在场时的唯一职责是生成一句简短的状态结论。** 它不能决定页面是否可用，
+       也不能决定页面显示哪些事实；这些事实一律由业务数据直接得出。
+    3. **用户不需要知道 scientific runtime 的存在。** 它的缺席与在场都不产生面向学生的
+       技术说明。
 
   术语分层不等于语义放宽：`controls_product_decision = false` 与
   `writes_learner_fact = false` 两块 HARD_INVARIANTS 不受本条影响，仍然永久有效；
@@ -3932,7 +3955,8 @@ STEP 7 进行中，已冻结的子步骤：
 已完成的既有冻结：
 - 13 Scientific Component 产品化设计冻结
   （student_twin = MVP；**MVP_TARGET 已于 ACCEL_SPRINT_S2 由 SHADOW_ONLY 改为
-   USER_VISIBLE_PREVIEW，用户可见功能 = 学习状态实验视图**）
+   USER_VISIBLE_PREVIEW，用户可见功能 = 学习状态；
+   SCIENTIFIC_RUNTIME_ROLE = optional_non_blocking_enhancement（2026-09-30 修订）**）
 - Git Reality 已澄清（DIVERGED；untracked==origin；LOCAL_ONLY 已识别）
 - Python file disposition 已冻结
 - Database migration matrix 已冻结（71 表）

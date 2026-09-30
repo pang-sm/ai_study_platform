@@ -159,8 +159,15 @@
     `确定性学习状态引擎（实验）` / `Student Twin` / `Scientific Runtime` / `events_seen` /
     `controls_product_decision` / `writes_learner_fact`。
   - **这些内部术语不得直接展示在学生端 UI**，包括 loading / empty / error 态、无障碍名与 alt。
-  - 学生端统一使用：**学习状态**。
-  - 学生端允许的唯一一句说明：「基于你的真实学习记录计算。它不参与判分，也不会改写你的知识状态、错题或学习计划。」
+  - 学生端统一使用：**学习状态**。这是一个**正式产品功能**页面，不是实验视图。
+  - 学生端**不得出现关于实现方式的说明句**（含 loading / empty / error 态、无障碍名与 alt）。
+    页面只回答「我现在学到什么状态了？」，只显示当前事实与需要注意什么。
+    （旧约束「学生端允许的唯一一句说明」已于 2026-09-30 由用户明确删除，
+    见 SSOT「StudentTwin 冻结状态」的 §74-1 修订说明。）
+  - `SCIENTIFIC_RUNTIME_ROLE = optional_non_blocking_enhancement`：页面可用性不依赖 scientific
+    runtime；它 unavailable / zero-event / 请求失败时页面仍完整可用，且不得出现任何
+    「服务不可用」性质的文案；在场时它只用于生成一句简短状态结论，不能决定页面显示哪些事实；
+    用户不需要知道它的存在。
   - 术语分层**不是**语义放宽：`controls_product_decision = false` / `writes_learner_fact = false` 永久有效，
     禁止表述（掌握率 / 能力预测 / 掌握概率 / 神经网络）不变。
   - 执行守卫：`frontend/src/test/learner-metadata-leakage.test.tsx` 的 `INTERNAL_VOCABULARY`。

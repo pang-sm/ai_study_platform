@@ -380,6 +380,17 @@ PLAN_ADJUSTMENT_INSTRUCTION = (
     "\n- changes 最多 5 条，优先处理逾期任务与到期复习项；"
     "\n- create_task 的 task_type 只能取：TASK_TYPES；"
     "\n- update_task 只能针对 tasks 中出现的 task_id，且只能修改 due_date 或 title；"
+    # The model used to "reschedule" a task to the day it already held — a change that changes
+    # nothing, which the server drops as `no_supported_field` (measured: 3 of 5 real calls on
+    # 2026-09-29). The plan's current values are in the payload it is given (every entry of
+    # `plan.tasks` carries its own `title` and `due_date`), so it can compare before proposing;
+    # this states the rule it has to apply when it does.
+    "\n- **只有当新值与当前计划中该项的值不同、并且构成一次实际调整时，才输出这条 change。"
+    "重复当前计划已有的值不算调整**——例如把 due_date 写成这一项现在的 due_date，"
+    "或把 title 改成它现在的 title。payload 里 plan.tasks 的每一项都带有它当前的 "
+    "due_date 与 title，请先对照再决定；"
+    "\n- **如果没有有意义的调整，请返回 {\"changes\":[]}。"
+    "不要为了必须给出建议而重复已有内容。**"
     "\n- 不支持删除任务，也不支持调整任务顺序：这类改动不要提出；"
     "\n- 不要修改任务状态，也不要声称学生完成了任何任务；"
     "\n- 不要臆测学习时长、掌握程度或提分幅度——系统没有这些数据；"
