@@ -995,3 +995,38 @@ def test_the_ask_stays_within_what_production_was_measured_to_deliver():
     worst_case = ks.PROMPT_MAX_CHAPTERS * ks.PROMPT_MAX_POINTS_PER_CHAPTER
     assert worst_case <= 36
     assert ks.PROMPT_MAX_CHAPTERS >= 4 and ks.PROMPT_MAX_POINTS_PER_CHAPTER >= 3
+
+
+# ══════════════════════════════════════════════════ the goal vocabulary
+
+
+def test_the_generate_request_treats_the_goal_as_free_text_not_an_enum():
+    """The page owns the options; the backend must not hold a second copy of them.
+
+    If this annotation ever becomes a Literal, the list exists in two places and the page and
+    the validator will drift — which is exactly how 考研 ended up offered in a space that is
+    not the postgraduate exam.
+    """
+    from routers.course_learning import KnowledgeStructureGenerateRequest
+
+    assert KnowledgeStructureGenerateRequest.model_fields["goal"].annotation is str
+
+
+def test_this_module_advertises_no_goal_list_of_its_own():
+    """A hardcoded list here would be read by no code and kept in step by hand."""
+    assert not hasattr(ks, "GOALS")
+
+
+def test_the_goal_is_carried_into_the_prompt_but_never_validated(db_session, monkeypatch):
+    asked = {}
+
+    def fake_call(db, user, course_id, material_ids, system_prompt, user_prompt):
+        asked["prompt"] = user_prompt
+        return '{"chapters": [{"title": "第一章", "points": [{"title": "进程"}]}]}'
+
+    monkeypatch.setattr(ks, "_call_ai", fake_call)
+    user = make_user(db_session, "ks_goal")
+    attach_course(db_session, user, COURSE)
+
+    ks.generate_from_ai(db_session, user, COURSE, goal="把二叉树彻底弄懂")
+    assert "把二叉树彻底弄懂" in asked["prompt"]

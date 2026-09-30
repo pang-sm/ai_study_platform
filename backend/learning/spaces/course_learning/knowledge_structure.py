@@ -65,7 +65,11 @@ SOURCE_MODE_AI_GENERATED = "ai_generated"
 ORIGIN_SOURCE_EXTRACTED = "source_extracted"
 ORIGIN_AI_INFERRED = "ai_inferred"
 
-GOALS = ("期末考试", "考研", "系统学习")
+# There is deliberately NO goal vocabulary here. ``goal`` arrives as text and goes into a
+# prompt; nothing validates it, and a second list in this module would be a list no code reads
+# that has to be kept in step with the one the page renders by hand. The page owns the options
+# a learner can tap, and the space owns what belongs in them — 考研 is not among them here,
+# because this is 专业学习 and the exam has its own space.
 
 # Generation granularity (§11). A course is neither "8 points" nor "800 fragments", so the
 # prompt asks for a range — and the range is set by what the response BUDGET can actually

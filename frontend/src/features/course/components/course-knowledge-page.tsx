@@ -237,12 +237,17 @@ function MaterialPicker({
 /**
  * The learner's goal, asked for in the learner's words.
  *
- * Three of the four answers are the goals this product already knows how to talk about, offered
- * as one tap; 自定义 exists because the fourth learner is real and a closed list would make their
+ * The two named answers are the goals this product already knows how to talk about, offered as
+ * one tap; 自定义 exists because the third learner is real and a closed list would make their
  * goal unstateable. Nothing else is asked: the course is already known, and every additional
  * field would be an internal parameter the learner has no way to answer.
+ *
+ * 考研 is deliberately NOT here. This page is 专业学习 — a course the learner is taking — and
+ * the postgraduate entrance exam is its own space with its own plan, progress and review. The
+ * goal list has to belong to the space it is asked in, or the same word would mean two
+ * different things in two places.
  */
-const GOALS = ['期末考试', '考研', '系统学习', '自定义'] as const;
+const GOALS = ['期末考试', '系统学习', '自定义'] as const;
 
 function AiStructureForm({
   courseName,

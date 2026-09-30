@@ -199,17 +199,30 @@ describe('an empty knowledge structure', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'AI 生成' }));
 
     expect(await screen.findByText('AI 生成知识结构')).toBeInTheDocument();
-    for (const goal of ['期末考试', '考研', '系统学习', '自定义']) {
+    for (const goal of ['期末考试', '系统学习', '自定义']) {
       expect(screen.getByRole('button', { name: goal })).toBeInTheDocument();
     }
     expect(screen.getByLabelText(/补充要求/)).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: '考研' }));
+    await userEvent.click(screen.getByRole('button', { name: '期末考试' }));
     await userEvent.click(screen.getByRole('button', { name: '生成' }));
 
     expect(generateInputs).toEqual([
-      { sourceMode: 'ai_generated', goal: '考研', requirement: '' },
+      { sourceMode: 'ai_generated', goal: '期末考试', requirement: '' },
     ]);
+  });
+
+  it('does not offer the postgraduate exam as a goal for a 专业学习 course', async () => {
+    // 考研 has its own space, its own plan and its own progress. Offering it here would make
+    // one word mean two different things on two pages of the same product. Scoped to the goal
+    // fieldset, because the app's own navigation legitimately names the exam space.
+    renderApp('/course/数据结构/knowledge');
+    await userEvent.click(await screen.findByRole('button', { name: 'AI 生成' }));
+    await screen.findByText('AI 生成知识结构');
+
+    const goals = within(screen.getByRole('group', { name: '学习目标（可选）' }));
+    expect(goals.getAllByRole('button').map((button) => button.textContent))
+      .toEqual(['期末考试', '系统学习', '自定义']);
   });
 });
 
