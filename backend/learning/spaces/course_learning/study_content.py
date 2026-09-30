@@ -42,10 +42,12 @@ GROUNDING_NONE = "none"
 
 CAPABILITY = "question.explain"
 
-# Above the default chat ceiling: the answer is a structured explanation rather than a
-# conversational turn, and an explanation cut off in the middle of a section is a worse
-# answer than a shorter one that finished.
-OUTPUT_TOKEN_BUDGET = 1800
+# Above the default chat ceiling, and set by the same measurement the structure generator uses:
+# a thinking model spends part of the budget on its own reasoning, so a budget that looks generous
+# for the visible answer is not. At 1800 the first production explanation came back cut off
+# mid-sentence (704 characters, ending inside a clause), which is worse than a shorter answer that
+# finished — the learner cannot tell where the explanation stopped and the topic began.
+OUTPUT_TOKEN_BUDGET = 3000
 MAX_GROUNDING_CHARS = 5000
 TOP_K_CHUNKS = 6
 

@@ -333,6 +333,9 @@ def test_the_prompt_carries_the_learner_material_and_the_point(client, db_sessio
     last = spec.messages[-1].content
     assert "顺序表 存储结构" in request + last
     assert "讲义.pdf" in last, "the material block belongs to the turn being answered"
+    # An explanation cut off mid-sentence is not a shorter explanation. The budget this module
+    # reserves is the one that reaches the provider, not a number nothing sends.
+    assert spec.max_tokens == sc.OUTPUT_TOKEN_BUDGET
     # The call carries the point as its own identity too — the accounting row records which
     # course and which point produced the answer, not just that some AI call happened.
     from usage.models import AIRequest
