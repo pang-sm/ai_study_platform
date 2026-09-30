@@ -854,3 +854,62 @@ def test_a_cut_off_answer_fails_rather_than_becoming_a_partial_structure():
     with pytest.raises(ks.KnowledgeStructureError) as exc:
         ks.parse_structure_json(truncated)
     assert exc.value.status_code == 502
+
+
+def test_an_unusable_answer_is_asked_for_again_once(db_session, monkeypatch):
+    """A provider that answered with prose succeeded as a call and failed as an answer. The
+    learner asked for one structure; one retry is what turns a bad turn into a structure."""
+    answers = iter(["这是第一章的内容……", '{"chapters": [{"title": "第一章", '
+                                        '"points": [{"title": "顺序表"}]}]}'])
+    calls = {"n": 0}
+
+    def fake_call(*a, **k):
+        calls["n"] += 1
+        return next(answers)
+
+    monkeypatch.setattr(ks, "_call_ai", fake_call)
+    user = make_user(db_session, "ks_retry")
+    attach_course(db_session, user, COURSE)
+
+    chapters = ks.generate_from_ai(db_session, user, COURSE)
+    assert chapters[0]["points"][0]["title"] == "顺序表"
+    assert calls["n"] == 2
+
+
+def test_two_unusable_answers_fail_instead_of_looping(db_session, monkeypatch):
+    calls = {"n": 0}
+
+    def fake_call(*a, **k):
+        calls["n"] += 1
+        return "还是说明文字，不是 JSON。"
+
+    monkeypatch.setattr(ks, "_call_ai", fake_call)
+    user = make_user(db_session, "ks_retry_twice")
+    attach_course(db_session, user, COURSE)
+
+    with pytest.raises(ks.KnowledgeStructureError) as exc:
+        ks.generate_from_ai(db_session, user, COURSE)
+    assert exc.value.status_code == 502
+    assert calls["n"] == 2
+    assert ks.draft_structure(db_session, user.username, COURSE) is None
+
+
+def test_a_refusal_is_not_asked_again(db_session, monkeypatch):
+    """No permission, no budget, a provider error — asking again buys the same refusal with the
+    learner's credits."""
+    from fastapi import HTTPException
+
+    calls = {"n": 0}
+
+    def refusing(*a, **k):
+        calls["n"] += 1
+        raise HTTPException(status_code=403, detail="AI capability unavailable")
+
+    monkeypatch.setattr(ks, "_call_ai", refusing)
+    user = make_user(db_session, "ks_refused")
+    attach_course(db_session, user, COURSE)
+
+    with pytest.raises(HTTPException) as exc:
+        ks.generate_from_ai(db_session, user, COURSE)
+    assert exc.value.status_code == 403
+    assert calls["n"] == 1

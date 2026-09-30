@@ -574,9 +574,14 @@ def _knowledge_map_seed_path(course_id: str):
     return base / "seed_data" / "knowledge_maps" / f"{safe}.json"
 
 
+_JSON_ONLY_RULE = (
+    "回复必须是且只是一个 JSON 对象：第一个非空白字符是 {，最后一个非空白字符是 }。"
+    "不要任何前言、说明、标题或结语，不要 Markdown 代码块。"
+)
+
 _MATERIAL_SYSTEM_PROMPT = (
     "你是大学课程知识结构整理助手。你的任务是把给定的课程资料整理成「章节 → 知识点」"
-    "两层结构。只输出严格 JSON，不要 Markdown，不要解释。"
+    "两层结构，输出严格 JSON。" + _JSON_ONLY_RULE
 )
 
 _MATERIAL_USER_PROMPT = """课程：{course}
@@ -608,8 +613,8 @@ _MATERIAL_USER_PROMPT = """课程：{course}
 6. 严格输出 JSON，不要包含 ```json。"""
 
 _AI_SYSTEM_PROMPT = (
-    "你是大学课程知识结构整理助手。你要为学生生成一份「章节 → 知识点」两层知识结构。"
-    "只输出严格 JSON，不要 Markdown，不要解释。"
+    "你是大学课程知识结构整理助手。你要为学生生成一份「章节 → 知识点」两层知识结构，"
+    "输出严格 JSON。" + _JSON_ONLY_RULE
 )
 
 _AI_USER_PROMPT = """课程：{course}
@@ -651,6 +656,31 @@ def _call_ai(db, user, course_id, material_ids, system_prompt, user_prompt) -> s
     return result.content
 
 
+def _chapters_from_model(db, user, course_id, material_ids, system_prompt, user_prompt,
+                         annotate) -> list[dict]:
+    """The model's structure, retrying ONCE when its answer cannot be used.
+
+    A provider that answered with prose, with a thinking preamble, or with an object cut off
+    below the budget succeeded as a CALL and failed as an ANSWER. Retrying once is the honest
+    response: the learner asked for one structure and has none, and the alternative is a
+    feature that fails whenever the model has a bad turn.
+
+    Only an unusable ANSWER is retried. A refusal — no permission, no budget, a provider
+    error — is raised straight through, because asking again would spend the learner's credits
+    to receive the same refusal.
+    """
+    last: KnowledgeStructureError | None = None
+    for attempt in range(2):
+        raw = _call_ai(db, user, course_id, material_ids, system_prompt, user_prompt)
+        try:
+            return annotate(parse_structure_json(raw))
+        except KnowledgeStructureError as exc:
+            last = exc
+            logger.warning("knowledge structure answer unusable (attempt %s): %s",
+                           attempt + 1, type(exc).__name__)
+    raise last
+
+
 def generate_from_materials(db, user, course_id, material_ids: list[int]) -> list[dict]:
     """Organize the learner's OWN selected files into a chapter list.
 
@@ -673,16 +703,19 @@ def generate_from_materials(db, user, course_id, material_ids: list[int]) -> lis
         min_chapters=PROMPT_MIN_CHAPTERS, max_chapters=PROMPT_MAX_CHAPTERS,
         min_points=PROMPT_MIN_POINTS_PER_CHAPTER,
         max_points=PROMPT_MAX_POINTS_PER_CHAPTER)
-    raw = _call_ai(db, user, key, material_ids, _MATERIAL_SYSTEM_PROMPT, prompt)
-    chapters = parse_structure_json(raw)
 
     known = {name.strip().lower() for name in names}
-    for chapter in chapters:
-        for point in chapter["points"]:
-            hint = (point.get("source_hint") or "").strip().lower()
-            point["origin"] = (ORIGIN_SOURCE_EXTRACTED
-                               if hint and hint in known else ORIGIN_AI_INFERRED)
-    return chapters
+
+    def annotate(chapters):
+        for chapter in chapters:
+            for point in chapter["points"]:
+                hint = (point.get("source_hint") or "").strip().lower()
+                point["origin"] = (ORIGIN_SOURCE_EXTRACTED
+                                   if hint and hint in known else ORIGIN_AI_INFERRED)
+        return chapters
+
+    return _chapters_from_model(db, user, key, material_ids,
+                                _MATERIAL_SYSTEM_PROMPT, prompt, annotate)
 
 
 def generate_from_ai(db, user, course_id, goal: str = "", requirement: str = "") -> list[dict]:
@@ -706,13 +739,15 @@ def generate_from_ai(db, user, course_id, goal: str = "", requirement: str = "")
         min_chapters=PROMPT_MIN_CHAPTERS, max_chapters=PROMPT_MAX_CHAPTERS,
         min_points=PROMPT_MIN_POINTS_PER_CHAPTER,
         max_points=PROMPT_MAX_POINTS_PER_CHAPTER)
-    raw = _call_ai(db, user, key, [], _AI_SYSTEM_PROMPT, prompt)
-    chapters = parse_structure_json(raw)
-    for chapter in chapters:
-        for point in chapter["points"]:
-            point["origin"] = ORIGIN_AI_INFERRED
-            point["source_hint"] = ""
-    return chapters
+
+    def annotate(chapters):
+        for chapter in chapters:
+            for point in chapter["points"]:
+                point["origin"] = ORIGIN_AI_INFERRED
+                point["source_hint"] = ""
+        return chapters
+
+    return _chapters_from_model(db, user, key, [], _AI_SYSTEM_PROMPT, prompt, annotate)
 
 
 # ------------------------------------------------------------------ draft lifecycle
