@@ -55,9 +55,13 @@ async function createPlanTask(input: Cs408TaskCreate): Promise<Cs408PlanTask> {
 }
 
 async function updatePlanTask(input: Cs408TaskUpdate & { task_id: number }): Promise<Cs408PlanTask> {
+  // `task_id` identifies the ROW and travels in the path; the body carries only what may change.
+  // The route's schema forbids unknown fields, so leaving the id in the body was a 422 on every
+  // edit — the request never reached the row it named.
+  const { task_id, ...editable } = input;
   const { data, error, response } = await apiClient.PATCH('/exam/11408/subjects/{subject_key}/study-plan/tasks/{task_id}', {
-    params: { path: { subject_key: input.subject_key, task_id: input.task_id } },
-    body: input,
+    params: { path: { subject_key: input.subject_key, task_id } },
+    body: editable,
   });
   if (!response.ok || data === undefined) throw new ApiRequestError(response.status, error);
   return data.task;
