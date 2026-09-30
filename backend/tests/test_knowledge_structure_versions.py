@@ -964,3 +964,34 @@ def test_a_title_only_answer_is_what_the_ai_prompt_asks_for(db_session, monkeypa
     # neither of the two fields the model might otherwise add on its own.
     assert "只输出 title 一个字段" in asked["user"]
     assert '"source_hint"' not in asked["user"] and '"description"' not in asked["user"]
+
+
+def test_the_first_complete_object_is_found_even_when_the_model_keeps_talking():
+    """Models prepend a sentence, append a gloss, and sometimes emit a second object as a
+    self-correction. Slicing to the LAST brace breaks on all three; the first complete JSON
+    value is the answer in every case."""
+    assert ks.parse_structure_json(
+        '好的，这是结构：\n{"chapters": [{"title": "第一章", "points": [{"title": "顺序表"}]}]}\n'
+        '希望有帮助。')[-1]["points"][0]["title"] == "顺序表"
+
+    assert ks.parse_structure_json(
+        '{"chapters": [{"title": "第一章", "points": [{"title": "顺序表"}]}]}\n'
+        '纠正：上面漏了一章\n{"chapters": [{"title": "第二章", "points": [{"title": "链表"}]}]}'
+    )[0]["title"] == "第一章"
+
+    assert ks.parse_structure_json(
+        '结构如下 {不是 JSON} 真正的在这里：{"chapters": [{"title": "第一章", '
+        '"points": [{"title": "顺序表"}]}]}')[-1]["title"] == "第一章"
+
+
+def test_a_structure_cut_off_after_the_first_object_still_fails():
+    """Finding the first complete object must not become a way to accept a truncated answer."""
+    with pytest.raises(ks.KnowledgeStructureError):
+        ks.parse_structure_json('{"chapters": [{"title": "第一章", "points": [{"tit')
+
+
+def test_the_ask_stays_within_what_production_was_measured_to_deliver():
+    """41-53 points came back cut off; the ask is sized to land near 20."""
+    worst_case = ks.PROMPT_MAX_CHAPTERS * ks.PROMPT_MAX_POINTS_PER_CHAPTER
+    assert worst_case <= 36
+    assert ks.PROMPT_MAX_CHAPTERS >= 4 and ks.PROMPT_MAX_POINTS_PER_CHAPTER >= 3

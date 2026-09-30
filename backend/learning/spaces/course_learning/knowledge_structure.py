@@ -68,13 +68,15 @@ ORIGIN_AI_INFERRED = "ai_inferred"
 GOALS = ("期末考试", "考研", "系统学习")
 
 # Generation granularity (§11). A course is neither "8 points" nor "800 fragments", so the
-# prompt asks for a range. The range is bounded by what the response BUDGET can actually
-# deliver: a JSON answer is roughly 25 output tokens per point, so 8 chapters × 8 points sits
-# comfortably inside ``OUTPUT_TOKEN_BUDGET`` while 12 × 16 did not — that ask produced an
-# answer long enough to be cut off mid-object, which parses as nothing at all and surfaced to
-# the learner as a bare failure.
-PROMPT_MIN_CHAPTERS, PROMPT_MAX_CHAPTERS = 4, 8
-PROMPT_MIN_POINTS_PER_CHAPTER, PROMPT_MAX_POINTS_PER_CHAPTER = 3, 8
+# prompt asks for a range — and the range is set by what the response BUDGET can actually
+# deliver, not by an abstract notion of completeness.
+#
+# Measured in production: a 4-8 × 3-8 ask produced 41-53 points, and answers that large came
+# back cut off mid-object often enough to fail the flow. 4-6 × 3-6 tops out at 36 points and
+# in practice lands near 20, which is a real course structure and fits a budget that the
+# model's own reasoning is also spending from.
+PROMPT_MIN_CHAPTERS, PROMPT_MAX_CHAPTERS = 4, 6
+PROMPT_MIN_POINTS_PER_CHAPTER, PROMPT_MAX_POINTS_PER_CHAPTER = 3, 6
 
 # The HARD caps the parser enforces, kept above the range asked for so a model that
 # overshoots by a little is trimmed rather than thrown away — and set so that the total can
@@ -439,6 +441,32 @@ def _chapter_payload(raw_chapters: list) -> list[dict]:
     return chapters
 
 
+def _first_json_value(text: str):
+    """The first complete JSON object or array ANYWHERE in ``text``, however it is wrapped.
+
+    Providers wrap JSON in fences, prepend a sentence ("好的，这是结构："), append a gloss,
+    emit a second object as a self-correction, or put a brace inside the prose before the
+    real answer. Slicing from the first bracket to the LAST one handles only the first of
+    those; ``raw_decode`` at each candidate start handles all of them, because it stops at
+    the end of one complete value and reports the rest as trailing text.
+
+    It also refuses an INCOMPLETE value at every start position, which is what keeps this
+    from doubling as truncation salvage: an answer cut off mid-object is still an error, and
+    half a structure accepted silently would look to the learner exactly like a whole one.
+    """
+    decoder = json.JSONDecoder()
+    for index, char in enumerate(text[:4000]):
+        if char not in "{[":
+            continue
+        try:
+            value, _ = decoder.raw_decode(text, index)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, (dict, list)):
+            return value
+    return None
+
+
 def parse_structure_json(raw: str) -> list[dict]:
     """The model's JSON, however it arrived, as a chapter list.
 
@@ -457,13 +485,7 @@ def parse_structure_json(raw: str) -> list[dict]:
     try:
         payload = json.loads(text)
     except json.JSONDecodeError:
-        start = min((i for i in (text.find("{"), text.find("[")) if i >= 0), default=-1)
-        end = max(text.rfind("}"), text.rfind("]"))
-        if start >= 0 and end > start:
-            try:
-                payload = json.loads(text[start:end + 1])
-            except json.JSONDecodeError:
-                payload = None
+        payload = _first_json_value(text)
     if payload is None:
         raise KnowledgeStructureError(
             "AI 这次没有返回完整的结构，请再试一次。", 502)
