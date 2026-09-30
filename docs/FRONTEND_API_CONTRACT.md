@@ -249,6 +249,8 @@
 | POST | `/course-learning/courses/{course_id}/knowledge-structure/{structure_id}/points` | 在草稿的某个章节下新增知识点 |
 | PATCH | `/course-learning/courses/{course_id}/knowledge-structure/{structure_id}/points/{point_id}` | 改草稿中知识点名称（`title`）或调整章节归属（`chapter_id`） |
 | DELETE | `/course-learning/courses/{course_id}/knowledge-structure/{structure_id}/points/{point_id}` | 删除草稿中的知识点（非空章节返回 400） |
+| GET | `/course-learning/courses/{course_id}/knowledge-points/{point_id}/study-content` | 该知识点**已存**的学习内容，或 `null`（没存过就是 `null`，不是空内容） |
+| POST | `/course-learning/courses/{course_id}/knowledge-points/{point_id}/study-content?regenerate=` | 生成并保存该知识点的学习内容（会调用模型、消耗额度） |
 
 关键语义：
 
@@ -1169,3 +1171,42 @@ active 版本与其上的 `user_knowledge_progress`、错题关联、复习安�
 ### 未改动
 
 真题 / 题图 / `full_score` / OCR / 学习状态 UI / Student Twin 算法 / 会员 / deploy workflow 均未触碰。
+
+---
+
+## 学习页改为「一个知识点的工作区」（行为变化）
+
+### 页面职责重新划分
+
+- **知识结构**：有哪些知识点、章节与结构关系。
+- **资料**：管理学习材料。
+- **学习**：围绕**一个**具体知识点学习。
+
+因此 `学习` 页读的是 `/knowledge-points?course_id=`（只返回 active 版本，带每个点的 `status`），
+用 `parent_id` 现成地分成章节 / 知识点；不再重复列出整库资料，也不再显示「可学知识点 N 个 /
+可引用资料 N 项」这类统计。
+
+### `/chat` 的课程轮次可以带一个知识点（新增字段语义）
+
+`service_key = course_learning` 的轮次此前把 `knowledge_point_id` / `knowledge_point_title` 丢弃。
+现在它们会作为该轮的 `LearningContext.knowledge_point_id` 与提示里的「当前知识点」传下去——和
+exam 轮次携带知识点的机制是同一套。字段一直是可选的，空字符串仍表示「这一轮与某个知识点无关」，
+所以既有调用方不变。
+
+### 新增：知识点学习内容的读取与生成
+
+| 语义 | 说明 |
+|---|---|
+| GET | 读**已存**内容，不调用模型。没存过返回 `null`（页面据此显示「开始学习」） |
+| POST | 生成并落库。`regenerate=true` 时重新生成并**替换**该行；同一 `(username, knowledge_point_id)` 只保留一行 |
+| 归属 | 知识点必须属于调用者**且属于 active 版本**：草稿版本与被替换版本的 `point_id` 一律 404 |
+| grounding | 结构 `source_mode = selected_materials` → 用该结构自己记录的 `source_file_ids`；`ai_generated` → 检索该课程资料库（因此先建结构、后上传教材也能引用到教材）。两者都会并入该知识点自身的 `material_knowledge_links` |
+| `citations` | 只包含**真正被用于本次讲解**的文件（filename + snippet）。没有资料可用时为 `[]`，页面隐藏整个「关联资料」区块，不显示「暂无」 |
+| 与进度解耦 | 读取 / 生成学习内容**不写** `user_knowledge_progress`。四态由既有 `PUT /knowledge-points/{point_id}/progress` 写入，`learned_at` / `review_due_at` / `review_interval_days` 的既有逻辑不变 |
+| 数据 | 新表 `knowledge_point_study_content`（迁移 `20260930_0017`，additive-only）。当前 `MIGRATION_HEAD = 20260930_0017` |
+
+### 未改动
+
+真题 / 考研学习 / 题图 / `full_score` / OCR / 学习状态 UI / Student Twin / 会员 / deploy workflow /
+知识结构生成与版本机制均未触碰。旧端点 `/knowledge-points`、`PUT /knowledge-points/{id}/progress`
+语义不变（仅新增了「学习内容」这一新资源）。

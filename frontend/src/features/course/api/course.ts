@@ -36,7 +36,11 @@ export const courseKeys = {
   materials: (courseId: string) => ['course', courseId, 'materials'] as const,
   knowledge: (courseId: string) => ['course', courseId, 'knowledge'] as const,
   structure: (courseId: string) => ['course', courseId, 'knowledge-structure'] as const,
+  // The whole workbook scope, so a mutation can invalidate every chapter's view at once: the
+  // point-specific key below extends it, and a prefix invalidation reaches all of them.
   practice: (courseId: string) => ['course', courseId, 'practice'] as const,
+  practiceFor: (courseId: string, chapter?: string) =>
+    ['course', courseId, 'practice', chapter ?? ''] as const,
   history: (courseId: string) => ['course', courseId, 'practice-history'] as const,
   plan: (courseId: string) => ['course', courseId, 'plan'] as const,
   entitlements: ['course', 'entitlements'] as const,
@@ -45,6 +49,8 @@ export const courseKeys = {
   recordsSummary: (courseId: string) => ['course', courseId, 'records-summary'] as const,
   wrong: (courseId: string) => ['course', courseId, 'wrong'] as const,
   state: (courseId: string) => ['course', courseId, 'state'] as const,
+  studyContent: (courseId: string, pointId: number) =>
+    ['course', courseId, 'study-content', pointId] as const,
 } as const;
 
 async function getCourseCatalog(): Promise<unknown> {
@@ -67,8 +73,10 @@ async function getKnowledgePoints(courseId: string): Promise<unknown> {
   return requireData(response, data, error);
 }
 
-async function getPracticeWorkbook(courseId: string): Promise<unknown> {
-  const { data, error, response } = await apiClient.GET('/course-learning/courses/{course_id}/practice/workbook', { params: { path: { course_id: courseId } } });
+async function getPracticeWorkbook(courseId: string, chapter?: string): Promise<unknown> {
+  const { data, error, response } = await apiClient.GET('/course-learning/courses/{course_id}/practice/workbook', {
+    params: { path: { course_id: courseId }, query: chapter ? { chapter } : {} },
+  });
   return requireData(response, data, error);
 }
 
@@ -251,8 +259,151 @@ export function knowledgeStructureErrorMessage(error: unknown): string {
   }
   return '这一步没有完成，请稍后重试。';
 }
-export function useCoursePractice(courseId: string) { return useQuery({ queryKey: courseKeys.practice(courseId), queryFn: () => getPracticeWorkbook(courseId), retry: false }); }
+export function useCoursePractice(courseId: string, chapter?: string) {
+  return useQuery({
+    queryKey: courseKeys.practiceFor(courseId, chapter),
+    queryFn: () => getPracticeWorkbook(courseId, chapter),
+    retry: false,
+  });
+}
 export function useCoursePracticeHistory(courseId: string) { return useQuery({ queryKey: courseKeys.history(courseId), queryFn: () => getPracticeHistory(courseId), retry: false }); }
+
+/* ------------------------------------------------------------------ one knowledge point, studied */
+
+/**
+ * The four states the whole product already speaks, and the ONE place they are named for a reader.
+ *
+ * These are `user_knowledge_progress.status`'s own values — not a second vocabulary invented
+ * for this page. The page shows a mark per state and offers the same four as a choice, so a
+ * learner's answer here and the review page's scheduling are the same fact written once.
+ */
+export const KNOWLEDGE_STATUSES = ['not_started', 'learning', 'mastered', 'review_due'] as const;
+export type KnowledgeStatus = (typeof KNOWLEDGE_STATUSES)[number];
+
+export function knowledgeStatusLabel(status: string | undefined): string {
+  switch (status) {
+    case 'learning': return '学习中';
+    case 'mastered': return '已学习';
+    case 'review_due': return '待复习';
+    default: return '未学习';
+  }
+}
+
+export function isKnowledgeStatus(value: unknown): value is KnowledgeStatus {
+  return typeof value === 'string' && (KNOWLEDGE_STATUSES as readonly string[]).includes(value);
+}
+
+/** The explanation this point already has, and the files that grounded it. */
+export type KnowledgePointStudyContent = {
+  knowledgePointId: number;
+  content: string;
+  citations: { filename: string; snippet: string }[];
+  generatedAt?: string;
+};
+
+function readStudyContent(value: unknown): KnowledgePointStudyContent | null {
+  if (!isRecord(value)) return null;
+  const id = value.knowledge_point_id;
+  const content = value.content;
+  if (typeof id !== 'number' || typeof content !== 'string' || !content) return null;
+  const citations = Array.isArray(value.citations)
+    ? value.citations.flatMap((entry) => {
+        if (!isRecord(entry)) return [];
+        const filename = typeof entry.filename === 'string' ? entry.filename : '';
+        if (!filename) return [];
+        return [{ filename, snippet: typeof entry.snippet === 'string' ? entry.snippet : '' }];
+      })
+    : [];
+  return {
+    knowledgePointId: id,
+    content,
+    citations,
+    generatedAt: typeof value.generated_at === 'string' ? value.generated_at : undefined,
+  };
+}
+
+const studyContentPath = (courseId: string, pointId: number) => ({
+  params: { path: { course_id: courseId, point_id: pointId } },
+});
+
+/**
+ * The stored explanation for one point — or null when none has been written yet.
+ *
+ * A separate read from the generate call on purpose: opening a point must be free. `enabled`
+ * keeps the request from firing before the learner has actually selected a point.
+ */
+export function useCourseKnowledgePointStudyContent(courseId: string, pointId: number | undefined) {
+  return useQuery({
+    queryKey: courseKeys.studyContent(courseId, pointId ?? 0),
+    queryFn: async () => {
+      const r = await apiClient.GET(
+        '/course-learning/courses/{course_id}/knowledge-points/{point_id}/study-content',
+        studyContentPath(courseId, pointId as number));
+      return readStudyContent(requireData(r.response, r.data, r.error));
+    },
+    enabled: pointId !== undefined,
+    retry: false,
+  });
+}
+
+/**
+ * Buy one explanation for one point, and keep it.
+ *
+ * This is the only call on the page that spends anything, and it runs on an explicit click —
+ * never on selection, because a learner stepping through the outline to find the topic they
+ * want must not be charged for each step.
+ */
+export function useGenerateCourseKnowledgePointStudyContent(courseId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ pointId, regenerate = false }: { pointId: number; regenerate?: boolean }) => {
+      const r = await apiClient.POST(
+        '/course-learning/courses/{course_id}/knowledge-points/{point_id}/study-content',
+        { ...studyContentPath(courseId, pointId), params: { path: { course_id: courseId, point_id: pointId }, query: { regenerate } } });
+      return readStudyContent(requireData(r.response, r.data, r.error)) as KnowledgePointStudyContent;
+    },
+    onSuccess: (data) => {
+      client.setQueryData(courseKeys.studyContent(courseId, data.knowledgePointId), data);
+    },
+  });
+}
+
+/**
+ * Set one point's state. The four states are the product's, and the write is the existing one.
+ *
+ * `status` alone is sent: mastery is a deterministic point counter this page does not read, and
+ * a learner choosing "已学习" is stating a state, not a score.
+ */
+export function useUpdateKnowledgePointStatus(courseId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ pointId, status }: { pointId: number; status: KnowledgeStatus }) => {
+      const r = await apiClient.PUT('/knowledge-points/{point_id}/progress', {
+        params: { path: { point_id: pointId } },
+        body: { username: '', status },
+      });
+      return requireData(r.response, r.data, r.error);
+    },
+    onSuccess: () => {
+      // The nav's own read carries every point's state, and a state is not a private fact of this
+      // page: the dashboard, the plan, the records and the review queue all read it. They are
+      // refreshed together with it, the same way a submitted answer refreshes them.
+      for (const queryKey of [
+        courseKeys.knowledge(courseId),
+        courseKeys.dashboard(courseId),
+        courseKeys.state(courseId),
+        courseKeys.plan(courseId),
+        courseKeys.todayPlan(courseId),
+        courseKeys.records(courseId),
+        courseKeys.recordsSummary(courseId),
+      ]) {
+        void client.invalidateQueries({ queryKey });
+      }
+      void client.invalidateQueries({ queryKey: ['review'] });
+      void client.invalidateQueries({ queryKey: ['learning', 'agenda'] });
+    },
+  });
+}
 export function useCourseStudyPlan(courseId: string) { return useQuery({ queryKey: courseKeys.plan(courseId), queryFn: () => getStudyPlan(courseId), retry: false }); }
 export function useCourseEntitlements() { return useQuery({ queryKey: courseKeys.entitlements, queryFn: getEntitlements, retry: false }); }
 export function useCourseTodayPlan(courseId: string) { return useQuery({ queryKey: courseKeys.todayPlan(courseId), queryFn: () => getTodayPlan(courseId), retry: false }); }
@@ -329,7 +480,7 @@ export function useCourseMaterialUpload(courseId: string) {
 }
 export function useCoursePracticeAction(courseId: string) {
   const client = useQueryClient();
-  return useMutation({ mutationFn: async ({ kind, id, answer }: { kind: 'start' | 'generate' | 'submit'; id?: number; answer?: string }) => { if (kind === 'start') { const r = await apiClient.POST('/course-learning/courses/{course_id}/practice/questions/{question_id}/attempts', { params: { path: { course_id: courseId, question_id: id ?? 0 } } }); return requireData(r.response, r.data, r.error); } if (kind === 'generate') { const r = await apiClient.POST('/course-learning/courses/{course_id}/practice/generate', { params: { path: { course_id: courseId } }, body: { knowledge_point_code: '', knowledge_point_id: '', knowledge_point_title: '', chapter: '', difficulty: '', material_ids: [] } }); return requireData(r.response, r.data, r.error); } const r = await apiClient.POST('/course-learning/courses/{course_id}/practice/{attempt_id}/submit', { params: { path: { course_id: courseId, attempt_id: id ?? 0 } }, body: { answer: answer ?? '' } }); return requireData(r.response, r.data, r.error); }, onSuccess: (_data, variables) => {
+  return useMutation({ mutationFn: async ({ kind, id, answer, chapter }: { kind: 'start' | 'generate' | 'submit'; id?: number; answer?: string; chapter?: string }) => { if (kind === 'start') { const r = await apiClient.POST('/course-learning/courses/{course_id}/practice/questions/{question_id}/attempts', { params: { path: { course_id: courseId, question_id: id ?? 0 } } }); return requireData(r.response, r.data, r.error); } if (kind === 'generate') { const r = await apiClient.POST('/course-learning/courses/{course_id}/practice/generate', { params: { path: { course_id: courseId } }, body: { knowledge_point_code: '', knowledge_point_id: '', knowledge_point_title: '', chapter: chapter ?? '', difficulty: '', material_ids: [] } }); return requireData(r.response, r.data, r.error); } const r = await apiClient.POST('/course-learning/courses/{course_id}/practice/{attempt_id}/submit', { params: { path: { course_id: courseId, attempt_id: id ?? 0 } }, body: { answer: answer ?? '' } }); return requireData(r.response, r.data, r.error); }, onSuccess: (_data, variables) => {
     const keys = variables.kind === 'submit'
       ? [courseKeys.practice(courseId), courseKeys.history(courseId), courseKeys.wrong(courseId), courseKeys.records(courseId), courseKeys.recordsSummary(courseId), courseKeys.state(courseId), courseKeys.todayPlan(courseId), courseKeys.plan(courseId)]
       : [courseKeys.practice(courseId), courseKeys.history(courseId)];

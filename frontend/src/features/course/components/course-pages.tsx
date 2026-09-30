@@ -18,10 +18,9 @@ import { cn } from '@/lib/utils';
 import { ApiRequestError } from '@/features/exam/api/content-status';
 import { enumText } from '@/lib/learner-safe';
 import { eventTypeLabel, serviceNamespaceLabel } from '@/features/records/event-labels';
-import { MATERIAL_UPLOAD_ACCEPT, materialUploadErrorMessage, useCourseKnowledge, useCourseMaterials, useCourseMaterialUpload, useCoursePractice, useCoursePracticeAction, useCoursePracticeHistory, useCourseRecords, useCourseRecordsSummary, useCourseState, useCourseTodayPlan, useCourseWrongAnswers } from '@/features/course/api/course';
+import { MATERIAL_UPLOAD_ACCEPT, materialUploadErrorMessage, useCourseMaterialUpload, useCoursePractice, useCoursePracticeAction, useCoursePracticeHistory, useCourseRecords, useCourseRecordsSummary, useCourseState, useCourseTodayPlan, useCourseWrongAnswers } from '@/features/course/api/course';
 import { CoursePageShell } from './course-page-shell';
 import { ScopedAiChatWorkspace } from '@/features/ai/components/ai-chat-page';
-import { StrongReasoningSurface } from '@/components/learning/advanced-learning-surfaces';
 import { DynamicPlanSurface, WrongAnalysisSurface } from '@/features/learning-intelligence/learning-intelligence-surfaces';
 
 /* ------------------------------------------------------------------ shared local grammar */
@@ -214,34 +213,6 @@ function MaterialRow({ material, onDelete }: { material: LibraryMaterial; onDele
 }
 
 /**
- * What THIS course can cite — a different question from what the library holds.
- *
- * The study page's list is the material a question asked here is grounded in, so it stays
- * scoped to this course rather than becoming the library view: a file from another course is
- * the learner's, but it is not this course's grounding. Only the name, type, size and state
- * belong here; the actions live on the 资料 page, where acting on a file is the point.
- */
-function CourseCitationRow({ material }: { material: unknown }) {
-  const fileType = text(material, 'file_type');
-  const size = number(material, 'file_size');
-  const statusLabel = materialStatusLabel(text(material, 'parse_status'));
-  const sizeText = [
-    materialTypeLabel(fileType),
-    size === undefined ? undefined : formatBytes(size),
-  ].filter(Boolean).join(' · ');
-
-  return (
-    <li className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 border-b border-border-default py-4">
-      <div className="flex min-w-0 items-center gap-3">
-        <MaterialFileIcon fileType={fileType} />
-        <span className="truncate text-body font-medium text-text-primary">{text(material, 'original_filename') ?? '未命名资料'}</span>
-      </div>
-      <span className="text-metadata text-text-secondary">{sizeText} · {statusLabel}</span>
-    </li>
-  );
-}
-
-/**
  * The learner's whole material library, seen from inside a course.
  *
  * It lists every asset they own — this course's uploads, another course's, files sent to a chat,
@@ -391,102 +362,6 @@ export function CourseMaterialsPage({ courseId }: { courseId: string }) {
   );
 }
 
-/* ------------------------------------------------------------------ knowledge + study */
-
-function KnowledgePointList({ value }: { value: unknown }) {
-  // `/knowledge-points` answers with `knowledge_points`, not `items` — a reader that only knew
-  // the generic keys saw an empty list for every course, including ones whose structure was
-  // fully populated on the server.
-  const points = isRecord(value) && Array.isArray(value.knowledge_points)
-    ? value.knowledge_points
-    : list(value);
-  if (!points.length) {
-    return <EmptyState title="还没有知识结构" description="在「知识结构」里从资料生成，或让 AI 根据这门课程生成。" />;
-  }
-  return (
-    <ul className="border-t border-border-default">
-      {points.map((point, index) => {
-        const title = text(point, 'title') ?? text(point, 'name') ?? text(point, 'knowledge_point_title');
-        return (
-          <li key={text(point, 'code') ?? title ?? index} className="border-b border-border-default py-4">
-            <p className="text-body font-medium text-text-primary">{title ?? '未命名知识点'}</p>
-            <FactList
-              value={point}
-              className="mt-3"
-              columns={2}
-              allow={['chapter', 'chapter_title', 'chapter_no', 'question_count', 'difficulty']}
-            />
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-export function CourseStudyPage({ courseId }: { courseId: string }) {
-  const points = useCourseKnowledge(courseId);
-  const materials = useCourseMaterials(courseId);
-  const materialIds = list(materials.data).flatMap((material) => {
-    const id = number(material, 'id');
-    return id === undefined ? [] : [id];
-  });
-
-  return (
-    <CoursePageShell
-      courseId={courseId}
-      active="study"
-      facts={[
-        { label: '可学知识点', value: points.isPending ? '正在读取…' : `${list(points.data).length} 个` },
-        { label: '可引用资料', value: materials.isPending ? '正在读取…' : `${materialIds.length} 项` },
-      ]}
-    >
-      <PageHeader
-        title="知识点学习"
-        description="先读知识点与关联资料；读完直接进入练习验证理解。"
-      />
-
-      {points.isPending || materials.isPending ? (
-        <LoadingState label="正在读取学习材料…" className="mt-8" />
-      ) : points.isError || materials.isError ? (
-        <Failure
-          title="学习材料暂时无法加载。"
-          error={points.error ?? materials.error}
-          retry={() => {
-            void points.refetch();
-            void materials.refetch();
-          }}
-        />
-      ) : (
-        <>
-          <Section title="当前课程知识点">
-            <KnowledgePointList value={points.data} />
-          </Section>
-          <Section title="可引用资料">
-            {materialIds.length ? (
-              <ul className="border-t border-border-default">
-                {list(materials.data).map((material, index) => (
-                  <CourseCitationRow key={text(material, 'id') ?? index} material={material} />
-                ))}
-              </ul>
-            ) : (
-              <EmptyState title="还没有可引用的资料。" description="上传资料后，这里的提问与学习会带上真实引用。" />
-            )}
-          </Section>
-        </>
-      )}
-
-      <StrongReasoningSurface context="专业学习" courseId={courseId} materialIds={materialIds} />
-
-      <NextStep
-        label="做本课程练习"
-        description="练习会记录真实作答，并决定错题与复习安排。"
-        to="/course/$courseId/practice"
-        params={{ courseId }}
-      />
-    </CoursePageShell>
-  );
-}
-
 /* ------------------------------------------------------------------ practice + wrong */
 
 function PracticeAttemptFeedback({ data }: { data: unknown }) {
@@ -502,8 +377,16 @@ function PracticeAttemptFeedback({ data }: { data: unknown }) {
   );
 }
 
-export function CoursePracticePage({ courseId }: { courseId: string }) {
-  const workbook = useCoursePractice(courseId);
+/**
+ * The course's practice book, optionally narrowed to one chapter.
+ *
+ * `chapter` arrives from 学习 when the learner pressed 开始练习 beside a knowledge point. It is the
+ * chapter that point sits under — not the point itself, because the question bank carries no
+ * knowledge-point mapping for a learner's own structure, and inventing one would put a question
+ * under a point it was never written for.
+ */
+export function CoursePracticePage({ courseId, chapter }: { courseId: string; chapter?: string }) {
+  const workbook = useCoursePractice(courseId, chapter);
   const history = useCoursePracticeHistory(courseId);
   const action = useCoursePracticeAction(courseId);
   const [answer, setAnswer] = useState('');
@@ -532,7 +415,7 @@ export function CoursePracticePage({ courseId }: { courseId: string }) {
             type="button"
             className="inline-flex h-11 items-center rounded-control border border-border-default bg-surface px-5 text-body font-medium text-text-primary hover:bg-primary-soft disabled:opacity-50"
             disabled={action.isPending}
-            onClick={() => action.mutate({ kind: 'generate' })}
+            onClick={() => action.mutate({ kind: 'generate', chapter })}
           >
             {action.isPending ? '正在生成…' : '生成练习题'}
           </button>
@@ -610,7 +493,7 @@ export function CoursePracticePage({ courseId }: { courseId: string }) {
             })}
           </ol>
         ) : (
-          <EmptyState title="练习本里还没有题目。" description="点「生成练习题」按当前课程知识点生成一题。" />
+          <EmptyState title="练习本里还没有题目。" description={chapter ? `点「生成练习题」按「${chapter}」生成一题。` : '点「生成练习题」按当前课程知识点生成一题。'} />
         )}
       </Section>
 

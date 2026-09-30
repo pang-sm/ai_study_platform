@@ -9811,6 +9811,11 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
         _chat_result = _course_ai_result(
             db, user, _chat_capability, _chat_messages,
             course_id=rag_course_id or subject or "course_learning", material_ids=material_ids,
+            # A course turn can be ABOUT one of the learner's own knowledge points — that is
+            # how 学习 hands its question to this assistant. Passing the id through is what
+            # makes the model's focus agree with the line the learner read above the composer;
+            # without it the turn would carry the point as a label and nothing else.
+            knowledge_point_id=turn.knowledge_point_id or None,
             session_id=chat_session.id, model_preference=_chat_model_preference,
             explicit_model=_chat_explicit_model, thinking=True if _chat_thinking else None)
     answer, _chat_request_id = _chat_result.content, _chat_result.request_id

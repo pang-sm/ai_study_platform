@@ -1082,3 +1082,73 @@ def delete_course_knowledge_structure_point(course_id: str, structure_id: int, p
     key = _owned_course(db, current_user, course_id)
     return _run_structure(_structure_service().delete_point, db, current_user, key,
                           structure_id, point_id)
+
+
+# ---------------------------------------------------------------- knowledge point study content
+#
+# What a learner reads when they study ONE point of the structure above. Two routes because
+# there are two different operations: READING a stored explanation costs nothing and calls no
+# model, while GENERATING one spends the learner's credits. Folding them into a single POST
+# would make every page visit a potential spend.
+#
+# Nothing here is a learning fact. Reading an explanation moves no status, and the four-state
+# progress a learner sets by hand is written through the knowledge-progress route, not this one.
+
+
+class KnowledgePointStudyContentResponse(BaseModel):
+    knowledge_point_id: int
+    course_id: str
+    content: str
+    citations: list[dict]
+    grounding_mode: str
+    generated_at: str | None = None
+    cached: bool
+
+
+def _study_content_service():
+    from learning.spaces.course_learning import study_content
+    return study_content
+
+
+def _run_study_content(action, *args, **kwargs):
+    service = _study_content_service()
+    try:
+        return action(*args, **kwargs)
+    except service.StudyContentError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get("/{course_id}/knowledge-points/{point_id}/study-content",
+            response_model=KnowledgePointStudyContentResponse | None)
+def get_course_knowledge_point_study_content(course_id: str, point_id: int,
+                                             db: Session = Depends(get_db),
+                                             current_user=Depends(_require_user)):
+    """The explanation already stored for this point, or null.
+
+    A null is a real answer — "nothing has been generated for this point yet" — and the page
+    shows its own start button for it. It is not an error and not an empty explanation.
+    """
+    key = _owned_course(db, current_user, course_id)
+    service = _study_content_service()
+    point, _structure = _run_study_content(service.resolve_point, db,
+                                           current_user.username, key, point_id)
+    cached = service.read_cached(db, current_user.username, point.id)
+    return None if cached is None else {**cached, "cached": True}
+
+
+@router.post("/{course_id}/knowledge-points/{point_id}/study-content",
+             response_model=KnowledgePointStudyContentResponse)
+def generate_course_knowledge_point_study_content(course_id: str, point_id: int,
+                                                  regenerate: bool = Query(default=False),
+                                                  db: Session = Depends(get_db),
+                                                  current_user=Depends(_require_user)):
+    """Generate this point's explanation, grounded in the learner's own materials.
+
+    The point must belong to the learner AND to the version they are currently studying from:
+    a draft's point has never been studied from, and a superseded version's point is not what
+    this course currently is. Both are a 404 rather than a refusal, because neither is
+    something the learner can act on from here.
+    """
+    key = _owned_course(db, current_user, course_id)
+    return _run_study_content(_study_content_service().study_content, db, current_user, key,
+                              point_id, regenerate=regenerate)

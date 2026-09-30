@@ -467,7 +467,10 @@ export type ScopedAiScope = Exclude<AiScope, { kind: 'general' }>;
 function scopeIdentityOf(scope: ScopedAiScope): string {
   switch (scope.kind) {
     case 'exam': return `exam:${scope.moduleKey}:${scope.knowledgePoint ?? ''}`;
-    case 'course': return `course:${scope.courseId}`;
+    // The course scope carries a knowledge point too, for the same reason and with the same
+    // consequence: a conversation about 顺序表 and a conversation about the course at large are
+    // different conversations, even though the server files them under one course.
+    case 'course': return `course:${scope.courseId}:${scope.knowledgePoint ?? ''}`;
     case 'programming': return `programming:${scope.language}`;
   }
 }

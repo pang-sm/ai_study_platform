@@ -994,6 +994,38 @@ export interface paths {
         patch: operations["edit_course_knowledge_structure_point_course_learning_courses__course_id__knowledge_structure__structure_id__points__point_id__patch"];
         trace?: never;
     };
+    "/course-learning/courses/{course_id}/knowledge-points/{point_id}/study-content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Course Knowledge Point Study Content
+         * @description The explanation already stored for this point, or null.
+         *
+         *     A null is a real answer — "nothing has been generated for this point yet" — and the page
+         *     shows its own start button for it. It is not an error and not an empty explanation.
+         */
+        get: operations["get_course_knowledge_point_study_content_course_learning_courses__course_id__knowledge_points__point_id__study_content_get"];
+        put?: never;
+        /**
+         * Generate Course Knowledge Point Study Content
+         * @description Generate this point's explanation, grounded in the learner's own materials.
+         *
+         *     The point must belong to the learner AND to the version they are currently studying from:
+         *     a draft's point has never been studied from, and a superseded version's point is not what
+         *     this course currently is. Both are a 404 rather than a refusal, because neither is
+         *     something the learner can act on from here.
+         */
+        post: operations["generate_course_knowledge_point_study_content_course_learning_courses__course_id__knowledge_points__point_id__study_content_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/programming/records": {
         parameters: {
             query?: never;
@@ -11876,6 +11908,25 @@ export interface components {
              */
             import_mode: string;
         };
+        /** KnowledgePointStudyContentResponse */
+        KnowledgePointStudyContentResponse: {
+            /** Knowledge Point Id */
+            knowledge_point_id: number;
+            /** Course Id */
+            course_id: string;
+            /** Content */
+            content: string;
+            /** Citations */
+            citations: {
+                [key: string]: unknown;
+            }[];
+            /** Grounding Mode */
+            grounding_mode: string;
+            /** Generated At */
+            generated_at?: string | null;
+            /** Cached */
+            cached: boolean;
+        };
         /** KnowledgePointUpdate */
         KnowledgePointUpdate: {
             /** Username */
@@ -16947,6 +16998,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["KnowledgeStructureMeta"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_course_knowledge_point_study_content_course_learning_courses__course_id__knowledge_points__point_id__study_content_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                course_id: string;
+                point_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgePointStudyContentResponse"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_course_knowledge_point_study_content_course_learning_courses__course_id__knowledge_points__point_id__study_content_post: {
+        parameters: {
+            query?: {
+                regenerate?: boolean;
+            };
+            header?: never;
+            path: {
+                course_id: string;
+                point_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgePointStudyContentResponse"];
                 };
             };
             /** @description Validation Error */

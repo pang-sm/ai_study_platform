@@ -48,7 +48,23 @@ export type AiScope =
        */
       knowledgePointTitle?: string;
     }
-  | { kind: 'course'; courseId: string; label: string }
+  | {
+      kind: 'course';
+      courseId: string;
+      label: string;
+      /**
+       * The learner's OWN knowledge point this conversation is about, when 学习 handed the
+       * question over from a point they were reading.
+       *
+       * The EXAM scope's point is a canonical code from the published outline; this one is a
+       * `knowledge_points` row id, because a learner's structure is their own and has no code
+       * outside their account. Both are identities, and both are settled by the same rule: the
+       * point is the turn's context, never a question asked for the learner.
+       */
+      knowledgePoint?: string;
+      /** The point's title as the page that linked here wrote it — display and prompt only. */
+      knowledgePointTitle?: string;
+    }
   | { kind: 'programming'; language: string; label: string };
 
 export function scopeKey(scope: AiScope): string {
@@ -74,7 +90,15 @@ export function scopeToChatBody(scope: AiScope) {
         knowledge_point_title: scope.knowledgePointTitle ?? '',
       };
     case 'course':
-      return { service_key: 'course_learning', course_id: scope.courseId, course: scope.courseId, subject_key: '', exam_subject: '', knowledge_point_id: '', knowledge_point_title: '' };
+      // A course turn can carry one of the learner's own knowledge points, the same way an exam
+      // turn carries a node of the published outline. Every other course entry point leaves both
+      // empty, and the server reads the empty string as "this turn is not about a point".
+      return {
+        service_key: 'course_learning', course_id: scope.courseId, course: scope.courseId,
+        subject_key: '', exam_subject: '',
+        knowledge_point_id: scope.knowledgePoint ?? '',
+        knowledge_point_title: scope.knowledgePointTitle ?? '',
+      };
     case 'programming':
       return { service_key: 'programming', course_id: '', course: '', subject_key: 'programming', exam_subject: '', knowledge_point_id: '', knowledge_point_title: '' };
   }

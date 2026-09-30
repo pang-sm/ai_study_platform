@@ -557,6 +557,51 @@ class KnowledgePoint(Base):
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
 
+class KnowledgePointStudyContent(Base):
+    """The explanation a learner read for ONE knowledge point, kept so it is not paid for twice.
+
+    WHY THIS IS STORED AND NOT REGENERATED
+    --------------------------------------
+    Generating an explanation costs the learner real credits and takes tens of seconds, and
+    the answer for a given point does not change between two visits. Without a row here,
+    stepping away from 学习 and back — or simply reloading — would buy the same explanation
+    again, which is the one behaviour that makes a learning page untrustworthy.
+
+    It is CONTENT, not a learning fact: nothing here records that the learner understood
+    anything, and reading it moves no status. The four-state progress a learner sets by hand
+    lives in ``user_knowledge_progress``, and this table is deliberately not a second copy
+    of it.
+
+    Scope is the point itself. ``knowledge_point_id`` is permanent and belongs to exactly one
+    learner and one structure version, so a new version's points are new ids and a
+    regenerated structure never reads a superseded point's explanation as its own.
+    """
+
+    __tablename__ = "knowledge_point_study_content"
+    __table_args__ = (
+        # One explanation per point. A regenerate replaces this row rather than appending —
+        # there is no version history to keep here, and a page that had to choose between
+        # several would be showing the learner a decision the product has no basis to make.
+        Index("idx_kp_study_content_point", "username", "knowledge_point_id", unique=True),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    course_id = Column(String(100), index=True, nullable=False)
+    knowledge_point_id = Column(Integer, index=True, nullable=False)
+    # The structure version the point belonged to when this was generated. Provenance only.
+    structure_id = Column(Integer, nullable=True)
+    content = Column(Text, nullable=False)
+    # The files whose passages grounded this explanation, as JSON [{filename, snippet}].
+    # Empty when nothing grounded it — the explanation then came from the model alone, and
+    # the page must not invent a citation to fill the space.
+    citations_json = Column(Text, nullable=True)
+    # selected_materials | ai_generated | none — which pool the grounding came from.
+    grounding_mode = Column(String(30), nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
 class UserKnowledgeProgress(Base):
     __tablename__ = "user_knowledge_progress"
 

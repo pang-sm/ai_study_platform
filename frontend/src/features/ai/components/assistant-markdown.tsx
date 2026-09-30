@@ -18,6 +18,17 @@ export function AssistantMarkdown({ content }: { content: string }) {
         return <CodeBlock language={language} text={String(children).replace(/\n$/, '')} />;
       },
       a: ({ children, ...props }) => <a className="underline" target="_blank" rel="noreferrer" {...props}>{children}</a>,
+      // Headings are styled here rather than left to the browser, whose defaults the CSS reset
+      // removes — an answer with sections in it would otherwise read as one flat paragraph, on
+      // the chat and on 学习 alike. The sizes are the product's own scale, not new ones.
+      h1: ({ children }) => <h2 className="mt-6 mb-2 text-card-title font-semibold text-text-primary first:mt-0">{children}</h2>,
+      h2: ({ children }) => <h3 className="mt-6 mb-2 text-card-title font-semibold text-text-primary first:mt-0">{children}</h3>,
+      h3: ({ children }) => <h4 className="mt-5 mb-1.5 text-body font-semibold text-text-primary first:mt-0">{children}</h4>,
+      h4: ({ children }) => <h5 className="mt-5 mb-1.5 text-body font-semibold text-text-primary first:mt-0">{children}</h5>,
+      ul: ({ children }) => <ul className="my-3 list-disc space-y-1 pl-5">{children}</ul>,
+      ol: ({ children }) => <ol className="my-3 list-decimal space-y-1 pl-5">{children}</ol>,
+      p: ({ children }) => <p className="my-3 first:mt-0 last:mb-0">{children}</p>,
+      hr: () => <hr className="my-6 border-border-default" />,
       table: ({ children }) => <div className="my-4 overflow-x-auto"><table className="w-full border-collapse border border-border-default text-left text-sm">{children}</table></div>,
       th: ({ children }) => <th className="border border-border-default bg-page-background px-3 py-2 font-medium text-text-primary">{children}</th>,
       td: ({ children }) => <td className="border border-border-default px-3 py-2 align-top">{children}</td>,

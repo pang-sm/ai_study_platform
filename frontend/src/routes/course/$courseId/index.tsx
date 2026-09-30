@@ -10,6 +10,9 @@ import { createFileRoute, redirect } from '@tanstack/react-router';
  */
 export const Route = createFileRoute('/course/$courseId/')({
   beforeLoad: ({ params }) => {
-    throw redirect({ to: '/course/$courseId/ask', params: { courseId: params.courseId } });
+    // `search` is stated even though 课程问答 takes no parameters of its own: the route declares
+    // a search schema (the knowledge point 学习 can hand it), so the router asks the redirect to
+    // say what the empty case is rather than assume it.
+    throw redirect({ to: '/course/$courseId/ask', params: { courseId: params.courseId }, search: {} });
   },
 });
