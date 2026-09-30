@@ -18869,6 +18869,26 @@ def generate_tasks_from_diagnosis(req: schemas.GenerateTasksFromDiagnosisRequest
 # ── Knowledge Points ──────────────────────────────────────────────
 
 
+def _knowledge_point_version_filter(db: Session, username: str, course_id: str):
+    """The ONE structure a reader sees: the learner's ACTIVE version, or the legacy points.
+
+    A learner's knowledge structure is versioned, and a draft is not what they are
+    studying from — so a reader that ignored the version would show generated-but-unconfirmed
+    points as if they were the course, and a superseded version's points as if they were
+    still current. Both are wrong in a way the learner cannot see or correct.
+
+    ``structure_id IS NULL`` is the pre-versioning shape: points written before versions
+    existed belong to the learner's structure that was never given a version row. They are
+    read as active, which is what they were.
+    """
+    from learning.spaces.course_learning import knowledge_structure as structure_service
+
+    active = structure_service.active_structure(db, username, course_id)
+    if active is not None:
+        return models.KnowledgePoint.structure_id == active.id
+    return models.KnowledgePoint.structure_id.is_(None)
+
+
 @app.get("/knowledge-points")
 def list_knowledge_points(
     username: str = "",
@@ -18887,6 +18907,7 @@ def list_knowledge_points(
         .filter(
             models.KnowledgePoint.username == user.username,
             models.KnowledgePoint.course_id == normalized_course,
+            _knowledge_point_version_filter(db, user.username, normalized_course),
         )
         .order_by(models.KnowledgePoint.order_index, models.KnowledgePoint.id)
         .all()
@@ -19535,6 +19556,7 @@ def _append_user_generated_course_points(raw_chapters: list[dict], username: str
     points = db.query(models.KnowledgePoint).filter(
         models.KnowledgePoint.username == username,
         models.KnowledgePoint.course_id == course_id,
+        _knowledge_point_version_filter(db, username, course_id),
     ).order_by(models.KnowledgePoint.order_index.asc(), models.KnowledgePoint.id.asc()).all()
     if not points:
         return raw_chapters
@@ -25206,81 +25228,6 @@ def _normalize_generated_path(data: dict, subject: str, material_ids: list[int])
     }
 
 
-def _replace_material_learning_points(db: Session, username: str, subject: str, modules: list[dict]):
-    existing_points = (
-        db.query(models.KnowledgePoint)
-        .filter(
-            models.KnowledgePoint.username == username,
-            models.KnowledgePoint.course_id == subject,
-        )
-        .all()
-    )
-    existing_ids = [p.id for p in existing_points]
-    if existing_ids:
-        db.query(models.UserKnowledgeProgress).filter(
-            models.UserKnowledgeProgress.username == username,
-            models.UserKnowledgeProgress.knowledge_point_id.in_(existing_ids),
-        ).delete(synchronize_session=False)
-        db.query(models.MaterialKnowledgeLink).filter(
-            models.MaterialKnowledgeLink.username == username,
-            models.MaterialKnowledgeLink.course_id == subject,
-            models.MaterialKnowledgeLink.knowledge_point_id.in_(existing_ids),
-        ).delete(synchronize_session=False)
-        db.query(models.KnowledgePoint).filter(
-            models.KnowledgePoint.username == username,
-            models.KnowledgePoint.id.in_(existing_ids),
-        ).delete(synchronize_session=False)
-        db.flush()
-
-    created = []
-    for module_index, module in enumerate(modules):
-        parent = models.KnowledgePoint(
-            username=username,
-            course_id=subject,
-            parent_id=None,
-            title=module["title"][:255],
-            description=(module.get("description") or "")[:255],
-            order_index=module_index,
-            level=1,
-        )
-        db.add(parent)
-        db.flush()
-        db.add(models.UserKnowledgeProgress(
-            username=username,
-            course_id=subject,
-            knowledge_point_id=parent.id,
-            mastery_score=0,
-            status="not_started",
-            practice_count=0,
-            task_count=0,
-        ))
-        created.append(parent)
-
-        for point_index, point in enumerate(module.get("knowledge_points") or []):
-            child = models.KnowledgePoint(
-                username=username,
-                course_id=subject,
-                parent_id=parent.id,
-                title=point["title"][:255],
-                description=(point.get("description") or "")[:255],
-                order_index=point_index,
-                level=2,
-            )
-            db.add(child)
-            db.flush()
-            db.add(models.UserKnowledgeProgress(
-                username=username,
-                course_id=subject,
-                knowledge_point_id=child.id,
-                mastery_score=0,
-                status="not_started",
-                practice_count=0,
-                task_count=0,
-            ))
-            created.append(child)
-    return created
-
-
 @app.post("/knowledge-path/generate-from-materials")
 def generate_knowledge_path_from_materials(
     req: schemas.KnowledgePathGenerateFromMaterialsRequest,
@@ -25411,7 +25358,30 @@ def generate_knowledge_path_from_materials(
     except (json.JSONDecodeError, ValueError, KeyError) as exc:
         raise HTTPException(status_code=500, detail=f"AI 生成结果解析失败，请重试：{str(exc)}")
 
-    created_points = _replace_material_learning_points(db, user.username, subject, path_data["modules"])
+    # A generation is a PROPOSAL. It becomes the structure the learner studies from only
+    # when they confirm it, so this writes a draft version and leaves the active one — and
+    # every progress row, wrong-answer link and review schedule attached to its points —
+    # exactly where it was. This route used to delete the previous tree in place.
+    from learning.spaces.course_learning import knowledge_structure as structure_service
+    try:
+        structure = structure_service.create_draft(
+            db, user, subject,
+            source_mode=structure_service.SOURCE_MODE_SELECTED_MATERIALS,
+            chapters=[{"title": module.get("title") or "",
+                       "description": module.get("description") or "",
+                       "points": [{"title": point.get("title") or "",
+                                   "description": point.get("description") or "",
+                                   "source_hint": point.get("source_hint") or ""}
+                                  for point in module.get("knowledge_points") or []]}
+                      for module in path_data["modules"]],
+            source_file_ids=material_ids, title=path_data["title"])
+    except structure_service.KnowledgeStructureError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+    created_points = db.query(models.KnowledgePoint).filter(
+        models.KnowledgePoint.username == user.username,
+        models.KnowledgePoint.structure_id == structure.id,
+        models.KnowledgePoint.parent_id.isnot(None),
+    ).all()
 
     existing_path = (
         db.query(models.UserLearningPath)

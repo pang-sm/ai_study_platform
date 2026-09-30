@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils';
 import { ApiRequestError } from '@/features/exam/api/content-status';
 import { enumText } from '@/lib/learner-safe';
 import { eventTypeLabel, serviceNamespaceLabel } from '@/features/records/event-labels';
-import { MATERIAL_UPLOAD_ACCEPT, materialUploadErrorMessage, useCourseKnowledge, useCourseKnowledgeMap, useCourseMaterials, useCourseMaterialUpload, useCoursePractice, useCoursePracticeAction, useCoursePracticeHistory, useCourseRecords, useCourseRecordsSummary, useCourseState, useCourseTodayPlan, useCourseWrongAnswers } from '@/features/course/api/course';
+import { MATERIAL_UPLOAD_ACCEPT, materialUploadErrorMessage, useCourseKnowledge, useCourseMaterials, useCourseMaterialUpload, useCoursePractice, useCoursePracticeAction, useCoursePracticeHistory, useCourseRecords, useCourseRecordsSummary, useCourseState, useCourseTodayPlan, useCourseWrongAnswers } from '@/features/course/api/course';
 import { CoursePageShell } from './course-page-shell';
 import { ScopedAiChatWorkspace } from '@/features/ai/components/ai-chat-page';
 import { StrongReasoningSurface } from '@/components/learning/advanced-learning-surfaces';
@@ -394,9 +394,14 @@ export function CourseMaterialsPage({ courseId }: { courseId: string }) {
 /* ------------------------------------------------------------------ knowledge + study */
 
 function KnowledgePointList({ value }: { value: unknown }) {
-  const points = list(value);
+  // `/knowledge-points` answers with `knowledge_points`, not `items` — a reader that only knew
+  // the generic keys saw an empty list for every course, including ones whose structure was
+  // fully populated on the server.
+  const points = isRecord(value) && Array.isArray(value.knowledge_points)
+    ? value.knowledge_points
+    : list(value);
   if (!points.length) {
-    return <EmptyState title="暂无知识点。" description="知识点由课程内容解析产生；先确认这门课程已导入资料。" />;
+    return <EmptyState title="还没有知识结构" description="在「知识结构」里从资料生成，或让 AI 根据这门课程生成。" />;
   }
   return (
     <ul className="border-t border-border-default">
@@ -415,52 +420,6 @@ function KnowledgePointList({ value }: { value: unknown }) {
         );
       })}
     </ul>
-  );
-}
-
-export function CourseKnowledgePage({ courseId }: { courseId: string }) {
-  const points = useCourseKnowledge(courseId);
-  const map = useCourseKnowledgeMap(courseId);
-  const count = list(points.data).length;
-
-  return (
-    <CoursePageShell
-      courseId={courseId}
-      active="knowledge"
-      facts={[
-        { label: '知识点', value: points.isPending ? '正在读取…' : `${count} 个` },
-      ]}
-    >
-      <PageHeader
-        title="知识点与脉络"
-        description="知识点与图谱都只属于当前课程；顺序与依赖按已记录的先后展示。"
-      />
-
-      {points.isPending ? (
-        <LoadingState label="正在读取知识点…" className="mt-8" />
-      ) : points.isError ? (
-        <Failure title="知识结构暂时无法加载。" error={points.error} retry={() => void points.refetch()} />
-      ) : (
-        <Section title="知识点">
-          <KnowledgePointList value={points.data} />
-        </Section>
-      )}
-
-      <Section title="知识图谱" description="图谱是知识点之间记录的关联关系。">
-        {map.isPending ? <LoadingState label="正在读取知识图谱…" rows={2} /> : null}
-        {map.isError ? <Failure title="知识图谱暂时无法加载。" error={map.error} retry={() => void map.refetch()} /> : null}
-        {!map.isPending && !map.isError && map.data !== undefined ? (
-          <FactList value={map.data} columns={2} allow={['total_points', 'chapter', 'chapter_title']} />
-        ) : null}
-      </Section>
-
-      <NextStep
-        label="开始知识点学习"
-        description="带着资料与知识点进入学习工作区，读完后直接进入练习。"
-        to="/course/$courseId/study"
-        params={{ courseId }}
-      />
-    </CoursePageShell>
   );
 }
 

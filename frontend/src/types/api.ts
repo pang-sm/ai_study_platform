@@ -857,6 +857,143 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/course-learning/courses/{course_id}/knowledge-structure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Course Knowledge Structure
+         * @description The active structure, the draft (if one is waiting), and the tree to display.
+         *
+         *     When a draft exists the tree shown IS the draft: it is the question the learner is
+         *     currently being asked, and rendering the active tree beside it would answer a question
+         *     they are no longer on.
+         */
+        get: operations["get_course_knowledge_structure_course_learning_courses__course_id__knowledge_structure_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/course-learning/courses/{course_id}/knowledge-structure/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Course Knowledge Structure
+         * @description Generate a DRAFT from the learner's own files, or from the course itself.
+         *
+         *     Nothing here becomes the structure the learner studies from: that only happens when
+         *     they confirm it. A generation that overwrote the active structure would delete the
+         *     points their progress, wrong answers and review schedule are attached to — which is
+         *     precisely what this route exists to stop doing.
+         */
+        post: operations["generate_course_knowledge_structure_course_learning_courses__course_id__knowledge_structure_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/course-learning/courses/{course_id}/knowledge-structure/{structure_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Course Knowledge Structure
+         * @description Make this draft the structure the learner studies from.
+         *
+         *     The previous version is superseded, not deleted, and progress on topics that survive
+         *     the change is copied forward — see the service module for why both halves are needed.
+         */
+        post: operations["confirm_course_knowledge_structure_course_learning_courses__course_id__knowledge_structure__structure_id__confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/course-learning/courses/{course_id}/knowledge-structure/{structure_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Discard Course Knowledge Structure
+         * @description Discard a DRAFT and the points generated with it.
+         *
+         *     A draft has never been studied from, so no progress row can reference its points. An
+         *     active or superseded version is refused here rather than deleted: the learner's record
+         *     lives on its points.
+         */
+        delete: operations["discard_course_knowledge_structure_course_learning_courses__course_id__knowledge_structure__structure_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/course-learning/courses/{course_id}/knowledge-structure/{structure_id}/points": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Course Knowledge Structure Point */
+        post: operations["add_course_knowledge_structure_point_course_learning_courses__course_id__knowledge_structure__structure_id__points_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/course-learning/courses/{course_id}/knowledge-structure/{structure_id}/points/{point_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Course Knowledge Structure Point */
+        delete: operations["delete_course_knowledge_structure_point_course_learning_courses__course_id__knowledge_structure__structure_id__points__point_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit Course Knowledge Structure Point
+         * @description Rename a point, move it to another chapter, or both — drafts only.
+         *
+         *     Both edits exist because a generated structure is a proposal, and a proposal the
+         *     learner cannot correct is a black box with a button on it.
+         */
+        patch: operations["edit_course_knowledge_structure_point_course_learning_courses__course_id__knowledge_structure__structure_id__points__point_id__patch"];
+        trace?: never;
+    };
     "/programming/records": {
         parameters: {
             query?: never;
@@ -11766,6 +11903,186 @@ export interface components {
             status?: string | null;
         };
         /**
+         * KnowledgeStructureCarryOver
+         * @description What confirming the draft would do to the learner's progress, before they do it.
+         */
+        KnowledgeStructureCarryOver: {
+            /** Available */
+            available: boolean;
+            /**
+             * Has Progress
+             * @default false
+             */
+            has_progress: boolean;
+            /**
+             * Progressed Points
+             * @default 0
+             */
+            progressed_points: number;
+            /**
+             * Matched Progressed Points
+             * @default 0
+             */
+            matched_progressed_points: number;
+            /**
+             * Unmatched Progressed Points
+             * @default 0
+             */
+            unmatched_progressed_points: number;
+            /**
+             * Active Point Count
+             * @default 0
+             */
+            active_point_count: number;
+            /**
+             * Draft Point Count
+             * @default 0
+             */
+            draft_point_count: number;
+            /**
+             * Matched Point Count
+             * @default 0
+             */
+            matched_point_count: number;
+            /**
+             * Unmatched Active Points
+             * @default 0
+             */
+            unmatched_active_points: number;
+        };
+        /** KnowledgeStructureChapterView */
+        KnowledgeStructureChapterView: {
+            /** Id */
+            id?: number | null;
+            /** Title */
+            title: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Points */
+            points: components["schemas"]["KnowledgeStructurePointView"][];
+        };
+        /** KnowledgeStructureConfirmResponse */
+        KnowledgeStructureConfirmResponse: {
+            structure: components["schemas"]["KnowledgeStructureMeta"];
+            /**
+             * Carried Points
+             * @default 0
+             */
+            carried_points: number;
+            /**
+             * Kept On Previous Version
+             * @default 0
+             */
+            kept_on_previous_version: number;
+        };
+        /**
+         * KnowledgeStructureGenerateRequest
+         * @description How to build a structure — never WHO or WHICH course; the path and session decide those.
+         */
+        KnowledgeStructureGenerateRequest: {
+            /**
+             * Source Mode
+             * @enum {string}
+             */
+            source_mode: "selected_materials" | "ai_generated";
+            /** Material Ids */
+            material_ids?: number[];
+            /**
+             * Goal
+             * @default
+             */
+            goal: string;
+            /**
+             * Requirement
+             * @default
+             */
+            requirement: string;
+        };
+        /** KnowledgeStructureMeta */
+        KnowledgeStructureMeta: {
+            /** Id */
+            id: number;
+            /** Version */
+            version: number;
+            /** Status */
+            status: string;
+            /** Source Mode */
+            source_mode: string;
+            /** Source File Ids */
+            source_file_ids?: number[];
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /**
+             * Goal
+             * @default
+             */
+            goal: string;
+            /**
+             * Point Count
+             * @default 0
+             */
+            point_count: number;
+            /**
+             * Chapter Count
+             * @default 0
+             */
+            chapter_count: number;
+            /** Created At */
+            created_at?: string | null;
+            /** Confirmed At */
+            confirmed_at?: string | null;
+        };
+        /** KnowledgeStructurePointCreate */
+        KnowledgeStructurePointCreate: {
+            /** Chapter Id */
+            chapter_id: number;
+            /** Title */
+            title: string;
+        };
+        /** KnowledgeStructurePointPatch */
+        KnowledgeStructurePointPatch: {
+            /** Title */
+            title?: string | null;
+            /** Chapter Id */
+            chapter_id?: number | null;
+        };
+        /**
+         * KnowledgeStructurePointView
+         * @description One knowledge point. ``origin`` is internal provenance — the client needs it to
+         *     render 来自资料 / AI 补充 honestly, and it is not a learner-facing enum by itself.
+         */
+        KnowledgeStructurePointView: {
+            /** Id */
+            id: number;
+            /** Title */
+            title: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Origin */
+            origin: string;
+        };
+        /** KnowledgeStructureResponse */
+        KnowledgeStructureResponse: {
+            /** Course Id */
+            course_id: string;
+            /** Display */
+            display: string;
+            active?: components["schemas"]["KnowledgeStructureMeta"] | null;
+            draft?: components["schemas"]["KnowledgeStructureMeta"] | null;
+            /** Chapters */
+            chapters: components["schemas"]["KnowledgeStructureChapterView"][];
+            carry_over?: components["schemas"]["KnowledgeStructureCarryOver"] | null;
+        };
+        /**
          * KtDatasetAuditResponse
          * @description The future training dataset's contract health. Carries NO rows and no learner data.
          *
@@ -16396,6 +16713,240 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CourseTodayPlanResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_course_knowledge_structure_course_learning_courses__course_id__knowledge_structure_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                course_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeStructureResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_course_knowledge_structure_course_learning_courses__course_id__knowledge_structure_generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                course_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KnowledgeStructureGenerateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeStructureResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_course_knowledge_structure_course_learning_courses__course_id__knowledge_structure__structure_id__confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                course_id: string;
+                structure_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeStructureConfirmResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    discard_course_knowledge_structure_course_learning_courses__course_id__knowledge_structure__structure_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                course_id: string;
+                structure_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_course_knowledge_structure_point_course_learning_courses__course_id__knowledge_structure__structure_id__points_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                course_id: string;
+                structure_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KnowledgeStructurePointCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeStructureMeta"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_course_knowledge_structure_point_course_learning_courses__course_id__knowledge_structure__structure_id__points__point_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                course_id: string;
+                structure_id: number;
+                point_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeStructureMeta"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_course_knowledge_structure_point_course_learning_courses__course_id__knowledge_structure__structure_id__points__point_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                course_id: string;
+                structure_id: number;
+                point_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KnowledgeStructurePointPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeStructureMeta"];
                 };
             };
             /** @description Validation Error */

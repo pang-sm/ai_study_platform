@@ -48,7 +48,7 @@ RUNTIME_PYTHON = Path(r"D:\ZhixueAI\envs\runtime-service\Scripts\python.exe")
 RUNTIME_SERVICE_ROOT = REPO_ROOT / "scientific_runtime_service"
 
 DEPLOY_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "deploy.yml"
-EXPECTED_HEAD = "20260923_0015"
+EXPECTED_HEAD = "20260923_0016"
 
 # Tables the rehearsal seeds with its own sentinel rows and requires to survive the upgrade.
 REHEARSAL_SEED_TABLES = ("exam_question_bank", "programming_exercises", "knowledge_points")

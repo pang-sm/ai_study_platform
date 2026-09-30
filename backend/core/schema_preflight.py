@@ -71,6 +71,10 @@ REQUIRED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("practice_attempts", "attempt_index", "20260919_0010"),
     ("learning_events", "response_time_source", "20260919_0010"),
     ("learning_events", "attempt_index", "20260919_0010"),
+    # Deliberately NOT listed: any column of a table this chain does not create. A fresh
+    # alembic-only database has no ``knowledge_points`` at all — ``create_all`` builds it,
+    # with every column the ORM declares, right after this check. Naming one here would
+    # make a legitimate fresh install refuse to start.
 )
 
 # The tables whose presence means "this database is part of the product's lifecycle".

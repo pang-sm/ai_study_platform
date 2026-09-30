@@ -330,7 +330,7 @@ def test_the_migration_chain_reaches_a_single_head_on_a_fresh_database(tmp_path)
     con = sqlite3.connect(f"file:{fresh.as_posix()}?mode=ro", uri=True)
     try:
         revision = con.execute("select version_num from alembic_version").fetchone()[0]
-        assert revision == "20260923_0015"
+        assert revision == "20260923_0016"
         columns = {row[1] for row in con.execute("PRAGMA table_info(practice_attempts)")}
         assert {"response_time_source", "attempt_index"} <= columns
         # the tables S9 relies on exist, and no hint column was invented for a model's sake
@@ -348,7 +348,7 @@ def test_there_is_exactly_one_alembic_head():
     assert result.returncode == 0, result.stderr[-1000:]
     heads = [line for line in result.stdout.splitlines() if line.strip()]
     assert len(heads) == 1, result.stdout
-    assert heads[0].startswith("20260923_0015")
+    assert heads[0].startswith("20260923_0016")
 
 
 def test_s9_added_no_migration_of_its_own():

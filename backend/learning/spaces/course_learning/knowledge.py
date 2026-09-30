@@ -298,13 +298,21 @@ MUTATION_PATHS = (
      "note": "deterministic review-due scheduling recompute, not a learning transition; "
              "Review Core is a later STEP (§36)"},
     {"path": "POST /knowledge-path/generate-from-materials", "space": "course_learning",
-     "status": "CONTENT_REPLACEMENT_NO_EVENT",
-     "note": "regenerating the course knowledge tree from materials REPLACES the previous "
-             "tree for that course: the replaced points' progress rows are removed with "
-             "their points, and the new points start at the zero state (mastery_score=0, "
-             "status=not_started). This is content replacement, not a learner transition, "
-             "so it does not call the writer and emits no knowledge_status_changed — there "
-             "is no surviving point whose status changed"},
+     "status": "DRAFT_GENERATION_NO_EVENT",
+     "note": "writes a DRAFT knowledge-structure version; the ACTIVE version and every "
+             "learner fact attached to its points are left untouched, so there is no "
+             "learner transition to emit. This path used to REPLACE the course's tree in "
+             "place (deleting the points and their progress rows); it now delegates to "
+             "knowledge_structure.create_draft, which is why its status changed"},
+    {"path": "POST /course-learning/courses/{course_id}/knowledge-structure/generate",
+     "space": "course_learning", "status": "DRAFT_GENERATION_NO_EVENT",
+     "note": "same rule as above: a generation is a proposal until the learner confirms it"},
+    {"path": "POST /course-learning/courses/{course_id}/knowledge-structure/{id}/confirm",
+     "space": "course_learning", "status": "STRUCTURE_SWITCH_NO_EVENT",
+     "note": "switches which VERSION is active and copies surviving progress forward. It "
+             "is not a knowledge transition — no single point's status changed because of "
+             "an answer — so it emits no knowledge_status_changed. The superseded version "
+             "and its progress rows are kept, never deleted"},
     {"path": "PATCH /course-progress", "space": "course_learning",
      "status": "SEPARATE_LEGACY_STATE",
      "note": "writes the legacy CourseProgress table (course-level completion), which is "
@@ -328,8 +336,15 @@ def course_mutation_paths() -> list[dict]:
 
 
 # Statuses that are a DECLARED, audited answer — not a silent bypass.
+#
+# DRAFT_GENERATION_NO_EVENT and STRUCTURE_SWITCH_NO_EVENT are the two the versioned
+# knowledge structure added. Neither is a learner transition: generating a draft changes
+# no status on any point the learner is working in, and confirming a draft changes WHICH
+# structure is active rather than what any point's status is. Both leave the superseded
+# version and its progress rows in place, so there is nothing to emit and nothing to lose.
 _DECLARED_STATUSES = ("CANONICAL_WRITER", "SYSTEM_DERIVED_NO_EVENT",
-                      "CONTENT_REPLACEMENT_NO_EVENT")
+                      "CONTENT_REPLACEMENT_NO_EVENT",
+                      "DRAFT_GENERATION_NO_EVENT", "STRUCTURE_SWITCH_NO_EVENT")
 
 
 def course_paths_not_consolidated() -> list[dict]:

@@ -42,6 +42,7 @@ Every handler is scoped to the caller's identity from the session cookie.
 """
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
 from fastapi import (APIRouter, BackgroundTasks, Depends, File, HTTPException, Query,
@@ -823,3 +824,261 @@ def get_course_today_plan(course_id: str, db: Session = Depends(get_db),
     """
     key = _owned_course(db, current_user, course_id)
     return course_service.course_today_plan(db, current_user, key)
+
+
+# ---------------------------------------------------------------- knowledge structure
+#
+# The learner's OWN structure for THIS course: which version they study from, the draft a
+# generation produced, and the confirm that switches between them. The service module owns
+# every rule (versioning, progress carry-over, provenance); these handlers own identity —
+# the course comes from the path and the caller from the session, never from the body.
+#
+# No response here carries a mastery probability, a readiness score or a model judgement.
+# ``mastery_score`` exists elsewhere in the course space as a deterministic point counter,
+# and this surface does not read it: the knowledge-structure page shows which points EXIST
+# and where they came from, not how well anyone knows them.
+
+
+class KnowledgeStructurePointView(BaseModel):
+    """One knowledge point. ``origin`` is internal provenance — the client needs it to
+    render 来自资料 / AI 补充 honestly, and it is not a learner-facing enum by itself."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: int
+    title: str
+    description: str = ""
+    origin: str
+
+
+class KnowledgeStructureChapterView(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: int | None = None
+    title: str
+    description: str = ""
+    points: list[KnowledgeStructurePointView]
+
+
+class KnowledgeStructureMeta(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: int
+    version: int
+    status: str
+    source_mode: str
+    source_file_ids: list[int] = Field(default_factory=list)
+    title: str = ""
+    goal: str = ""
+    point_count: int = 0
+    chapter_count: int = 0
+    created_at: datetime | None = None
+    confirmed_at: datetime | None = None
+
+
+class KnowledgeStructureCarryOver(BaseModel):
+    """What confirming the draft would do to the learner's progress, before they do it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    available: bool
+    has_progress: bool = False
+    progressed_points: int = 0
+    # Of the points the learner has a RECORD on, how many exist in the draft. This is the
+    # honest answer to "will I lose anything?", so it is the one the page states.
+    matched_progressed_points: int = 0
+    unmatched_progressed_points: int = 0
+    active_point_count: int = 0
+    draft_point_count: int = 0
+    matched_point_count: int = 0
+    unmatched_active_points: int = 0
+
+
+class KnowledgeStructureResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    course_id: str
+    # draft | active | none — which of the two the ``chapters`` below are.
+    display: str
+    active: KnowledgeStructureMeta | None = None
+    draft: KnowledgeStructureMeta | None = None
+    chapters: list[KnowledgeStructureChapterView]
+    carry_over: KnowledgeStructureCarryOver | None = None
+
+
+class KnowledgeStructureGenerateRequest(BaseModel):
+    """How to build a structure — never WHO or WHICH course; the path and session decide those."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_mode: Literal["selected_materials", "ai_generated"]
+    material_ids: list[int] = Field(default_factory=list)
+    goal: str = ""
+    requirement: str = ""
+
+
+class KnowledgeStructureConfirmResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    structure: KnowledgeStructureMeta
+    carried_points: int = 0
+    kept_on_previous_version: int = 0
+
+
+class KnowledgeStructurePointPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str | None = None
+    chapter_id: int | None = None
+
+
+class KnowledgeStructurePointCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    chapter_id: int
+    title: str
+
+
+def _structure_service():
+    from learning.spaces.course_learning import knowledge_structure
+    return knowledge_structure
+
+
+def _run_structure(action, *args, **kwargs):
+    """One place that turns the module's own errors into HTTP, so no handler re-decides it."""
+    service = _structure_service()
+    try:
+        return action(*args, **kwargs)
+    except service.KnowledgeStructureError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get("/{course_id}/knowledge-structure", response_model=KnowledgeStructureResponse)
+def get_course_knowledge_structure(course_id: str, db: Session = Depends(get_db),
+                                   current_user=Depends(_require_user)):
+    """The active structure, the draft (if one is waiting), and the tree to display.
+
+    When a draft exists the tree shown IS the draft: it is the question the learner is
+    currently being asked, and rendering the active tree beside it would answer a question
+    they are no longer on.
+    """
+    key = _owned_course(db, current_user, course_id)
+    return _run_structure(_structure_service().describe, db, current_user.username, key)
+
+
+@router.post("/{course_id}/knowledge-structure/generate",
+             response_model=KnowledgeStructureResponse)
+def generate_course_knowledge_structure(course_id: str,
+                                        payload: KnowledgeStructureGenerateRequest,
+                                        db: Session = Depends(get_db),
+                                        current_user=Depends(_require_user)):
+    """Generate a DRAFT from the learner's own files, or from the course itself.
+
+    Nothing here becomes the structure the learner studies from: that only happens when
+    they confirm it. A generation that overwrote the active structure would delete the
+    points their progress, wrong answers and review schedule are attached to — which is
+    precisely what this route exists to stop doing.
+    """
+    service = _structure_service()
+    key = _owned_course(db, current_user, course_id)
+
+    if payload.source_mode == "selected_materials":
+        material_ids: list[int] = []
+        for raw in payload.material_ids or []:
+            if isinstance(raw, int) and raw > 0 and raw not in material_ids:
+                material_ids.append(raw)
+        if not material_ids:
+            raise HTTPException(status_code=400, detail="请至少选择 1 个资料。")
+        chapters = _run_structure(service.generate_from_materials,
+                                  db, current_user, key, material_ids)
+        title = f"来自 {len(material_ids)} 份资料的知识结构"
+    else:
+        material_ids = []
+        chapters = _run_structure(service.generate_from_ai,
+                                  db, current_user, key, payload.goal, payload.requirement)
+        title = f"{key} · AI 生成的知识结构"
+
+    _run_structure(service.create_draft, db, current_user, key,
+                   source_mode=payload.source_mode, chapters=chapters,
+                   source_file_ids=material_ids, title=title, goal=payload.goal)
+    return _run_structure(service.describe, db, current_user.username, key)
+
+
+@router.post("/{course_id}/knowledge-structure/{structure_id}/confirm",
+             response_model=KnowledgeStructureConfirmResponse)
+def confirm_course_knowledge_structure(course_id: str, structure_id: int,
+                                       db: Session = Depends(get_db),
+                                       current_user=Depends(_require_user)):
+    """Make this draft the structure the learner studies from.
+
+    The previous version is superseded, not deleted, and progress on topics that survive
+    the change is copied forward — see the service module for why both halves are needed.
+    """
+    service = _structure_service()
+    key = _owned_course(db, current_user, course_id)
+    result = _run_structure(service.confirm, db, current_user, key, structure_id)
+    carry = result.get("progress_carried") or {}
+    return {"structure": result["structure"],
+            "carried_points": carry.get("carried", 0),
+            "kept_on_previous_version": carry.get("kept_on_previous_version", 0)}
+
+
+@router.delete("/{course_id}/knowledge-structure/{structure_id}", status_code=204)
+def discard_course_knowledge_structure(course_id: str, structure_id: int,
+                                       db: Session = Depends(get_db),
+                                       current_user=Depends(_require_user)):
+    """Discard a DRAFT and the points generated with it.
+
+    A draft has never been studied from, so no progress row can reference its points. An
+    active or superseded version is refused here rather than deleted: the learner's record
+    lives on its points.
+    """
+    key = _owned_course(db, current_user, course_id)
+    _run_structure(_structure_service().discard_draft, db, current_user, key, structure_id)
+    return None
+
+
+@router.post("/{course_id}/knowledge-structure/{structure_id}/points",
+             response_model=KnowledgeStructureMeta, status_code=201)
+def add_course_knowledge_structure_point(course_id: str, structure_id: int,
+                                         payload: KnowledgeStructurePointCreate,
+                                         db: Session = Depends(get_db),
+                                         current_user=Depends(_require_user)):
+    key = _owned_course(db, current_user, course_id)
+    return _run_structure(_structure_service().add_point, db, current_user, key,
+                          structure_id, payload.chapter_id, payload.title)
+
+
+@router.patch("/{course_id}/knowledge-structure/{structure_id}/points/{point_id}",
+              response_model=KnowledgeStructureMeta)
+def edit_course_knowledge_structure_point(course_id: str, structure_id: int, point_id: int,
+                                          payload: KnowledgeStructurePointPatch,
+                                          db: Session = Depends(get_db),
+                                          current_user=Depends(_require_user)):
+    """Rename a point, move it to another chapter, or both — drafts only.
+
+    Both edits exist because a generated structure is a proposal, and a proposal the
+    learner cannot correct is a black box with a button on it.
+    """
+    service = _structure_service()
+    key = _owned_course(db, current_user, course_id)
+    structure = None
+    if payload.title is not None:
+        structure = _run_structure(service.rename_point, db, current_user, key,
+                                   structure_id, point_id, payload.title)
+    if payload.chapter_id is not None:
+        structure = _run_structure(service.move_point, db, current_user, key,
+                                   structure_id, point_id, payload.chapter_id)
+    if structure is None:
+        raise HTTPException(status_code=400, detail="没有需要修改的内容。")
+    return structure
+
+
+@router.delete("/{course_id}/knowledge-structure/{structure_id}/points/{point_id}",
+               response_model=KnowledgeStructureMeta)
+def delete_course_knowledge_structure_point(course_id: str, structure_id: int, point_id: int,
+                                            db: Session = Depends(get_db),
+                                            current_user=Depends(_require_user)):
+    key = _owned_course(db, current_user, course_id)
+    return _run_structure(_structure_service().delete_point, db, current_user, key,
+                          structure_id, point_id)

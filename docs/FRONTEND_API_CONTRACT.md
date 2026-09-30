@@ -229,7 +229,38 @@
 | DELETE | `/knowledge-points/{point_id}` | 删除知识点 |
 | GET | `/knowledge-points/{point_id}/progress-events` | 知识点进度事件 |
 | PUT | `/knowledge-points/{point_id}/progress` | 更新知识点进度 |
-| POST | `/knowledge-path/generate-from-materials` | 从资料生成学习路径 |
+| POST | `/knowledge-path/generate-from-materials` | 从资料生成知识结构**草稿**（语义已变更，见附录 `KNOWLEDGE_STRUCTURE_VERSIONS`） |
+
+`/knowledge-points` 现在只返回该用户 **ACTIVE 版本** 的知识点：草稿版本与已被替换的旧版本都不出现在
+这个读接口里（没有版本时按「无版本的 legacy 点」处理）。见附录 `KNOWLEDGE_STRUCTURE_VERSIONS`。
+
+### 4.5.1 用户级知识结构（course_learning，NEW）
+
+学习者自己的、按课程划分、可版本化的知识结构。归属为 **USER + COURSE**：同一门课的两个学习者可以有
+两份完全不同的结构，互不影响。所有端点都要求登录，并以 `{course_id}` 路径段 + 会话身份决定归属
+（调用者没有该课程时为 404）。
+
+| Method | Path | 用途 |
+|---|---|---|
+| GET | `/course-learning/courses/{course_id}/knowledge-structure` | 当前结构：active 版本、草稿版本（若有）与要展示的树 |
+| POST | `/course-learning/courses/{course_id}/knowledge-structure/generate` | 生成**草稿**：`selected_materials`（自己选的文件）或 `ai_generated`（无需资料） |
+| POST | `/course-learning/courses/{course_id}/knowledge-structure/{structure_id}/confirm` | 让这份草稿生效；旧版本标记为 superseded（不删除），可对应的学习进度前移 |
+| DELETE | `/course-learning/courses/{course_id}/knowledge-structure/{structure_id}` | 丢弃草稿（仅草稿；active / superseded 返回 409） |
+| POST | `/course-learning/courses/{course_id}/knowledge-structure/{structure_id}/points` | 在草稿的某个章节下新增知识点 |
+| PATCH | `/course-learning/courses/{course_id}/knowledge-structure/{structure_id}/points/{point_id}` | 改草稿中知识点名称（`title`）或调整章节归属（`chapter_id`） |
+| DELETE | `/course-learning/courses/{course_id}/knowledge-structure/{structure_id}/points/{point_id}` | 删除草稿中的知识点（非空章节返回 400） |
+
+关键语义：
+
+- **生成不生效**：`generate` 只写 draft。active 版本与其知识点、`user_knowledge_progress`、错题关联、
+  复习安排都不受影响。只有 `confirm` 才切换 active。
+- **来源可追溯**：`source_mode` = `selected_materials` \| `ai_generated`，`source_file_ids` 记录实际
+  选中的资料 id；每个知识点还带 `origin` = `source_extracted`（模型指明了来源文件且该文件确实被选中）
+  \| `ai_inferred`（模型自己补充的）。内部枚举不直接展示给学生。
+- **进度安全**：`confirm` 时按标题把可对应知识点的学习进度前移；无法对应的旧知识点进度**保留在原版本**，
+  不删除、不清零。`carry_over` 在确认前给出「有多少已学过的知识点能对上」。
+- **错误码**：400（未选资料 / 目标章节不存在等输入问题）、404（课程或草稿不存在）、409（对已生效版本做
+  编辑或删除、重复确认）。
 
 ### 4.6 学习记录 / 报告 / 计划
 | Method | Path | 用途 |
@@ -1087,3 +1118,39 @@ AI 阅卷的评分上限（`grade_big_answer(..., max_score=...)`，prompt 与�
 `replay_results` 用 `bool(raw.get("correct"))` 投影判定，把「未作答」的三态 `null`
 压成了 `false` —— 提交响应把未作答的选择题报成答错（错题本与计分用的是内部三态，未受影响）。
 现在 `null` 原样透出。
+
+---
+
+## KNOWLEDGE_STRUCTURE_VERSIONS：知识结构改为「用户级 + 可版本化」（行为变化）
+
+### 归属：`USER + COURSE`（一直如此，本次只是补上"版本"）
+
+知识结构本来就不是全局共享内容。`knowledge_points` 一直带 `username`，主索引是
+`(username, course_id, node_key)`，生成路径也只读写调用者自己的行——用户 A 给「数据结构」生成知识点
+不会影响用户 B。这次新增的不是作用域，而是**版本**。
+
+### `/course-learning/courses/{course_id}/knowledge-structure/generate` 只写草稿
+
+点击生成**不会**立即成为正式知识结构。后端写入一个 `draft` 版本
+（`user_knowledge_structures`，含 `version` / `status` / `source_mode` / `source_file_ids`），
+active 版本与其上的 `user_knowledge_progress`、错题关联、复习安排全部不动。只有
+`.../{structure_id}/confirm` 才让草稿成为 active。
+
+### `/knowledge-path/generate-from-materials` 不再是破坏性替换（BREAKING for clients that relied on it）
+
+此前该端点会 **删除** 该课程原有知识点，并连带删除它们的 `user_knowledge_progress`、
+`material_knowledge_links`——学会四个章节再换一本教材重新生成，进度会静默消失。现在它委托给同一套
+草稿流程：只写 draft，旧版本原样保留，返回体仍是原来的 `path` 形状并新增结构信息。
+
+- 原来依赖「调用后立即生效」的调用方：改为再调用 `confirm`（新前端只走新端点）。
+- 已存在的数据：迁移 `20260923_0016` 为每个 `(username, course_id)` 建一个 `active` 版本并挂上其
+  现有知识点，`origin` 回填为 `source_extracted`。没有删除任何行。
+
+### `/knowledge-points` 与 `/knowledge-map` 只读 active 版本
+
+`/knowledge-points` 增加版本过滤：只返回当前 active 版本（没有版本记录时按 legacy 无版本点处理），
+草稿与被替换的旧版本不再出现在课程任意读取面上。`/knowledge-map` 的「资料补充知识点」同样只取 active。
+
+### 未改动
+
+真题 / 题图 / `full_score` / OCR / 学习状态 UI / Student Twin 算法 / 会员 / deploy workflow 均未触碰。

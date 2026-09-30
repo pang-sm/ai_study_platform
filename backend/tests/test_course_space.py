@@ -230,14 +230,22 @@ def test_course_mutation_paths_are_consolidated():
     inventory = {row["path"]: row["status"] for row in course_knowledge.course_mutation_paths()}
     assert inventory["PATCH /knowledge-map/progress"] == "CANONICAL_WRITER"
     assert inventory["POST /practice/submit-result"] == "CANONICAL_WRITER"
-    # Regenerating the knowledge tree replaces content; it is declared, not hidden.
+    # Regenerating the knowledge tree writes a DRAFT version; it never replaces the active
+    # one in place, so it is declared, not hidden — and there is no learner transition to
+    # emit because the learner is not yet studying from what was generated.
     assert inventory["POST /knowledge-path/generate-from-materials"] \
-        == "CONTENT_REPLACEMENT_NO_EVENT"
+        == "DRAFT_GENERATION_NO_EVENT"
+    assert inventory["POST /course-learning/courses/{course_id}/knowledge-structure/generate"] \
+        == "DRAFT_GENERATION_NO_EVENT"
+    assert inventory[
+        "POST /course-learning/courses/{course_id}/knowledge-structure/{id}/confirm"] \
+        == "STRUCTURE_SWITCH_NO_EVENT"
 
 
 def test_every_course_knowledge_writer_is_declared():
     """A writer may only bypass the canonical writer under a declared status."""
-    allowed = {"CANONICAL_WRITER", "SYSTEM_DERIVED_NO_EVENT", "CONTENT_REPLACEMENT_NO_EVENT"}
+    allowed = {"CANONICAL_WRITER", "SYSTEM_DERIVED_NO_EVENT", "CONTENT_REPLACEMENT_NO_EVENT",
+               "DRAFT_GENERATION_NO_EVENT", "STRUCTURE_SWITCH_NO_EVENT"}
     for row in course_knowledge.course_mutation_paths():
         assert row["status"] in allowed, row
         assert row.get("note"), f"{row['path']} must state why it is classified this way"

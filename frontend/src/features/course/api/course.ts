@@ -35,7 +35,7 @@ export const courseKeys = {
   dashboard: (courseId: string) => ['course', courseId, 'dashboard'] as const,
   materials: (courseId: string) => ['course', courseId, 'materials'] as const,
   knowledge: (courseId: string) => ['course', courseId, 'knowledge'] as const,
-  map: (courseId: string) => ['course', courseId, 'knowledge-map'] as const,
+  structure: (courseId: string) => ['course', courseId, 'knowledge-structure'] as const,
   practice: (courseId: string) => ['course', courseId, 'practice'] as const,
   history: (courseId: string) => ['course', courseId, 'practice-history'] as const,
   plan: (courseId: string) => ['course', courseId, 'plan'] as const,
@@ -64,11 +64,6 @@ async function getMaterials(courseId: string): Promise<unknown> {
 
 async function getKnowledgePoints(courseId: string): Promise<unknown> {
   const { data, error, response } = await apiClient.GET('/knowledge-points', { params: { query: courseScopedQuery(courseId) } });
-  return requireData(response, data, error);
-}
-
-async function getKnowledgeMap(courseId: string): Promise<unknown> {
-  const { data, error, response } = await apiClient.GET('/knowledge-map', { params: { query: courseScopedQuery(courseId) } });
   return requireData(response, data, error);
 }
 
@@ -141,7 +136,121 @@ export function useCourseCatalog() { return useQuery({ queryKey: courseKeys.cata
 export function useCourseDashboard(courseId: string) { return useQuery({ queryKey: courseKeys.dashboard(courseId), queryFn: () => getCourseDashboard(courseId), retry: false }); }
 export function useCourseMaterials(courseId: string) { return useQuery({ queryKey: courseKeys.materials(courseId), queryFn: () => getMaterials(courseId), retry: false }); }
 export function useCourseKnowledge(courseId: string) { return useQuery({ queryKey: courseKeys.knowledge(courseId), queryFn: () => getKnowledgePoints(courseId), retry: false }); }
-export function useCourseKnowledgeMap(courseId: string) { return useQuery({ queryKey: courseKeys.map(courseId), queryFn: () => getKnowledgeMap(courseId), retry: false }); }
+
+/* ------------------------------------------------------------------ knowledge structure */
+
+export type KnowledgeStructure = components['schemas']['KnowledgeStructureResponse'];
+export type KnowledgeStructureChapter = components['schemas']['KnowledgeStructureChapterView'];
+export type KnowledgeStructurePoint = components['schemas']['KnowledgeStructurePointView'];
+export type KnowledgeStructureMeta = components['schemas']['KnowledgeStructureMeta'];
+
+const structureBase = (courseId: string) => ({
+  params: { path: { course_id: courseId } },
+});
+
+export function useCourseKnowledgeStructure(courseId: string) {
+  return useQuery({
+    queryKey: courseKeys.structure(courseId),
+    queryFn: async () => {
+      const r = await apiClient.GET('/course-learning/courses/{course_id}/knowledge-structure',
+                                    structureBase(courseId));
+      return requireData(r.response, r.data, r.error) as KnowledgeStructure;
+    },
+    retry: false,
+  });
+}
+
+/**
+ * Every structure write refreshes the SAME reads the write can change.
+ *
+ * The structure is not one surface's private data: the study page lists its points and the
+ * knowledge page renders its tree, so a confirm that only invalidated the knowledge page would
+ * leave the study page showing the previous version's points until a manual reload.
+ */
+function useStructureWrite<TInput, TResult>(courseId: string, run: (input: TInput) => Promise<TResult>) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: run,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: courseKeys.structure(courseId) });
+      void client.invalidateQueries({ queryKey: courseKeys.knowledge(courseId) });
+    },
+  });
+}
+
+export type KnowledgeStructureGenerateInput =
+  | { sourceMode: 'selected_materials'; materialIds: number[] }
+  | { sourceMode: 'ai_generated'; goal?: string; requirement?: string };
+
+export function useGenerateKnowledgeStructure(courseId: string) {
+  return useStructureWrite<KnowledgeStructureGenerateInput, KnowledgeStructure>(courseId, async (input) => {
+    // `goal` and `requirement` are required by the generated schema, so the material branch
+    // states them as empty rather than omitting them: what the learner chose NOT to say is an
+    // empty string, not a missing field.
+    const body = input.sourceMode === 'selected_materials'
+      ? { source_mode: 'selected_materials' as const, material_ids: input.materialIds,
+          goal: '', requirement: '' }
+      : { source_mode: 'ai_generated' as const, material_ids: [],
+          goal: input.goal ?? '', requirement: input.requirement ?? '' };
+    const r = await apiClient.POST('/course-learning/courses/{course_id}/knowledge-structure/generate', {
+      ...structureBase(courseId),
+      body,
+    });
+    return requireData(r.response, r.data, r.error) as KnowledgeStructure;
+  });
+}
+
+export function useConfirmKnowledgeStructure(courseId: string) {
+  return useStructureWrite<number, void>(courseId, async (structureId) => {
+    const r = await apiClient.POST(
+      '/course-learning/courses/{course_id}/knowledge-structure/{structure_id}/confirm',
+      { params: { path: { course_id: courseId, structure_id: structureId } } });
+    requireData(r.response, r.data, r.error);
+  });
+}
+
+export function useDiscardKnowledgeStructure(courseId: string) {
+  return useStructureWrite<number, void>(courseId, async (structureId) => {
+    const r = await apiClient.DELETE(
+      '/course-learning/courses/{course_id}/knowledge-structure/{structure_id}',
+      { params: { path: { course_id: courseId, structure_id: structureId } } });
+    if (!r.response.ok) throw new ApiRequestError(r.response.status, r.error);
+  });
+}
+
+export function useEditKnowledgeStructurePoint(courseId: string) {
+  return useStructureWrite<{ structureId: number; pointId: number; title?: string; chapterId?: number }, void>(
+    courseId, async (input) => {
+      const r = await apiClient.PATCH(
+        '/course-learning/courses/{course_id}/knowledge-structure/{structure_id}/points/{point_id}',
+        { params: { path: { course_id: courseId, structure_id: input.structureId, point_id: input.pointId } },
+          body: {
+            ...(input.title === undefined ? {} : { title: input.title }),
+            ...(input.chapterId === undefined ? {} : { chapter_id: input.chapterId }),
+          } });
+      requireData(r.response, r.data, r.error);
+    });
+}
+
+export function useDeleteKnowledgeStructurePoint(courseId: string) {
+  return useStructureWrite<{ structureId: number; pointId: number }, void>(courseId, async (input) => {
+    const r = await apiClient.DELETE(
+      '/course-learning/courses/{course_id}/knowledge-structure/{structure_id}/points/{point_id}',
+      { params: { path: { course_id: courseId, structure_id: input.structureId, point_id: input.pointId } } });
+    requireData(r.response, r.data, r.error);
+  });
+}
+
+/** The server's own sentence for a failed structure write — the answer, not a guess at one. */
+export function knowledgeStructureErrorMessage(error: unknown): string {
+  if (error instanceof ApiRequestError) {
+    const message = serverMessage(error.detail);
+    if (message) return message;
+    if (error.status === 401 || error.status === 403) return '登录状态已失效，重新登录后再试。';
+    if (error.status === 429) return '当前超出可用额度，稍后再试。';
+  }
+  return '这一步没有完成，请稍后重试。';
+}
 export function useCoursePractice(courseId: string) { return useQuery({ queryKey: courseKeys.practice(courseId), queryFn: () => getPracticeWorkbook(courseId), retry: false }); }
 export function useCoursePracticeHistory(courseId: string) { return useQuery({ queryKey: courseKeys.history(courseId), queryFn: () => getPracticeHistory(courseId), retry: false }); }
 export function useCourseStudyPlan(courseId: string) { return useQuery({ queryKey: courseKeys.plan(courseId), queryFn: () => getStudyPlan(courseId), retry: false }); }

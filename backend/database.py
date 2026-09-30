@@ -361,8 +361,28 @@ KNOWLEDGE_POINTS_COLUMNS = {
     "order_index": "INTEGER",
     "level": "INTEGER",
     "node_key": "VARCHAR(500)",
+    "structure_id": "INTEGER",
+    "origin": "VARCHAR(30)",
     "created_at": "DATETIME NOT NULL",
     "updated_at": "DATETIME NOT NULL",
+}
+
+
+USER_KNOWLEDGE_STRUCTURES_COLUMNS = {
+    "user_id": "INTEGER",
+    "username": "VARCHAR(50) NOT NULL",
+    "course_id": "VARCHAR(100) NOT NULL",
+    "version": "INTEGER NOT NULL DEFAULT 1",
+    "status": "VARCHAR(20) NOT NULL DEFAULT 'draft'",
+    "source_mode": "VARCHAR(30) NOT NULL DEFAULT 'ai_generated'",
+    "source_file_ids": "TEXT",
+    "title": "VARCHAR(255)",
+    "goal": "VARCHAR(120)",
+    "point_count": "INTEGER NOT NULL DEFAULT 0",
+    "chapter_count": "INTEGER NOT NULL DEFAULT 0",
+    "created_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    "confirmed_at": "DATETIME",
+    "superseded_at": "DATETIME",
 }
 
 QUESTIONS_COLUMNS = {
@@ -1407,6 +1427,44 @@ def ensure_ai_generated_questions_schema(conn):
     ensure_columns(conn, "ai_generated_questions", AI_GENERATED_QUESTIONS_COLUMNS)
 
 
+def ensure_user_knowledge_structures_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS user_knowledge_structures (
+                -- AUTOINCREMENT, not a bare PRIMARY KEY: SQLite otherwise reuses the rowid
+                -- of a deleted row, and a discarded draft's version id would be handed to
+                -- the next one — making knowledge_points.structure_id ambiguous.
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                username VARCHAR(50) NOT NULL,
+                course_id VARCHAR(100) NOT NULL,
+                version INTEGER NOT NULL DEFAULT 1,
+                status VARCHAR(20) NOT NULL DEFAULT 'draft',
+                source_mode VARCHAR(30) NOT NULL DEFAULT 'ai_generated',
+                source_file_ids TEXT,
+                title VARCHAR(255),
+                goal VARCHAR(120),
+                point_count INTEGER NOT NULL DEFAULT 0,
+                chapter_count INTEGER NOT NULL DEFAULT 0,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                confirmed_at DATETIME,
+                superseded_at DATETIME
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "user_knowledge_structures", USER_KNOWLEDGE_STRUCTURES_COLUMNS)
+    conn.execute(
+        text(
+            """
+            CREATE INDEX IF NOT EXISTS idx_user_knowledge_structures_scope
+            ON user_knowledge_structures (username, course_id, status)
+            """
+        )
+    )
+
+
 def ensure_knowledge_points_schema(conn):
     conn.execute(
         text(
@@ -1427,6 +1485,14 @@ def ensure_knowledge_points_schema(conn):
         )
     )
     ensure_columns(conn, "knowledge_points", KNOWLEDGE_POINTS_COLUMNS)
+    conn.execute(
+        text(
+            """
+            CREATE INDEX IF NOT EXISTS idx_knowledge_points_structure_id
+            ON knowledge_points (structure_id)
+            """
+        )
+    )
     conn.execute(
         text(
             """
@@ -1913,6 +1979,7 @@ def init_user_profile_schema():
         ensure_exam_favorite_questions_schema(conn)
         ensure_ai_generated_questions_schema(conn)
         ensure_practice_import_jobs_schema(conn)
+        ensure_user_knowledge_structures_schema(conn)
         ensure_knowledge_points_schema(conn)
         ensure_user_knowledge_progress_schema(conn)
         ensure_user_knowledge_review_settings_schema(conn)

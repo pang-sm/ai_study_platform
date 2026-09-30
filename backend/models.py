@@ -488,10 +488,54 @@ class LearningTask(Base):
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
 
+class UserKnowledgeStructure(Base):
+    """ONE version of a learner's own knowledge structure for ONE course.
+
+    The structure a learner studies from is USER + COURSE scoped data, never a shared
+    catalogue: two learners taking 数据结构 may each generate their own tree from their own
+    materials, and neither one's generation may touch the other's points or progress.
+
+    Versions exist so that regenerating is not a destructive edit. A generate writes a
+    ``draft``; the version the learner is actually studying stays ``active`` until the draft
+    is confirmed, at which point the old version becomes ``superseded`` — kept, not deleted,
+    so the progress rows that reference its points survive the switch.
+    """
+
+    __tablename__ = "user_knowledge_structures"
+    __table_args__ = (
+        Index("idx_user_knowledge_structures_scope", "username", "course_id", "status"),
+        # AUTOINCREMENT on purpose. Without it SQLite reuses the rowid of a deleted row, and
+        # discarding a draft would hand the next draft the id the discarded one just
+        # released — so `knowledge_points.structure_id` would name two different structures
+        # in one database's lifetime. A version id has to be permanent to be worth storing.
+        {"sqlite_autoincrement": True},
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True, nullable=True)
+    username = Column(String(50), index=True, nullable=False)
+    course_id = Column(String(100), index=True, nullable=False)
+    version = Column(Integer, nullable=False, default=1)
+    # draft | active | superseded
+    status = Column(String(20), nullable=False, default="draft", index=True)
+    # selected_materials | ai_generated — where the CONTENT came from, recorded so an
+    # AI-invented tree is never later presented as extracted from the learner's own files.
+    source_mode = Column(String(30), nullable=False, default="ai_generated")
+    source_file_ids = Column(Text, nullable=True)
+    title = Column(String(255), nullable=True)
+    goal = Column(String(120), nullable=True)
+    point_count = Column(Integer, nullable=False, default=0)
+    chapter_count = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=utc_now)
+    confirmed_at = Column(DateTime, nullable=True)
+    superseded_at = Column(DateTime, nullable=True)
+
+
 class KnowledgePoint(Base):
     __tablename__ = "knowledge_points"
     __table_args__ = (
         Index("idx_knowledge_points_user_course_node_key", "username", "course_id", "node_key"),
+        Index("idx_knowledge_points_structure_id", "structure_id"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -503,6 +547,12 @@ class KnowledgePoint(Base):
     order_index = Column(Integer, nullable=True)
     level = Column(Integer, nullable=True)
     node_key = Column(String(500), nullable=True, index=True)
+    # The version this point belongs to. NULL means a point written before user-level
+    # structures existed; those are read as the legacy active structure for their course.
+    structure_id = Column(Integer, nullable=True)
+    # source_extracted | ai_inferred — whether THIS point's title came from the selected
+    # files or was supplied by the model. Internal provenance; never shown as an enum.
+    origin = Column(String(30), nullable=True)
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
