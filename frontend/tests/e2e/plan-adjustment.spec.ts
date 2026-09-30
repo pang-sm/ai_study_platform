@@ -64,11 +64,15 @@ async function planSnapshot(page: Page): Promise<Record<string, string>> {
 }
 
 async function generateProposal(page: Page, goal: string): Promise<Proposal> {
+  // Adjusting is folded until it is asked for, so open the panel first. It is idempotent here:
+  // a page that is already showing the form has no trigger button to click.
+  const trigger = page.getByRole('button', { name: '调整计划' });
+  if (await trigger.count()) await trigger.first().click();
   await page.getByLabel('目标（可选）').fill(goal);
   const [response] = await Promise.all([
     page.waitForResponse((r) => r.url().endsWith('/ai/plan-adjustment')
       && r.request().method() === 'POST'),
-    page.getByRole('button', { name: '生成建议' }).click(),
+    page.getByRole('button', { name: '生成调整建议' }).click(),
   ]);
   expect(response.ok(), `proposal failed: ${response.status()}`).toBeTruthy();
   await expect(page.getByRole('heading', { name: '建议调整' })).toBeVisible();

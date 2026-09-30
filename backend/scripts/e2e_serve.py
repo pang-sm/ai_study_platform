@@ -151,6 +151,72 @@ def _plan_adjustment_content(spec) -> str | None:
     return json.dumps({"changes": changes}, ensure_ascii=False)
 
 
+def _initial_plan_content(spec) -> str | None:
+    """A first-plan DRAFT built from the REAL syllabus the backend just sent to the model.
+
+    Same reasoning as the adjustment double above: the route parses `tasks` out of the reply, so
+    a sentence-shaped answer is refused as `unusable_proposal` and the draft the harness exists to
+    demonstrate can never appear.
+
+    It reads `syllabus` out of the prompt — `build_initial_plan_messages` puts the subject's own
+    chapter list in the user turn verbatim — and offers one knowledge task per real chapter, dated
+    from the prompt's own `today`, alternating a practice task after every second chapter. No
+    chapter name is invented here, and the route validates every row again on the way back.
+    """
+    import json
+
+    from prompts import INITIAL_PLAN_MARKER
+
+    if not any(INITIAL_PLAN_MARKER in (message.content or "") for message in spec.messages):
+        return None
+
+    payload = None
+    for message in spec.messages:
+        text = message.content or ""
+        start, end = text.find("{"), text.rfind("}")
+        if start == -1 or end <= start:
+            continue
+        try:
+            candidate = json.loads(text[start:end + 1])
+        except (TypeError, ValueError):
+            continue
+        if isinstance(candidate, dict) and isinstance(candidate.get("syllabus"), list):
+            payload = candidate
+            break
+    if payload is None:
+        return None
+
+    from datetime import date, timedelta
+
+    try:
+        start_day = date.fromisoformat(str(payload.get("today") or ""))
+    except ValueError:
+        start_day = date.today()
+
+    tasks = []
+    for index, chapter in enumerate(payload.get("syllabus") or []):
+        if not isinstance(chapter, dict):
+            continue
+        title = str(chapter.get("chapter_title") or "").strip()
+        if not title:
+            continue
+        number = chapter.get("chapter_no")
+        due = start_day + timedelta(days=index * 2)
+        tasks.append({"title": f"第 {number if number is not None else index + 1} 章 {title}",
+                      "task_type": "knowledge", "due_date": due.isoformat()})
+        if index % 2 == 1:
+            tasks.append({"title": f"第 {number if number is not None else index + 1} 章 章节练习",
+                          "task_type": "chapter_practice",
+                          "due_date": (due + timedelta(days=1)).isoformat()})
+        if len(tasks) >= 8:
+            break
+    if not tasks:
+        # No syllabus to build from: an honest empty draft, and the route says so.
+        return json.dumps({"tasks": []}, ensure_ascii=False)
+    # `tasks` only. The route derives the rationale from the same stored facts.
+    return json.dumps({"tasks": tasks}, ensure_ascii=False)
+
+
 class _HarnessProvider:
     """The stock FakeProvider, plus a structured answer for the workflows that need one.
 
@@ -172,7 +238,7 @@ class _HarnessProvider:
         import dataclasses
 
         response = self._inner.complete(spec)
-        scripted = _plan_adjustment_content(spec)
+        scripted = _initial_plan_content(spec) or _plan_adjustment_content(spec)
         return dataclasses.replace(response, content=scripted) if scripted else response
 
     def stream(self, spec):

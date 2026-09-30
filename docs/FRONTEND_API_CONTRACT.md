@@ -1005,6 +1005,33 @@ FastAPI 路由表直接生成，可重跑比对漂移）。
   无可用模型仍是 502，额度不足仍是 429，权限不足仍是 403。前端必须按状态码区分
   「请求被拒绝」与「服务不可用」，只有后者才提示「服务暂时不可用，请稍后重试。」
 
+### `POST /ai/plan-initial` — 「创建第一份计划」不是「调整计划」
+
+**触发原因。** 空计划页面以前只提供「生成建议」（即 plan-adjustment），而 plan-adjustment 的语义是
+「改我现有的计划」。空计划用户因此收到的是一个关于**不存在的计划**的回答。两者是不同的问题，
+现在有两个 capability、两个提示词、两条路由；**底下的机制全部共用**
+（context builder / task 词汇 / 日期规则 / entitlement / provider / settlement）。
+
+| | `POST /ai/plan-initial` | `POST /ai/plan-adjustment` |
+|---|---|---|
+| capability | `planning.generate` | `planning.adjust` |
+| 问题 | 「我还没有计划，给我一份」 | 「改我现有的计划」 |
+| 返回 | **草稿** `tasks[]` | **差异** `proposed_changes[]` |
+| 落库 | **不落库** | propose 不落库；apply 落库 |
+| 结果如何生效 | 学习者经**各空间自己的 task 接口**逐条写入 | `POST /ai/plan-adjustment/apply` |
+| 零学习记录 | **必须可用**（空账号正是需要第一份计划的账号） | 可用，但更可能是「没有足够记录」 |
+
+`tasks[]` 的每一项：`{title, task_type, due_date | null, needs_due_date}`。
+`due_date` 为 `null` 的项**保留**并由学习者补日期（与 plan-adjustment 的新增任务同一条规则）：
+前端在任一任务缺日期时必须禁用「保存为我的计划」，不得丢弃该任务、不得自动猜日期、不得 400。
+
+`outcome`：`proposed`（有草稿）/ `no_tasks`（模型没给出可用任务，`message` 给出一句话）。
+模型返回非 JSON 时仍是 `400 unusable_proposal`；provider 不可达 502、额度 429、权限 403。
+
+**模型看到的是真实章节结构。** context 里多两样：`syllabus`（该科目**自己的章节标题**，取自
+knowledge map 与章节练习用的同一份 canonical seed）与 `today`。所以任务是按学生真正在学的科目排出来的，
+不是模型对科目的想象；`syllabus` 为空时提示词也明说为空，模型退回学生自己写的目标，而不是编一份章节表。
+
 ### 提示词禁止「重复当前已有的值」
 
 **这是建议质量问题，不是故障。** 生产实测（2026-09-29/30，`deepseek-flash`，计划内 1 条

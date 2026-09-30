@@ -71,6 +71,7 @@ from routers.programming_agent import router as programming_agent_router
 from routers.review import router as review_router
 from routers.learning_report import router as learning_report_router
 from routers.plan_adjustment import router as plan_adjustment_router
+from routers.plan_initial import router as plan_initial_router
 from routers.p4_adaptive_feedback import router as p4_router
 from routers.agenda import router as agenda_router
 from routers.admin_ops import router as admin_ops_router
@@ -5842,6 +5843,9 @@ app.include_router(programming_agent_router)
 app.include_router(review_router)
 app.include_router(learning_report_router)
 app.include_router(plan_adjustment_router)
+# Drawing up a FIRST plan is a different question from adjusting one; it has its own route so an
+# empty plan never has to be "adjusted".
+app.include_router(plan_initial_router)
 # P4: adaptive practice selection (deterministic) + unified AI feedback (audit fact).
 app.include_router(p4_router)
 # P5: the daily learning agenda — a projection over the facts the spaces already own.

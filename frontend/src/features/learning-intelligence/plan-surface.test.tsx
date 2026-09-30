@@ -1,10 +1,10 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { components } from '@/types/api';
 import { ApiRequestError } from '@/features/exam/api/content-status';
 import type { LearningScope } from './presentation';
-import { DynamicPlanSurface } from './learning-intelligence-surfaces';
+import { DynamicPlanSurface, InitialPlanDraftSurface } from './learning-intelligence-surfaces';
 
 type PlanProposal = components['schemas']['PlanAdjustmentProposal'];
 
@@ -69,15 +69,16 @@ const scopeSelect = { label: '调整科目', value: 'data_structure', options: [
 const generate = vi.fn();
 const applyMutate = vi.fn();
 
+/** The panel OPEN, which is the state a learner reaches by asking to adjust. */
 function renderSurface() {
-  return render(<DynamicPlanSurface scope={scope} scopeSelect={scopeSelect} />);
+  return render(<DynamicPlanSurface scope={scope} scopeSelect={scopeSelect} open />);
 }
 
 async function showProposal(value: PlanProposal = proposal) {
   const user = userEvent.setup();
   generate.mockImplementation((_input: unknown, options?: { onSuccess?: (v: PlanProposal) => void }) => options?.onSuccess?.(value));
   const view = renderSurface();
-  await user.click(screen.getByRole('button', { name: '生成建议' }));
+  await user.click(screen.getByRole('button', { name: '生成调整建议' }));
   return { user, view };
 }
 
@@ -90,14 +91,26 @@ describe('DynamicPlanSurface', () => {
     hooks.useApplyPlanProposal.mockReturnValue({ mutate: applyMutate, isPending: false, isError: false, isSuccess: false });
   });
 
+  it('is folded until the learner asks to adjust, then opens on the action', async () => {
+    const user = userEvent.setup();
+    // Uncontrolled: the surface draws its own trigger, and the form is not on the page until the
+    // learner asks for it — adjusting is something you decide to do, not the page's opening state.
+    render(<DynamicPlanSurface scope={scope} scopeSelect={scopeSelect} />);
+    expect(screen.queryByLabelText('目标（可选）')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '生成调整建议' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '调整计划' }));
+    expect(screen.getByLabelText('目标（可选）')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '生成调整建议' })).toBeInTheDocument();
+  });
+
   it('opens on the action, not on an explanation of the action', () => {
     const { container } = renderSurface();
     expect(screen.getByRole('heading', { name: '调整计划' })).toBeInTheDocument();
     expect(screen.queryByText('计划')).not.toBeInTheDocument();
     expect(container.textContent).not.toContain('先生成建议，看清差异后再决定是否应用');
     expect(screen.getByLabelText('目标（可选）')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '生成建议' })).toBeInTheDocument();
-    expect(screen.getByText('生成后可确认是否应用')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '生成调整建议' })).toBeInTheDocument();
   });
 
   it('offers the subject to adjust only when the space holds more than one', async () => {
@@ -244,7 +257,7 @@ describe('DynamicPlanSurface', () => {
     summary: '',
     rationale: '',
     outcome: 'no_change_suggested',
-    message: '当前计划没有需要调整的地方。',
+    message: '当前计划暂时不需要调整。',
     adjustment_types: [],
     evidence: [],
     proposed_changes: [],
@@ -264,7 +277,7 @@ describe('DynamicPlanSurface', () => {
     const { view } = await showProposal(nothingToChange);
     const page = view.container.textContent ?? '';
 
-    expect(screen.getByText('当前计划没有需要调整的地方。')).toBeInTheDocument();
+    expect(screen.getByText('当前计划暂时不需要调整。')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '应用调整' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '建议调整' })).not.toBeInTheDocument();
     expect(page).not.toContain('请求暂时不可用');
@@ -298,5 +311,106 @@ describe('DynamicPlanSurface', () => {
     });
     renderSurface();
     expect(screen.getByText('服务暂时不可用，请稍后重试。')).toBeInTheDocument();
+  });
+});
+
+/* ------------------------------------------------------------------ initial plan draft */
+
+const draftProps = {
+  goal: '',
+  onGoalChange: vi.fn(),
+  scopeLabel: '数据结构',
+  onGenerate: vi.fn(),
+  generating: false,
+  generateError: undefined as unknown,
+  onDraftTitle: vi.fn(),
+  onDraftDate: vi.fn(),
+  onRegenerate: vi.fn(),
+  onCancel: vi.fn(),
+  onSave: vi.fn(),
+  saving: false,
+  saveError: false,
+};
+
+function renderDraft(overrides: Partial<Parameters<typeof InitialPlanDraftSurface>[0]> = {}) {
+  return render(<InitialPlanDraftSurface {...draftProps} draft={undefined} {...overrides} />);
+}
+
+describe('InitialPlanDraftSurface', () => {
+  beforeEach(() => {
+    draftProps.onGoalChange.mockReset();
+    draftProps.onGenerate.mockReset();
+    draftProps.onDraftTitle.mockReset();
+    draftProps.onDraftDate.mockReset();
+    draftProps.onRegenerate.mockReset();
+    draftProps.onCancel.mockReset();
+    draftProps.onSave.mockReset();
+  });
+
+  it('asks for the plan before it shows one, and names the subject it will use', () => {
+    renderDraft();
+    expect(screen.getByRole('heading', { name: '生成初始计划' })).toBeInTheDocument();
+    expect(screen.getByText(/按 数据结构 的章节内容排出一个起步计划/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '生成初始计划' })).toBeInTheDocument();
+    // nothing is proposed yet, so nothing is being saved
+    expect(screen.queryByRole('button', { name: '保存为我的计划' })).not.toBeInTheDocument();
+  });
+
+  it('offers 保存为我的计划 once a draft arrives, and lets the learner edit every line', async () => {
+    const user = userEvent.setup();
+    renderDraft({ draft: [
+      { title: '第 1 章 总览', task_type: 'knowledge', due_date: '2026-10-01' },
+      { title: '第 2 章 线性表', task_type: 'knowledge', due_date: '2026-10-03' },
+    ] });
+
+    expect(screen.getByText('这是一份建议，还没有保存。逐条确认名称与日期后再保存。')).toBeInTheDocument();
+    const titles = screen.getAllByLabelText('任务名称');
+    expect(titles.map((field) => (field as HTMLInputElement).value)).toEqual(['第 1 章 总览', '第 2 章 线性表']);
+
+    // A date input is driven by its value, not by keystrokes into its segments.
+    fireEvent.change(screen.getAllByLabelText('计划日期')[0]!, { target: { value: '2026-10-02' } });
+    expect(draftProps.onDraftDate).toHaveBeenCalledWith(0, '2026-10-02');
+
+    await user.click(screen.getByRole('button', { name: '保存为我的计划' }));
+    expect(draftProps.onSave).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses to save while a task has no day, and never invents one', () => {
+    // REGRESSION: a plan holds dated work, so a task the model could not date is KEPT and the
+    // learner supplies the day — it is not dropped, not auto-dated, and not written undated.
+    renderDraft({ draft: [
+      { title: '第 1 章 总览', task_type: 'knowledge', due_date: '2026-10-01' },
+      { title: '第 2 章 线性表', task_type: 'knowledge', due_date: '' },
+    ] });
+
+    expect(screen.getByText('请先为每一项选择计划日期，再保存。')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '保存为我的计划' })).toBeDisabled();
+    // the undated line is still on screen, waiting for its day
+    expect((screen.getAllByLabelText('任务名称')[1] as HTMLInputElement).value).toBe('第 2 章 线性表');
+  });
+
+  it('says so plainly when the draft came back empty, and offers another go', async () => {
+    const user = userEvent.setup();
+    renderDraft({ draft: [] });
+    expect(screen.getByText('这次没有生成可用的任务，可以重新生成。')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '重新生成' }));
+    expect(draftProps.onRegenerate).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets the learner back out without saving anything', async () => {
+    const user = userEvent.setup();
+    renderDraft({ draft: [{ title: '第 1 章 总览', task_type: 'knowledge', due_date: '2026-10-01' }] });
+    await user.click(screen.getByRole('button', { name: '取消' }));
+    expect(draftProps.onCancel).toHaveBeenCalledTimes(1);
+    expect(draftProps.onSave).not.toHaveBeenCalled();
+  });
+
+  it('shows no internal name and no AI-usage line anywhere on the draft', () => {
+    const { container } = renderDraft({ draft: [{ title: '第 1 章 总览', task_type: 'knowledge', due_date: '2026-10-01' }] });
+    const page = container.textContent ?? '';
+    for (const leaked of ['needs_due_date', 'no_change_suggested', 'suggestion_not_applicable',
+                          'changes[', '本次使用', '计划任务总数', 'planning.generate', 'proposed_changes']) {
+      expect(page, `leaked ${leaked}`).not.toContain(leaked);
+    }
   });
 });

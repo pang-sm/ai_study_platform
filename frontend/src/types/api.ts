@@ -1585,6 +1585,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ai/plan-initial": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Propose Initial Plan
+         * @description Draw up a first plan for ONE of the caller's subjects. WRITES NOTHING.
+         */
+        post: operations["propose_initial_plan_ai_plan_initial_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/adaptive/practice": {
         parameters: {
             query?: never;
@@ -11511,6 +11531,107 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** InitialPlanProposal */
+        InitialPlanProposal: {
+            /** Proposal Id */
+            proposal_id: string;
+            /** Capability */
+            capability: string;
+            /** Request Id */
+            request_id: string;
+            /** Service Namespace */
+            service_namespace: string;
+            /** Subject Key */
+            subject_key: string;
+            /** Tasks */
+            tasks?: components["schemas"]["InitialPlanTask"][];
+            /** Dropped Tasks */
+            dropped_tasks?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Outcome
+             * @default proposed
+             */
+            outcome: string;
+            /**
+             * Message
+             * @default
+             */
+            message: string;
+            /**
+             * Rationale
+             * @default
+             */
+            rationale: string;
+            /**
+             * Needs Days
+             * @default false
+             */
+            needs_days: boolean;
+            /** Usage */
+            usage?: {
+                [key: string]: unknown;
+            };
+            /** Applies To */
+            applies_to: string;
+            /** Generated At */
+            generated_at: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * InitialPlanScope
+         * @description Which subject to draw a plan for. WHO is the session.
+         */
+        InitialPlanScope: {
+            /**
+             * Service Key
+             * @default course_learning
+             * @enum {string}
+             */
+            service_key: "course_learning" | "exam_11408" | "programming";
+            /**
+             * Course Id
+             * @default
+             */
+            course_id: string;
+            /**
+             * Exam Module Id
+             * @default
+             */
+            exam_module_id: string;
+            /**
+             * Language
+             * @default
+             */
+            language: string;
+            /**
+             * Goal
+             * @default
+             */
+            goal: string;
+        };
+        /**
+         * InitialPlanTask
+         * @description One line of the DRAFT. A task with no day is carried, not dropped — the learner supplies
+         *     the day before anything is saved, and the client cannot save while one is missing.
+         */
+        InitialPlanTask: {
+            /** Title */
+            title: string;
+            /** Task Type */
+            task_type: string;
+            /** Due Date */
+            due_date?: string | null;
+            /**
+             * Needs Due Date
+             * @default false
+             */
+            needs_due_date: boolean;
+        } & {
+            [key: string]: unknown;
+        };
         /** KnowledgeMapProgressUpdate */
         KnowledgeMapProgressUpdate: {
             /** Username */
@@ -17225,6 +17346,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlanApplyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    propose_initial_plan_ai_plan_initial_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InitialPlanScope"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InitialPlanProposal"];
                 };
             };
             /** @description Validation Error */

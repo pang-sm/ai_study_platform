@@ -6,6 +6,7 @@ import type { LearningScope } from './presentation';
 
 export type LearningReport = components['schemas']['LearningReportResponse'];
 export type PlanProposal = components['schemas']['PlanAdjustmentProposal'];
+export type InitialPlanProposal = components['schemas']['InitialPlanProposal'];
 export type WrongAnalysis = components['schemas']['WrongAnalysisResponse'];
 
 function dataOrThrow<T>(response: Response, data: T | undefined, error: unknown): T {
@@ -57,6 +58,20 @@ function invalidateAppliedPlan(client: ReturnType<typeof useQueryClient>, scope:
 export function usePlanProposal() {
   return useMutation({ mutationFn: async ({ scope, goal }: { scope: LearningScope; goal: string }): Promise<PlanProposal> => {
     const result = await apiClient.POST('/ai/plan-adjustment', { body: { ...scope, goal } });
+    return dataOrThrow(result.response, result.data, result.error);
+  } });
+}
+
+/**
+ * Drawing up a FIRST plan — a different question from adjusting one, so a different route.
+ *
+ * It returns a draft and writes nothing; the surface that calls it keeps the draft in local
+ * state until the learner saves, because "the assistant proposed it" and "the plan contains it"
+ * are two different facts.
+ */
+export function useInitialPlanProposal() {
+  return useMutation({ mutationFn: async ({ scope, goal }: { scope: LearningScope; goal: string }): Promise<InitialPlanProposal> => {
+    const result = await apiClient.POST('/ai/plan-initial', { body: { ...scope, goal } });
     return dataOrThrow(result.response, result.data, result.error);
   } });
 }

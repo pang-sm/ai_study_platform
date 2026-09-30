@@ -398,6 +398,56 @@ PLAN_ADJUSTMENT_INSTRUCTION = (
 )
 
 
+INITIAL_PLAN_INSTRUCTION = (
+    "你是一名学习计划助手。学生要为下面这个科目建立**第一份**学习计划，当前计划是空的。"
+    "下面给出该科目的**真实章节结构**（syllabus）、学生当前的学习记录、以及今天的日期。"
+    "请据此给出一个简短、可执行的初始计划，严格返回 JSON（不要 markdown 代码块）：\n"
+    '{"tasks":[{"title":"任务标题","task_type":"TASK_TYPES",'
+    '"due_date":"YYYY-MM-DD 或 null"}]}'
+    "\n\n要求："
+    "\n- 只返回 tasks，不要写任何解释性文字：计划说明由系统依据真实数据生成；"
+    "\n- **任务必须来自下面给出的 syllabus 章节，或学生自己写下的目标。**"
+    "禁止编造这个科目没有的章节、学科或成绩；"
+    "\n- **学生没有任何学习记录也要给出计划**——那就按 syllabus 的章节顺序排一个基础计划，"
+    "不要因为没有记录而返回空；"
+    "\n- 从今天的日期开始往后安排，**不要把多条任务堆在同一天**；"
+    "\n- 日期确实无法确定时返回 null，由学生自己补——但能定就定；"
+    "\n- task_type 只能取：TASK_TYPES；"
+    "\n- 最多 8 条，覆盖这个科目的主要章节即可，不要为了凑数而重复；"
+    "\n- 不要臆测学习时长、掌握程度或提分幅度——系统没有这些数据；"
+    "\n- 不要做长期规划预测，也不要替学生决定学习目标。"
+)
+
+
+# The two planning questions open differently ON PURPOSE, and the openings must never be the same
+# string: a caller (the E2E double) has to be able to tell which question it is answering, because
+# each route parses a different shape out of the reply.
+INITIAL_PLAN_MARKER = "你是一名学习计划助手"
+
+
+def initial_plan_system_prompt(task_types=()) -> str:
+    """This draft's system prompt, specialised to the target space's task vocabulary."""
+    allowed = "|".join(task_types) if task_types else "knowledge"
+    return INITIAL_PLAN_INSTRUCTION.replace("TASK_TYPES", allowed)
+
+
+def build_initial_plan_messages(facts: dict, goal: str = "", task_types=()) -> list[dict]:
+    """The ONLY thing the first-plan model sees: the subject's own chapters and real records.
+
+    ``facts["syllabus"]`` is what keeps the draft about THIS subject: an empty list is stated as
+    empty rather than left out, so a model with nothing to go on knows that and falls back to the
+    learner's goal instead of inventing a syllabus.
+    """
+    import json as _json
+
+    payload = _json.dumps(facts, ensure_ascii=False, sort_keys=True, default=str)
+    parts = [f"学生当前状态：\n{payload}"]
+    if goal:
+        parts.append(f"学生这次的目标/偏好：{goal}")
+    return [{"role": "system", "content": initial_plan_system_prompt(task_types)},
+            {"role": "user", "content": "\n\n".join(parts)}]
+
+
 def plan_adjustment_system_prompt(task_types=()) -> str:
     """This proposal's system prompt, specialised to the target space's task vocabulary."""
     allowed = "|".join(task_types) if task_types else "knowledge"

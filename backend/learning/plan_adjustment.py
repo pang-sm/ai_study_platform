@@ -1,18 +1,34 @@
-"""Dynamic Planning — the AI proposes, the LEARNER applies. Two separate actions, on purpose.
+"""Planning — three operations that must never be confused, on purpose.
 
-PROPOSE ≠ APPLY
----------------
-    current plan → deterministic context builder → AI proposal → diff → user accepts → apply
+DRAWING UP ≠ ADJUSTING ≠ WRITING
+--------------------------------
+    (no plan)  → context + syllabus  → ``propose_initial_plan``   → DRAFT   → learner saves
+    (has plan) → context + plan      → ``propose_adjustment``     → DIFF    → learner applies
+                                                                     ``apply_adjustment`` writes
 
-``propose_adjustment`` WRITES NOTHING. It reads the plan, the review projection, the practice
-facts and the recent events of one learning space, asks a model for a bounded list of task
-changes, validates every one of them against the plan it just read, and returns them together
-with the plan's IDENTITY (a deterministic fingerprint of the plan's current state).
+``propose_initial_plan`` answers "I have no plan, give me one" and returns a DRAFT. It writes
+nothing, and there is no path from it to a stored task: the learner edits the draft, gives every
+task a day, and the save goes through the ordinary task endpoints, where the same vocabulary and
+date rules validate it a second time. It works with NO learning record at all, because an empty
+account is exactly the account that needs a first plan.
 
-``apply_adjustment`` is the only thing that mutates a plan. It re-verifies, at apply time,
+``propose_adjustment`` answers "change the plan I have" and writes nothing either. It reads the
+plan, the review projection, the practice facts and the recent events of one learning space,
+asks a model for a bounded list of task changes, validates every one of them against the plan it
+just read, and returns them together with the plan's IDENTITY (a deterministic fingerprint of the
+plan's current state).
+
+``apply_adjustment`` is the only thing here that mutates a plan. It re-verifies, at apply time,
 that the caller still owns the tasks and that the plan is still EXACTLY the plan the proposal
 was built from. A proposal whose identity no longer matches is refused as stale — so an old
 proposal can never overwrite a plan the learner has changed since.
+
+WHY THE FIRST TWO ARE SEPARATE
+------------------------------
+Asking a planner to "adjust" an empty plan produces an answer about a plan that does not exist,
+which is how a learner with nothing got told nothing needed changing. Two questions therefore
+get two capabilities, two prompts and two routes, while sharing every mechanism underneath:
+the context builder, the task vocabulary, the date rule, entitlement, provider and settlement.
 
 WHAT THE MODEL MAY PROPOSE
 --------------------------
@@ -22,7 +38,7 @@ A closed set of two operations on the SAME per-direction task table the plan alr
     update_task   a change to one of the caller's OWN tasks in this space
 
 Anything else is dropped, and a proposal that survives validation with nothing left is
-refused rather than applied as an empty change.
+reported as an answer ("nothing to change") rather than refused as an error.
 
 WHY USER-TRIGGERED ONLY
 -----------------------
@@ -112,7 +128,7 @@ OUTCOME_NO_CHANGE = "no_change_suggested"
 OUTCOME_NOT_APPLICABLE = "suggestion_not_applicable"
 
 MESSAGE_NO_RECORD = "还没有足够学习记录。你可以先添加一个学习任务。"
-MESSAGE_NO_CHANGE = "当前计划没有需要调整的地方。"
+MESSAGE_NO_CHANGE = "当前计划暂时不需要调整。"
 MESSAGE_NOT_APPLICABLE = "这次的建议里没有可以应用的内容，计划保持不变。"
 
 # The drop reasons that mean "this change asked for NOTHING", as opposed to "this change asked
@@ -796,8 +812,166 @@ def apply_adjustment(db: DbSession, user, *, service_key: str, plan_identity_val
     }
 
 
-# ---------------------------------------------------------------- execution helpers
+# ---------------------------------------------------------------- initial plan
 
+# Drawing up the FIRST plan for a subject is a different question from adjusting one that exists,
+# and it has its own capability. "Adjust my plan" presupposes a plan; asking a planner to adjust
+# nothing is what forced a learner with an empty plan to read an answer about a plan they did not
+# have. The two therefore have two capabilities, two prompts and two HTTP routes — while sharing
+# every mechanism underneath (context, validation, entitlement, provider, settlement).
+CAPABILITY_INITIAL = "planning.generate"
+MAX_INITIAL_TASKS = 8
+
+# The model answered, and its answer held nothing usable. Same rule as the adjustment path: an
+# answer is not a transport failure, so it comes back as 200 with one line the learner can act on
+# (regenerate), not as an error the page has to apologise for.
+OUTCOME_NO_TASKS = "no_tasks"
+MESSAGE_NO_TASKS = "这次没有生成可用的任务，可以重新生成。"
+
+
+def build_initial_plan_context(db: DbSession, user, space: str, *, course_id=None,
+                               exam_module_id=None, language=None) -> dict:
+    """The adjustment context, plus the two things only a FIRST plan needs.
+
+    ``syllabus`` is the subject's own chapter list, read from the same canonical seed the
+    knowledge map and chapter practice are built from — so the tasks a learner is offered come
+    from the subject they are actually studying rather than from a model's idea of it, and none
+    of it is written into this file. ``today`` is here because "spread the work over the next few
+    days" is not answerable without it, and a model guessing the date is how a plan ends up in
+    the past.
+    """
+    context = build_plan_context(db, user, space, course_id=course_id,
+                                 exam_module_id=exam_module_id, language=language)
+    context["today"] = _now().date().isoformat()
+    context["syllabus"] = _syllabus(space, exam_module_id=exam_module_id)
+    return context
+
+
+def _syllabus(space: str, *, exam_module_id=None) -> list[dict]:
+    """`[{chapter_no, chapter_title}]` for the subject in scope, or [] when it has no seed.
+
+    An empty list is a legitimate answer (an unseeded subject, a course-learning space, a
+    programming language) and the prompt says so rather than letting the model fill the gap.
+    """
+    if space != EXAM or not exam_module_id:
+        return []
+    try:
+        from main import _chapter_seed_meta       # lazy: the ONE chapter-seed reader
+    except Exception:  # noqa: BLE001 — no seed reader means no syllabus, never a failed call
+        return []
+    try:
+        meta = _chapter_seed_meta(str(exam_module_id).strip())
+    except Exception:  # noqa: BLE001
+        return []
+    chapters = [{"chapter_no": no, "chapter_title": title}
+                for no, title in ((no, title) for no, title in meta.values()) if title]
+    chapters.sort(key=lambda item: (item["chapter_no"] is None, item["chapter_no"] or 0))
+    return chapters
+
+
+def _clean_initial_tasks(raw, allowed_task_types: tuple) -> tuple[list[dict], list[dict]]:
+    """(kept, dropped) — the SAME rules the adjustment path applies to a create_task.
+
+    Deliberately reusing the one vocabulary check and the one date check rather than restating
+    them: a task this endpoint offers is a task the ordinary create endpoint will accept, and
+    the only way to guarantee that is for both to read the same definitions.
+    """
+    kept, dropped = [], []
+    for item in (raw or [])[:MAX_INITIAL_TASKS * 2]:
+        if len(kept) >= MAX_INITIAL_TASKS:
+            break
+        if not isinstance(item, dict):
+            dropped.append({"reason": "not_an_object"})
+            continue
+        title = _bounded(item.get("title"), MAX_TITLE_CHARS)
+        if not title:
+            dropped.append({"reason": "missing_title"})
+            continue
+        task_type = str(item.get("task_type") or DEFAULT_TASK_TYPE).strip()
+        if task_type not in allowed_task_types:
+            dropped.append({"reason": "task_type_not_supported_in_space",
+                            "task_type": task_type, "allowed": list(allowed_task_types)})
+            continue
+        due = _bounded(item.get("due_date"), 30) or None
+        if due is not None and _parse_due(due) is None:
+            dropped.append({"reason": "invalid_due_date", "due_date": due})
+            continue
+        kept.append({"title": title, "task_type": task_type, "due_date": due,
+                     "needs_due_date": due is None})
+    return kept, dropped
+
+
+def propose_initial_plan(db: DbSession, user, *, service_key: str, goal: str = "",
+                         course_id=None, exam_module_id=None, language=None) -> dict:
+    """Draw up a FIRST plan for one of the caller's spaces. WRITES NOTHING.
+
+    What comes back is a DRAFT: the learner edits it, gives every task a day, and only then does
+    a save write anything — through the ordinary task endpoints, so the rows that land are
+    validated by the same code as any hand-typed task. There is no path from this function to a
+    stored plan task.
+
+    It is deliberately usable with NO learning record at all: an empty account is exactly the
+    account that needs a first plan, so the context may be empty and the syllabus carries the
+    subject's real chapters.
+    """
+    space = _space_of(service_key)
+    context_facts = build_initial_plan_context(db, user, space, course_id=course_id,
+                                               exam_module_id=exam_module_id,
+                                               language=language)
+    from prompts import build_initial_plan_messages
+    messages = build_initial_plan_messages(context_facts, goal=_bounded(goal, 300),
+                                           task_types=plan_task_types(space))
+
+    execution_context = _context_for(user, space, course_id=course_id,
+                                     exam_module_id=exam_module_id, language=language)
+    result = _execute(db, user, space, execution_context, messages,
+                      capability=CAPABILITY_INITIAL, max_tokens=1400)
+
+    parsed = _extract_json_object(result.content or "")
+    if parsed is None:
+        raise PlanAdjustmentRefusal("unusable_proposal", "这次没有生成可用的计划")
+    tasks, dropped = _clean_initial_tasks(parsed.get("tasks"), plan_task_types(space))
+    usage = result.usage or {}
+    return {
+        "proposal_id": uuid.uuid4().hex,
+        "capability": CAPABILITY_INITIAL,
+        "request_id": result.request_id,
+        "service_namespace": space,
+        "subject_key": plan_subject_key(space, course_id=course_id,
+                                        exam_module_id=exam_module_id, language=language),
+        "tasks": tasks,
+        "dropped_tasks": dropped,
+        "outcome": OUTCOME_PROPOSED if tasks else OUTCOME_NO_TASKS,
+        "message": "" if tasks else MESSAGE_NO_TASKS,
+        "rationale": _initial_rationale(context_facts, tasks) if tasks else "",
+        "needs_days": any(task["needs_due_date"] for task in tasks),
+        "usage": {
+            "estimated_credits": result.estimated_credits,
+            "actual_credits": result.actual_credits,
+            "input_tokens": usage.get("input_tokens"),
+            "output_tokens": usage.get("output_tokens"),
+            "usage_source": usage.get("usage_source"),
+        },
+        "applies_to": "客户端把带日期的任务通过各空间的 task 接口写入；本接口不落库",
+        "generated_at": _now().isoformat(),
+    }
+
+
+def _initial_rationale(context_facts: dict, tasks: list[dict]) -> str:
+    """One sentence on what this draft was built from — stored facts only, never a promise."""
+    syllabus = context_facts.get("syllabus") or []
+    grounded = sum(1 for task in tasks if any(
+        chapter["chapter_title"] in task["title"] for chapter in syllabus)) if syllabus else 0
+    if grounded:
+        return f"按这个科目的 {len(syllabus)} 个章节顺序安排，其中 {grounded} 条直接来自章节名称。"
+    if syllabus:
+        return f"按这个科目的 {len(syllabus)} 个章节顺序安排。"
+    if _has_learner_history(context_facts):
+        return "依据你已有的学习记录安排。"
+    return "你还没有学习记录，这是一份按科目内容排出的起步计划。"
+
+
+# ---------------------------------------------------------------- execution helpers
 def _space_of(service_key: str) -> str:
     try:
         space = normalize_service_namespace(service_key or COURSE)
@@ -816,15 +990,22 @@ def _context_for(user, space: str, *, course_id=None, exam_module_id=None, langu
     return context
 
 
-def _execute(db: DbSession, user, space: str, context, messages: list[dict]):
+def _execute(db: DbSession, user, space: str, context, messages: list[dict],
+             capability: str = CAPABILITY, max_tokens: int = 900):
+    """One call through the caller's own space adapter — the ONE provider boundary here.
+
+    ``capability`` is a parameter because this module serves two capabilities: adjusting a plan
+    the learner already has, and drawing up the first one. Everything else about the call —
+    entitlement, budget, router, provider, settlement — is the unified chain, unchanged.
+    """
     if context.service_namespace == ServiceNamespace.EXAM_PREP:
         from learning.spaces.exam_prep.ai import execute_exam_ai as execute
     elif context.service_namespace == ServiceNamespace.PROGRAMMING:
         from learning.spaces.programming.ai import execute_programming_ai as execute
     else:
         from learning.spaces.course_learning.ai import execute_course_ai as execute
-    return execute(db, user, CAPABILITY, messages, learning_context=context,
-                   max_tokens=900, temperature=0.3)
+    return execute(db, user, capability, messages, learning_context=context,
+                   max_tokens=max_tokens, temperature=0.3)
 
 
 def _extract_json_object(text: str) -> dict | None:

@@ -378,12 +378,25 @@ export type PlanScopeSelect = {
   onChange: (value: string) => void;
 };
 
-export function DynamicPlanSurface({ scope, scopeSelect }: { scope: LearningScope; scopeSelect?: PlanScopeSelect }) {
+export function DynamicPlanSurface({ scope, scopeSelect, open: openProp, onOpenChange }: {
+  scope: LearningScope;
+  scopeSelect?: PlanScopeSelect;
+  /** Controlled by a caller that renders the trigger itself (the plan page's toolbar). */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
   const proposalMutation = usePlanProposal();
   const apply = useApplyPlanProposal(scope);
   const [goal, setGoal] = useState('');
   const [proposal, setProposal] = useState<PlanProposal>();
   const [stale, setStale] = useState(false);
+  // CLOSED until asked for. Adjusting is a thing a learner decides to do to a plan they already
+  // have, so the assistant's panel is a response to a click rather than the thing the plan is
+  // buried under.
+  const [ownOpen, setOwnOpen] = useState(false);
+  const controlled = openProp !== undefined;
+  const open = controlled ? Boolean(openProp) : ownOpen;
+  const setOpen = (next: boolean) => { setOwnOpen(next); onOpenChange?.(next); };
 
   // A proposal belongs to the plan it was generated from. Changing WHICH plan is open therefore
   // discards it, rather than leaving a 数据结构 diff on screen under a 操作系统 selector — where
@@ -412,6 +425,23 @@ export function DynamicPlanSurface({ scope, scopeSelect }: { scope: LearningScop
       },
       onSuccess: () => setProposal(undefined),
     });
+
+  if (!open) {
+    // A caller that owns the trigger (the plan page's toolbar) draws the button itself, so there
+    // is exactly one of them rather than one per component that knows about adjusting.
+    if (controlled) return null;
+    return (
+      <section className="mt-10 border-t border-border-default pt-8" aria-labelledby="dynamic-plan-title">
+        <h2 id="dynamic-plan-title" className="text-heading font-semibold text-text-primary">调整计划</h2>
+        <p className="mt-2 max-w-prose text-body text-text-secondary">
+          让助手在你现有计划的基础上提出改动，确认后才会写入。
+        </p>
+        <div className="mt-4">
+          <Button variant="secondary" onClick={() => setOpen(true)}>调整计划</Button>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="mt-10 border-t border-border-default pt-8" aria-labelledby="dynamic-plan-title">
@@ -451,9 +481,8 @@ export function DynamicPlanSurface({ scope, scopeSelect }: { scope: LearningScop
           disabled={proposalMutation.isPending || apply.isPending}
           onClick={generate}
         >
-          {proposalMutation.isPending ? '正在生成建议…' : '生成建议'}
+          {proposalMutation.isPending ? '正在生成调整建议…' : '生成调整建议'}
         </Button>
-        <p className="text-metadata text-text-secondary">生成后可确认是否应用</p>
       </div>
 
       {proposalMutation.isError ? <FailureCopy error={proposalMutation.error} /> : null}
@@ -471,11 +500,10 @@ export function DynamicPlanSurface({ scope, scopeSelect }: { scope: LearningScop
 
       {proposal && (proposal.proposed_changes?.length ?? 0) === 0 ? (
         // The assistant looked and had nothing to change. That is an answer, and the server sends
-        // it as one — so it is stated here, with no apply button and no error styling, rather than
-        // being dressed up as a failed request.
-        <StatusNote tone="info" className="mt-4">
-          {text(proposal.message) ?? '当前计划没有需要调整的地方。'}
-        </StatusNote>
+        // it as one — so it is stated here, plainly, with no apply button and no error styling.
+        <p className="mt-5 text-body text-text-secondary">
+          {text(proposal.message) ?? '当前计划暂时不需要调整。'}
+        </p>
       ) : null}
       {proposal && (proposal.proposed_changes?.length ?? 0) > 0 ? (
         <ProposalView
@@ -564,7 +592,6 @@ function SuggestionRow({ change, chosenDate, onChooseDate }: {
 
 function ProposalView({ proposal, onApply, onDismiss, applying }: { proposal: PlanProposal; onApply: (proposal: PlanProposal) => void; onDismiss: () => void; applying: boolean }) {
   const changes = proposal.proposed_changes ?? [];
-  const usage = usageCreditsText(proposal.usage);
   const [chosen, setChosen] = useState<Record<number, string>>({});
   // The reason the suggestion rests on. It is one sentence, not the evidence list restated:
   // showing both would be this panel saying the same thing twice.
@@ -614,7 +641,124 @@ function ProposalView({ proposal, onApply, onDismiss, applying }: { proposal: Pl
         <AiFeedback requestId={proposal.request_id} workflowId={proposal.proposal_id}
                     target="plan_adjustment" />
       </div>
-      {usage ? <p className="mt-3 text-metadata text-text-secondary">{usage}</p> : null}
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ initial plan */
+
+/** One line of the draft. `due_date` is empty until the learner picks one. */
+export type InitialPlanDraftTask = { title: string; task_type: string; due_date: string };
+
+/**
+ * Drawing up a FIRST plan, as a DRAFT the learner finishes.
+ *
+ * It exists because "adjust my plan" is the wrong question to ask about no plan at all — the old
+ * page offered exactly that, and a learner with nothing read "nothing needs adjusting". So this
+ * surface asks for a plan instead, and what comes back is not a plan: it is a list the learner
+ * edits, dates and then saves. Every task must carry a day before the save is offered, because a
+ * task with no date can never be due; nothing is auto-dated, and a task whose day the model could
+ * not choose is kept in the list waiting for one.
+ *
+ * Persistence is the caller's: `onSave` writes through the ordinary task endpoints, so a drafted
+ * task and a typed one are stored by the same code.
+ */
+export function InitialPlanDraftSurface({ goal, onGoalChange, scopeLabel, onGenerate, generating, generateError, draft, onDraftTitle, onDraftDate, onRegenerate, onCancel, onSave, saving, saveError }: {
+  goal: string;
+  onGoalChange: (value: string) => void;
+  scopeLabel?: string;
+  onGenerate: () => void;
+  generating: boolean;
+  generateError: unknown;
+  draft: InitialPlanDraftTask[] | undefined;
+  onDraftTitle: (index: number, value: string) => void;
+  onDraftDate: (index: number, value: string) => void;
+  onRegenerate: () => void;
+  onCancel: () => void;
+  onSave: () => void;
+  saving: boolean;
+  saveError: boolean;
+}) {
+  const undated = (draft ?? []).filter((task) => !task.due_date).length;
+  const saveable = Boolean(draft?.length) && undated === 0 && !saving;
+
+  return (
+    <section className="mt-6 border-t border-border-default pt-6" aria-labelledby="initial-plan-title">
+      <h2 id="initial-plan-title" className="text-heading font-semibold text-text-primary">生成初始计划</h2>
+
+      {!draft ? (
+        <>
+          <p className="mt-2 max-w-prose text-body text-text-secondary">
+            {scopeLabel
+              ? `按 ${scopeLabel} 的章节内容排出一个起步计划，生成后你可以逐条修改再保存。`
+              : '按这个科目的章节内容排出一个起步计划，生成后你可以逐条修改再保存。'}
+          </p>
+          <label className="mt-4 block text-body font-medium text-text-primary" htmlFor="initial-plan-goal">
+            目标（可选）
+          </label>
+          <input
+            id="initial-plan-goal"
+            value={goal}
+            onChange={(event) => onGoalChange(event.target.value)}
+            maxLength={300}
+            className="mt-2 h-11 w-full rounded-control border border-border-default bg-surface px-3 text-body text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            placeholder="例如：这周先把线性表和栈过一遍"
+          />
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <Button disabled={generating} onClick={onGenerate}>
+              {generating ? '正在生成…' : '生成初始计划'}
+            </Button>
+            <Button variant="secondary" disabled={generating} onClick={onCancel}>取消</Button>
+          </div>
+          {generateError ? <FailureCopy error={generateError} /> : null}
+        </>
+      ) : draft.length === 0 ? (
+        <>
+          <p className="mt-3 text-body text-text-secondary">这次没有生成可用的任务，可以重新生成。</p>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <Button onClick={onRegenerate} disabled={generating}>{generating ? '正在生成…' : '重新生成'}</Button>
+            <Button variant="secondary" onClick={onCancel}>取消</Button>
+          </div>
+          {generateError ? <FailureCopy error={generateError} /> : null}
+        </>
+      ) : (
+        <>
+          <p className="mt-2 max-w-prose text-body text-text-secondary">
+            这是一份建议，还没有保存。逐条确认名称与日期后再保存。
+          </p>
+          <ol className="mt-4 space-y-4">
+            {draft.map((task, index) => (
+              <li key={index} className="flex flex-wrap items-end gap-4">
+                <label className="study-plan__field grow basis-64">
+                  <span>任务名称</span>
+                  <input type="text" value={task.title} maxLength={120}
+                         onChange={(event) => onDraftTitle(index, event.target.value)} />
+                </label>
+                <label className="study-plan__field">
+                  <span>计划日期</span>
+                  <input type="date" value={task.due_date}
+                         onChange={(event) => onDraftDate(index, event.target.value)} />
+                </label>
+              </li>
+            ))}
+          </ol>
+
+          {undated ? (
+            <p className="mt-4 text-body text-warning-ink">请先为每一项选择计划日期，再保存。</p>
+          ) : null}
+          {saveError ? (
+            <StatusNote tone="danger" className="mt-4">保存失败，计划未改变。请检查网络后重试。</StatusNote>
+          ) : null}
+
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <Button onClick={onSave} disabled={!saveable}>{saving ? '正在保存…' : '保存为我的计划'}</Button>
+            <Button variant="secondary" onClick={onRegenerate} disabled={saving || generating}>
+              {generating ? '正在生成…' : '重新生成'}
+            </Button>
+            <Button variant="secondary" onClick={onCancel} disabled={saving}>取消</Button>
+          </div>
+        </>
+      )}
     </section>
   );
 }

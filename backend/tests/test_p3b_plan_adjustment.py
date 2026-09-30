@@ -379,7 +379,7 @@ def test_a_change_that_changes_nothing_is_never_shown(client, db_session, monkey
     # Restating the value the plan already holds asked for nothing — it is not an unusable
     # suggestion, so the learner reads "nothing to adjust", not "your suggestion was rejected".
     assert body["outcome"] == "no_change_suggested"
-    assert body["message"] == "当前计划没有需要调整的地方。"
+    assert body["message"] == "当前计划暂时不需要调整。"
 
 
 def test_a_suggestion_cannot_write_learner_progress(client, db_session, monkeypatch):
@@ -441,7 +441,7 @@ def test_the_four_recorded_provider_shapes_are_each_handled_as_a_result(
                     change(title="线性表复习")):        # 2. the title it already has
         body = propose_raw(content)
         assert body["outcome"] == "no_change_suggested", f"{content} -> {body['outcome']}"
-        assert body["message"] == "当前计划没有需要调整的地方。"
+        assert body["message"] == "当前计划暂时不需要调整。"
         assert body["proposed_changes"] == []
         assert body["can_apply"] is False
         assert body["adjustment_types"] == []
@@ -518,7 +518,7 @@ def test_an_empty_change_list_is_a_result_and_not_a_service_error(client, db_ses
     assert body["adjustment_types"] == []
     # the learner has a plan, so this is "nothing to adjust", not "no records yet"
     assert body["outcome"] == "no_change_suggested"
-    assert body["message"] == "当前计划没有需要调整的地方。"
+    assert body["message"] == "当前计划暂时不需要调整。"
     # and the plan is untouched
     assert _task_state(db_session, task.id) == before
 
