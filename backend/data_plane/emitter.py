@@ -96,6 +96,79 @@ def build_course_practice_events(attempt, item, answer, correct, user) -> list:
     return events
 
 
+def build_course_practice_events_batch(attempt, questions, results, user) -> list:
+    """ITEM_LEVEL payloads for a MULTI-question course set — one event per question.
+
+    The single-question builder takes one item and repeats its snapshot for every id in
+    ``question_ids_json``, which is right for the legacy one-question attempt and wrong here:
+    it would stamp one question's content onto every event. This walks the attempt's own id
+    order, so ``source_item_index``/``source_item_key`` stay the exact convention the
+    canonical practice mirror derives its item keys from (``f"{qid}:{idx}"``).
+
+    A question with no recorded result is skipped rather than emitted unanswered: the source
+    states no attempt for it, and inventing one would put a verdict on the learner's history
+    that they never gave.
+    """
+    import json as _json
+
+    try:
+        qids = [int(value) for value in _json.loads(attempt.question_ids_json or "[]")]
+    except (TypeError, ValueError):
+        return []
+    by_id = {row.id: row for row in questions}
+    verdicts = {}
+    for item in results:
+        try:
+            verdicts[int(item.get("question_id"))] = item
+        except (TypeError, ValueError):
+            continue
+
+    occurred = timeutil.to_epoch_or_now(getattr(attempt, "submitted_at", None))
+    events = []
+    for idx, qid in enumerate(qids):
+        question = by_id.get(qid)
+        verdict = verdicts.get(qid)
+        if question is None or verdict is None:
+            continue
+        qid_str = str(qid)
+        item_key = identity.source_item_key(qid_str, idx)
+        snapshot = snapshots.build_live_item_snapshot(question)
+        events.append({
+            "event_id": identity.event_id(SOURCE_TYPE, str(attempt.id), item_key),
+            "event_schema_version": 2,
+            "event_type": EVENT_TYPE,
+            "event_granularity": "ITEM_LEVEL",
+            "source_type": SOURCE_TYPE,
+            "source_attempt_id": str(attempt.id),
+            "source_item_key": item_key,
+            "source_item_index": idx,
+            "user_id": user.id,
+            "source_user_ref": attempt.username,
+            "service_key": SERVICE_KEY,
+            "course_id": course_identity(attempt),
+            "subject_key": attempt.subject_key,
+            "question_id": qid_str,
+            "knowledge_point_ref_json": identity.canonical_json(
+                snapshots.build_knowledge_point_ref(attempt)),
+            "item_snapshot_json": identity.canonical_json(snapshot),
+            "item_content_hash": identity.item_content_hash(snapshot),
+            "answer": verdict.get("user_answer") or "",
+            "correct": verdict.get("correct"),
+            "score": None,
+            "response_time_ms": None,
+            "attempt_no": None,
+            "occurred_at": occurred,
+            "ingested_at": time.time(),
+            "source_payload_version": 1,
+            "idempotency_key": identity.idempotency_key(SOURCE_TYPE, str(attempt.id), item_key),
+            "snapshot_capture_mode": "LIVE_EMITTER",
+            "snapshot_completeness": "FULL",
+            "snapshot_missing_fields_json": identity.canonical_json([]),
+        })
+        events[-1]["data_origin"] = origin.origin_for_user(user)
+    return events
+
+
 def best_effort_emit(events, SessionLocal) -> int:
     """Insert LearningEvents in a NEW transaction.  Returns number inserted.  Never raises."""
     if not events:

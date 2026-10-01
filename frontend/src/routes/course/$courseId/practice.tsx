@@ -1,26 +1,42 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { CoursePracticePage } from '@/features/course/components/course-pages';
-import { searchIdentifier } from '@/lib/router';
+import { CoursePracticePage } from '@/features/course/components/course-practice-page';
 
 /**
- * `chapter` narrows the practice book to the chapter 学习 sent the learner from.
+ * The practice surface, and the identity of the set it is on.
  *
- * It is the CHAPTER, never the knowledge point: the workbook carries no mapping from a learner's
- * own structure points to questions, and passing a point id here would file a question under a
- * point it was never written for. Absent, the page is the whole course — which is what every
- * other route into it already showed.
+ * `point` / `chapter` are the ACTIVE knowledge structure's own node ids, sent by 知识结构 when
+ * the learner pressed 开始练习 beside one of them — they preselect the generation scope, so the
+ * page never asks somebody who just chose a point which point they meant.
+ *
+ * `session` names the set to show: the open one a reload resumes, or a finished one a history
+ * row opens. It is in the URL rather than in component state so that a reload, a bookmark or a
+ * shared link lands on the same set instead of on the entry screen.
  */
-type CoursePracticeSearch = { chapter?: string | number };
+type CoursePracticeSearch = { point?: number; chapter?: number; session?: number };
+
+function nodeId(value: unknown): number | undefined {
+  const parsed = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
 
 export const Route = createFileRoute('/course/$courseId/practice')({
   validateSearch: (search: Record<string, unknown>): CoursePracticeSearch => ({
-    chapter: searchIdentifier(search.chapter),
+    point: nodeId(search.point),
+    chapter: nodeId(search.chapter),
+    session: nodeId(search.session),
   }),
   component: CoursePracticeRoute,
 });
 
 function CoursePracticeRoute() {
   const { courseId } = Route.useParams();
-  const { chapter } = Route.useSearch();
-  return <CoursePracticePage courseId={courseId} chapter={typeof chapter === 'string' ? chapter : undefined} />;
+  const { point, chapter, session } = Route.useSearch();
+  return (
+    <CoursePracticePage
+      courseId={courseId}
+      pointId={point}
+      chapterId={chapter}
+      sessionId={session}
+    />
+  );
 }

@@ -182,13 +182,42 @@
 | PATCH | `/course-learning/today-plan/order` | 今日计划排序 |
 
 ### 4.3 练习
+
+> **修订 2026-10-01（练习重做）— 本节不再与实现一致，以本修订为准。**
+>
+> `POST /course-learning/practice/generate`（旧的一次生成一道选择题的生成器）**已删除**。
+> 它把知识点范围交给模型自行判断、按种子知识脉络静默替换学习者指定的范围，
+> 且固定只出单选选择题。旧前端已随同一次提交改完，无其它调用方。
+>
+> 现行练习契约是 **课程作用域** 的，位于
+> `/course-learning/courses/{course_id}/practice/...`：
+>
+> | Method | Path | 用途 |
+> |---|---|---|
+> | POST | `/course-learning/courses/{course_id}/practice/generate` | 按范围生成一组题（3/5/10 题，四种题型） |
+> | GET | `/course-learning/courses/{course_id}/practice/session` | 当前/指定的一次练习（含逐题判定） |
+> | POST | `/course-learning/courses/{course_id}/practice/{attempt_id}/answer` | 提交组内一道题，取回判定与解析 |
+> | GET | `/course-learning/courses/{course_id}/practice/history` | 已完成的练习（按「组」返回，不逐题展开） |
+>
+> - 范围（`knowledge_point` / `chapter` / `course`）在**服务端**由学习者当前 ACTIVE
+>   知识结构解析，模型只拿到允许清单的编号；无法归属到清单的题一律拒绝，不回落到题库。
+> - 生成响应**不含** `standard_answer` / `analysis`；判定、参考答案与解析只在
+>   `answer` 响应里返回。
+> - 逐题提交后由既有链路落库：`user_knowledge_progress`、`learning_records`、
+>   Data Plane `course_practice` 事件、Practice Core 镜像 → 错题与复习。
+>   没有新增第二套错题系统。
+>
+> 仍存在（未经本轮改动，供练习本/重做读取）：
+> `GET /course-learning/practice/workbook`、`GET .../workbook/{question_id}`、
+> `POST .../workbook/{question_id}/attempts`、`POST /course-learning/practice/{attempt_id}/submit`、
+> `GET /course-learning/practice/history`。
+
 | Method | Path | 用途 |
 |---|---|---|
 | GET | `/course-learning/practice/workbook` | 练习本 |
 | GET | `/course-learning/practice/workbook/{question_id}` | 练习详情 |
-| POST | `/course-learning/practice/generate` | 生成练习 |
 | POST | `/course-learning/practice/workbook/{question_id}/attempts` | 开始练习 |
-| POST | `/course-learning/practice/{attempt_id}/submit` | 提交练习 |
+| POST | `/course-learning/practice/{attempt_id}/submit` | 提交练习（单题） |
 | GET | `/course-learning/practice/history` | 练习历史 |
 
 ### 4.4 资料库

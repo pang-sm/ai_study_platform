@@ -61,7 +61,6 @@ COURSE_AI_ENDPOINTS = {
     "analyze_code": {"programming.explain"},
     "ai_generate_learning_report": {"report.generate"},
     "generate_tasks_from_diagnosis": {"planning.generate"},
-    "generate_course_learning_practice": {"question.generate"},
     "generate_knowledge_points_preview": {"knowledge.structure"},
     "generate_knowledge_path_from_materials": {"knowledge.structure"},
     "explain_practice_question": {"question.explain"},

@@ -344,7 +344,8 @@ def test_the_course_practice_loop_reads_workbook_history_and_next(client, db_ses
 
     history = client.get(COURSE_HISTORY.format(course=DATA_STRUCTURE)).json()
     assert history["course_id"] == DATA_STRUCTURE
-    assert [row["id"] for row in history["items"]] == [attempt_id]
+    # history is a list of SETS, so the id it carries is the session's
+    assert [row["session_id"] for row in history["items"]] == [attempt_id]
 
     # "next": a NEW attempt on the same question, then a correct answer resolves it
     nxt = client.post(COURSE_NEW_ATTEMPT.format(course=DATA_STRUCTURE, question=question.id))
@@ -393,7 +394,7 @@ def test_generation_is_gated_by_the_tier_and_filed_under_the_path_course(client,
     that a tier denial must come back as a denial instead.
     """
     _onboard(client, "p11_generate", [DATA_STRUCTURE])
-    body = {"knowledge_point_title": "线性表", "chapter": "线性结构"}
+    body = {"scope": "course", "count": 3}
 
     denied = client.post(COURSE_GENERATE.format(course=DATA_STRUCTURE), json=body)
     assert denied.status_code == 403, denied.text
@@ -409,9 +410,10 @@ def test_generation_is_gated_by_the_tier_and_filed_under_the_path_course(client,
     assert payload["course_id"] == DATA_STRUCTURE
     assert payload["generation_mode"] == "ai"
     assert payload["attempt_id"]
+    assert payload["total"] == 3
 
     item = db_session.query(AIGeneratedQuestion).filter(
-        AIGeneratedQuestion.id == payload["question"]["id"]).one()
+        AIGeneratedQuestion.id == payload["questions"][0]["id"]).one()
     # filed under the CANONICAL course identity, not the English alias the client may hold
     assert item.subject_key == DATA_STRUCTURE
     assert item.requirement == "课程章节练习"
@@ -420,6 +422,7 @@ def test_generation_is_gated_by_the_tier_and_filed_under_the_path_course(client,
         AIQuestionAttempt.id == payload["attempt_id"]).one()
     assert attempt.subject_key == DATA_STRUCTURE
     assert attempt.mode == "course_learning"
+    assert attempt.total_questions == 3
 
     # a course the caller does not have is refused before any model call
     assert client.post(COURSE_GENERATE.format(course=OPERATING_SYSTEM),
@@ -453,12 +456,16 @@ def _fake_provider_factory():
     proving the course route reaches the model boundary and proving it fabricated a
     question.
     """
-    content = json.dumps({
-        "stem": "顺序表按下标定位元素的时间复杂度是多少？",
+    # A TEN-question answer: the set generator takes what it asked for and stops, so one
+    # scripted payload serves any count the product requests.
+    content = json.dumps({"questions": [{
+        "question_type": "single_choice",
+        "stem": f"顺序表按下标定位元素的时间复杂度是多少？（第 {index} 题）",
         "options": {"A": "O(1)", "B": "O(log n)", "C": "O(n)", "D": "O(n log n)"},
         "standard_answer": "A",
-        "analysis": "顺序存储可以直接由基址与下标计算出地址。",
-    }, ensure_ascii=False)
+        "explanation": "顺序存储可以直接由基址与下标计算出地址，因此定位常数时间。",
+        "knowledge_point_index": 1,
+    } for index in range(1, 11)]}, ensure_ascii=False)
 
     def _make(name: str) -> FakeProvider:
         return _ScriptedProvider(content, provider=name, input_tokens=50,

@@ -1,9 +1,8 @@
-import { useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
 import { Download, ExternalLink, Search, Trash2 } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Panel } from '@/components/ui/panel';
 import { SectionHeading } from '@/components/ui/section-heading';
 import { StatusNote } from '@/components/ui/status-note';
 import { MaterialFileIcon, isMaterialPreviewable, materialStatusLabel, materialTypeLabel } from '@/components/materials/material-file';
@@ -18,9 +17,8 @@ import { cn } from '@/lib/utils';
 import { ApiRequestError } from '@/features/exam/api/content-status';
 import { enumText } from '@/lib/learner-safe';
 import { eventTypeLabel, serviceNamespaceLabel } from '@/features/records/event-labels';
-import { MATERIAL_UPLOAD_ACCEPT, materialUploadErrorMessage, useCourseMaterialUpload, useCoursePractice, useCoursePracticeAction, useCoursePracticeHistory, useCourseRecords, useCourseState, useCourseTodayPlan, useCourseWrongAnswers } from '@/features/course/api/course';
+import { MATERIAL_UPLOAD_ACCEPT, materialUploadErrorMessage, useCourseMaterialUpload, useCourseRecords, useCourseState, useCourseTodayPlan, useCourseWrongAnswers } from '@/features/course/api/course';
 import { CoursePageShell } from './course-page-shell';
-import { AdaptivePractice } from '@/components/learning/adaptive-practice';
 import { ScopedAiChatWorkspace } from '@/features/ai/components/ai-chat-page';
 import { DynamicPlanSurface, WrongAnalysisSurface } from '@/features/learning-intelligence/learning-intelligence-surfaces';
 
@@ -364,181 +362,6 @@ export function CourseMaterialsPage({ courseId }: { courseId: string }) {
 }
 
 /* ------------------------------------------------------------------ practice + wrong */
-
-function PracticeAttemptFeedback({ data }: { data: unknown }) {
-  return (
-    <Panel tone="plain" className="mt-6">
-      <p className="text-metadata font-medium tracking-eyebrow text-text-muted">本次提交</p>
-      <FactList
-        value={data}
-        className="mt-3"
-        allow={['correct', 'judge', 'submitted_at', 'status', 'question_type', 'difficulty']}
-      />
-    </Panel>
-  );
-}
-
-/**
- * The course's practice book, optionally narrowed to one chapter.
- *
- * `chapter` arrives from 学习 when the learner pressed 开始练习 beside a knowledge point. It is the
- * chapter that point sits under — not the point itself, because the question bank carries no
- * knowledge-point mapping for a learner's own structure, and inventing one would put a question
- * under a point it was never written for.
- */
-export function CoursePracticePage({ courseId, chapter }: { courseId: string; chapter?: string }) {
-  const workbook = useCoursePractice(courseId, chapter);
-  const history = useCoursePracticeHistory(courseId);
-  const action = useCoursePracticeAction(courseId);
-  const [answer, setAnswer] = useState('');
-
-  const items = list(workbook.data);
-  const current = items.find((item) => number(item, 'id') !== undefined);
-  const questionId = number(current, 'id');
-  const attempt = isRecord(current) && isRecord(current.latest_attempt) ? current.latest_attempt : undefined;
-  const attemptId = number(attempt, 'id');
-  const questionStem = text(current, 'stem') ?? text(current, 'title');
-
-  return (
-    <CoursePageShell
-      courseId={courseId}
-      active="practice"
-      facts={[
-        { label: '练习本', value: workbook.isPending ? '正在读取…' : `${items.length} 题` },
-        { label: '历史作答', value: history.isPending ? '正在读取…' : `${list(history.data).length} 条` },
-      ]}
-    >
-      {/* The page's one action, and the reason it is on the page at all: practice here is
-          generated for the point (or the chapter) the learner came in on. Nothing above it
-          describes what the submit does — the result is a fact that shows up below. */}
-      <PageHeader
-        title="课程练习本"
-        actions={
-          <button
-            type="button"
-            className="inline-flex h-11 items-center rounded-control bg-primary px-5 text-body font-medium text-white hover:bg-primary-hover disabled:opacity-50"
-            disabled={action.isPending}
-            onClick={() => action.mutate({ kind: 'generate', chapter })}
-          >
-            {action.isPending ? '正在生成…' : 'AI 生成练习题'}
-          </button>
-        }
-      />
-
-      {action.isError ? <StatusNote tone="danger" className="mt-6">操作未完成，请稍后重试。</StatusNote> : null}
-
-      {questionId !== undefined ? (
-        <Section title="当前题目" description={questionStem ?? '题目信息暂不完整'}>
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              className="inline-flex h-10 items-center rounded-control border border-border-default bg-surface px-4 text-body text-text-primary hover:bg-primary-soft disabled:opacity-50"
-              disabled={action.isPending}
-              onClick={() => action.mutate({ kind: 'start', id: questionId })}
-            >
-              开始 / 重做本题
-            </button>
-          </div>
-          {attemptId !== undefined ? (
-            <form
-              className="mt-5"
-              onSubmit={(event: FormEvent) => {
-                event.preventDefault();
-                action.mutate({ kind: 'submit', id: attemptId, answer });
-              }}
-            >
-              <label className="block text-body font-medium text-text-primary" htmlFor="course-answer">
-                你的作答
-              </label>
-              <textarea
-                id="course-answer"
-                value={answer}
-                onChange={(event) => setAnswer(event.target.value)}
-                className="mt-2 min-h-32 w-full rounded-card border border-border-default bg-surface p-4 text-body text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                placeholder="写下你的答案"
-              />
-              <button
-                type="submit"
-                className="mt-4 inline-flex h-11 items-center rounded-control bg-primary px-5 text-body font-medium text-white hover:bg-primary-hover disabled:opacity-50"
-                disabled={action.isPending}
-              >
-                {action.isPending ? '正在提交…' : '提交作答'}
-              </button>
-            </form>
-          ) : (
-            <p className="mt-4 text-body text-text-secondary">先开始本题，作答后才能提交。</p>
-          )}
-        </Section>
-      ) : null}
-
-      {action.data !== undefined ? <PracticeAttemptFeedback data={action.data} /> : null}
-
-      <Section title="练习本题目">
-        {workbook.isPending ? (
-          <LoadingState label="正在读取练习本…" />
-        ) : workbook.isError ? (
-          <Failure title="练习本暂时无法加载。" error={workbook.error} retry={() => void workbook.refetch()} />
-        ) : items.length ? (
-          <ol className="border-t border-border-default">
-            {items.map((item, index) => {
-              const stem = text(item, 'stem') ?? text(item, 'title');
-              return (
-                <li key={number(item, 'id') ?? index} className="border-b border-border-default py-4">
-                  <p className="text-body text-text-primary">{stem ?? `第 ${index + 1} 题（题目信息暂不完整）`}</p>
-                  <FactList
-                    value={item}
-                    className="mt-3"
-                    columns={2}
-                    allow={['question_type', 'difficulty', 'status', 'correct', 'judge', 'submitted_at']}
-                  />
-                </li>
-              );
-            })}
-          </ol>
-        ) : (
-          <EmptyState title="练习本里还没有题目。" description={chapter ? `点「AI 生成练习题」按「${chapter}」生成一题。` : '点「AI 生成练习题」按当前课程知识点生成一题。'} />
-        )}
-      </Section>
-
-      <Section title="练习历史">
-        {history.isPending ? (
-          <LoadingState label="正在读取练习历史…" rows={2} />
-        ) : list(history.data).length ? (
-          <ol className="border-t border-border-default">
-            {list(history.data).map((entry, index) => (
-              <li key={number(entry, 'id') ?? index} className="border-b border-border-default py-4">
-                <FactList
-                  value={entry}
-                  columns={2}
-                  allow={['stem', 'title', 'question_type', 'difficulty', 'correct', 'judge', 'submitted_at', 'answered_at']}
-                />
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <EmptyState title="还没有练习历史。" description="提交一次作答后，这里会按时间列出真实结果。" />
-        )}
-      </Section>
-
-      {/* Recommended practice sits AFTER the page's own body, never above its title. This page is
-          the practice surface first — its heading, and the entry that generates practice for it —
-          and a recommendation is an addition to that, not the thing the page opens with. The
-          candidate list itself is untouched: this is where it is drawn, not what it says. */}
-      <AdaptivePractice
-        serviceKey="course_learning"
-        courseId={courseId}
-        entryHref={`/course/${encodeURIComponent(courseId)}/practice`}
-      />
-
-      <NextStep
-        label="查看错题与复习"
-        description="做错的题目会进入错题与复习安排，这是专业学习的闭环。"
-        to="/course/$courseId/wrong"
-        params={{ courseId }}
-      />
-    </CoursePageShell>
-  );
-}
 
 export function CourseWrongPage({ courseId }: { courseId: string }) {
   const query = useCourseWrongAnswers(courseId);

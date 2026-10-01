@@ -390,12 +390,15 @@ describe('what the learner can do next', () => {
     expect(href).toContain('knowledge_point_title=');
   });
 
-  it('sends practice to the chapter the point sits under, never to a made-up point mapping', async () => {
+  it('sends practice the point ITSELF, so the page never asks which point again', async () => {
+    // The point is the active structure's own node id — the identity the practice server
+    // resolves the scope from. The chapter TITLE it used to send was presentation, and the
+    // generator filed questions under whatever chapter the question bank happened to hold.
     await renderStudy(`${URL}?knowledge_point_id=2`);
 
     const href = screen.getByRole('link', { name: '开始练习' }).getAttribute('href') ?? '';
     expect(href).toContain(`/course/${encodeURIComponent(COURSE)}/practice`);
-    expect(href).toContain('chapter=');
-    expect(href).not.toContain('knowledge_point_id');
+    expect(href).toContain('point=2');
+    expect(href).not.toContain('chapter=');
   });
 });

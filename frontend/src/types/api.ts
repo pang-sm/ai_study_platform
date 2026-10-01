@@ -735,6 +735,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/course-learning/courses/{course_id}/practice/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Course Practice Session
+         * @description The open set for THIS course — what a page reload resumes.
+         *
+         *     ``attempt_id`` reads one named session (that must belong to this course and this learner);
+         *     without it the newest unfinished set is returned. When there is neither, ``session`` is
+         *     null — the page's own start state, not an error.
+         */
+        get: operations["get_course_practice_session_course_learning_courses__course_id__practice_session_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/course-learning/courses/{course_id}/practice/history": {
         parameters: {
             query?: never;
@@ -744,7 +768,7 @@ export interface paths {
         };
         /**
          * Get Course Practice History
-         * @description This course's practice attempts, newest first.
+         * @description This course's finished practice sets, newest first.
          */
         get: operations["get_course_practice_history_course_learning_courses__course_id__practice_history_get"];
         put?: never;
@@ -791,15 +815,39 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Generate Course Question
-         * @description Generate ONE new question for this course and open an attempt on it.
+         * Generate Course Practice
+         * @description Generate ONE scoped set of questions and open the session that plays it.
          *
-         *     Delegates to the existing course generation route with the path's course. That route
-         *     keeps its own capability/budget decision: an entitlement denial is an answer and is
-         *     re-raised as such, while a model outage degrades to the deterministic local question
-         *     and says so in ``generation_mode``.
+         *     The scope is resolved from the learner's OWN active knowledge structure before any model
+         *     call, and every returned question is validated against that scope server-side — a question
+         *     that cannot be attributed to it is refused rather than filed into the set. The questions
+         *     come back WITHOUT their answers; the verdict belongs to the answer route.
          */
-        post: operations["generate_course_question_course_learning_courses__course_id__practice_generate_post"];
+        post: operations["generate_course_practice_course_learning_courses__course_id__practice_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/course-learning/courses/{course_id}/practice/{attempt_id}/answer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Answer Course Practice
+         * @description Submit ONE answer inside THIS course's set, and get that question's verdict back.
+         *
+         *     The set is resolved and its course ownership checked BEFORE grading, so a course-A session
+         *     cannot be answered through a course-B path. The verdict, the reference answer and the
+         *     analysis are returned here — and only here: the generate route never sends them.
+         */
+        post: operations["answer_course_practice_course_learning_courses__course_id__practice__attempt_id__answer_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4574,23 +4622,6 @@ export interface paths {
         post?: never;
         /** Delete Exam Favorite */
         delete: operations["delete_exam_favorite_exam_11408__subject_key__favorites__favorite_id__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/course-learning/practice/generate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Generate Course Learning Practice */
-        post: operations["generate_course_learning_practice_course_learning_practice_generate_post"];
-        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -9144,6 +9175,38 @@ export interface components {
             open: number;
         };
         /**
+         * CoursePracticeAnswerRequest
+         * @description The learner's answer to ONE question of the set.
+         */
+        CoursePracticeAnswerRequest: {
+            /** Question Id */
+            question_id: number;
+            /**
+             * Answer
+             * @default
+             */
+            answer: string;
+        };
+        /**
+         * CoursePracticeAnswerResponse
+         * @description The verdict for the question just answered, plus the set as it now stands.
+         */
+        CoursePracticeAnswerResponse: {
+            /** Course Id */
+            course_id: string;
+            /** Attempt Id */
+            attempt_id: number;
+            /**
+             * Created
+             * @default true
+             */
+            created: boolean;
+            feedback: components["schemas"]["CoursePracticeResultView"];
+            session: components["schemas"]["CoursePracticeSessionView"];
+        } & {
+            [key: string]: unknown;
+        };
+        /**
          * CoursePracticeBlock
          * @description Factual attempt counts. ``ungraded`` is a real third state, never a zero score.
          */
@@ -9159,43 +9222,109 @@ export interface components {
             /** Ungraded Attempts */
             ungraded_attempts: number;
         };
-        /** CoursePracticeHistoryItem */
-        CoursePracticeHistoryItem: {
-            /** Id */
-            id: number;
-            /** Question Id */
-            question_id?: number | null;
+        /**
+         * CoursePracticeGenerateRequest
+         * @description What to generate a set FOR. The scope is resolved server-side, never trusted blind.
+         */
+        CoursePracticeGenerateRequest: {
+            /**
+             * Scope
+             * @default course
+             * @enum {string}
+             */
+            scope: "knowledge_point" | "chapter" | "course";
+            /**
+             * Goal
+             * @default consolidate
+             */
+            goal: string;
+            /**
+             * Count
+             * @default 5
+             */
+            count: number;
+            /**
+             * Difficulty
+             * @default adaptive
+             */
+            difficulty: string;
+            /** Knowledge Point Id */
+            knowledge_point_id?: number | null;
+            /** Chapter Id */
+            chapter_id?: number | null;
+        };
+        /**
+         * CoursePracticeGenerateResponse
+         * @description A generated set plus the session that plays it.
+         *
+         *     ``generation_mode`` is part of the contract, not telemetry: ``fallback`` means the model
+         *     was unavailable and the questions came from the deterministic local bank, and a client
+         *     must be able to say so rather than present them as generated content.
+         */
+        CoursePracticeGenerateResponse: {
             /** Course Id */
-            course_id?: string | null;
+            course_id: string;
+            /** Scope */
+            scope: string;
+            /** Scope Label */
+            scope_label: string;
+            /**
+             * Scope Source
+             * @default structure
+             */
+            scope_source: string;
+            /**
+             * Goal
+             * @default consolidate
+             */
+            goal: string;
+            /** Difficulty */
+            difficulty: string;
+            /** Difficulty Label */
+            difficulty_label: string;
+            /** Generation Mode */
+            generation_mode: string;
+            /** Attempt Id */
+            attempt_id: number;
+            /** Total */
+            total: number;
+            /** Questions */
+            questions: components["schemas"]["CoursePracticeQuestionView"][];
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * CoursePracticeHistoryItem
+         * @description ONE finished practice SET — not one row per question.
+         *
+         *     The set is the unit a learner recognises ("9月30日 · 数据结构 · 图 · 5题 · 4正确"); the
+         *     questions inside it are what a detail view opens.
+         */
+        CoursePracticeHistoryItem: {
+            /** Session Id */
+            session_id: number;
+            /** Submitted At */
+            submitted_at?: string | null;
             /**
              * Chapter
              * @default
              */
             chapter: string;
             /**
-             * Knowledge Point Name
+             * Knowledge Point Title
              * @default
              */
-            knowledge_point_name: string;
-            /** Status */
-            status?: string | null;
-            /** Correct Count */
-            correct_count?: number | null;
-            /** Accuracy */
-            accuracy?: number | null;
-            /** Correct */
-            correct?: boolean | null;
+            knowledge_point_title: string;
             /**
-             * Stem
-             * @default
+             * Total
+             * @default 0
              */
-            stem: string;
-            /** Generation Mode */
-            generation_mode?: string | null;
-            /** Created At */
-            created_at?: string | null;
-            /** Submitted At */
-            submitted_at?: string | null;
+            total: number;
+            /**
+             * Correct Count
+             * @default 0
+             */
+            correct_count: number;
         } & {
             [key: string]: unknown;
         };
@@ -9207,6 +9336,183 @@ export interface components {
             items: components["schemas"]["CoursePracticeHistoryItem"][];
             /** Total */
             total: number;
+        };
+        /**
+         * CoursePracticeQuestionView
+         * @description ONE question of a set, as the learner sees it BEFORE answering.
+         *
+         *     There is deliberately no ``standard_answer`` and no ``analysis`` field on this model: the
+         *     answer is not sent to the browser until the learner has answered that question.
+         */
+        CoursePracticeQuestionView: {
+            /** Id */
+            id: number;
+            /**
+             * Question Type
+             * @default
+             */
+            question_type: string;
+            /**
+             * Stem
+             * @default
+             */
+            stem: string;
+            /** Options */
+            options?: {
+                [key: string]: string;
+            };
+            /**
+             * Difficulty
+             * @default
+             */
+            difficulty: string;
+            /**
+             * Chapter
+             * @default
+             */
+            chapter: string;
+            /**
+             * Knowledge Point Id
+             * @default
+             */
+            knowledge_point_id: string;
+            /**
+             * Knowledge Point Title
+             * @default
+             */
+            knowledge_point_title: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * CoursePracticeResultView
+         * @description The verdict for one question. It exists only for a question the learner HAS answered.
+         */
+        CoursePracticeResultView: {
+            /** Question Id */
+            question_id: number;
+            /**
+             * User Answer
+             * @default
+             */
+            user_answer: string;
+            /** Correct */
+            correct?: boolean | null;
+            /**
+             * Judge
+             * @default
+             */
+            judge: string;
+            /**
+             * Standard Answer
+             * @default
+             */
+            standard_answer: string;
+            /**
+             * Analysis
+             * @default
+             */
+            analysis: string;
+            /**
+             * Knowledge Point Title
+             * @default
+             */
+            knowledge_point_title: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * CoursePracticeSessionQuestionView
+         * @description A question of the set, plus its own verdict once it has one.
+         */
+        CoursePracticeSessionQuestionView: {
+            /** Id */
+            id: number;
+            /**
+             * Question Type
+             * @default
+             */
+            question_type: string;
+            /**
+             * Stem
+             * @default
+             */
+            stem: string;
+            /** Options */
+            options?: {
+                [key: string]: string;
+            };
+            /**
+             * Difficulty
+             * @default
+             */
+            difficulty: string;
+            /**
+             * Chapter
+             * @default
+             */
+            chapter: string;
+            /**
+             * Knowledge Point Id
+             * @default
+             */
+            knowledge_point_id: string;
+            /**
+             * Knowledge Point Title
+             * @default
+             */
+            knowledge_point_title: string;
+            /**
+             * Answered
+             * @default false
+             */
+            answered: boolean;
+            result?: components["schemas"]["CoursePracticeResultView"] | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * CoursePracticeSessionResponse
+         * @description The course's open set, or a session named by the query.
+         */
+        CoursePracticeSessionResponse: {
+            /** Course Id */
+            course_id: string;
+            session?: components["schemas"]["CoursePracticeSessionView"] | null;
+        };
+        /**
+         * CoursePracticeSessionView
+         * @description One practice set in progress: the questions, and how far through it the learner is.
+         */
+        CoursePracticeSessionView: {
+            /** Attempt Id */
+            attempt_id: number;
+            /** Course Id */
+            course_id: string;
+            /**
+             * Status
+             * @default in_progress
+             */
+            status: string;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+            /**
+             * Answered
+             * @default 0
+             */
+            answered: number;
+            /**
+             * Correct Count
+             * @default 0
+             */
+            correct_count: number;
+            /** Questions */
+            questions?: components["schemas"]["CoursePracticeSessionQuestionView"][];
+        } & {
+            [key: string]: unknown;
         };
         /** CoursePracticeSubmitResponse */
         CoursePracticeSubmitResponse: {
@@ -9231,75 +9537,6 @@ export interface components {
             knowledge_point: string;
             /** Status */
             status: string;
-        };
-        /**
-         * CourseQuestionGenerateRequest
-         * @description What to generate. The question identity is the knowledge point, not a course.
-         */
-        CourseQuestionGenerateRequest: {
-            /**
-             * Knowledge Point Code
-             * @default
-             */
-            knowledge_point_code: string;
-            /**
-             * Knowledge Point Id
-             * @default
-             */
-            knowledge_point_id: string;
-            /**
-             * Knowledge Point Title
-             * @default
-             */
-            knowledge_point_title: string;
-            /**
-             * Chapter
-             * @default
-             */
-            chapter: string;
-            /**
-             * Difficulty
-             * @default 基础
-             */
-            difficulty: string;
-            /** Material Ids */
-            material_ids?: number[];
-        };
-        /**
-         * CourseQuestionGeneratedResponse
-         * @description A generated course question plus the attempt that was opened for it.
-         *
-         *     ``generation_mode`` is part of the contract, not telemetry: ``fallback`` means the
-         *     model was unavailable and the question came from the deterministic local bank, and a
-         *     client must be able to say so rather than present it as generated content.
-         */
-        CourseQuestionGeneratedResponse: {
-            /** Course Id */
-            course_id: string;
-            /**
-             * Success
-             * @default true
-             */
-            success: boolean;
-            /** Generation Mode */
-            generation_mode: string;
-            /**
-             * Fallback Reason
-             * @default
-             */
-            fallback_reason: string;
-            /** Attempt Id */
-            attempt_id: number;
-            /**
-             * Chapter
-             * @default
-             */
-            chapter: string;
-            /** Knowledge Point */
-            knowledge_point?: {
-                [key: string]: string;
-            };
-            question: components["schemas"]["CourseQuestionView"];
         };
         /**
          * CourseQuestionView
@@ -16612,6 +16849,39 @@ export interface operations {
             };
         };
     };
+    get_course_practice_session_course_learning_courses__course_id__practice_session_get: {
+        parameters: {
+            query?: {
+                attempt_id?: number;
+            };
+            header?: never;
+            path: {
+                course_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoursePracticeSessionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_course_practice_history_course_learning_courses__course_id__practice_history_get: {
         parameters: {
             query?: never;
@@ -16675,7 +16945,7 @@ export interface operations {
             };
         };
     };
-    generate_course_question_course_learning_courses__course_id__practice_generate_post: {
+    generate_course_practice_course_learning_courses__course_id__practice_generate_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -16686,7 +16956,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CourseQuestionGenerateRequest"];
+                "application/json": components["schemas"]["CoursePracticeGenerateRequest"];
             };
         };
         responses: {
@@ -16696,7 +16966,43 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CourseQuestionGeneratedResponse"];
+                    "application/json": components["schemas"]["CoursePracticeGenerateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    answer_course_practice_course_learning_courses__course_id__practice__attempt_id__answer_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                attempt_id: number;
+                course_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoursePracticeAnswerRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoursePracticeAnswerResponse"];
                 };
             };
             /** @description Validation Error */
@@ -24049,41 +24355,6 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    generate_course_learning_practice_course_learning_practice_generate_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
-            };
-        };
         responses: {
             /** @description Successful Response */
             200: {

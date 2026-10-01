@@ -345,21 +345,20 @@ class CourseWorkbookResponse(BaseModel):
 
 
 class CoursePracticeHistoryItem(BaseModel):
+    """ONE finished practice SET — not one row per question.
+
+    The set is the unit a learner recognises ("9月30日 · 数据结构 · 图 · 5题 · 4正确"); the
+    questions inside it are what a detail view opens.
+    """
+
     model_config = ConfigDict(extra="allow")
 
-    id: int
-    question_id: int | None = None
-    course_id: str | None = None
-    chapter: str = ""
-    knowledge_point_name: str = ""
-    status: str | None = None
-    correct_count: int | None = None
-    accuracy: float | None = None
-    correct: bool | None = None
-    stem: str = ""
-    generation_mode: str | None = None
-    created_at: str | None = None
+    session_id: int
     submitted_at: str | None = None
+    chapter: str = ""
+    knowledge_point_title: str = ""
+    total: int = 0
+    correct_count: int = 0
 
 
 class CoursePracticeHistoryResponse(BaseModel):
@@ -398,13 +397,127 @@ class CoursePracticeSubmitResponse(BaseModel):
     result: CourseSubmitResult
 
 
-class CourseQuestionGeneratedResponse(BaseModel):
-    """A generated course question plus the attempt that was opened for it.
+class CoursePracticeGenerateRequest(BaseModel):
+    """What to generate a set FOR. The scope is resolved server-side, never trusted blind."""
 
-    ``generation_mode`` is part of the contract, not telemetry: ``fallback`` means the
-    model was unavailable and the question came from the deterministic local bank, and a
-    client must be able to say so rather than present it as generated content.
+    model_config = ConfigDict(extra="forbid")
+
+    scope: Literal["knowledge_point", "chapter", "course"] = "course"
+    goal: str = "consolidate"
+    count: int = 5
+    difficulty: str = "adaptive"
+    knowledge_point_id: int | None = None
+    chapter_id: int | None = None
+
+
+class CoursePracticeQuestionView(BaseModel):
+    """ONE question of a set, as the learner sees it BEFORE answering.
+
+    There is deliberately no ``standard_answer`` and no ``analysis`` field on this model: the
+    answer is not sent to the browser until the learner has answered that question.
     """
+
+    model_config = ConfigDict(extra="allow")
+
+    id: int
+    question_type: str = ""
+    stem: str = ""
+    options: dict[str, str] = Field(default_factory=dict)
+    difficulty: str = ""
+    chapter: str = ""
+    knowledge_point_id: str = ""
+    knowledge_point_title: str = ""
+
+
+class CoursePracticeResultView(BaseModel):
+    """The verdict for one question. It exists only for a question the learner HAS answered."""
+
+    model_config = ConfigDict(extra="allow")
+
+    question_id: int
+    user_answer: str = ""
+    # tri-state on purpose: a short answer has no server verdict, so it is not "wrong"
+    correct: bool | None = None
+    judge: str = ""
+    standard_answer: str = ""
+    analysis: str = ""
+    knowledge_point_title: str = ""
+
+
+class CoursePracticeSessionQuestionView(CoursePracticeQuestionView):
+    """A question of the set, plus its own verdict once it has one."""
+
+    answered: bool = False
+    result: CoursePracticeResultView | None = None
+
+
+class CoursePracticeSessionView(BaseModel):
+    """One practice set in progress: the questions, and how far through it the learner is."""
+
+    model_config = ConfigDict(extra="allow")
+
+    attempt_id: int
+    course_id: str
+    status: str = "in_progress"
+    total: int = 0
+    answered: int = 0
+    correct_count: int = 0
+    questions: list[CoursePracticeSessionQuestionView] = Field(default_factory=list)
+
+
+class CoursePracticeSessionResponse(BaseModel):
+    """The course's open set, or a session named by the query."""
+
+    course_id: str
+    session: CoursePracticeSessionView | None = None
+
+
+class CoursePracticeGenerateResponse(BaseModel):
+    """A generated set plus the session that plays it.
+
+    ``generation_mode`` is part of the contract, not telemetry: ``fallback`` means the model
+    was unavailable and the questions came from the deterministic local bank, and a client
+    must be able to say so rather than present them as generated content.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    course_id: str
+    scope: str
+    scope_label: str
+    scope_source: str = "structure"
+    goal: str = "consolidate"
+    difficulty: str
+    difficulty_label: str
+    generation_mode: str
+    attempt_id: int
+    total: int
+    questions: list[CoursePracticeQuestionView]
+
+
+class CoursePracticeAnswerRequest(BaseModel):
+    """The learner's answer to ONE question of the set."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    question_id: int
+    answer: str = Field(default="", max_length=4000)
+
+
+class CoursePracticeAnswerResponse(BaseModel):
+    """The verdict for the question just answered, plus the set as it now stands."""
+
+    model_config = ConfigDict(extra="allow")
+
+    course_id: str
+    attempt_id: int
+    created: bool = True
+    feedback: CoursePracticeResultView
+    session: CoursePracticeSessionView
+
+
+class CourseQuestionGeneratedResponse(BaseModel):
+    """The LEGACY one-question generation contract, kept for the routes that still use it."""
 
     course_id: str
     success: bool = True
@@ -500,19 +613,6 @@ class CourseTodayPlanResponse(BaseModel):
 # Neither of these accepts a username or a course_id. The caller is the session, the course
 # is the path, and an authority field the server would then have to reconcile is exactly
 # how a request ends up describing a different course than the URL does.
-
-
-class CourseQuestionGenerateRequest(BaseModel):
-    """What to generate. The question identity is the knowledge point, not a course."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    knowledge_point_code: str = ""
-    knowledge_point_id: str = ""
-    knowledge_point_title: str = ""
-    chapter: str = ""
-    difficulty: str = "基础"
-    material_ids: list[int] = Field(default_factory=list)
 
 
 class CourseAnswerSubmitRequest(BaseModel):
@@ -719,16 +819,37 @@ def get_course_workbook(course_id: str,
     return {**payload, "course_id": key}
 
 
+@router.get("/{course_id}/practice/session", response_model=CoursePracticeSessionResponse)
+def get_course_practice_session(course_id: str, attempt_id: int = 0,
+                                db: Session = Depends(get_db),
+                                current_user=Depends(_require_user)):
+    """The open set for THIS course — what a page reload resumes.
+
+    ``attempt_id`` reads one named session (that must belong to this course and this learner);
+    without it the newest unfinished set is returned. When there is neither, ``session`` is
+    null — the page's own start state, not an error.
+    """
+    key = _owned_course(db, current_user, course_id)
+    practice = _practice_service()
+
+    if attempt_id:
+        attempt = practice.load_attempt(db, current_user, attempt_id)
+        if (attempt.subject_key or "") not in course_identity_forms(key):
+            raise HTTPException(status_code=404, detail="这次练习不属于当前课程")
+    else:
+        attempt = practice.latest_open_session(db, current_user, key)
+    if attempt is None:
+        return {"course_id": key, "session": None}
+    return {"course_id": key, "session": practice.session_view(db, current_user, attempt)}
+
+
 @router.get("/{course_id}/practice/history", response_model=CoursePracticeHistoryResponse)
 def get_course_practice_history(course_id: str, db: Session = Depends(get_db),
                                 current_user=Depends(_require_user)):
-    """This course's practice attempts, newest first."""
+    """This course's finished practice sets, newest first."""
     key = _owned_course(db, current_user, course_id)
-    from main import get_course_learning_practice_history
-
-    payload = get_course_learning_practice_history(
-        username=current_user.username, course_id=key, db=db, current_user=current_user)
-    return {**payload, "course_id": key}
+    items = _practice_service().history(db, current_user, key)
+    return {"course_id": key, "items": items, "total": len(items)}
 
 
 @router.post("/{course_id}/practice/questions/{question_id}/attempts",
@@ -758,30 +879,51 @@ def start_course_question_attempt(question_id: int, course_id: str,
     return {**payload, "course_id": key}
 
 
-@router.post("/{course_id}/practice/generate", response_model=CourseQuestionGeneratedResponse)
-def generate_course_question(course_id: str, payload: CourseQuestionGenerateRequest,
+@router.post("/{course_id}/practice/generate", response_model=CoursePracticeGenerateResponse)
+def generate_course_practice(course_id: str, payload: CoursePracticeGenerateRequest,
                              db: Session = Depends(get_db),
                              current_user=Depends(_require_user)):
-    """Generate ONE new question for this course and open an attempt on it.
+    """Generate ONE scoped set of questions and open the session that plays it.
 
-    Delegates to the existing course generation route with the path's course. That route
-    keeps its own capability/budget decision: an entitlement denial is an answer and is
-    re-raised as such, while a model outage degrades to the deterministic local question
-    and says so in ``generation_mode``.
+    The scope is resolved from the learner's OWN active knowledge structure before any model
+    call, and every returned question is validated against that scope server-side — a question
+    that cannot be attributed to it is refused rather than filed into the set. The questions
+    come back WITHOUT their answers; the verdict belongs to the answer route.
     """
     key = _owned_course(db, current_user, course_id)
-    from main import generate_course_learning_practice
+    practice = _practice_service()
+    try:
+        result = practice.generate(
+            db, current_user, key, scope=payload.scope, goal=payload.goal,
+            count=payload.count, difficulty=payload.difficulty,
+            knowledge_point_id=payload.knowledge_point_id, chapter_id=payload.chapter_id)
+    except practice.PracticeError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+    return {**result, "course_id": key}
 
-    body = {
-        "username": current_user.username,
-        "course_id": key,
-        "knowledge_point_code": payload.knowledge_point_code or payload.knowledge_point_id,
-        "knowledge_point_title": payload.knowledge_point_title,
-        "chapter": payload.chapter,
-        "difficulty": payload.difficulty,
-        "material_ids": payload.material_ids,
-    }
-    result = generate_course_learning_practice(body, db=db, current_user=current_user)
+
+@router.post("/{course_id}/practice/{attempt_id}/answer",
+             response_model=CoursePracticeAnswerResponse)
+def answer_course_practice(attempt_id: int, course_id: str,
+                           payload: CoursePracticeAnswerRequest,
+                           db: Session = Depends(get_db),
+                           current_user=Depends(_require_user)):
+    """Submit ONE answer inside THIS course's set, and get that question's verdict back.
+
+    The set is resolved and its course ownership checked BEFORE grading, so a course-A session
+    cannot be answered through a course-B path. The verdict, the reference answer and the
+    analysis are returned here — and only here: the generate route never sends them.
+    """
+    key = _owned_course(db, current_user, course_id)
+    practice = _practice_service()
+    attempt = practice.load_attempt(db, current_user, attempt_id)
+    if (attempt.subject_key or "") not in course_identity_forms(key):
+        raise HTTPException(status_code=404, detail="这次练习不属于当前课程")
+    try:
+        result = practice.answer(db, current_user, attempt,
+                                 payload.question_id, payload.answer)
+    except practice.PracticeError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
     return {**result, "course_id": key}
 
 
@@ -937,6 +1079,12 @@ class KnowledgeStructurePointCreate(BaseModel):
 
     chapter_id: int
     title: str
+
+
+def _practice_service():
+    """The course practice domain, resolved once per request."""
+    from learning.spaces.course_learning import practice
+    return practice
 
 
 def _structure_service():

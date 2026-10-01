@@ -36,11 +36,11 @@ export const courseKeys = {
   materials: (courseId: string) => ['course', courseId, 'materials'] as const,
   knowledge: (courseId: string) => ['course', courseId, 'knowledge'] as const,
   structure: (courseId: string) => ['course', courseId, 'knowledge-structure'] as const,
-  // The whole workbook scope, so a mutation can invalidate every chapter's view at once: the
-  // point-specific key below extends it, and a prefix invalidation reaches all of them.
+  // The whole practice namespace, so a mutation can invalidate every session view at once:
+  // the per-attempt key below extends it, and a prefix invalidation reaches all of them.
   practice: (courseId: string) => ['course', courseId, 'practice'] as const,
-  practiceFor: (courseId: string, chapter?: string) =>
-    ['course', courseId, 'practice', chapter ?? ''] as const,
+  session: (courseId: string, attemptId?: number) =>
+    ['course', courseId, 'practice', attemptId ?? 'current'] as const,
   history: (courseId: string) => ['course', courseId, 'practice-history'] as const,
   plan: (courseId: string) => ['course', courseId, 'plan'] as const,
   entitlements: ['course', 'entitlements'] as const,
@@ -73,14 +73,21 @@ async function getKnowledgePoints(courseId: string): Promise<unknown> {
   return requireData(response, data, error);
 }
 
-async function getPracticeWorkbook(courseId: string, chapter?: string): Promise<unknown> {
-  const { data, error, response } = await apiClient.GET('/course-learning/courses/{course_id}/practice/workbook', {
-    params: { path: { course_id: courseId }, query: chapter ? { chapter } : {} },
-  });
+/**
+ * The ONE practice set the page is currently on.
+ *
+ * `attemptId` reads a named set — the open one a reload resumes, or a finished one a history
+ * row opens. Without it the server returns whatever this course has unfinished, which is what
+ * makes closing the tab and coming back land on the same question.
+ */
+async function getPracticeSession(courseId: string, attemptId?: number) {
+  const { data, error, response } = await apiClient.GET(
+    '/course-learning/courses/{course_id}/practice/session',
+    { params: { path: { course_id: courseId }, query: attemptId ? { attempt_id: attemptId } : {} } });
   return requireData(response, data, error);
 }
 
-async function getPracticeHistory(courseId: string): Promise<unknown> {
+async function getPracticeHistory(courseId: string) {
   const { data, error, response } = await apiClient.GET('/course-learning/courses/{course_id}/practice/history', { params: { path: { course_id: courseId } } });
   return requireData(response, data, error);
 }
@@ -259,14 +266,68 @@ export function knowledgeStructureErrorMessage(error: unknown): string {
   }
   return '这一步没有完成，请稍后重试。';
 }
-export function useCoursePractice(courseId: string, chapter?: string) {
+export type PracticeScope = components['schemas']['CoursePracticeGenerateRequest'];
+/** ONE question of a set, INCLUDING its verdict once the learner has answered it. */
+export type PracticeQuestion = components['schemas']['CoursePracticeSessionQuestionView'];
+export type PracticeSession = components['schemas']['CoursePracticeSessionView'];
+export type PracticeHistoryItem = components['schemas']['CoursePracticeHistoryItem'];
+
+export function useCoursePracticeSession(courseId: string, attemptId?: number) {
   return useQuery({
-    queryKey: courseKeys.practiceFor(courseId, chapter),
-    queryFn: () => getPracticeWorkbook(courseId, chapter),
+    queryKey: courseKeys.session(courseId, attemptId),
+    queryFn: () => getPracticeSession(courseId, attemptId),
     retry: false,
   });
 }
-export function useCoursePracticeHistory(courseId: string) { return useQuery({ queryKey: courseKeys.history(courseId), queryFn: () => getPracticeHistory(courseId), retry: false }); }
+
+export function useCoursePracticeHistory(courseId: string) {
+  return useQuery({ queryKey: courseKeys.history(courseId), queryFn: () => getPracticeHistory(courseId), retry: false });
+}
+
+/**
+ * Generate one scoped set, and answer one question of it.
+ *
+ * Both invalidate the same reads: a set changes the history, the wrong-answer book and the
+ * course's own state, and an answer changes the same ones again. The invalidation list is
+ * written once so the two mutations cannot drift apart.
+ */
+function invalidatePracticeReads(client: ReturnType<typeof useQueryClient>, courseId: string) {
+  [courseKeys.session(courseId), courseKeys.history(courseId), courseKeys.wrong(courseId),
+   courseKeys.records(courseId), courseKeys.recordsSummary(courseId), courseKeys.state(courseId)]
+    .forEach((queryKey) => void client.invalidateQueries({ queryKey }));
+}
+
+export function useGenerateCoursePractice(courseId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: PracticeScope) => {
+      const r = await apiClient.POST('/course-learning/courses/{course_id}/practice/generate',
+                                     { params: { path: { course_id: courseId } }, body });
+      return requireData(r.response, r.data, r.error);
+    },
+    onSuccess: () => {
+      invalidatePracticeReads(client, courseId);
+      void client.invalidateQueries({ queryKey: ['learning', 'agenda'] });
+    },
+  });
+}
+
+export function useAnswerCoursePractice(courseId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ attemptId, questionId, answer }: { attemptId: number; questionId: number; answer: string }) => {
+      const r = await apiClient.POST(
+        '/course-learning/courses/{course_id}/practice/{attempt_id}/answer',
+        { params: { path: { course_id: courseId, attempt_id: attemptId } },
+          body: { question_id: questionId, answer } });
+      return requireData(r.response, r.data, r.error);
+    },
+    onSuccess: () => {
+      invalidatePracticeReads(client, courseId);
+      void client.invalidateQueries({ queryKey: ['learning', 'agenda'] });
+    },
+  });
+}
 
 /* ------------------------------------------------------------------ one knowledge point, studied */
 
@@ -476,16 +537,6 @@ export function useCourseMaterialUpload(courseId: string) {
     // this course's own list — so the list the learner is looking at is the one to refresh.
     void client.invalidateQueries({ queryKey: courseKeys.materials(courseId) });
     void client.invalidateQueries({ queryKey: LIBRARY_MATERIALS_KEY });
-  } });
-}
-export function useCoursePracticeAction(courseId: string) {
-  const client = useQueryClient();
-  return useMutation({ mutationFn: async ({ kind, id, answer, chapter }: { kind: 'start' | 'generate' | 'submit'; id?: number; answer?: string; chapter?: string }) => { if (kind === 'start') { const r = await apiClient.POST('/course-learning/courses/{course_id}/practice/questions/{question_id}/attempts', { params: { path: { course_id: courseId, question_id: id ?? 0 } } }); return requireData(r.response, r.data, r.error); } if (kind === 'generate') { const r = await apiClient.POST('/course-learning/courses/{course_id}/practice/generate', { params: { path: { course_id: courseId } }, body: { knowledge_point_code: '', knowledge_point_id: '', knowledge_point_title: '', chapter: chapter ?? '', difficulty: '', material_ids: [] } }); return requireData(r.response, r.data, r.error); } const r = await apiClient.POST('/course-learning/courses/{course_id}/practice/{attempt_id}/submit', { params: { path: { course_id: courseId, attempt_id: id ?? 0 } }, body: { answer: answer ?? '' } }); return requireData(r.response, r.data, r.error); }, onSuccess: (_data, variables) => {
-    const keys = variables.kind === 'submit'
-      ? [courseKeys.practice(courseId), courseKeys.history(courseId), courseKeys.wrong(courseId), courseKeys.records(courseId), courseKeys.recordsSummary(courseId), courseKeys.state(courseId), courseKeys.todayPlan(courseId), courseKeys.plan(courseId)]
-      : [courseKeys.practice(courseId), courseKeys.history(courseId)];
-    keys.forEach((queryKey) => void client.invalidateQueries({ queryKey }));
-    if (variables.kind === 'submit') void client.invalidateQueries({ queryKey: ['learning', 'agenda'] });
   } });
 }
 

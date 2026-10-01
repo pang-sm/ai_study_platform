@@ -340,7 +340,7 @@ function StudyWorkspace({
         <Link
           to="/course/$courseId/practice"
           params={{ courseId }}
-          search={{ chapter: point.chapterTitle || undefined }}
+          search={{ point: point.id }}
           className="inline-flex h-11 items-center rounded-control bg-primary px-5 text-body font-medium text-white hover:bg-primary-hover"
         >
           开始练习
