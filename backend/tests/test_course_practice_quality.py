@@ -33,8 +33,17 @@ from learning.spaces.course_learning.practice import parse_questions
 COURSE = "数据结构"
 CHAPTERS = [{"title": "线性结构", "points": [{"title": "线性表的顺序存储"}]}]
 
+# THE PERMANENT REGRESSION CASE. 「循环队列」 is the knowledge point the production report was
+# written about, and the sentences below are quoted from it verbatim. They stay in this file as
+# the fixture every quality rule is measured against — a rule that stops refusing them is a
+# regression, not a preference.
 POINT = "循环队列"
 _MATRIX_RE = re.compile(r'第 (\d+) 题：question_type 必须是 "(\w+)"')
+
+# The two stems the learner actually received, in their own words. Kept as constants so a
+# regression names the report rather than a paraphrase of it.
+REPORT_META_STEM = f"判断：「{POINT}」是本章需要掌握的内容之一。"
+REPORT_GENERIC_STEM = f"请简述「{POINT}」的核心含义，并说明它在什么情况下适用。"
 
 
 def _question(**overrides) -> dict:
@@ -152,7 +161,7 @@ def test_a_question_with_no_declared_ability_is_rejected():
 
 
 @pytest.mark.parametrize("stem", [
-    f"判断：「{POINT}」是本章需要掌握的内容之一。",
+    REPORT_META_STEM,                                    # the report, verbatim
     f"「{POINT}」属于本课程的知识点。",
     f"学习「{POINT}」有助于理解后面的内容。",
     f"「{POINT}」是本章的重要内容。",
@@ -186,12 +195,31 @@ def test_the_template_from_the_report_is_refused_outright():
     angle it asks for ("核心含义…适用情况") is the one that produces ten of the same thing."""
     batch = _batch(count=10)
     with pytest.raises(quality.Rejected) as rejected:
-        batch.add(_question(stem=f"请简述「{POINT}」的核心含义，并说明它在什么情况下适用。",
+        batch.add(_question(stem=REPORT_GENERIC_STEM,
                             question_type="short_answer", options={},
                             standard_answer="先说明定义，再说明适用条件。",
                             analysis="回答应包含定义与适用条件。",
                             assessment_target="概念定义"))
     assert rejected.value.reason == "stem:generic_explain"
+
+
+def test_the_report_template_cannot_pose_as_a_whole_short_answer_block():
+    """The production set carried this stem TWICE — as a short answer and, reworded, again.
+    Neither the repeat nor a reworded repeat of it may enter a set."""
+    batch = _batch(count=10)
+    variants = [
+        REPORT_GENERIC_STEM,
+        REPORT_GENERIC_STEM,
+        f"请说明「{POINT}」的核心含义和适用情况。",
+    ]
+    for index, stem in enumerate(variants):
+        with pytest.raises(quality.Rejected) as rejected:
+            batch.add(_question(stem=stem, question_type="short_answer", options={},
+                                standard_answer="先说明定义，再说明适用条件。",
+                                analysis="回答应包含定义与适用条件。",
+                                assessment_target=f"概念定义 {index}"))
+        assert rejected.value.kind == "low_quality"
+    assert batch.questions == []
 
 
 def test_an_opinion_request_is_refused():
@@ -698,3 +726,69 @@ def test_the_stored_question_records_the_ability_it_tested(learner, monkeypatch)
     assert all(row.cognitive_level for row in rows)
     assert all(row.question_fingerprint for row in rows)
     assert len({row.question_fingerprint for row in rows}) == 3
+
+
+# ---------------------------------------------------------------- coverage, end to end
+
+
+class OneAbilityModel(RecordingModel):
+    """A model that writes ten different questions and claims ONE ability for all of them."""
+
+    def __call__(self, db, user, capability, messages, **kwargs):
+        response = super().__call__(db, user, capability, messages, **kwargs)
+        payload = json.loads(response.content)
+        for question in payload["questions"]:
+            question["assessment_target"] = "队满条件的判断"
+        return SimpleNamespace(content=json.dumps(payload, ensure_ascii=False))
+
+
+def test_a_ten_question_set_that_names_one_ability_is_refused(learner, monkeypatch):
+    """The brief's §8, end to end: ten questions is not ten questions if they name one ability.
+
+    The refusal is the SAME one a learner sees when the model delivers nothing usable, because
+    a set that cannot name five abilities is a set that was not worth generating.
+    """
+    _install(learner, monkeypatch, OneAbilityModel())
+    response = _generate(learner, count=10)
+    assert response.status_code == 503, response.text
+    assert "没有生成出合格的题目" in response.json()["detail"]
+    assert learner.db.query(models.AIGeneratedQuestion).filter(
+        models.AIGeneratedQuestion.username == learner.username).count() == 0
+    assert learner.db.query(models.AIQuestionAttempt).filter(
+        models.AIQuestionAttempt.username == learner.username).count() == 0
+
+
+# ---------------------------------------------------------------- no fallback bank
+
+
+def test_there_is_no_local_question_bank_left_to_pad_a_set_with(learner, monkeypatch):
+    """`_fallback_question` is what produced the reported set. Its absence is the guarantee.
+
+    The set it built was made from the knowledge point's TITLE, so it could only ever ask
+    "is X important" and "summarise X" — the two sentences the learner reported. Topping a set
+    up to size is now impossible rather than merely discouraged, and this test fails the day a
+    bank is added back.
+    """
+    from learning.spaces.course_learning import practice as practice_module
+    assert not hasattr(practice_module, "_fallback_question")
+    assert not hasattr(practice_module, "_fallback_variants")
+
+    # …and nothing the CURRENT generator writes can be labelled a fallback.
+    _install(learner, monkeypatch, RecordingModel())
+    payload = _generate(learner, count=3).json()
+    ids = [question["id"] for question in payload["questions"]]
+    rows = learner.db.query(models.AIGeneratedQuestion).filter(
+        models.AIGeneratedQuestion.id.in_(ids)).all()
+    assert {row.generation_mode for row in rows} == {"ai"}
+
+
+def test_the_two_reported_stems_are_refused_by_the_generator_itself():
+    """The report's own sentences, run through the gate the generator runs — not a paraphrase."""
+    batch = _batch(count=10)
+    for stem in (REPORT_META_STEM, REPORT_GENERIC_STEM):
+        with pytest.raises(quality.Rejected):
+            batch.add(_question(stem=stem, question_type="short_answer", options={},
+                                standard_answer="先说明定义，再说明适用条件。",
+                                analysis="回答应包含定义与适用条件。",
+                                assessment_target="概念定义"))
+    assert batch.questions == []
