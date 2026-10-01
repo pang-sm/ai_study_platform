@@ -61,6 +61,7 @@ from .knowledge_structure import (
     _structures,
     build_tree,
 )
+from . import question_quality as quality
 
 logger = logging.getLogger("learning.spaces.course_learning")
 
@@ -92,6 +93,15 @@ QUESTION_TYPES = (SINGLE_CHOICE, MULTIPLE_CHOICE, TRUE_FALSE, SHORT_ANSWER)
 TRUE_FALSE_OPTIONS = {"A": "正确", "B": "错误"}
 OPTION_LABELS = ("A", "B", "C", "D")
 
+# What ability each type usually asks for, used only to read a verdict that was stored before
+# questions carried their own level. Never used to choose what to generate.
+_TYPE_LEVEL = {
+    SINGLE_CHOICE: quality.UNDERSTAND,
+    MULTIPLE_CHOICE: quality.ANALYZE,
+    TRUE_FALSE: quality.ANALYZE,
+    SHORT_ANSWER: quality.SYNTHESIZE,
+}
+
 COUNTS = (3, 5, 10)
 DEFAULT_COUNT = 5
 
@@ -106,10 +116,29 @@ _TYPE_MIX = {
          SHORT_ANSWER, SHORT_ANSWER),
 }
 
-# Token budget per set. A structured answer of N questions is a LONG visible answer, and a
-# thinking model spends part of the budget on its own reasoning — so the budget scales with the
-# ask instead of sitting at one flat number. (Measured lesson: 3000 is the floor for long output.)
-_TOKEN_BUDGET = {3: 3000, 5: 4000, 10: 6000}
+# Token budget per set.
+#
+# Sized from the provider's OWN reported usage, never from the size of the visible answer. The
+# cheapest qualified model for this capability bills its hidden reasoning INSIDE ``max_tokens``
+# (``ai.cost.REASONING_BOUNDED``), so a budget that looks generous for ten questions is not: the
+# reasoning is spent first and the JSON is cut off mid-answer. That is the defect behind the
+# production report — a 10-question request on 「循环队列」 returned ``finish_reason=length`` at
+# 6,000 tokens with 5,552 of them reasoning, the parser discarded the truncated payload, and the
+# set was filled from the local bank, which is where the "请简述「循环队列」的核心含义" questions
+# came from. 3-question sets were broken the same way (4,333 > 3,000); only 5-question sets fit.
+#
+# Measured 2026-10-01, deepseek-flash, finish_reason=stop, thinking at provider default, with
+# the coverage-matrix prompt this module now sends (reasoning is most of the total):
+#     3 questions →  4,905 output tokens (4,011 reasoning)
+#     5 questions →  8,046 output tokens (6,007 reasoning)
+#    10 questions → 12,902 output tokens (9,974 reasoning)
+# Reasoning varies run to run and is not bounded from above, so each budget carries headroom on
+# top of the largest observed sample rather than sitting at it.
+_TOKEN_BUDGET = {3: 10000, 5: 12000, 10: 16000}
+
+# How many times the model is asked again for the slots that are still empty. A retry is
+# per-slot (see ``generate``): the questions that DID pass are never regenerated.
+_MAX_GENERATION_ATTEMPTS = 3
 
 _KP_PREFIX = "kp:"
 
@@ -320,6 +349,7 @@ def adaptive_context(db: DbSession, user, scope: Scope) -> dict:
               .limit(10).all())
     graded = 0
     correct = 0
+    by_level: dict[str, list[int]] = {}
     for attempt in recent:
         try:
             data = json.loads(attempt.result_json or "{}")
@@ -329,6 +359,18 @@ def adaptive_context(db: DbSession, user, scope: Scope) -> dict:
             if isinstance(item, dict) and item.get("correct") is not None:
                 graded += 1
                 correct += 1 if item["correct"] else 0
+                # Which ABILITY the learner got right matters more than the raw score: a set
+                # can be chosen to ask more of what they are getting wrong. Questions answered
+                # before levels were recorded fall back to the level their type usually asks.
+                level = (item.get("cognitive_level")
+                         or _TYPE_LEVEL.get(str(item.get("question_type") or "")))
+                if level:
+                    by_level.setdefault(level, []).append(1 if item["correct"] else 0)
+
+    # A level is only reported once there is enough of it to mean something. Three answers is
+    # the floor: below that a single wrong answer would look like a weakness in the ability.
+    level_accuracy = {level: sum(scores) / len(scores)
+                      for level, scores in by_level.items() if len(scores) >= 3}
 
     wrong_count = 0
     try:
@@ -347,6 +389,7 @@ def adaptive_context(db: DbSession, user, scope: Scope) -> dict:
         "has_history": bool(rows or graded),
         "attempts": graded,
         "accuracy": (correct / graded) if graded else None,
+        "level_accuracy": level_accuracy,
         "statuses": statuses,
         "review_due": statuses.get("review_due", 0),
         "wrong_count": wrong_count,
@@ -375,17 +418,32 @@ def choose_difficulty(requested: str, context: dict) -> str:
 # ------------------------------------------------------------------ prompt
 
 
+# Each rule leads with the LITERAL value of ``question_type``. Describing the type without
+# naming it is not enough: asked for "判断", a model answered with ``"judge"``, and a question
+# that is perfectly well formed was thrown away for a label the prompt never fixed.
 _TYPE_RULES = {
-    SINGLE_CHOICE: "单项选择：选项固定为 A/B/C/D 四个，正确选项恰好 1 个，standard_answer 写成一个字母",
-    MULTIPLE_CHOICE: "多项选择：选项固定为 A/B/C/D 四个，正确选项 2-3 个，standard_answer 按字母升序连写（如 AC）",
-    TRUE_FALSE: '判断：options 固定为 {"A": "正确", "B": "错误"}，standard_answer 为 "A" 或 "B"',
-    SHORT_ANSWER: "简答：options 为空对象 {}，standard_answer 是参考答案要点",
+    SINGLE_CHOICE: ('question_type 必须是 "single_choice"（单项选择）：options 固定为 A/B/C/D 四个，'
+                    "正确选项恰好 1 个，standard_answer 写成一个字母"),
+    MULTIPLE_CHOICE: ('question_type 必须是 "multiple_choice"（多项选择）：options 固定为 A/B/C/D 四个，'
+                      "正确选项 2-3 个，standard_answer 按字母升序连写（如 AC）"),
+    TRUE_FALSE: ('question_type 必须是 "true_false"（判断题，不要写成 judge 等其他字样）：'
+                 'options 固定为 {"A": "正确", "B": "错误"}，standard_answer 为 "A" 或 "B"'),
+    SHORT_ANSWER: ('question_type 必须是 "short_answer"（简答）：options 为空对象 {}，'
+                   "standard_answer 是参考答案要点"),
 }
 
 
-def build_prompt(scope: Scope, *, goal: str, difficulty: str, types: tuple[str, ...],
-                 avoid_stems: list[str]) -> tuple[list[dict], dict[int, ScopePoint]]:
-    """The generation request: the allowed set, named and numbered, plus the output contract."""
+def build_prompt(scope: Scope, *, goal: str, difficulty: str, slots: tuple[quality.Slot, ...],
+                 avoid_stems: list[str], avoid_targets: list[str] = (),
+                 grounding: str = "") -> tuple[list[dict], dict[int, ScopePoint]]:
+    """The generation request: the allowed set, the coverage matrix, and the output contract.
+
+    The model is NOT handed a free "write N questions" ask. It is handed a matrix — for each
+    position, the question type and the ability that position must exercise — and told that no
+    two positions may test the same ability. That is what makes "十道题都是同一个模板换皮"
+    detectable server-side rather than merely discouraged: every question declares the ability
+    it covers, and the collector counts the distinct ones.
+    """
     lines: list[str] = []
     available: dict[int, ScopePoint] = {}
     for chapter in scope.chapters:
@@ -396,36 +454,71 @@ def build_prompt(scope: Scope, *, goal: str, difficulty: str, types: tuple[str, 
             lines.append(f"  {len(available)}. {point.title}{description}")
     catalogue = "\n".join(lines)
 
-    type_plan = "\n".join(f"  第 {i + 1} 题：{_TYPE_RULES[qtype]}" for i, qtype in enumerate(types))
-    avoided = "\n".join(f"- {stem}" for stem in avoid_stems[:20]) or "（还没有已生成的题目）"
+    matrix = "\n".join(
+        f'  第 {index + 1} 题：{_TYPE_RULES[slot.question_type]}；'
+        f'本题必须考查「{slot.role}」这一项能力，认知层级为 "{slot.cognitive_level}"'
+        f"（{quality.LEVEL_LABELS[slot.cognitive_level]}）"
+        for index, slot in enumerate(slots))
+    avoided_stem_lines = "\n".join(f"- {stem}" for stem in avoid_stems[:24])
+    avoided_target_lines = "\n".join(f"- {target}" for target in avoid_targets[:16])
+    avoided = (avoided_stem_lines or "（还没有已生成的题目）")
+    if avoided_target_lines:
+        avoided += "\n\n这些能力点最近已经考过，本次换别的角度考：\n" + avoided_target_lines
 
-    prompt = f"""你是大学课程「{scope.course_name}」的练习命题老师。请只围绕下面列出的知识范围出题。
+    grounding_block = ""
+    if grounding:
+        grounding_block = f"""
+课程资料中与本次范围相关的内容（请优先使用其中的术语、定义和例子出题；不要直接抄录原文当作题干）：
+{grounding}
+"""
+
+    prompt = f"""你是大学课程「{scope.course_name}」的命题老师。下面是一份已经确定好的命题矩阵，请严格按矩阵出题。
 
 课程：{scope.course_name}
 练习范围：{scope.label}
 练习目标：{GOAL_LABELS.get(goal, GOAL_LABELS[GOAL_CONSOLIDATE])}
 难度：{DIFFICULTY_LABELS[difficulty]}
-题目数量：{len(types)}
+题目数量：{len(slots)}
 
 允许出题的知识范围（只能从这份清单里选，清单编号就是 knowledge_point_index）：
 {catalogue}
+{grounding_block}
+命题矩阵（位置、题型、必须考查的能力，顺序不可打乱）：
+{matrix}
 
-每题的题型必须严格按下列顺序：
-{type_plan}
+question_type 只能取这四个字符串之一：single_choice / multiple_choice / true_false / short_answer。
+question_type 字段只能填这四个值之一（只能用英文，不要写成"判断""选择""judge"等其他字样）。
+
+在写题之前，先在脑中为每一题确定一个具体的「考查能力」（assessment_target），
+例如"队列长度的计算""队满条件的判断""入队后 rear 的推演""某种实现错误的定位"。
+它必须是这个知识点下面的一个具体能力，不能是知识点名称本身。
+整份题目的考查能力必须互不相同——十道题就必须是十个不同的能力角度。
+这个能力写进每题的 assessment_target 字段，学生看不到它，只用于质检。
 
 必须避开的题干（不要重复，也不要只改几个字）：
 {avoided}
+
+禁止出现的题型（出现即作废）：
+- 问"X 是不是本章需要掌握的内容""X 是否重要""学习 X 有什么意义"这类元问题；
+- "请简述 X 的核心含义并说明适用情况""请介绍 X""谈谈你对 X 的理解"这类泛化模板；
+- 把知识点标题直接改写成问题；
+- 判断题用"X 是重要内容""X 是本章知识点"这种不学也会答的话；
+- 选择题里放"以上都对""以上都不对"这类不用掌握知识也能选的选项；
+- 同一个考点换几个词问第二遍。
 
 命题要求：
 1. 每道题只能考核上面清单里的某一个知识点，并必须在 knowledge_point_index 里写上它的编号。
 2. 任何一道题如果无法明确归到清单中的某一个知识点，就不要输出这道题。
 3. 不得考查清单之外的内容，不得扩展到其他章节或其他课程。
-4. 题干要完整、自洽，能独立读懂，不要出现“如下图”“参见课本”这类没有给出信息的表述。
-5. 题干和选项都不得泄露答案，不得出现“正确答案是……”这类字样。
-6. 同一道题内选项之间不得重复、不得含义相同。
-7. standard_answer 必须与 explanation 的结论一致。
-8. explanation 要说明判断依据，并指出这道题考查的是清单里的哪个知识点。
-9. 只输出一个 JSON 对象，不要 Markdown，不要代码块，不要任何解释性文字。
+4. 题干要完整、自洽，能独立读懂，不要出现"如下图""参见课本"这类没有给出信息的表述。
+5. 题干和选项都不得泄露答案，不得出现"正确答案是……"这类字样。
+6. 同一道题内选项之间不得重复、不得含义相同，错误选项应当来自常见误解
+   （边界条件弄错、公式记错、概念混淆、操作顺序弄错），不要随便编。
+7. 计算题、推演题必须给出足够的初始条件，使答案唯一。
+8. 简答题必须要求解释原因、推导过程、比较差异、推演状态或定位错误，不能只是要求背定义。
+9. standard_answer 必须与 explanation 的结论一致。
+10. explanation 要说明判断依据，不要只写"因为这是本章的重要内容"。
+11. 只输出一个 JSON 对象，不要 Markdown，不要代码块，不要任何解释性文字。
 
 输出格式（严格）：
 {{
@@ -436,6 +529,8 @@ def build_prompt(scope: Scope, *, goal: str, difficulty: str, types: tuple[str, 
       "options": {{"A": "...", "B": "...", "C": "...", "D": "..."}},
       "standard_answer": "A",
       "explanation": "...",
+      "assessment_target": "本题考查的具体能力，如：队列长度计算",
+      "cognitive_level": "understand | apply | analyze | evaluate | synthesize",
       "knowledge_point_index": 1
     }}
   ]
@@ -460,11 +555,50 @@ def _normalize_options(raw) -> dict[str, str]:
     return {label: found[label] for label in OPTION_LABELS if label in found}
 
 
+def _complete_objects(text: str, start: int) -> list[str]:
+    """Every complete top-level ``{...}`` in the array beginning at ``start``.
+
+    A truncated answer is the normal case, not the exception: the model's reasoning is billed
+    inside the token budget, so the answer can end mid-object. The objects BEFORE the cut are
+    complete and perfectly good, and reading them is the difference between "the model produced
+    nine questions" and "the model produced nothing".
+    """
+    found: list[str] = []
+    depth = 0
+    in_string = False
+    escaped = False
+    begin: int | None = None
+    for index in range(start, len(text)):
+        char = text[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            if depth == 0:
+                begin = index
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0 and begin is not None:
+                found.append(text[begin:index + 1])
+                begin = None
+    return found
+
+
 def parse_questions(raw: str) -> list[dict]:
-    """The questions the model returned, or [] when its answer is not one JSON object.
+    """The questions the model returned, salvaging the complete ones from a truncated answer.
 
     ``raw_decode`` from the FIRST brace: a model that prefixes a sentence and then corrects
-    itself leaves a second object behind, and slicing to the LAST brace swallows both.
+    itself leaves a second object behind, and slicing to the LAST brace swallows both. When the
+    payload is cut off, the leading questions are recovered by brace matching rather than
+    discarded whole.
     """
     text = (raw or "").strip()
     if text.startswith("```"):
@@ -478,11 +612,26 @@ def parse_questions(raw: str) -> list[dict]:
     try:
         payload, _ = json.JSONDecoder().raw_decode(text[start:])
     except ValueError:
+        payload = None
+    if isinstance(payload, dict):
+        questions = payload.get("questions")
+        return [item for item in questions if isinstance(item, dict)] \
+            if isinstance(questions, list) else []
+    marker = text.find('"questions"', start)
+    array_at = text.find("[", marker if marker >= 0 else start)
+    if array_at < 0:
         return []
-    questions = payload.get("questions") if isinstance(payload, dict) else None
-    if not isinstance(questions, list):
-        return []
-    return [item for item in questions if isinstance(item, dict)]
+    salvaged = []
+    for chunk in _complete_objects(text, array_at):
+        try:
+            item = json.loads(chunk)
+        except ValueError:
+            continue
+        if isinstance(item, dict):
+            salvaged.append(item)
+    if salvaged:
+        logger.info("practice.truncated_answer_salvaged questions=%d", len(salvaged))
+    return salvaged
 
 
 def validate_question(raw: dict, available: dict[int, ScopePoint], difficulty: str) -> dict:
@@ -535,52 +684,37 @@ def validate_question(raw: dict, available: dict[int, ScopePoint], difficulty: s
     if any(text == stem for text in options.values()):
         raise ValueError("an option repeats the stem")
 
+    # The ability the question claims to exercise, and at what cognitive level. Both are
+    # server-side only; neither is ever rendered. A missing target is refused by the batch's
+    # own gate rather than here, so the refusal is reported as a QUALITY verdict.
+    target = str(raw.get("assessment_target") or "").strip()[:120]
+    level = str(raw.get("cognitive_level") or "").strip().lower()
+    if level not in quality.COGNITIVE_LEVELS:
+        level = ""
+
     return {"question_type": qtype, "stem": stem, "options": options,
             "standard_answer": answer, "analysis": explanation,
+            "assessment_target": target, "cognitive_level": level,
             "knowledge_point": point, "difficulty": difficulty, "from_model": True}
 
 
-# ------------------------------------------------------------------ deterministic fallback
+# ------------------------------------------------------------------ giving up, honestly
 
+# There is deliberately NO deterministic question bank here any more.
+#
+# There used to be one, and it is what the learner saw. Its items were built from the point's
+# TITLE alone — "判断：「循环队列」是本章需要掌握的内容之一。", "请简述「循环队列」的核心含义，
+# 并说明它在什么情况下适用。" — because a title is all a deterministic generator has. Those are
+# not questions about the knowledge; they are questions about the syllabus, and they are
+# answerable without knowing anything. When the model's answer is truncated they are a
+# plausible-looking set of ten, which is worse than an error: the learner has no way to tell
+# they were not taught anything.
+#
+# So a set that cannot be completed from the model is a FAILURE the learner is told about, not
+# a set padded to size. Padding preserved "a set is always produced" at the cost of producing a
+# set worth nothing, and the trade is not worth making.
 
-def _fallback_question(point: ScopePoint, qtype: str, variant: int) -> dict:
-    """A deterministic question for ONE point — the no-model path keeps the product usable."""
-    title = point.title or "当前知识点"
-    suffix = f"（变式 {variant}）" if variant > 1 else ""
-    if qtype == MULTIPLE_CHOICE:
-        return {"question_type": MULTIPLE_CHOICE,
-                "stem": f"关于「{title}」，下列说法正确的有（  ）{suffix}",
-                "options": {"A": f"{title}需要先弄清概念的适用条件",
-                            "B": f"{title}可以只看结论不看条件",
-                            "C": f"理解{title}后应当用例子检验边界情况",
-                            "D": f"{title}与本章其他内容没有任何联系"},
-                "standard_answer": "AC",
-                "analysis": f"围绕「{title}」学习时，需要先理解概念的适用条件，再用例子检验边界情况；"
-                            f"只看结论、或断言它与本章无关，都不成立。",
-                "knowledge_point": point, "from_model": False}
-    if qtype == TRUE_FALSE:
-        return {"question_type": TRUE_FALSE,
-                "stem": f"判断：「{title}」是本章需要掌握的内容之一。{suffix}",
-                "options": dict(TRUE_FALSE_OPTIONS), "standard_answer": "A",
-                "analysis": f"「{title}」属于本章的知识点，是需要掌握的内容。",
-                "knowledge_point": point, "from_model": False}
-    if qtype == SHORT_ANSWER:
-        return {"question_type": SHORT_ANSWER,
-                "stem": f"请简述「{title}」的核心含义，并说明它在什么情况下适用。{suffix}",
-                "options": {},
-                "standard_answer": f"先说明「{title}」的定义与要点，再说明它的适用条件和典型例子。",
-                "analysis": f"回答应包含「{title}」的定义、要点与适用条件，最好给出一个例子。",
-                "knowledge_point": point, "from_model": False}
-    return {"question_type": SINGLE_CHOICE,
-            "stem": f"关于「{title}」的学习，下面哪项做法最符合当前的复习目标？（  ）{suffix}",
-            "options": {"A": f"先弄清{title}的核心概念，再用例子检验适用条件",
-                        "B": "只记住术语名称，不关注适用条件",
-                        "C": "跳过章节背景，直接背结论",
-                        "D": "只看标题，不做任何练习"},
-            "standard_answer": "A",
-            "analysis": f"围绕「{title}」学习时，要先弄清概念，再用例子检验适用条件；"
-                        f"其余做法都缺少有效检验。",
-            "knowledge_point": point, "from_model": False}
+_BATCH_FAILED_MESSAGE = "这次没有生成出合格的题目，请稍后重试。"
 
 
 # ------------------------------------------------------------------ persistence helpers
@@ -645,14 +779,95 @@ def _generation_mode(rows: list) -> str:
 # ------------------------------------------------------------------ generation
 
 
+def _recently_asked(db: DbSession, user, scope: Scope,
+                    limit: int = 60) -> tuple[list[str], list[str], list[str]]:
+    """What this learner was ALREADY asked in this course — the material to avoid repeating.
+
+    Read from the learner's own course questions, so the avoidance survives across sessions
+    and is not merely a within-batch check. Stems, abilities and fingerprints are all carried:
+    the same ability asked again with different words is the failure this is here to stop.
+    """
+    from models import AIGeneratedQuestion
+    rows = (db.query(AIGeneratedQuestion)
+            .filter(AIGeneratedQuestion.username == user.username,
+                    AIGeneratedQuestion.subject_key == scope.course_id,
+                    AIGeneratedQuestion.requirement == REQUIREMENT)
+            .order_by(AIGeneratedQuestion.created_at.desc()).limit(limit).all())
+    stems = [row.stem for row in rows if row.stem]
+    targets = [row.assessment_target for row in rows if getattr(row, "assessment_target", None)]
+    marks = [row.question_fingerprint for row in rows
+             if getattr(row, "question_fingerprint", None)]
+    return stems, targets, marks
+
+
+def _point_grounding(db: DbSession, user, scope: Scope, limit: int = 1600) -> str:
+    """What the learner already HAS about these points, for the questions to lean on.
+
+    Two sources, in the order §5 of the brief names them:
+
+      1. the EXPLANATION the learner read for this point, if they have read one — their own
+         words for the topic, and already paid for. Nothing here generates an explanation:
+         the generator would make one request buy two.
+      2. the passages of their own MATERIALS for this point, through the SAME grounding rule
+         the explanation uses, so 学习 and 练习 cannot disagree about which files are this
+         point's.
+
+    Both are best-effort. An empty result means "no material to lean on", never a failure — the
+    questions are still generated, just from the knowledge point alone.
+    """
+    from models import KnowledgePointStudyContent
+
+    ids = [int(point.key[len(_KP_PREFIX):]) for point in scope.points
+           if point.key.startswith(_KP_PREFIX)]
+    if not ids:
+        return ""
+    chunks = []
+    rows = (db.query(KnowledgePointStudyContent)
+            .filter(KnowledgePointStudyContent.username == user.username,
+                    KnowledgePointStudyContent.knowledge_point_id.in_(ids[:3]))
+            .limit(3).all())
+    for row in rows:
+        title = next((point.title for point in scope.points
+                      if point.key == f"{_KP_PREFIX}{row.knowledge_point_id}"), "")
+        body = " ".join(str(row.content or "").split())
+        if body:
+            chunks.append(f"【{title} 的讲解】{body}")
+    try:
+        from . import study_content as study
+        for point_id in ids[:2]:
+            title = next((point.title for point in scope.points
+                          if point.key == f"{_KP_PREFIX}{point_id}"), "")
+            text = study.grounding_text(db, user.username, scope.course_id, point_id,
+                                        query=title, limit=800)
+            if text:
+                chunks.append(text)
+    except Exception as exc:  # noqa: BLE001 — grounding is an addition, never a gate
+        logger.warning("practice.material_grounding_unavailable %s", type(exc).__name__)
+    return "\n".join(chunks)[:limit]
+
+
+def _assign_slot(pending: tuple[quality.Slot, ...], offset: int,
+                 question_type: str) -> quality.Slot | None:
+    """The position a returned question fills: the next empty one, else the next of its type.
+
+    Positional first, because the prompt fixes the order. The type scan is the fallback for a
+    model that shuffled them, and a question that matches no remaining position is refused
+    rather than dropped into an arbitrary one.
+    """
+    if offset < len(pending) and pending[offset].question_type == question_type:
+        return pending[offset]
+    return next((slot for slot in pending[offset:] if slot.question_type == question_type), None)
+
+
 def generate(db: DbSession, user, course_id: str, *, scope: str, goal: str = GOAL_CONSOLIDATE,
              count: int = DEFAULT_COUNT, difficulty: str = DIFFICULTY_ADAPTIVE,
              knowledge_point_id: int | None = None, chapter_id: int | None = None) -> dict:
-    """Generate ONE scoped set and open the session that plays it.
+    """Generate ONE scoped set from a coverage matrix, and open the session that plays it.
 
-    The model is asked, then asked again for whatever is still missing; anything it still
-    cannot deliver is filled from the deterministic local bank. A set is therefore always
-    produced — an outage changes the questions, never the learner's ability to practise.
+    The model is asked, then asked AGAIN for exactly the positions that are still empty — the
+    questions that passed are never regenerated, so a retry spends the learner's credits only
+    on what is missing. A set that cannot be completed is refused with a message rather than
+    padded to size (see the note above ``_BATCH_FAILED_MESSAGE``).
     """
     from fastapi import HTTPException
 
@@ -671,64 +886,84 @@ def generate(db: DbSession, user, course_id: str, *, scope: str, goal: str = GOA
                              knowledge_point_id=knowledge_point_id, chapter_id=chapter_id)
     context = adaptive_context(db, user, resolved)
     difficulty = choose_difficulty(difficulty, context)
-    types = _TYPE_MIX[count]
 
-    existing = (db.query(AIGeneratedQuestion)
-                .filter(AIGeneratedQuestion.username == user.username,
-                        AIGeneratedQuestion.subject_key == resolved.course_id,
-                        AIGeneratedQuestion.requirement == REQUIREMENT)
-                .order_by(AIGeneratedQuestion.created_at.desc()).limit(60).all())
-    avoid_stems = [row.stem for row in existing if row.stem]
-    avoid_keys = {" ".join(stem.casefold().split()) for stem in avoid_stems}
+    plan, adaptive_note = quality.reweight(quality.set_plan(count),
+                                           context.get("level_accuracy") or {})
+    point_titles = tuple(point.title for point in resolved.points if point.title)
+    known_stems, known_targets, known_marks = _recently_asked(db, user, resolved)
+    batch = quality.Batch(count, point_titles=point_titles,
+                          avoid_stems=tuple(known_stems), avoid_targets=tuple(known_targets),
+                          avoid_fingerprints=tuple(known_marks))
+    grounding = _point_grounding(db, user, resolved)
+    learning_context = build_course_context(
+        user, course_id=resolved.course_id,
+        chapter_id=(chapter_id or resolved.chapters[0]["id"]),
+        knowledge_point_id=knowledge_point_id)
 
-    accepted: list[dict] = []
-    for _ in range(2):
-        if len(accepted) >= count:
+    retries = 0
+    for attempt in range(_MAX_GENERATION_ATTEMPTS):
+        if batch.full():
             break
+        offset = len(batch.questions)
+        pending = plan[offset:]
+        if not pending:
+            break
+        if attempt:
+            retries += 1
         messages, available = build_prompt(
-            resolved, goal=goal, difficulty=difficulty,
-            types=types[len(accepted):], avoid_stems=avoid_stems)
+            resolved, goal=goal, difficulty=difficulty, slots=pending,
+            avoid_stems=list(known_stems) + list(batch.stems) + batch.rejected_stems(),
+            avoid_targets=list(known_targets) + list(batch.targets),
+            grounding=grounding)
         try:
             result = execute_course_ai(
                 db, user, "question.generate", messages,
-                learning_context=build_course_context(
-                    user, course_id=resolved.course_id,
-                    chapter_id=(chapter_id or resolved.chapters[0]["id"]),
-                    knowledge_point_id=knowledge_point_id),
-                max_tokens=_TOKEN_BUDGET.get(count, 4000))
+                learning_context=learning_context,
+                max_tokens=_TOKEN_BUDGET.get(count, 12000))
         except HTTPException as exc:
             if exc.status_code in (403, 429):
                 raise                      # an entitlement or budget decision is an ANSWER
-            logger.warning("practice.generation_model_unavailable status=%s", exc.status_code)
+            logger.warning("practice.generation_model_unavailable status=%s attempt=%d",
+                           exc.status_code, attempt)
             break
-        except Exception as exc:  # noqa: BLE001 — any other failure degrades, never raises
-            logger.warning("practice.generation_failed %s", type(exc).__name__)
+        except Exception as exc:  # noqa: BLE001 — any other failure ends generation, never raises
+            logger.warning("practice.generation_failed %s attempt=%d",
+                           type(exc).__name__, attempt)
             break
 
-        produced = 0
         for raw in parse_questions(result.content):
-            if len(accepted) >= count:
+            if batch.full():
                 break
             try:
                 question = validate_question(raw, available, difficulty)
             except ValueError as exc:
+                # Counted, not merely logged: a schema rejection is still a question the model
+                # produced that the learner will never see, and a batch that fails should say
+                # whether it failed on shape or on content.
+                batch.reject("low_quality", f"schema:{exc}", str(raw.get("stem") or ""))
                 logger.info("practice.question_rejected reason=%s", exc)
                 continue
-            key = " ".join(question["stem"].casefold().split())
-            if key in avoid_keys:
+            slot = _assign_slot(pending, len(batch.questions) - offset, question["question_type"])
+            if slot is None:
+                batch.reject("low_quality", "no_matching_slot", question["stem"])
                 continue
-            avoid_keys.add(key)
-            avoid_stems.append(question["stem"])
-            accepted.append(question)
-            produced += 1
-        if produced == 0:
-            break
+            if not question["cognitive_level"]:
+                question["cognitive_level"] = slot.cognitive_level
+            try:
+                batch.add(question)
+            except quality.Rejected:
+                continue
 
-    model_count = len(accepted)
-    while len(accepted) < count:
-        point = resolved.points[len(accepted) % len(resolved.points)]
-        accepted.append(_fallback_question(point, types[len(accepted)], 1))
+    if not batch.full() or not batch.coverage_ok():
+        report = batch.finish("failed", retry_count=retries, adaptive=adaptive_note)
+        logger.warning("practice.generation_quality_failure %s",
+                       json.dumps(report.metric(), ensure_ascii=False))
+        raise PracticeError(_BATCH_FAILED_MESSAGE, 503)
+    report = batch.finish("accepted", retry_count=retries, adaptive=adaptive_note)
+    logger.info("practice.generation_quality %s",
+                json.dumps(report.metric(), ensure_ascii=False))
 
+    accepted = batch.questions
     rows = []
     for question in accepted:
         point: ScopePoint = question["knowledge_point"]
@@ -746,8 +981,12 @@ def generate(db: DbSession, user, course_id: str, *, scope: str, goal: str = GOA
             analysis=question["analysis"],
             difficulty=DIFFICULTY_LABELS[difficulty],
             requirement=REQUIREMENT,
-            generation_mode="ai" if question.get("from_model") else "fallback",
-            quality_status="unchecked",
+            generation_mode="ai",
+            quality_status="accepted",
+            assessment_target=question.get("assessment_target") or None,
+            cognitive_level=question.get("cognitive_level") or None,
+            question_fingerprint=quality.fingerprint(
+                question["stem"], drop=(point.title or "")),
         ))
     db.add_all(rows)
     db.flush()
@@ -781,6 +1020,7 @@ def generate(db: DbSession, user, course_id: str, *, scope: str, goal: str = GOA
         "adaptive": {"has_history": context["has_history"],
                      "review_due": context["review_due"],
                      "wrong_count": context["wrong_count"]},
+        "quality": report.metric(),
         "attempt_id": attempt.id,
         "total": len(rows),
         "questions": [question_payload(row) for row in rows],
@@ -950,6 +1190,11 @@ def answer(db: DbSession, user, attempt, question_id: int, raw_answer: str) -> d
         "judge": judge,
         "question_type": question.question_type,
         "generation_mode": _row_mode(question),
+        # The ability this answer was about. Server-side: it decides which ability the NEXT
+        # set should ask more of, and is never shown to the learner.
+        "cognitive_level": getattr(question, "cognitive_level", None)
+        or _TYPE_LEVEL.get(question.question_type, ""),
+        "assessment_target": getattr(question, "assessment_target", None) or "",
     }
     results.append(item)
 

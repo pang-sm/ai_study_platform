@@ -25,6 +25,7 @@ identity rules under test are the product's own identity map — a synthetic pai
 prove the filter works on strings, not that it works on the catalog.
 """
 import json
+import re
 from datetime import datetime
 
 from ai.providers import FakeProvider
@@ -439,13 +440,14 @@ class _ScriptedProvider(FakeProvider):
     provider name, finish reason) stays the real double's.
     """
 
-    def __init__(self, content: str, **kwargs):
+    def __init__(self, content, **kwargs):
         super().__init__(**kwargs)
         self._content = content
 
     def complete(self, spec):
         import dataclasses
-        return dataclasses.replace(super().complete(spec), content=self._content)
+        content = self._content(spec) if callable(self._content) else self._content
+        return dataclasses.replace(super().complete(spec), content=content)
 
 
 def _fake_provider_factory():
@@ -456,22 +458,70 @@ def _fake_provider_factory():
     proving the course route reaches the model boundary and proving it fabricated a
     question.
     """
-    # A TEN-question answer: the set generator takes what it asked for and stops, so one
-    # scripted payload serves any count the product requests.
-    content = json.dumps({"questions": [{
-        "question_type": "single_choice",
-        "stem": f"顺序表按下标定位元素的时间复杂度是多少？（第 {index} 题）",
-        "options": {"A": "O(1)", "B": "O(log n)", "C": "O(n)", "D": "O(n log n)"},
-        "standard_answer": "A",
-        "explanation": "顺序存储可以直接由基址与下标计算出地址，因此定位常数时间。",
-        "knowledge_point_index": 1,
-    } for index in range(1, 11)]}, ensure_ascii=False)
+    # The answer follows the coverage matrix the prompt carries: the generator asks for fixed
+    # TYPES per position and refuses a set whose questions repeat each other, so a single
+    # all-single-choice payload would no longer satisfy it.
+    def _answer(spec) -> str:
+        prompt = spec.messages[-1].content
+        positions = re.findall(r'第 (\d+) 题：question_type 必须是 "(\w+)"', prompt)
+        used: dict[str, int] = {}
+        questions = []
+        for index, (_number, qtype) in enumerate(positions):
+            position = used.get(qtype, 0)
+            used[qtype] = position + 1
+            entry = dict(_SCRIPTED_BY_TYPE[qtype][position % len(_SCRIPTED_BY_TYPE[qtype])])
+            entry["assessment_target"] = f"{qtype} 能力 {index}"
+            entry["cognitive_level"] = "understand"
+            entry["knowledge_point_index"] = 1
+            questions.append(entry)
+        return json.dumps({"questions": questions}, ensure_ascii=False)
 
     def _make(name: str) -> FakeProvider:
-        return _ScriptedProvider(content, provider=name, input_tokens=50,
+        return _ScriptedProvider(_answer, provider=name, input_tokens=50,
                                  output_tokens=50)
 
     return _make
+
+
+_SCRIPTED_BY_TYPE = {
+    "single_choice": [
+        {"question_type": "single_choice",
+         "stem": "顺序表按下标定位元素的时间复杂度是多少？（  ）",
+         "options": {"A": "O(1)", "B": "O(log n)", "C": "O(n)", "D": "O(n log n)"},
+         "standard_answer": "A",
+         "explanation": "顺序存储可以直接由基址与下标计算出地址，因此定位常数时间。"},
+        {"question_type": "single_choice",
+         "stem": "长度为 n 的顺序表在表尾追加一个元素，需要移动的元素个数是（  ）",
+         "options": {"A": "0", "B": "1", "C": "n-1", "D": "n"},
+         "standard_answer": "A",
+         "explanation": "表尾之后没有元素，追加不需要移动已有元素。"},
+    ],
+    "multiple_choice": [
+        {"question_type": "multiple_choice",
+         "stem": "关于顺序存储与链式存储的比较，下列说法正确的有（  ）",
+         "options": {"A": "顺序存储支持按下标访问", "B": "链式存储插入不必移动元素",
+                     "C": "链式存储必须占用连续空间", "D": "顺序存储无法预先分配空间"},
+         "standard_answer": "AB",
+         "explanation": "顺序表可随机访问，链表改指针即可插入。"},
+    ],
+    "true_false": [
+        {"question_type": "true_false",
+         "stem": "顺序表把元素存放在连续的空间里。",
+         "options": {"A": "正确", "B": "错误"}, "standard_answer": "A",
+         "explanation": "顺序存储要求物理位置相邻。"},
+        {"question_type": "true_false",
+         "stem": "带头结点的单链表为空时，头结点的后继指针为空。",
+         "options": {"A": "正确", "B": "错误"}, "standard_answer": "A",
+         "explanation": "表空即头结点后面没有任何结点。"},
+    ],
+    "short_answer": [
+        {"question_type": "short_answer",
+         "stem": "请说明顺序表插入元素时为什么必须自后向前移动数据。",
+         "options": {},
+         "standard_answer": "若自前向后移动会覆盖尚未搬运的元素，自后向前可保证数据不被破坏。",
+         "explanation": "移动方向决定了是否覆盖未处理的数据。"},
+    ],
+}
 
 
 # ================================================================ 3. today plan

@@ -240,6 +240,24 @@ def _render_grounding(chunks: list[dict]) -> tuple[str, list[dict]]:
     return "\n\n".join(lines), citations
 
 
+def grounding_text(db, username: str, course_id: str, point_id: int,
+                   query: str = "", limit: int = 1600) -> str:
+    """The learner's own material about ONE point, as plain text — no citations.
+
+    Exposed so the practice generator can let a question use the terminology and examples the
+    learner actually has, through the SAME grounding rule the explanation uses. Deciding that
+    rule twice would let 学习 and 练习 disagree about which files are this point's, and a
+    question built on a file the explanation does not cite is worse than no grounding at all.
+
+    Best-effort by construction: retrieval is a keyword read of the learner's own chunks, and
+    an empty string means "no material to lean on", never an error. Nothing is stored.
+    """
+    mode, material_ids = grounding_plan(db, username, course_id, point_id)
+    chunks = _retrieve(db, username, course_id, query or str(point_id), mode, material_ids)
+    text, _ = _render_grounding(chunks)
+    return text[:limit]
+
+
 # ------------------------------------------------------------------ prompt
 
 _SYSTEM_PROMPT = (

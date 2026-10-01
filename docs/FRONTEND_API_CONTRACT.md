@@ -203,6 +203,23 @@
 >   知识结构解析，模型只拿到允许清单的编号；无法归属到清单的题一律拒绝，不回落到题库。
 > - 生成响应**不含** `standard_answer` / `analysis`；判定、参考答案与解析只在
 >   `answer` 响应里返回。
+> - 命题不再是「写 N 道题」的自由请求：服务端先给出**覆盖矩阵**（每一题的题型 +
+>   必须考查的能力层级），模型每题必须声明 `assessment_target`（具体考查能力）与
+>   `cognitive_level`。这两个字段**仅服务端使用**，不出现在生成响应里，也不出现在
+>   `answer` 响应里。
+> - 命题上下文按优先级使用：当前 ACTIVE 结构里的知识点（含描述）→ 该知识点已缓存的
+>   讲解 → 该知识点 grounding 到的资料段落（复用讲解的同一套 grounding 规则）。
+>   资料与讲解都是**尽力而为**：取不到就只用知识点本身出题，不报错。
+> - 服务端在交给学习者之前做三道质量门：低信息题（元问题 / 泛化模板 / 标题改写）、
+>   重复题（归一化题干、字符 n-gram 相似度、指纹、以及该学习者最近问过的题与能力）、
+>   能力覆盖（10 题至少 5 个不同能力，5 题至少 3 个，3 题至少 2 个）。
+>   某一题不过就**只重问该位置**，最多 3 次；仍凑不齐 N 道合格题则返回
+>   503「这次没有生成出合格的题目，请稍后重试。」，**不再用本地模板补足题量**。
+> - 生成响应新增 `quality` 字段（`BATCH_SIZE` / `UNIQUE_STEMS` /
+>   `UNIQUE_ASSESSMENT_TARGETS` / `DUPLICATE_REJECTED` / `LOW_QUALITY_REJECTED` /
+>   `RECENT_DUPLICATE_REJECTED` / `RETRY_COUNT` / `FINAL_ACCEPTED` / `OUTCOME`），
+>   仅供测试与日志观察，**前端不渲染**。它不改变 OpenAPI schema（响应模型
+>   `extra="allow"`），因此不需要重跑 `api:generate`。
 > - 逐题提交后由既有链路落库：`user_knowledge_progress`、`learning_records`、
 >   Data Plane `course_practice` 事件、Practice Core 镜像 → 错题与复习。
 >   没有新增第二套错题系统。

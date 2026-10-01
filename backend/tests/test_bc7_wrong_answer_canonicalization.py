@@ -49,7 +49,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 APP_DB = BACKEND_DIR / "app.db"
 
-EXPECTED_HEAD = "20260930_0017"
+EXPECTED_HEAD = "20261001_0018"
 CANONICAL_TABLE = "wrong_answer_states"
 MODULE_COLUMN = "module_key"
 MODULE_INDEX = "ix_wrong_answer_states_user_ns_module"

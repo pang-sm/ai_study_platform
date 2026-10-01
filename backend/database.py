@@ -325,6 +325,11 @@ AI_GENERATED_QUESTIONS_COLUMNS = {
     "raw_ai_response": "TEXT",
     "generation_mode": "VARCHAR(30) DEFAULT 'deepseek'",
     "quality_status": "VARCHAR(20) DEFAULT 'unchecked'",
+    # Server-side question-quality fields (Alembic 20261001_0018). Kept here too so a database
+    # that predates Alembic still gains them idempotently; additive only.
+    "assessment_target": "VARCHAR(255)",
+    "cognitive_level": "VARCHAR(30)",
+    "question_fingerprint": "VARCHAR(64)",
     "created_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
     "updated_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
 }

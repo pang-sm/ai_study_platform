@@ -18,17 +18,44 @@ COURSE = "数据结构"
 CHAPTERS = [{"title": "线性结构", "points": [{"title": "线性表的顺序存储"}]}]
 
 
+# The generator now hands the model a coverage matrix and refuses a set whose questions repeat
+# each other, so the double answers the matrix and gives every position a different question.
+_MATRIX_RE = re.compile(r'第 (\d+) 题：question_type 必须是 "(\w+)"')
+
+_BY_TYPE = {
+    "single_choice": [
+        {"stem": "线性表的顺序存储结构最适合哪种访问方式？（  ）",
+         "options": {"A": "按下标随机访问", "B": "只允许尾部访问", "C": "不支持元素定位",
+                     "D": "只能反向访问"},
+         "standard_answer": "A",
+         "explanation": "顺序存储通过基址和下标可以直接计算元素位置，因此支持随机访问。"},
+        {"stem": "长度为 n 的顺序表在表尾追加一个元素，需要移动的元素个数是（  ）",
+         "options": {"A": "0", "B": "1", "C": "n-1", "D": "n"},
+         "standard_answer": "A", "explanation": "表尾之后没有元素，追加不需要移动任何已有元素。"},
+    ],
+    "true_false": [
+        {"stem": "顺序表把元素存放在连续的空间里。",
+         "options": {"A": "正确", "B": "错误"}, "standard_answer": "A",
+         "explanation": "顺序存储要求物理位置相邻。"},
+    ],
+}
+
+
 def _model_reply(messages) -> str:
-    count = int(re.search(r"题目数量：(\d+)", messages[-1]["content"]).group(1))
-    return json.dumps({"questions": [{
-        "question_type": "single_choice",
-        "stem": f"线性表的顺序存储结构最适合哪种访问方式？（第 {index} 题）",
-        "options": {"A": "按下标随机访问", "B": "只允许尾部访问", "C": "不支持元素定位",
-                    "D": "只能反向访问"},
-        "standard_answer": "A",
-        "explanation": "顺序存储通过基址和下标可以直接计算元素位置，因此支持随机访问。",
-        "knowledge_point_index": 1,
-    } for index in range(1, count + 1)]}, ensure_ascii=False)
+    positions = _MATRIX_RE.findall(messages[-1]["content"])
+    used: dict[str, int] = {}
+    questions = []
+    for _number, qtype in positions:
+        bank = _BY_TYPE[qtype]
+        index = used.get(qtype, 0)
+        used[qtype] = index + 1
+        base = dict(bank[index % len(bank)])
+        base["question_type"] = qtype
+        base["options"] = dict(base["options"])
+        base["assessment_target"] = f"{qtype} 能力 {index}"
+        base["knowledge_point_index"] = 1
+        questions.append(base)
+    return json.dumps({"questions": questions}, ensure_ascii=False)
 
 
 def test_course_practice_set_is_the_learners_own(client: TestClient, db_session, monkeypatch):

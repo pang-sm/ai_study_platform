@@ -1048,6 +1048,15 @@ class AIGeneratedQuestion(Base):
     raw_ai_response = Column(Text, nullable=True)
     generation_mode = Column(String(30), nullable=True, default="deepseek")
     quality_status = Column(String(20), nullable=True, default="unchecked")
+    # The ability this question exercises and the cognitive level it asks for. SERVER-SIDE
+    # ONLY — no endpoint sends either to a learner. They are stored so that the NEXT set can
+    # avoid re-asking the same ability, and so a batch's ability coverage can be measured
+    # after the fact rather than only while it is being built.
+    assessment_target = Column(String(255), nullable=True)
+    cognitive_level = Column(String(30), nullable=True)
+    # A stable id for the question's wording, so the same question rephrased is recognisable
+    # as a repeat even when the similarity check is not run.
+    question_fingerprint = Column(String(64), nullable=True, index=True)
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 

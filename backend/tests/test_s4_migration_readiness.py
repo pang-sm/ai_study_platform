@@ -418,7 +418,7 @@ def test_the_rehearsal_database_reaches_head_with_integrity_ok(migrated):
     report = migrated["report"]
     assert report["integrity_check"] == "ok"
     assert report["foreign_key_check"] == []
-    assert report["alembic_version"] == ["20260930_0017"], report["alembic_version"]
+    assert report["alembic_version"] == ["20261001_0018"], report["alembic_version"]
 
 
 def test_no_table_was_dropped_and_every_legacy_row_survived(migrated):
@@ -466,7 +466,7 @@ def test_data_plane_tables_are_created_by_the_migration(fresh_db):
     for table in ("practice_sessions", "practice_attempts", "wrong_answer_states",
                   "exam_prep_profiles"):
         assert table in at_head, table
-    assert _alembic_revision(fresh_db) == "20260930_0017"
+    assert _alembic_revision(fresh_db) == "20261001_0018"
 
 
 def test_application_starts_without_create_all(migrated):
