@@ -185,17 +185,23 @@ def test_every_workflow_lands_on_the_same_observability_contract(client, db_sess
 
     # (5) the Plan Adjustment proposal — over the learner's OWN overdue task
     import main as main_module
+    overdue_due = (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%d")
+    # The proposal must MOVE the date. A change that names the value the plan already holds is
+    # dropped as `no_supported_field` — correctly, since there is nothing to tell the learner —
+    # so the new date is derived from the task's own instead of being a literal. It used to be
+    # the literal "2026-09-30", which stopped being a change the day "yesterday" became it.
+    proposed_due = (datetime.utcnow() + timedelta(days=2)).strftime("%Y-%m-%d")
     task = ExamStudyPlanTask(
         username=user.username,
         subject_key=main_module._course_learning_task_subject_key(COURSE),
         title="观测任务", task_type="knowledge", status="not_started",
-        due_date=(datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%d"))
+        due_date=overdue_due)
     db_session.add(task)
     db_session.commit()
     db_session.refresh(task)
     monkeypatch.setattr("ai.orchestrator.default_provider_factory", _provider(json.dumps({
         "reason": "先补逾期", "changes": [{"op": "update_task", "task_id": task.id,
-                                          "due_date": "2026-09-30", "reason": "顺延"}]},
+                                          "due_date": proposed_due, "reason": "顺延"}]},
         ensure_ascii=False)))
     proposal = client.post("/ai/plan-adjustment", json={"service_key": "course_learning",
                                                         "course_id": COURSE})
