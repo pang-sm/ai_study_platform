@@ -235,7 +235,25 @@ describe('the answer', () => {
     await user.click(screen.getAllByRole('radio')[1]!);
     expect(submit).toBeEnabled();
     await user.click(submit);
-    expect(answer.mutate).toHaveBeenCalledWith({ attemptId: 500, questionId: 1, answer: 'B' });
+    expect(answer.mutate.mock.calls[0]![0]).toEqual({ attemptId: 500, questionId: 1, answer: 'B' });
+  });
+
+  it('keeps the learner on the finished set when the LAST answer closes it', async () => {
+    const user = userEvent.setup();
+    const answer = mutation();
+    hooks.useAnswerCoursePractice.mockReturnValue(answer);
+    hooks.useCoursePracticeSession.mockReturnValue(session([question(1)]));
+    const { router } = renderApp(URL);
+    await screen.findByRole('heading', { level: 1, name: '练习' });
+
+    await user.click(screen.getAllByRole('radio')[0]!);
+    await user.click(screen.getByRole('button', { name: '提交答案' }));
+    expect(answer.mutate).toHaveBeenCalledTimes(1);
+
+    // the server answers with a CLOSED set — the page must name it rather than fall back
+    const options = answer.mutate.mock.calls[0]![1] as { onSuccess: (r: unknown) => void };
+    options.onSuccess({ session: { attempt_id: 500, status: 'submitted' } });
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ session: 500 }));
   });
 
   it('comes back with the verdict, the reference answer and the analysis', async () => {

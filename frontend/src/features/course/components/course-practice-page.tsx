@@ -296,11 +296,13 @@ function PracticePlayer({
   courseId,
   session,
   readOnly,
+  onClosed,
   onFinishAnother,
 }: {
   courseId: string;
   session: PracticeSession;
   readOnly: boolean;
+  onClosed?: (attemptId: number) => void;
   onFinishAnother?: () => void;
 }) {
   const questions = questionsOf(session);
@@ -360,7 +362,18 @@ function PracticePlayer({
         {!submitted && !readOnly ? (
           <Button
             disabled={!draft.trim() || answer.isPending}
-            onClick={() => answer.mutate({ attemptId: session.attempt_id, questionId: question.id, answer: draft })}
+            onClick={() => answer.mutate(
+              { attemptId: session.attempt_id, questionId: question.id, answer: draft },
+              {
+                // The LAST answer closes the set, and a closed set is no longer "the open one" —
+                // so the page names it in the URL. Without this the learner's own summary would
+                // be replaced by the entry screen the moment they finished.
+                onSuccess: (response) => {
+                  if (response.session?.status === 'submitted') {
+                    onClosed?.(response.session.attempt_id ?? session.attempt_id);
+                  }
+                },
+              })}
           >
             {answer.isPending ? '正在提交…' : '提交答案'}
           </Button>
@@ -618,7 +631,16 @@ export function CoursePracticePage({
 
       {openSet ? (
         <div className="mt-8">
-          <PracticePlayer courseId={courseId} session={openSet} readOnly={false} />
+          <PracticePlayer
+            courseId={courseId}
+            session={openSet}
+            readOnly={false}
+            onClosed={(attemptId) => void navigate({
+              to: '/course/$courseId/practice',
+              params: { courseId },
+              search: { session: attemptId },
+            })}
+          />
         </div>
       ) : null}
 
