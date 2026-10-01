@@ -666,12 +666,9 @@ export function CoursePracticePage({
       ) : null}
 
       {showEntry && !panelOpen ? (
-        <EmptyState
-          className="mt-8"
-          title="生成一组针对当前课程的练习。"
-          description="按知识点、章节或整门课程出题，逐题作答并立即看到结果。"
-          action={<Button onClick={() => setPanelOpen(true)}>AI 生成练习</Button>}
-        />
+        <div className="mt-8">
+          <Button onClick={() => setPanelOpen(true)}>AI 生成练习</Button>
+        </div>
       ) : null}
 
       {showEntry ? <RecommendedPractice courseId={courseId} chapters={chapters} /> : null}

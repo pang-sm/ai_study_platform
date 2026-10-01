@@ -114,7 +114,6 @@ describe('the practice page', () => {
 
   it('opens on the generation entry when there is no set', async () => {
     await renderPractice();
-    expect(screen.getByText('生成一组针对当前课程的练习。')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'AI 生成练习' })).toBeInTheDocument();
   });
 

@@ -62,13 +62,9 @@ function Section({ title, description, actions, children }: { title: string; des
  * as separate tools. Naming the next step here — material → learn → practice → wrong → review →
  * plan — is what turns them into one sequence.
  */
-function NextStep({ label, description, to, params }: { label: string; description: string; to: string; params?: Record<string, string> }) {
+function NextStep({ label, to, params }: { label: string; to: string; params?: Record<string, string> }) {
   return (
-    <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-border-default pt-6">
-      <div>
-        <p className="text-metadata font-medium tracking-eyebrow text-text-muted">下一步</p>
-        <p className="mt-1 text-body text-text-secondary">{description}</p>
-      </div>
+    <div className="mt-10 flex flex-wrap items-center justify-end gap-4 border-t border-border-default pt-6">
       <Link
         to={to as '/course'}
         params={params}
@@ -373,10 +369,7 @@ export function CourseWrongPage({ courseId }: { courseId: string }) {
       active="wrong"
       facts={[{ label: '待复习条目', value: query.isPending ? '正在读取…' : `${items.length} 条` }]}
     >
-      <PageHeader
-        title="待复习条目"
-        description="题面、作答与参考答案都直接来自课程接口；这里不会用题目编号再去别处拼接内容。"
-      />
+      <PageHeader title="待复习条目" />
 
       {query.isPending ? (
         <LoadingState label="正在读取错题…" className="mt-8" />
@@ -413,18 +406,10 @@ export function CourseWrongPage({ courseId }: { courseId: string }) {
           })}
         </ol>
       ) : (
-        <EmptyState
-          className="mt-8"
-          title="这门课程没有待复习条目。"
-          description="练习中做错的题目会产生错题与复习安排；当前没有需要订正的内容。"
-        />
+        <EmptyState className="mt-8" title="这门课程没有待复习条目。" />
       )}
 
-      <NextStep
-        label="进入统一复习"
-        description="各个方向的待复习项目都集中在统一复习里。"
-        to="/review"
-      />
+      <NextStep label="进入统一复习" to="/review" />
     </CoursePageShell>
   );
 }
@@ -434,7 +419,7 @@ export function CourseWrongPage({ courseId }: { courseId: string }) {
 function TodayPlanList({ value }: { value: unknown }) {
   const items = list(value);
   if (!items.length) {
-    return <EmptyState title="今天没有课程任务。" description="计划任务来自学习计划；没有任务时这一栏保持为空，不补造内容。" />;
+    return <EmptyState title="今天没有课程任务。" />;
   }
   return (
     <ul className="border-t border-border-default">
@@ -508,7 +493,6 @@ export function CoursePlanPage({ courseId }: { courseId: string }) {
 
       <NextStep
         label="查看学习记录"
-        description="计划执行后留下的事件、练习与知识点变化都在记录里。"
         to="/course/$courseId/records"
         params={{ courseId }}
       />
@@ -560,11 +544,7 @@ export function CourseRecordsPage({ courseId }: { courseId: string }) {
           ))}
         </ol>
       ) : (
-        <EmptyState
-          className="mt-8"
-          title="还没有学习记录。"
-          description="完成一次练习、打开资料或提问后，这里会出现真实事件。"
-        />
+        <EmptyState className="mt-8" title="还没有学习记录。" />
       )}
     </CoursePageShell>
   );
@@ -622,12 +602,7 @@ export function CourseStatePage({ courseId }: { courseId: string }) {
         <EmptyState className="mt-8" title="暂无状态数据。" description="还没有可以展示的记录。" />
       )}
 
-      <NextStep
-        label="返回课程概览"
-        description="回到概览查看学习闭环的下一步。"
-        to="/course/$courseId"
-        params={{ courseId }}
-      />
+      <NextStep label="返回课程概览" to="/course/$courseId" params={{ courseId }} />
     </CoursePageShell>
   );
 }
