@@ -292,7 +292,11 @@ export function useCoursePracticeHistory(courseId: string) {
  * written once so the two mutations cannot drift apart.
  */
 function invalidatePracticeReads(client: ReturnType<typeof useQueryClient>, courseId: string) {
-  [courseKeys.session(courseId), courseKeys.history(courseId), courseKeys.wrong(courseId),
+  // `practice` is the PREFIX of every session view — the bare "current" one and the one named
+  // in the URL — because React Query matches by prefix. Invalidating only "current" left a
+  // set opened from the URL (or from history) stale: the page kept showing the question the
+  // learner had just answered, so the next answer went to the same question again.
+  [courseKeys.practice(courseId), courseKeys.history(courseId), courseKeys.wrong(courseId),
    courseKeys.records(courseId), courseKeys.recordsSummary(courseId), courseKeys.state(courseId)]
     .forEach((queryKey) => void client.invalidateQueries({ queryKey }));
 }
