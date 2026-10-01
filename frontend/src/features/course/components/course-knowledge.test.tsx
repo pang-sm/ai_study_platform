@@ -294,6 +294,15 @@ describe('a generated structure is only a proposal', () => {
     // Every row would say the same thing, which is a statement about the structure, not the row.
     expect(screen.queryByText('AI 补充')).not.toBeInTheDocument();
   });
+
+  it('does not let a draft be studied from — a draft is not the course yet', async () => {
+    renderApp('/course/数据结构/knowledge');
+    await screen.findByText('这是一份草稿，还没有生效');
+
+    // The rows are things to rename, move or delete. Opening one would be opening a point the
+    // learner is not studying from, so a draft's points are plain text.
+    expect(screen.queryByRole('link', { name: '数据结构基本概念' })).not.toBeInTheDocument();
+  });
 });
 
 describe('an active knowledge structure', () => {
@@ -338,5 +347,18 @@ describe('an active knowledge structure', () => {
     await screen.findByText('第1章 绪论');
     expect(screen.queryByText(/知识图谱/)).not.toBeInTheDocument();
     expect(screen.queryByText(/知识点与脉络/)).not.toBeInTheDocument();
+  });
+
+  it('names the way in: a point opens the study workspace, carrying its own id', async () => {
+    renderApp('/course/数据结构/knowledge');
+    await screen.findByText('第1章 绪论');
+
+    // This page is the ONLY entry to the workspace, so a point's name has to be the door. What
+    // travels is the point's own id — never its chapter, and never a title the workspace would
+    // have to match back to a point.
+    expect(screen.getByRole('link', { name: '顺序表' })).toHaveAttribute(
+      'href',
+      `/course/${encodeURIComponent('数据结构')}/study?knowledge_point_id=2`,
+    );
   });
 });

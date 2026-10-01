@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils';
 import { ApiRequestError } from '@/features/exam/api/content-status';
 import { enumText } from '@/lib/learner-safe';
 import { eventTypeLabel, serviceNamespaceLabel } from '@/features/records/event-labels';
-import { MATERIAL_UPLOAD_ACCEPT, materialUploadErrorMessage, useCourseMaterialUpload, useCoursePractice, useCoursePracticeAction, useCoursePracticeHistory, useCourseRecords, useCourseRecordsSummary, useCourseState, useCourseTodayPlan, useCourseWrongAnswers } from '@/features/course/api/course';
+import { MATERIAL_UPLOAD_ACCEPT, materialUploadErrorMessage, useCourseMaterialUpload, useCoursePractice, useCoursePracticeAction, useCoursePracticeHistory, useCourseRecords, useCourseState, useCourseTodayPlan, useCourseWrongAnswers } from '@/features/course/api/course';
 import { CoursePageShell } from './course-page-shell';
 import { ScopedAiChatWorkspace } from '@/features/ai/components/ai-chat-page';
 import { DynamicPlanSurface, WrongAnalysisSurface } from '@/features/learning-intelligence/learning-intelligence-surfaces';
@@ -407,17 +407,19 @@ export function CoursePracticePage({ courseId, chapter }: { courseId: string; ch
         { label: '历史作答', value: history.isPending ? '正在读取…' : `${list(history.data).length} 条` },
       ]}
     >
+      {/* The page's one action, and the reason it is on the page at all: practice here is
+          generated for the point (or the chapter) the learner came in on. Nothing above it
+          describes what the submit does — the result is a fact that shows up below. */}
       <PageHeader
         title="课程练习本"
-        description="生成、作答与提交都记录为真实练习事实；提交结果决定错题与复习。"
         actions={
           <button
             type="button"
-            className="inline-flex h-11 items-center rounded-control border border-border-default bg-surface px-5 text-body font-medium text-text-primary hover:bg-primary-soft disabled:opacity-50"
+            className="inline-flex h-11 items-center rounded-control bg-primary px-5 text-body font-medium text-white hover:bg-primary-hover disabled:opacity-50"
             disabled={action.isPending}
             onClick={() => action.mutate({ kind: 'generate', chapter })}
           >
-            {action.isPending ? '正在生成…' : '生成练习题'}
+            {action.isPending ? '正在生成…' : 'AI 生成练习题'}
           </button>
         }
       />
@@ -493,7 +495,7 @@ export function CoursePracticePage({ courseId, chapter }: { courseId: string; ch
             })}
           </ol>
         ) : (
-          <EmptyState title="练习本里还没有题目。" description={chapter ? `点「生成练习题」按「${chapter}」生成一题。` : '点「生成练习题」按当前课程知识点生成一题。'} />
+          <EmptyState title="练习本里还没有题目。" description={chapter ? `点「AI 生成练习题」按「${chapter}」生成一题。` : '点「AI 生成练习题」按当前课程知识点生成一题。'} />
         )}
       </Section>
 
@@ -627,6 +629,10 @@ function TodayPlanList({ value }: { value: unknown }) {
 
 export function CoursePlanPage({ courseId }: { courseId: string }) {
   const plan = useCourseTodayPlan(courseId);
+  // Adjusting is something the learner decides to do to a plan they already have, so the panel
+  // is opened by the button and there is no paragraph introducing it: what the panel asks for is
+  // the whole introduction.
+  const [adjusting, setAdjusting] = useState(false);
   const count = list(plan.data).length;
 
   return (
@@ -637,7 +643,17 @@ export function CoursePlanPage({ courseId }: { courseId: string }) {
     >
       <PageHeader
         title="今日计划"
-        description="按紧迫程度从上到下排；这里是这门课程层面的今天。"
+        actions={
+          adjusting ? undefined : (
+            <button
+              type="button"
+              onClick={() => setAdjusting(true)}
+              className="inline-flex h-11 items-center rounded-control border border-border-default bg-surface px-5 text-body font-medium text-text-primary hover:bg-primary-soft"
+            >
+              调整计划
+            </button>
+          )
+        }
       />
 
       {plan.isPending ? (
@@ -650,7 +666,11 @@ export function CoursePlanPage({ courseId }: { courseId: string }) {
         </Section>
       )}
 
-      <DynamicPlanSurface scope={{ service_key: 'course_learning', course_id: courseId, exam_module_id: '', language: '' }} />
+      <DynamicPlanSurface
+        scope={{ service_key: 'course_learning', course_id: courseId, exam_module_id: '', language: '' }}
+        open={adjusting}
+        onOpenChange={setAdjusting}
+      />
 
       <NextStep
         label="查看学习记录"
@@ -664,7 +684,6 @@ export function CoursePlanPage({ courseId }: { courseId: string }) {
 
 export function CourseRecordsPage({ courseId }: { courseId: string }) {
   const records = useCourseRecords(courseId);
-  const summary = useCourseRecordsSummary(courseId);
   const events = list(records.data);
 
   return (
@@ -673,9 +692,11 @@ export function CourseRecordsPage({ courseId }: { courseId: string }) {
       active="records"
       facts={[{ label: '记录事件', value: records.isPending ? '正在读取…' : `${events.length} 条` }]}
     >
+      {/* The record IS the timeline: what happened, in the order it happened. There is nothing
+          above it to summarise it and nothing below it to lead out of it — the report is one
+          link away for the totals, and the strip is where a learner goes next. */}
       <PageHeader
         title="专业学习记录"
-        description="按时间记录的事件流，和学习报告是同一批记录。"
         actions={
           <Link
             to="/reports"
@@ -687,41 +708,30 @@ export function CourseRecordsPage({ courseId }: { courseId: string }) {
         }
       />
 
-      <Section title="汇总" description="缺失的指标显示为「—」，不当作 0。">
-        {summary.isPending ? <LoadingState label="正在读取记录汇总…" rows={2} /> : null}
-        {summary.isError ? <Failure title="记录汇总暂时无法加载。" error={summary.error} retry={() => void summary.refetch()} /> : null}
-        {summary.data !== undefined ? <FactList value={summary.data} /> : null}
-      </Section>
-
-      <Section title="事件流">
-        {records.isPending ? (
-          <LoadingState label="正在读取学习记录…" />
-        ) : records.isError ? (
-          <Failure title="学习记录暂时无法加载。" error={records.error} retry={() => void records.refetch()} />
-        ) : events.length ? (
-          <ol className="border-t border-border-default">
-            {events.map((event, index) => (
-              <li key={text(event, 'event_id') ?? index} className="border-b border-border-default py-4">
-                <p className="text-body text-text-primary">
-                  {eventTypeLabel(text(event, 'event_type') ?? '')}
-                </p>
-                <p className="mt-1 text-metadata text-text-secondary">
-                  {serviceNamespaceLabel(text(event, 'service_namespace') ?? '')} · {formatDateTime(text(event, 'occurred_at'))}
-                </p>
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <EmptyState title="还没有学习记录。" description="完成一次练习、打开资料或提问后，这里会出现真实事件。" />
-        )}
-      </Section>
-
-      <NextStep
-        label="查看学习状态"
-        description="状态是这些记录的确定性投影：知识点状态、练习、错题与计划。"
-        to="/course/$courseId/state"
-        params={{ courseId }}
-      />
+      {records.isPending ? (
+        <LoadingState label="正在读取学习记录…" className="mt-8" />
+      ) : records.isError ? (
+        <Failure title="学习记录暂时无法加载。" error={records.error} retry={() => void records.refetch()} />
+      ) : events.length ? (
+        <ol className="mt-6 border-t border-border-default">
+          {events.map((event, index) => (
+            <li key={text(event, 'event_id') ?? index} className="border-b border-border-default py-4">
+              <p className="text-body text-text-primary">
+                {eventTypeLabel(text(event, 'event_type') ?? '')}
+              </p>
+              <p className="mt-1 text-metadata text-text-secondary">
+                {serviceNamespaceLabel(text(event, 'service_namespace') ?? '')} · {formatDateTime(text(event, 'occurred_at'))}
+              </p>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <EmptyState
+          className="mt-8"
+          title="还没有学习记录。"
+          description="完成一次练习、打开资料或提问后，这里会出现真实事件。"
+        />
+      )}
     </CoursePageShell>
   );
 }

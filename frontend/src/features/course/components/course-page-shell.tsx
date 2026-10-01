@@ -9,12 +9,19 @@ import { readCourseList } from '../course-context';
 
 /**
  * The tabs of the course space, in the order a learner moves through it: asking about the
- * course, then what it contains, then learning it, then being tested on it, then dealing with
- * what went wrong, then looking back at what happened.
+ * course, then what it contains, then being tested on it, then dealing with what went wrong,
+ * then looking back at what happened.
  *
  * There is no 概览 tab. The course's overview was a page of prose describing what the tabs
  * already do, and a first tab whose content is an explanation of the other tabs is not a
  * surface — 课程问答 is what a learner opens a course to actually do, so it leads the strip.
+ *
+ * There is no 学习 tab either. Reading a knowledge point is not a PLACE in the course, it is
+ * what opening one of its points does — so 知识结构 is the single entry to it and the workspace
+ * at `/course/<id>/study` is reached from there, never from a tab of its own. 学习状态 is gone
+ * from the strip for the same reason in reverse: the course's own figures are already stated by
+ * 记录, and a tab that restates them is a second surface over one answer. Both routes still
+ * exist, so a link that already points at them keeps working.
  */
 export function courseNavItems(courseId: string): readonly ContextNavItem[] {
   const params = { courseId };
@@ -22,12 +29,10 @@ export function courseNavItems(courseId: string): readonly ContextNavItem[] {
     { id: 'ask', label: '课程问答', to: '/course/$courseId/ask', params },
     { id: 'materials', label: '资料', to: '/course/$courseId/materials', params },
     { id: 'knowledge', label: '知识结构', to: '/course/$courseId/knowledge', params },
-    { id: 'study', label: '学习', to: '/course/$courseId/study', params },
     { id: 'practice', label: '练习', to: '/course/$courseId/practice', params },
     { id: 'wrong', label: '错题与复习', to: '/course/$courseId/wrong', params },
     { id: 'plan', label: '计划', to: '/course/$courseId/plan', params },
     { id: 'records', label: '记录', to: '/course/$courseId/records', params },
-    { id: 'state', label: '学习状态', to: '/course/$courseId/state', params },
   ];
 }
 

@@ -88,7 +88,7 @@ describe('course space context', () => {
     expect(within(nav).getByRole('link', { name: '资料' })).toHaveAttribute('aria-current', 'page');
     // No 概览: the course's surfaces are the work, and 课程问答 leads them.
     expect(within(nav).queryByRole('link', { name: '概览' })).not.toBeInTheDocument();
-    for (const label of ['课程问答', '知识结构', '学习', '练习', '错题与复习', '计划', '记录', '学习状态']) {
+    for (const label of ['课程问答', '知识结构', '练习', '错题与复习', '计划', '记录']) {
       expect(within(nav).getByRole('link', { name: label })).toBeInTheDocument();
     }
   });

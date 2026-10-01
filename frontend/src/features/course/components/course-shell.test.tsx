@@ -57,8 +57,14 @@ describe('course shell', () => {
       'page',
     );
     // Every other surface is still reachable.
-    for (const label of ['资料', '知识结构', '学习', '练习', '错题与复习', '计划', '记录', '学习状态']) {
+    for (const label of ['资料', '知识结构', '练习', '错题与复习', '计划', '记录']) {
       expect(within(nav).getByRole('link', { name: label })).toBeInTheDocument();
+    }
+    // 学习 is NOT a tab: reading a point is what opening one from 知识结构 does, so the
+    // workspace is reached from there and the strip does not hold a second door to it. 学习状态
+    // is not one either — 记录 already states the course's own figures.
+    for (const label of ['学习', '学习状态']) {
+      expect(within(nav).queryByRole('link', { name: label })).not.toBeInTheDocument();
     }
   });
 

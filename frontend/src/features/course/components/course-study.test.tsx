@@ -3,10 +3,11 @@
  *
  * What this file is really about, because each is a claim the page makes:
  *
- *   * the outline is the ACTIVE structure and nothing else — a course with no structure shows one
- *     sentence and one way forward, not a screen of zeroes
- *   * opening a point is FREE: nothing is generated until the learner asks, so stepping through
- *     the outline to find a topic never spends anything
+ *   * the point comes from the ACTIVE structure and nothing else — a course with no structure
+ *     shows one sentence and one way forward, not a screen of zeroes
+ *   * the page holds ONE point and owns no way to change it: 知识结构 is the only entry, so the
+ *     workspace never grows a second list of points beside the one being read
+ *   * opening a point is FREE: nothing is generated until the learner asks
  *   * the four states are the product's own, and reading an explanation is not a learning fact
  */
 import { screen, waitFor, within } from '@testing-library/react';
@@ -145,42 +146,31 @@ describe('a course with no structure', () => {
 
 /* ------------------------------------------------------------------ ACTIVE STRUCTURE */
 
-describe('the outline', () => {
-  it('is the active structure: its chapters, its points, in its order', async () => {
+describe('the point on screen', () => {
+  it('states the chapter it sits under, and holds exactly that one point', async () => {
     await renderStudy();
 
-    const nav = screen.getByRole('navigation', { name: '知识点' });
-    expect(within(nav).getByText('第2章 线性表')).toBeInTheDocument();
-    const titles = within(nav).getAllByRole('button')
-      .map((button) => button.textContent ?? '')
-      .filter((label) => label.includes('表') || label.includes('链表'));
-    expect(titles.join('|')).toMatch(/顺序表[\s\S]*链表[\s\S]*双链表/);
+    expect(screen.getByRole('heading', { level: 2, name: '顺序表' })).toBeInTheDocument();
+    expect(screen.getByText('第2章 线性表')).toBeInTheDocument();
+    // 知识结构 is the ONLY entry to this workspace, so there is no second list of points here.
+    // One point is open, and its siblings are what 返回知识结构 is for.
+    expect(screen.queryByRole('navigation', { name: '知识点' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /双链表/ })).not.toBeInTheDocument();
   });
 
-  it('shows each point with its state, and never as a percentage', async () => {
-    hooks.useCourseKnowledge.mockReturnValue(settled({
-      success: true,
-      knowledge_points: [
-        { id: 100, parent_id: null, title: '第2章 线性表', description: '', status: 'not_started',
-          order_index: 0, level: 1 },
-        point(1, '顺序表', 'not_started'),
-        point(2, '链表', 'learning'),
-        point(3, '双链表', 'mastered'),
-        point(4, '循环链表', 'review_due'),
-      ],
-      roots: [100],
-    }));
-
+  it('offers the way back to where a point is chosen', async () => {
     await renderStudy();
 
-    const nav = screen.getByRole('navigation', { name: '知识点' });
-    for (const label of ['未学习', '学习中', '已学习', '待复习']) {
-      expect(within(nav).getAllByText(label).length).toBeGreaterThan(0);
-    }
-    expect(within(nav).queryByText(/%/)).not.toBeInTheDocument();
+    const back = screen.getByRole('link', { name: '返回知识结构' });
+    expect(back).toHaveAttribute('href', `/course/${encodeURIComponent(COURSE)}/knowledge`);
   });
 
-  it('follows a new active version without a reload', async () => {
+  it('never states the point as a percentage', async () => {
+    await renderStudy();
+    expect(screen.queryByText(/%/)).not.toBeInTheDocument();
+  });
+
+  it('follows a new active version instead of holding a superseded point', async () => {
     const { unmount } = await renderStudy();
     unmount();
 
@@ -197,9 +187,8 @@ describe('the outline', () => {
 
     await renderStudy();
 
-    const nav = screen.getByRole('navigation', { name: '知识点' });
-    expect(within(nav).getByText('二叉树的遍历')).toBeInTheDocument();
-    expect(within(nav).queryByText('顺序表')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: '二叉树的遍历' })).toBeInTheDocument();
+    expect(screen.queryByText('顺序表')).not.toBeInTheDocument();
   });
 });
 
@@ -237,16 +226,13 @@ describe('which point is open', () => {
     });
   });
 
-  it('switches to the point the learner picked', async () => {
-    const user = userEvent.setup();
-    await renderStudy();
+  it('holds no switcher of its own: the URL is the whole selection', async () => {
+    await renderStudy(`${URL}?knowledge_point_id=3`);
 
-    const nav = screen.getByRole('navigation', { name: '知识点' });
-    await user.click(within(nav).getByRole('button', { name: /双链表/ }));
-
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { level: 2, name: '双链表' })).toBeInTheDocument();
-    });
+    expect(screen.getByRole('heading', { level: 2, name: '双链表' })).toBeInTheDocument();
+    // Nothing on the page can move to another point — that happens on 知识结构, which links here.
+    expect(screen.queryByRole('combobox', { name: '选择知识点' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: '知识点' })).not.toBeInTheDocument();
   });
 });
 
@@ -333,20 +319,14 @@ describe('the explanation', () => {
     expect(generate.mutate).toHaveBeenCalledWith({ pointId: 3 });
   });
 
-  it('is not generated for a point the learner is only passing through', async () => {
-    const user = userEvent.setup();
+  it('is not generated for a point whose explanation is already stored', async () => {
     const generate = mutateSpy();
     hooks.useGenerateCourseKnowledgePointStudyContent.mockReturnValue(generate);
 
-    await renderStudy();
-    const nav = screen.getByRole('navigation', { name: '知识点' });
-    // The state mark contributes its own word to the row's accessible name, so this picks 链表
-    // and not 双链表.
-    await user.click(within(nav).getByRole('button', { name: '未学习链表' }));
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { level: 2, name: '链表' })).toBeInTheDocument();
-    });
+    await renderStudy(`${URL}?knowledge_point_id=2`);
 
+    // Reading a stored explanation is free: only the learner pressing 开始学习 spends anything.
+    expect(screen.getByText('正文')).toBeInTheDocument();
     expect(generate.mutate).not.toHaveBeenCalled();
   });
 

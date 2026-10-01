@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
+import { Check, ChevronRight, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { StatusNote } from '@/components/ui/status-note';
@@ -355,6 +356,7 @@ function AiStructureForm({
  * pending list the learner then has to hunt for.
  */
 function PointRow({
+  courseId,
   point,
   chapters,
   editable,
@@ -364,6 +366,7 @@ function PointRow({
   onMove,
   onDelete,
 }: {
+  courseId: string;
   point: KnowledgeStructurePoint;
   chapters: readonly KnowledgeStructureChapter[];
   editable: boolean;
@@ -432,7 +435,27 @@ function PointRow({
         {/* A quiet bullet, not an icon: the list's subject is the names, and a marker per row
             would compete with them for the eye. */}
         <span aria-hidden="true" className="text-text-muted">○</span>
-        <span className="text-body text-text-primary">{point.title}</span>
+        {editable ? (
+          // A draft is not the learner's course yet, and its rows are things to rename, move or
+          // delete — so one is plain text, and opening it would open a point that does not exist
+          // as far as studying is concerned.
+          <span className="text-body text-text-primary">{point.title}</span>
+        ) : (
+          // In a structure that is IN USE, the point's name is how a learner starts learning it.
+          // 知识结构 is the only entry into the workspace, so this is the entry.
+          <Link
+            to="/course/$courseId/study"
+            params={{ courseId }}
+            search={{ knowledge_point_id: point.id }}
+            className="group inline-flex min-w-0 items-center gap-1 rounded-control text-body text-text-primary hover:text-primary-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          >
+            <span className="min-w-0 truncate">{point.title}</span>
+            <ChevronRight
+              className="size-4 shrink-0 text-text-muted group-hover:text-primary-ink"
+              aria-hidden="true"
+            />
+          </Link>
+        )}
         {showProvenance && point.origin === 'ai_inferred' ? (
           <span className="text-metadata text-text-muted">AI 补充</span>
         ) : null}
@@ -490,6 +513,7 @@ function PointRow({
 
 /** The structure itself: chapters, each with its points. Nothing else is on this surface. */
 function StructureTree({
+  courseId,
   chapters,
   editable,
   busy,
@@ -498,6 +522,7 @@ function StructureTree({
   onMove,
   onDelete,
 }: {
+  courseId: string;
   chapters: readonly KnowledgeStructureChapter[];
   editable: boolean;
   busy: boolean;
@@ -529,6 +554,7 @@ function StructureTree({
             {chapter.points.map((point) => (
               <PointRow
                 key={point.id}
+                courseId={courseId}
                 point={point}
                 chapters={chapters}
                 editable={editable}
@@ -571,6 +597,14 @@ export function CourseKnowledgePage({ courseId }: { courseId: string }) {
 
   const courseName = data?.course_id ?? courseId;
 
+  // Opening a point is what this page is now FOR, and a point's name is the only door — so the
+  // page says so. Only where it is true: a draft's rows are renamed and moved, never opened.
+  const description = !hasStructure
+    ? undefined
+    : isDraft
+      ? '这门课的知识点与章节。'
+      : '这门课的知识点与章节。点开一个知识点开始学习。';
+
   const backToIdle = () => {
     setMode('idle');
     setSelected([]);
@@ -593,14 +627,7 @@ export function CourseKnowledgePage({ courseId }: { courseId: string }) {
           : []
       }
     >
-      <PageHeader
-        title="知识结构"
-        description={
-          hasStructure
-            ? '这门课的知识点与章节。学习、练习与复习都围绕这份结构记录。'
-            : undefined
-        }
-      />
+      <PageHeader title="知识结构" description={description} />
 
       {structure.isPending ? (
         <LoadingState label="正在读取知识结构…" className="mt-8" />
@@ -712,6 +739,7 @@ export function CourseKnowledgePage({ courseId }: { courseId: string }) {
 
           {hasStructure && mode === 'idle' && data ? (
             <StructureTree
+              courseId={courseId}
               chapters={data.chapters}
               editable={isDraft}
               busy={busy}

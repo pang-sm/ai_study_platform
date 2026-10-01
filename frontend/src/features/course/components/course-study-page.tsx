@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { ChevronRight, Circle, CircleCheck, CircleDot, RotateCcw } from 'lucide-react';
+import { Circle, CircleCheck, CircleDot, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { StatusNote } from '@/components/ui/status-note';
@@ -47,15 +47,16 @@ function numberAt(value: unknown, key: string): number | undefined {
   return isRecord(value) && typeof value[key] === 'number' ? value[key] : undefined;
 }
 
-/* ------------------------------------------------------------------ the structure as a navigation */
+/* ------------------------------------------------------------------ the structure this page reads */
 
 /**
- * One outline, read from the ACTIVE version and nothing else.
+ * The learner's points, read from the ACTIVE version and nothing else.
  *
  * The points arrive as one ordered list whose chapters are their `parent_id`; grouping them here
- * keeps that single read as the page's only source. A point whose chapter is missing is NOT
- * dropped — it is shown at the top level, because a point that silently disappears from the
- * outline is indistinguishable from a point that was never in the structure.
+ * keeps that single read as the page's only source. The grouping is not drawn as a navigation —
+ * the workspace renders exactly ONE point, and 知识结构 is where a point is chosen — but the
+ * chapter a point sits under is still part of what the point IS: it is what the page states
+ * above the title, and what the practice link below sends the learner to.
  */
 export type StudyPoint = {
   id: number;
@@ -167,28 +168,6 @@ const STATUS_ICONS: Record<KnowledgeStatus, typeof Circle> = {
 };
 
 /**
- * The state of a point, as a shape first and a colour second.
- *
- * The four marks are the four states and nothing else — no score, no percentage, no progress
- * bar. What the learner has actually recorded is one of four things, and showing it as a fifth
- * number would be inventing a precision the record does not carry.
- */
-function StatusMark({ status }: { status: KnowledgeStatus }) {
-  const Icon = STATUS_ICONS[status];
-  return (
-    <span className="inline-flex items-center gap-1">
-      {/* The word is the accessible half: the shapes differ, but two of them are round, and a
-          reader who cannot see the mark at all still needs to know the state. */}
-      <Icon
-        className={cn('size-4 shrink-0', status === 'not_started' ? 'text-text-muted' : 'text-primary')}
-        aria-hidden="true"
-      />
-      <span className="sr-only">{knowledgeStatusLabel(status)}</span>
-    </span>
-  );
-}
-
-/**
  * The learner's own answer to "where am I on this point".
  *
  * Four buttons rather than a menu: the four states are the whole vocabulary, they fit on one
@@ -259,81 +238,6 @@ function generationFailure(error: unknown): string {
     if (message) return message;
   }
   return '学习内容没有生成，请稍后重试。';
-}
-
-/* ------------------------------------------------------------------ the outline */
-
-function OutlineNav({
-  outline,
-  selectedId,
-  collapsed,
-  onToggleChapter,
-  onSelect,
-}: {
-  outline: StudyOutline;
-  selectedId: number | undefined;
-  collapsed: ReadonlySet<number>;
-  onToggleChapter: (chapterId: number) => void;
-  onSelect: (pointId: number) => void;
-}) {
-  const pointRow = (point: StudyPoint) => (
-    <li key={point.id}>
-      <button
-        type="button"
-        aria-current={point.id === selectedId ? 'true' : undefined}
-        onClick={() => onSelect(point.id)}
-        className={cn(
-          'flex w-full items-center gap-2 rounded-control px-3 py-2 text-left text-body transition-colors duration-fast ease-standard',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
-          point.id === selectedId
-            ? 'bg-primary-soft font-medium text-primary-ink'
-            : 'text-text-primary hover:bg-primary-soft',
-        )}
-      >
-        <StatusMark status={point.status} />
-        <span className="min-w-0 flex-1">{point.title}</span>
-      </button>
-    </li>
-  );
-
-  return (
-    // One nav landmark for the outline; the point being studied is its sibling, so a screen
-    // reader can jump straight past the outline to the content.
-    <nav aria-label="知识点">
-      {outline.chapters.length ? (
-        <ul className="space-y-1">
-          {outline.chapters.map((chapter) => {
-            const open = !collapsed.has(chapter.id);
-            return (
-              <li key={chapter.id}>
-                <button
-                  type="button"
-                  aria-expanded={open}
-                  onClick={() => onToggleChapter(chapter.id)}
-                  className="flex w-full items-center gap-1.5 rounded-control px-2 py-2 text-left text-metadata font-medium text-text-secondary hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                >
-                  <ChevronRight
-                    className={cn('size-4 shrink-0 transition-transform duration-fast ease-standard',
-                                  open && 'rotate-90')}
-                    aria-hidden="true"
-                  />
-                  <span className="min-w-0 flex-1">{chapter.title}</span>
-                  <span className="shrink-0 tabular-nums text-text-muted">{chapter.points.length}</span>
-                </button>
-                {open ? <ul className="mt-0.5">{chapter.points.map(pointRow)}</ul> : null}
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
-
-      {/* Points that belong to no chapter — a legacy flat structure. Rendered in the same shape,
-          because they are the same kind of thing to the learner. */}
-      {outline.loose.length ? (
-        <ul className="mt-1 space-y-1">{outline.loose.map(pointRow)}</ul>
-      ) : null}
-    </nav>
-  );
 }
 
 /* ------------------------------------------------------------------ one point, being studied */
@@ -470,7 +374,6 @@ export function CourseStudyPage({
   const navigate = useNavigate();
 
   const outline = useMemo(() => readOutline(points.data), [points.data]);
-  const [collapsed, setCollapsed] = useState<ReadonlySet<number>>(() => new Set<number>());
 
   const chosenId = defaultPointId(outline, selectedPointId);
   const selected = outline.ordered.find((point) => point.id === chosenId);
@@ -493,36 +396,23 @@ export function CourseStudyPage({
   const hasStructure = Boolean(structure.data?.active) || outline.ordered.length > 0;
   const pending = points.isPending || structure.isPending;
 
-  /**
-   * Open a point, and its chapter with it.
-   *
-   * The chapter is opened HERE rather than in an effect watching the selection: the learner's own
-   * click is the moment the outline must not hide what they picked, and an effect would re-open a
-   * chapter they had deliberately collapsed every time the selection happened to land in it. Every
-   * other way of naming a point (a link, the URL) arrives with the outline still fully expanded,
-   * which is how it starts.
-   */
-  const select = (pointId: number) => {
-    const target = outline.ordered.find((point) => point.id === pointId);
-    if (target?.chapterId !== null && target?.chapterId !== undefined) {
-      const chapterId = target.chapterId;
-      setCollapsed((current) => {
-        if (!current.has(chapterId)) return current;
-        const next = new Set(current);
-        next.delete(chapterId);
-        return next;
-      });
-    }
-    void navigate({
-      to: '/course/$courseId/study',
-      params: { courseId },
-      search: { knowledge_point_id: pointId },
-    });
-  };
-
   return (
-    <CoursePageShell courseId={courseId} active="study">
-      <PageHeader title="学习" />
+    <CoursePageShell courseId={courseId} active="knowledge">
+      <PageHeader
+        title="学习"
+        actions={
+          // The workspace holds ONE point, so the way to another one is back where points are
+          // chosen. Without this the page would be a dead end — 知识结构 is the entry, and this
+          // is the way back to it.
+          <Link
+            to="/course/$courseId/knowledge"
+            params={{ courseId }}
+            className="inline-flex h-11 items-center rounded-control border border-border-default bg-surface px-5 text-body font-medium text-text-primary hover:bg-primary-soft"
+          >
+            返回知识结构
+          </Link>
+        }
+      />
 
       {pending ? (
         <LoadingState label="正在读取知识结构…" className="mt-8" />
@@ -553,74 +443,20 @@ export function CourseStudyPage({
           }
         />
       ) : selected ? (
-        <div className="mt-8 lg:grid lg:grid-cols-[17rem_minmax(0,1fr)] lg:gap-10">
-          {/* Below desktop the outline becomes a chooser: the page still works around exactly one
-              point, and a 280px column beside the content is not a thing a phone has. */}
-          <div className="lg:hidden">
-            <label className="block text-metadata font-medium text-text-muted" htmlFor="study-point-picker">
-              选择知识点
-            </label>
-            <select
-              id="study-point-picker"
-              value={selected.id}
-              onChange={(event) => select(Number(event.target.value))}
-              className="mt-2 h-11 w-full rounded-control border border-border-default bg-surface px-3 text-body text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-            >
-              {outline.chapters.flatMap((chapter) => [
-                <optgroup key={`chapter-${chapter.id}`} label={chapter.title}>
-                  {chapter.points.map((point) => (
-                    <option key={point.id} value={point.id}>
-                      {knowledgeStatusLabel(point.status)} · {point.title}
-                    </option>
-                  ))}
-                </optgroup>,
-              ])}
-              {outline.loose.length ? (
-                <optgroup label="其他知识点">
-                  {outline.loose.map((point) => (
-                    <option key={point.id} value={point.id}>
-                      {knowledgeStatusLabel(point.status)} · {point.title}
-                    </option>
-                  ))}
-                </optgroup>
-              ) : null}
-            </select>
-          </div>
-
-          <aside className="hidden lg:block">
-            <div className="sticky top-6 max-h-[calc(100vh-3rem)] overflow-y-auto pr-2">
-              <OutlineNav
-                outline={outline}
-                selectedId={selected.id}
-                collapsed={collapsed}
-                onToggleChapter={(chapterId) =>
-                  setCollapsed((current) => {
-                    const next = new Set(current);
-                    if (next.has(chapterId)) next.delete(chapterId);
-                    else next.add(chapterId);
-                    return next;
-                  })
-                }
-                onSelect={select}
-              />
-            </div>
-          </aside>
-
-          <div className="mt-8 lg:mt-0">
-            <StudyWorkspace
-              key={selected.id}
-              courseId={courseId}
-              point={selected}
-              status={selected.status}
-              statusPending={updateStatus.isPending}
-              onStatusChange={(next) => updateStatus.mutate({ pointId: selected.id, status: next })}
-            />
-            {updateStatus.isError ? (
-              <StatusNote tone="danger" className="mt-4">
-                学习状态没有保存成功，请稍后重试。
-              </StatusNote>
-            ) : null}
-          </div>
+        <div className="mt-8 max-w-prose">
+          <StudyWorkspace
+            key={selected.id}
+            courseId={courseId}
+            point={selected}
+            status={selected.status}
+            statusPending={updateStatus.isPending}
+            onStatusChange={(next) => updateStatus.mutate({ pointId: selected.id, status: next })}
+          />
+          {updateStatus.isError ? (
+            <StatusNote tone="danger" className="mt-4">
+              学习状态没有保存成功，请稍后重试。
+            </StatusNote>
+          ) : null}
         </div>
       ) : null}
     </CoursePageShell>
