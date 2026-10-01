@@ -3,7 +3,6 @@ import { useNavigate } from '@tanstack/react-router';
 import { ContextHeader, type ContextFact } from '@/components/page/context-header';
 import { ContextNav, type ContextNavItem } from '@/components/page/context-nav';
 import { useCourseCatalog, useCourseDashboard } from '@/features/course/api/course';
-import { AdaptivePractice } from '@/components/learning/adaptive-practice';
 import { routePath } from '@/lib/router';
 import { readCourseList } from '../course-context';
 
@@ -133,13 +132,6 @@ export function CoursePageShell({
         <CourseSwitcher courseId={courseId} active={active} name={courseName} />
       </div>
       {facts?.length ? <ContextHeader facts={facts} className="mt-5" /> : null}
-      {active === 'practice' ? (
-        <AdaptivePractice
-          serviceKey="course_learning"
-          courseId={courseId}
-          entryHref={`/course/${encodeURIComponent(courseId)}/practice`}
-        />
-      ) : null}
       <div className="pb-12 pt-8">{children}</div>
     </div>
   );

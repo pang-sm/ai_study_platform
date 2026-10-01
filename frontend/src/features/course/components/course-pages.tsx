@@ -20,6 +20,7 @@ import { enumText } from '@/lib/learner-safe';
 import { eventTypeLabel, serviceNamespaceLabel } from '@/features/records/event-labels';
 import { MATERIAL_UPLOAD_ACCEPT, materialUploadErrorMessage, useCourseMaterialUpload, useCoursePractice, useCoursePracticeAction, useCoursePracticeHistory, useCourseRecords, useCourseState, useCourseTodayPlan, useCourseWrongAnswers } from '@/features/course/api/course';
 import { CoursePageShell } from './course-page-shell';
+import { AdaptivePractice } from '@/components/learning/adaptive-practice';
 import { ScopedAiChatWorkspace } from '@/features/ai/components/ai-chat-page';
 import { DynamicPlanSurface, WrongAnalysisSurface } from '@/features/learning-intelligence/learning-intelligence-surfaces';
 
@@ -518,6 +519,16 @@ export function CoursePracticePage({ courseId, chapter }: { courseId: string; ch
           <EmptyState title="还没有练习历史。" description="提交一次作答后，这里会按时间列出真实结果。" />
         )}
       </Section>
+
+      {/* Recommended practice sits AFTER the page's own body, never above its title. This page is
+          the practice surface first — its heading, and the entry that generates practice for it —
+          and a recommendation is an addition to that, not the thing the page opens with. The
+          candidate list itself is untouched: this is where it is drawn, not what it says. */}
+      <AdaptivePractice
+        serviceKey="course_learning"
+        courseId={courseId}
+        entryHref={`/course/${encodeURIComponent(courseId)}/practice`}
+      />
 
       <NextStep
         label="查看错题与复习"
