@@ -181,7 +181,20 @@
   - `tutor_policy` / `tutor_guard` ontology = `focus / generic / probing / telling`；**不得**改写成 `ALLOW / REJECT`
   - `misconception_v2` score = cosine-like inner product（BGE-M3 + L2 normalize + FAISS IndexFlatIP），不是 probability
   - `memory` 必须有真实 `interval / rating / lapse / review_history`，**禁止 fabricated input**
-- 铁律：`NO MODEL → PRODUCT STILL WORKS`（模型不可用产品仍可用，模型可用则变强）；禁止 `NO MODEL → PRODUCT BREAKS`。禁止前端/业务逻辑/数据库直接依赖未产品化的模型。
+- 铁律（2026-10-01 收紧）：**`NO MODEL → CORE PRODUCT STILL WORKS`**（模型不可用，产品的核心学习能力仍可用；模型可用则变强）。禁止 `NO MODEL → PRODUCT BREAKS`。禁止前端/业务逻辑/数据库直接依赖未产品化的模型。
+  - **核心产品 = 不依赖模型即可成立的学习能力**：知识结构、已缓存的知识点讲解、课程资料与检索、学习记录 / 进度 / 错题与复习、计划与报告等。这些在模型不可用时必须照常工作。
+  - **AI 依赖的生成类能力（AI 出题、AI 讲解、AI 计划生成等）在没有合格模型输出时，允许优雅失败**：给出学习者能看懂、能重试的失败态，而不是伪造内容。失败是允许的终态之一。
+  - **禁止为「看起来可用」而生成低质量替代内容。** 生成失败优于把垃圾内容伪装成正常学习内容。
+  - 允许的 fallback（必须与模型路径**同一套质量门**）：
+    - 已通过质量门、已缓存的既有内容（如已生成的讲解 / 已存在的题）；
+    - 基于 canonical 数据或学习者自身来源的**确定性内容**，且通过同一质量检查。
+  - 禁止的 fallback（不论是否"看得懂"）：
+    - generic template（通用模板句）；
+    - meta question（元问题：「X 是否重要 / 是否属于本章」）；
+    - placeholder question（占位题）；
+    - 仅把知识点名称改写成题目；
+    - 未经过正式 quality gate 的本地补题。
+  - 具体到课程练习：命题必须经过 `backend/learning/spaces/course_learning/question_quality.py` 的质量门（低信息题 / 重复题 / 能力覆盖）；凑不齐合格题时返回明确的生成失败，**不得用本地模板补足题量**。
 - 禁止在模型未产品化时实现 fake model output；禁止 UI/文案声称「AI 为你推荐 / 预计掌握率 / 根据你的能力预测 / 智能学习路径 / 模型判断已掌握」。
 
 ## 数据库安全原则（长期）
