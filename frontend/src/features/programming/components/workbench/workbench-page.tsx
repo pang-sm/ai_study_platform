@@ -366,7 +366,11 @@ export function WorkbenchPage({
         </main>
 
         <aside className="wb__col wb__coach" aria-label="AI 教练">
+          {/* Keyed by the open题 and the language: the coach is scoped to the work on screen, so
+              switching题 starts a fresh thread instead of carrying the previous题's conversation
+              (and its context) into the new one. */}
           <CoachPanel
+            key={`${language}:${currentId ?? 'none'}`}
             language={canonical ?? ''}
             exerciseId={currentId}
             exerciseTitle={currentItem ? exerciseTitle(currentItem, '') : undefined}

@@ -189,4 +189,25 @@ describe('the AI 教练', () => {
     const call = analyzeCalls()[0] as unknown as [string, { body: Record<string, unknown> }];
     expect(call[1].body.exercise_id).toBe(8);
   });
+
+  it('starts a fresh thread when the open题 changes, so the old题 never rides along', async () => {
+    const user = userEvent.setup();
+    renderApp('/programming/workbench?language=python&exercise=7');
+    await screen.findByText('共 2 道');
+
+    await askHint(user);
+    expect(await screen.findByText(/先从数组里取出每个数/)).toBeInTheDocument();
+
+    // Opening another题 clears the transcript and the history sent with the next question.
+    await user.click(screen.getByRole('button', { name: /回文数/ }));
+    await waitFor(() => expect(crumbTitle()).toBe('回文数'));
+    expect(screen.queryByText(/先从数组里取出每个数/)).not.toBeInTheDocument();
+
+    await askHint(user);
+    await waitFor(() => expect(analyzeCalls()).toHaveLength(2));
+    const call = analyzeCalls()[1] as unknown as [string, { body: Record<string, unknown> }];
+    expect(call[1].body.exercise_id).toBe(8);
+    // No turn from the previous题 is carried into the new one's history.
+    expect(call[1].body.chat_history ?? []).toEqual([]);
+  });
 });
