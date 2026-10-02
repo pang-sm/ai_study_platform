@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { BankExercise } from '../../api/programming';
 import {
@@ -42,6 +43,8 @@ export function ExerciseNav({
   isPending,
   isError,
   recommended = [],
+  collapsed = false,
+  onToggleCollapsed,
 }: {
   items: readonly BankExercise[];
   total: number;
@@ -56,6 +59,9 @@ export function ExerciseNav({
    * leaves no mark at all rather than an error in the middle of the题目 map.
    */
   recommended?: readonly RecommendedExercise[];
+  /** The learner's own width choice for the rail, remembered on the device. */
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }) {
   const [keyword, setKeyword] = useState('');
   const [filter, setFilter] = useState<StatusFilter>('all');
@@ -84,11 +90,40 @@ export function ExerciseNav({
     return statusCounts.passed ?? 0;
   };
 
+  // Collapsed is a narrow rail that keeps only the way back open: the bank itself is hidden, so
+  // the column holds no content that could overflow a 44px strip.
+  if (collapsed) {
+    return (
+      <div className="wb-nav__rail">
+        <button
+          type="button"
+          className="wb-nav__collapse"
+          aria-label="展开题目栏"
+          aria-expanded={false}
+          title="展开题目栏"
+          onClick={onToggleCollapsed}
+        >
+          <ChevronRight className="size-4" aria-hidden="true" />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="wb-nav__head">
         <p className="wb-nav__title">题目</p>
         <span className="wb-nav__count">共 {total} 道</span>
+        <button
+          type="button"
+          className="wb-nav__collapse"
+          aria-label="收起题目栏"
+          aria-expanded
+          title="收起题目栏"
+          onClick={onToggleCollapsed}
+        >
+          <ChevronLeft className="size-4" aria-hidden="true" />
+        </button>
       </div>
 
       <div className="wb-nav__search">

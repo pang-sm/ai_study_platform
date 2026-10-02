@@ -13,6 +13,7 @@
 //
 // Without credentials it still runs the anonymous half: that the deployed bundle boots and the
 // space's route resolves (a signed-out visitor is sent to /login rather than to a blank page).
+/* global window, document */
 import { chromium } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 
@@ -20,7 +21,6 @@ const ORIGIN = process.env.ACCEPTANCE_ORIGIN || 'https://101.32.190.42';
 const USERNAME = process.env.ACCEPTANCE_USERNAME || '';
 const PASSWORD = process.env.ACCEPTANCE_PASSWORD || '';
 const SHOTS = '.audit11408/ide_workbench';
-const LANGUAGE = process.env.ACCEPTANCE_LANGUAGE || 'python';
 
 const results = [];
 function check(name, ok, detail = '') {
@@ -298,7 +298,7 @@ await page.getByRole('tab', { name: '控制台' }).click();
 // as a verdict is how a check passes while the judge is still working (or has just failed). The
 // wait is bounded and non-fatal on purpose — a step that never settles must not abort the run
 // before the API dump prints, because that dump is what says WHY.
-const runSettled = await settledWithin(
+await settledWithin(
   () => {
     const panel = document.querySelector('[role=tabpanel]')?.textContent || '';
     const page = document.body.innerText;

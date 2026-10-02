@@ -164,6 +164,17 @@ export function CoachPanel({
             <p className="mt-2 text-body text-danger-ink">
               这次分析没有成功，可能是暂时没有可用模型或额度不足。可以稍后重试。
             </p>
+            <div className="mt-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={coach.isPending || !code.trim()}
+                onClick={() => ask(failedQuestion)}
+              >
+                重试
+              </Button>
+            </div>
           </div>
         ) : null}
       </div>

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Link, useNavigate } from '@tanstack/react-router';
-import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { StatusNote } from '@/components/ui/status-note';
 import { REASON_LABELS } from '@/components/learning/adaptive-practice';
@@ -21,6 +22,7 @@ import { CoachPanel } from './coach-panel';
 import { ExerciseNav, type RecommendedExercise } from './exercise-nav';
 import { ExerciseStatement } from './exercise-statement';
 import { judgeFailureMessage } from './judge-error';
+import { readRailCollapsed, rememberRailCollapsed } from './workbench-preferences';
 import {
   chapterOf,
   coachTestPayload,
@@ -88,6 +90,15 @@ export function WorkbenchPage({
   const [stdin, setStdin] = useState('');
   const [runResult, setRunResult] = useState<unknown>();
   const [testResult, setTestResult] = useState<unknown>();
+  // A device preference, read once on mount: the learner's own width choice for the题目栏.
+  const [railCollapsed, setRailCollapsed] = useState(() => readRailCollapsed());
+  const toggleRailCollapsed = () => {
+    setRailCollapsed((current) => {
+      const next = !current;
+      rememberRailCollapsed(next);
+      return next;
+    });
+  };
 
   const entry = workspace.data ? entryFileOf(workspace.data) : undefined;
   const workspaceKey = workspace.data ? `${language}:${currentId}` : undefined;
@@ -184,11 +195,6 @@ export function WorkbenchPage({
   return (
     <div className="wb space-accent space-accent--programming">
       <header className="wb__bar">
-        <Link to="/programming" className="wb__back">
-          <ArrowLeft className="size-4" aria-hidden="true" />
-          编程学习
-        </Link>
-        <span className="wb__bar-sep" aria-hidden="true" />
         <label htmlFor="wb-language" className="sr-only">
           切换编程语言
         </label>
@@ -248,8 +254,8 @@ export function WorkbenchPage({
         </div>
       </header>
 
-      <div className="wb__body">
-        <nav className="wb__col wb__nav" aria-label="题目导航">
+      <div className={cn('wb__body', railCollapsed && 'wb__body--rail-collapsed')}>
+        <nav className={cn('wb__col wb__nav', railCollapsed && 'wb__nav--collapsed')} aria-label="题目导航">
           <ExerciseNav
             items={items}
             total={bank.data?.total ?? 0}
@@ -259,6 +265,8 @@ export function WorkbenchPage({
             isPending={bank.isPending}
             isError={bank.isError}
             recommended={recommended}
+            collapsed={railCollapsed}
+            onToggleCollapsed={toggleRailCollapsed}
           />
         </nav>
 
