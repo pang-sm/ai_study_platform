@@ -20,6 +20,7 @@ import { CodeEditor } from './code-editor';
 import { CoachPanel } from './coach-panel';
 import { ExerciseNav, type RecommendedExercise } from './exercise-nav';
 import { ExerciseStatement } from './exercise-statement';
+import { judgeFailureMessage } from './judge-error';
 import {
   chapterOf,
   coachTestPayload,
@@ -337,7 +338,7 @@ export function WorkbenchPage({
 
             {judge.isError ? (
               <StatusNote tone="warning" className="mt-3">
-                这次操作没有成功；代码已保存在这道题的练习里，可以稍后重试。
+                {judgeFailureMessage(judge.error) ?? '这次操作没有成功；代码已保存在这道题的练习里，可以稍后重试。'}
               </StatusNote>
             ) : null}
           </div>
