@@ -2,7 +2,8 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RouterProvider, createMemoryHistory, createRootRoute, createRouter } from '@tanstack/react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { WorkbenchPage } from './programming-pages';
+import { WorkbenchPage } from './programming-practice-page';
+import type * as programmingApi from '../api/programming';
 
 /** The workbench carries a breadcrumb, so it needs a router the way the real page has one. */
 async function renderWorkbench() {
@@ -22,17 +23,15 @@ const mockDiagnose = vi.fn();
 const mockAnalyze = vi.fn();
 const feedbackProps = vi.fn();
 
-vi.mock('../api/programming', () => ({
+vi.mock('../api/programming', async (importOriginal) => ({
+  // The module's pure helpers (`exerciseTotal`, `exerciseTotalPages`) stay real: the page under
+  // test is the workbench, and stubbing a helper the case does not exercise would only make a
+  // future failure harder to read.
+  ...(await importOriginal<typeof programmingApi>()),
   useProgrammingAction: () => mockAction(),
   useProgrammingExercise: () => mockExercise(),
   useCodeDiagnose: () => mockDiagnose(),
   useCodeAnalysis: () => mockAnalyze(),
-  useProgrammingHome: vi.fn(),
-  useProgrammingExercises: vi.fn(),
-  useProgrammingPlan: vi.fn(),
-  useProgrammingRecords: vi.fn(),
-  useProgrammingRecordsSummary: vi.fn(),
-  useProgrammingState: vi.fn(),
 }));
 vi.mock('@/components/learning/advanced-learning-surfaces', () => ({ DebugAgentSurface: () => null }));
 vi.mock('@/components/learning/ai-feedback', () => ({
