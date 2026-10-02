@@ -6,6 +6,7 @@ import { LoadingState } from '@/components/page/loading-state';
 import { FactList } from '@/components/page/fact-list';
 import { StatusNote } from '@/components/ui/status-note';
 import { useAdaptivePractice, type AdaptiveScope } from './p4-api';
+import { normalizeLanguageSlug } from '@/features/programming/programming-language';
 
 /**
  * The five reasons the backend ranks a candidate with — read off `learning/adaptive.py`
@@ -23,9 +24,18 @@ const reasonLabels: Record<string, string> = {
 
 function hrefFor(scope: AdaptiveScope, id: string, entryHref?: string) {
   if (scope.serviceKey === 'programming') {
-    return `/programming/${encodeURIComponent(scope.language ?? 'python')}/exercises/${encodeURIComponent(id)}`;
+    // The language is the page's CONTEXT in the programming space, not a path segment, so it
+    // travels in the search — see `searchFor` below.
+    return `/programming/practice/${encodeURIComponent(id)}`;
   }
   return entryHref;
+}
+
+/** The language a programming practice opens in, as the space's own search parameter. */
+function searchFor(scope: AdaptiveScope): Record<string, unknown> {
+  if (scope.serviceKey !== 'programming') return {};
+  const language = normalizeLanguageSlug(scope.language);
+  return language ? { language } : {};
 }
 
 /**
@@ -115,7 +125,7 @@ export function AdaptivePractice({ serviceKey, courseId, examModuleId, language,
                 </details>
                 {href ? (
                   <Button asChild variant="secondary" className="mt-3">
-                    <Link to={href as '/programming'}>{serviceKey === 'programming' ? '打开练习' : '进入练习入口'}</Link>
+                    <Link to={href as '/programming'} search={searchFor(scope) as never}>{serviceKey === 'programming' ? '打开练习' : '进入练习入口'}</Link>
                   </Button>
                 ) : null}
               </li>

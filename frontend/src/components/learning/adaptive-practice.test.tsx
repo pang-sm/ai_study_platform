@@ -26,7 +26,8 @@ describe('AdaptivePractice', () => {
     expect(screen.getByText('两数之和')).toBeInTheDocument();
     expect(screen.getByText('多次错误 / 待改进')).toBeInTheDocument();
     expect(screen.getByText('两次提交未通过，建议回到该练习。')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '打开练习' })).toHaveAttribute('href', '/programming/python/exercises/7');
+    // The language rides in the search now: the tool is the path, the language is its context.
+    expect(screen.getByRole('link', { name: '打开练习' })).toHaveAttribute('href', '/programming/practice/7?language=python');
     expect(screen.queryByText(/掌握率|预测|薄弱/)).not.toBeInTheDocument();
   });
 });

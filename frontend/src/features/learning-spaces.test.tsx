@@ -52,6 +52,7 @@ beforeEach(() => {
 
     // Programming space
     if (url === '/programming/exercises') return ok({ items: [{ id: 7, title: '两数之和', difficulty: '入门', source_label: '原创题目' }] });
+    if (url === '/adaptive/practice') return ok({ candidates: [], reasons: {} });
 
     throw new Error(`unexpected GET ${url}`);
   });
@@ -141,26 +142,31 @@ describe('exam space context', () => {
 
 describe('programming space context', () => {
   it('keeps the language in view and marks the current tool', async () => {
-    renderApp('/programming/python');
+    renderApp('/programming/practice?language=python');
 
     expect(await screen.findByRole('heading', { name: 'Python 练习' })).toBeInTheDocument();
-    const context = screen.getByText('当前语言').closest('div') as HTMLElement;
-    expect(within(context).getByText('Python')).toBeInTheDocument();
+    // The language is a CONTEXT, named once by the control that changes it — not a second
+    // navigation level beside the tool strip.
+    expect(screen.getByLabelText('切换编程语言')).toHaveValue('python');
+    expect(screen.getByText('编程学习 · Python')).toBeInTheDocument();
 
     const nav = screen.getByRole('navigation', { name: '编程学习导航' });
-    expect(within(nav).getByRole('link', { name: '练习' })).toHaveAttribute('aria-current', 'page');
-    expect(within(nav).getByRole('link', { name: '学习状态' })).toHaveAttribute(
+    expect(within(nav).getByRole('link', { name: '练习中心' })).toHaveAttribute('aria-current', 'page');
+    expect(within(nav).getByRole('link', { name: '成长记录' })).toHaveAttribute(
       'href',
-      '/programming/python/state',
+      '/programming/records?language=python',
     );
+    // The three modules the space is worked through, and the two retired tabs are not among them.
+    expect(within(nav).getByRole('link', { name: 'AI 编程助手' })).toBeInTheDocument();
+    expect(within(nav).queryByRole('link', { name: '错误与待处理' })).toBeNull();
+    expect(within(nav).queryByRole('link', { name: '学习状态' })).toBeNull();
 
-    const crumbs = screen.getByRole('navigation', { name: '面包屑' });
-    expect(crumbs.textContent).toContain('编程学习');
+    // Exam semantics stay exam semantics.
     expect(screen.queryByRole('navigation', { name: 'CS408 工具导航' })).not.toBeInTheDocument();
   });
 
   it('lists exercises as titles with their own labels, not as a payload', async () => {
-    renderApp('/programming/python');
+    renderApp('/programming/practice?language=python');
 
     expect(await screen.findByText('两数之和')).toBeInTheDocument();
     expect(screen.getByText('入门')).toBeInTheDocument();

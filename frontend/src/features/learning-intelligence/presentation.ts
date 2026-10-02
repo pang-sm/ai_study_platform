@@ -34,6 +34,6 @@ export function safeActionHref(value: Record<string, unknown>): string | undefin
   const language = typeof value.language === 'string' ? value.language : '';
   if ((serviceKey === 'course_learning' && !courseId) || (serviceKey === 'exam_11408' && !module) || (serviceKey === 'programming' && !language)) return undefined;
   if (destination === 'review') return `/review?space=${encodeURIComponent(serviceKey)}${module ? `&module=${encodeURIComponent(module)}` : ''}`;
-  if (destination === 'plan') return serviceKey === 'course_learning' ? `/course/${encodeURIComponent(courseId)}/plan` : serviceKey === 'exam_11408' ? `/exam/cs408/plan?module=${encodeURIComponent(module)}` : `/programming/${encodeURIComponent(language)}/plan`;
+  if (destination === 'plan') return serviceKey === 'course_learning' ? `/course/${encodeURIComponent(courseId)}/plan` : serviceKey === 'exam_11408' ? `/exam/cs408/plan?module=${encodeURIComponent(module)}` : `/programming/plan?language=${encodeURIComponent(language)}`;
   return serviceKey === 'course_learning' ? `/course/${encodeURIComponent(courseId)}/wrong` : serviceKey === 'exam_11408' ? `/exam/cs408/wrong?module=${encodeURIComponent(module)}` : undefined;
 }

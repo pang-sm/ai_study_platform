@@ -1,7 +1,8 @@
 import { render, screen, within } from '@testing-library/react';
 import { RouterProvider, createMemoryHistory, createRootRoute, createRouter } from '@tanstack/react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { WorkbenchPage } from './programming-pages';
+import { WorkbenchPage } from './programming-practice-page';
+import type * as programmingApi from '../api/programming';
 
 /** The workbench carries a breadcrumb, so it needs a router the way the real page has one. */
 async function renderWorkbench() {
@@ -20,17 +21,14 @@ const mockExercise = vi.fn();
 const mockDiagnose = vi.fn();
 const mockAnalyze = vi.fn();
 
-vi.mock('../api/programming', () => ({
+vi.mock('../api/programming', async (importOriginal) => ({
+  // Only the hooks the workbench calls are stubbed; the module's pure helpers stay real, so a
+  // case cannot pass because a helper was replaced by a stub that happens to return the same thing.
+  ...(await importOriginal<typeof programmingApi>()),
   useProgrammingAction: () => mockAction(),
   useProgrammingExercise: () => mockExercise(),
   useCodeDiagnose: () => mockDiagnose(),
   useCodeAnalysis: () => mockAnalyze(),
-  useProgrammingHome: vi.fn(),
-  useProgrammingExercises: vi.fn(),
-  useProgrammingPlan: vi.fn(),
-  useProgrammingRecords: vi.fn(),
-  useProgrammingRecordsSummary: vi.fn(),
-  useProgrammingState: vi.fn(),
 }));
 vi.mock('@/components/learning/advanced-learning-surfaces', () => ({
   DebugAgentSurface: () => <p>debug-agent-surface</p>,

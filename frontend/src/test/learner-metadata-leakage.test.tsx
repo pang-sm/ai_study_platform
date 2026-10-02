@@ -354,21 +354,21 @@ describe('LEARNER_METADATA_LEAKAGE_GUARD · 11408', () => {
 
 describe('LEARNER_METADATA_LEAKAGE_GUARD · Programming', () => {
   it('lists exercises without an unmapped type or the payload behind them', async () => {
-    const { container } = renderApp('/programming/python');
+    const { container } = renderApp('/programming/practice?language=python');
 
     expect(await screen.findByText('两数之和')).toBeInTheDocument();
     expectNothingLeaked(container);
   });
 
   it('renders the workbench statement without the raw response', async () => {
-    const { container } = renderApp('/programming/python/projects/7');
+    const { container } = renderApp('/programming/workbench/7?language=python');
 
     expect(await screen.findByText('给定一个整数数组，返回两个数的下标。')).toBeInTheDocument();
     expectNothingLeaked(container);
   });
 
   it('renders the records event without its source references or capability name', async () => {
-    const { container } = renderApp('/programming/python/records');
+    const { container } = renderApp('/programming/records?language=python');
 
     expect(await screen.findByText('提交代码')).toBeInTheDocument();
     expect(within(container).getByText('通过测试数')).toBeInTheDocument();
@@ -391,7 +391,7 @@ describe('LEARNER_METADATA_LEAKAGE_GUARD · Workbench AI result', () => {
     });
 
     const user = userEvent.setup();
-    const { container } = renderApp('/programming/python/projects/7');
+    const { container } = renderApp('/programming/workbench/7?language=python');
 
     const code = await screen.findByLabelText('代码');
     await user.type(code, 'for i in range(0): pass');
