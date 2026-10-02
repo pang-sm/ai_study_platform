@@ -13524,7 +13524,7 @@ def test_programming_exercise(exercise_id: int, req: schemas.ProgrammingExercise
 
 
 @app.post("/programming/exercises/{exercise_id}/run")
-def run_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerciseRunRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+def run_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerciseRunRequest, request: Request, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     """Run the learner's current program with user-provided stdin only.
 
     This endpoint intentionally does not load or execute any official test
@@ -13536,6 +13536,15 @@ def run_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerciseR
     project = get_code_project_or_404(req.project_id, user.username, db)
     if not exercise or not exercise.is_active or exercise.quality_status != "approved" or project.programming_exercise_id != exercise.id:
         raise HTTPException(status_code=404, detail="题目项目不存在")
+    # `execute_code_project` is written as a ROUTE HANDLER, so its last two parameters carry
+    # `Depends(...)` DEFAULTS. FastAPI supplies those when it calls the function itself, but this
+    # route calls it as a plain function — so both must be passed explicitly, or `current_user`
+    # stays a `Depends` object.
+    #
+    # That is exactly what was broken: the call passed three arguments, which put `db` into the
+    # `request` parameter and left `current_user` at its default, so EVERY run raised
+    # `AttributeError: 'Depends' object has no attribute 'username'` and answered 500 — never
+    # reaching the sandbox gate that would have refused it cleanly, and never running anything.
     result = execute_code_project(
         project.id,
         schemas.CodeProjectExecuteRequest(
@@ -13546,7 +13555,9 @@ def run_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerciseR
             main_class=req.main_class or project.main_class,
             source_files=req.source_files,
         ),
+        request,
         db,
+        current_user,
     )
     progress = _record_programming_exercise_activity(user, exercise, db, "run", result)
     _emit_programming_exercise_activity(user, exercise, "run", progress, result,

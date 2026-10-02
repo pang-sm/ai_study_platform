@@ -130,8 +130,24 @@ export function useProgrammingExerciseBank(language: string) {
 
 /* ------------------------------------------------------------------ one exercise's题面 */
 
-export function useProgrammingExercise(language: string, id: number) {
-  return useQuery({ queryKey: programmingKeys.exercise(language, id), queryFn: async () => { const r = await apiClient.GET('/programming/exercises/{exercise_id}', { params: { path: { exercise_id: id } } }); return dataOrThrow(r.response, r.data, r.error); }, retry: false, enabled: Boolean(language) && Number.isFinite(id) });
+/**
+ * One exercise's题面.
+ *
+ * `id` is optional because the workspace has a real state with no题 open yet — the rail is up and
+ * a题 is about to be chosen. A sentinel id would be worse than no request: `0` is a finite number,
+ * so a guard written around it still fires, and the page asked the backend for
+ * `/programming/exercises/0` and got a 404 on every load.
+ */
+export function useProgrammingExercise(language: string, id: number | undefined) {
+  return useQuery({
+    queryKey: programmingKeys.exercise(language, id ?? 0),
+    enabled: Boolean(language) && typeof id === 'number' && Number.isFinite(id) && id > 0,
+    retry: false,
+    queryFn: async () => {
+      const r = await apiClient.GET('/programming/exercises/{exercise_id}', { params: { path: { exercise_id: id as number } } });
+      return dataOrThrow(r.response, r.data, r.error);
+    },
+  });
 }
 
 /* ------------------------------------------------------------------ the open project */

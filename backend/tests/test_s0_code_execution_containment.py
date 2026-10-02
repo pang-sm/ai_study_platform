@@ -84,6 +84,36 @@ def _create_python_project(client, username: str, code: str) -> int:
     return _create_project(client, username, "Python", code)
 
 
+def _exercise_backed_project(client, username: str) -> tuple[int, int]:
+    """A learner project wired to its OWN exercise row, with the payload already in the file.
+
+    The exercise is built directly rather than read from the catalogue: these tests are about the
+    sandbox gate, so they must not depend on what imported content happens to be present. Both ids
+    are returned because the endpoints reject a project that is not the exercise's own — creating a
+    second project to satisfy one of them would make the pair disagree.
+    """
+    import database
+    import models
+
+    project_id = _create_python_project(client, username, MALICIOUS_PYTHON)
+    db = database.SessionLocal()
+    try:
+        exercise = models.ProgrammingExercise(
+            slug=f"s0-containment-{username}", language="Python", title="S0 containment",
+            difficulty="easy", description="containment fixture",
+            source_repo="test", source_path="test/s0", source_commit="test",
+            license_text="test", attribution="test", quality_status="approved", is_active=True,
+        )
+        db.add(exercise)
+        db.flush()
+        db.query(models.CodeProject).filter(models.CodeProject.id == project_id).update(
+            {"programming_exercise_id": exercise.id})
+        db.commit()
+        return project_id, exercise.id
+    finally:
+        db.close()
+
+
 # ── the policy itself ──────────────────────────────────────────────────────────────
 
 def test_policy_fails_closed_when_env_absent(monkeypatch):
@@ -159,32 +189,33 @@ def test_exercise_submit_refuses_and_does_not_run_learner_code(client, no_backen
 
     The official test files being trusted is irrelevant — the submission is the untrusted half.
     """
-    import database
-    import models
-
     register_and_login(client, "s0-ex")
-    project_id = _create_python_project(client, "s0-ex", MALICIOUS_PYTHON)
-
-    # Build the exercise row directly so the test does not depend on seeded catalog content.
-    db = database.SessionLocal()
-    try:
-        exercise = models.ProgrammingExercise(
-            slug="s0-containment-exercise", language="Python", title="S0 containment",
-            difficulty="easy", description="containment fixture",
-            source_repo="test", source_path="test/s0", source_commit="test",
-            license_text="test", attribution="test", quality_status="approved", is_active=True,
-        )
-        db.add(exercise)
-        db.flush()
-        db.query(models.CodeProject).filter(models.CodeProject.id == project_id).update(
-            {"programming_exercise_id": exercise.id})
-        db.commit()
-        exercise_id = exercise.id
-    finally:
-        db.close()
+    project_id, exercise_id = _exercise_backed_project(client, "s0-ex")
 
     response = client.post(f"/programming/exercises/{exercise_id}/submit", json={
         "username": "s0-ex", "project_id": project_id,
+    })
+
+    assert response.status_code == 503, response.text
+    assert response.json()["detail"]["code"] == "code_execution_unavailable"
+    assert host_spy.called is False, host_spy.calls
+
+
+def test_exercise_run_refuses_and_does_not_run_learner_code(client, no_backend, host_spy):
+    """The interactive run is the third entry into the same gate, and the one that was broken.
+
+    This route passed its arguments in the wrong order — it handed `db` into
+    `execute_code_project`'s `request` parameter and left `current_user` holding its `Depends`
+    default — so every run raised `AttributeError: 'Depends' object has no attribute 'username'`
+    and answered 500 BEFORE the gate could refuse it. No test had ever called this route, which is
+    exactly why that shipped. The contract is the same as its two siblings: a stable 503 refusal
+    with no host process spawned, and a 500 here means the wiring has regressed again.
+    """
+    register_and_login(client, "s0-run")
+    project_id, exercise_id = _exercise_backed_project(client, "s0-run")
+
+    response = client.post(f"/programming/exercises/{exercise_id}/run", json={
+        "username": "s0-run", "project_id": project_id, "stdin": "",
     })
 
     assert response.status_code == 503, response.text

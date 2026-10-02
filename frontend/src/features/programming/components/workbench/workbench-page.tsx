@@ -78,7 +78,7 @@ export function WorkbenchPage({
   // exercise, otherwise the bank's first row. Deriving it keeps the URL honest — a题 nobody chose
   // is not written into the address as if they had.
   const currentId = exerciseId ?? resumeExerciseId(items);
-  const detail = useProgrammingExercise(language ?? '', currentId ?? 0);
+  const detail = useProgrammingExercise(language ?? '', currentId);
   const workspace = useExerciseWorkspace(language ?? '', currentId);
   const records = useProgrammingRecords(200, 'code_submitted');
   const judge = useProgrammingJudge(language ?? '', currentId ?? 0);
