@@ -41,3 +41,22 @@ export function validateProgrammingSearch(search: Record<string, unknown>): { la
   const language = normalizeLanguageSlug(search.language);
   return language ? { language } : {};
 }
+
+/**
+ * The workbench's address: the language it is read in, and the题 it has open.
+ *
+ * `exercise` is optional because the workspace has a meaningful state with no题 chosen — the rail
+ * is up, the centre says to pick one — and because a题 nobody chose must not be written into the
+ * address as if they had. A value that is not a positive integer is DROPPED, the same way an
+ * unknown language is: a stale `?exercise=abc` would otherwise be echoed into every link.
+ */
+export function validateWorkbenchSearch(search: Record<string, unknown>): {
+  language?: ProgrammingLanguageSlug;
+  exercise?: number;
+} {
+  const base = validateProgrammingSearch(search);
+  const raw = search.exercise;
+  const parsed = typeof raw === 'number' ? raw : typeof raw === 'string' && /^\d+$/.test(raw) ? Number(raw) : undefined;
+  if (parsed === undefined || !Number.isFinite(parsed) || parsed <= 0) return base;
+  return { ...base, exercise: parsed };
+}

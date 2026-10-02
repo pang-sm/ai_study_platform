@@ -22,7 +22,7 @@ export function ProgrammingPlanPage({ language }: { language: ProgrammingLanguag
   const query = useProgrammingPlan(activeLanguage);
 
   return (
-    <ProgrammingShell language={language} active="plan">
+    <ProgrammingShell language={language}>
       <PageHeader
         eyebrow="计划"
         title="学习计划"

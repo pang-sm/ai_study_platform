@@ -14,7 +14,7 @@ import { normalizeLanguageSlug } from '@/features/programming/programming-langua
  * actually reads comes from the server's own `reasons` map, so the explanation cannot drift away
  * from the rule that produced it.
  */
-const reasonLabels: Record<string, string> = {
+export const REASON_LABELS: Record<string, string> = {
   due_review: '到期复习',
   recent_wrong: '最近作答错误',
   needs_work: '多次错误 / 待改进',
@@ -22,20 +22,27 @@ const reasonLabels: Record<string, string> = {
   unseen_topic: '尚未练习',
 };
 
-function hrefFor(scope: AdaptiveScope, id: string, entryHref?: string) {
+/**
+ * Where one recommended practice opens.
+ *
+ * A programming recommendation opens the WORKSPACE with that题 selected: the language and the题
+ * both ride in its search, because the workspace is one page and choosing a题 is a state change
+ * inside it. Every other space hands the destination in, since it is the caller that knows it.
+ */
+function targetFor(
+  scope: AdaptiveScope,
+  id: string,
+  entryHref?: string,
+): { to: string; search: Record<string, unknown> } | undefined {
   if (scope.serviceKey === 'programming') {
-    // The language is the page's CONTEXT in the programming space, not a path segment, so it
-    // travels in the search — see `searchFor` below.
-    return `/programming/practice/${encodeURIComponent(id)}`;
+    const language = normalizeLanguageSlug(scope.language);
+    const exercise = Number(id);
+    return {
+      to: '/programming/workbench',
+      search: { ...(language ? { language } : {}), ...(Number.isFinite(exercise) ? { exercise } : {}) },
+    };
   }
-  return entryHref;
-}
-
-/** The language a programming practice opens in, as the space's own search parameter. */
-function searchFor(scope: AdaptiveScope): Record<string, unknown> {
-  if (scope.serviceKey !== 'programming') return {};
-  const language = normalizeLanguageSlug(scope.language);
-  return language ? { language } : {};
+  return entryHref ? { to: entryHref, search: {} } : undefined;
 }
 
 /**
@@ -98,7 +105,7 @@ export function AdaptivePractice({ serviceKey, courseId, examModuleId, language,
       {candidates.length ? (
         <ol className="mt-5 space-y-5">
           {candidates.map((candidate, index) => {
-            const href = hrefFor(scope, candidate.question_source_id, entryHref);
+            const target = targetFor(scope, candidate.question_source_id, entryHref);
             const detail = candidateDetail(candidate);
             return (
               <li key={candidate.candidate_id} className="border-l-2 border-border-default pl-4">
@@ -111,7 +118,7 @@ export function AdaptivePractice({ serviceKey, courseId, examModuleId, language,
                 <details className="mt-2">
                   <summary className="text-body text-text-secondary">为什么推荐这一题</summary>
                   <p className="mt-2 text-body text-text-primary">
-                    {reasonLabels[candidate.reason] ?? '推荐依据暂不可显示'}
+                    {REASON_LABELS[candidate.reason] ?? '推荐依据暂不可显示'}
                   </p>
                   <p className="mt-1 text-body text-text-secondary">
                     {query.data?.reasons?.[candidate.reason] ?? '这项暂时没有可显示的说明。'}
@@ -123,9 +130,9 @@ export function AdaptivePractice({ serviceKey, courseId, examModuleId, language,
                     allow={['attempts', 'factual_correct', 'factual_incorrect', 'active_wrong_count', 'last_attempt_at', 'difficulty', 'question_type']}
                   />
                 </details>
-                {href ? (
+                {target ? (
                   <Button asChild variant="secondary" className="mt-3">
-                    <Link to={href as '/programming'} search={searchFor(scope) as never}>{serviceKey === 'programming' ? '打开练习' : '进入练习入口'}</Link>
+                    <Link to={target.to as '/programming'} search={target.search as never}>{serviceKey === 'programming' ? '打开练习' : '进入练习入口'}</Link>
                   </Button>
                 ) : null}
               </li>

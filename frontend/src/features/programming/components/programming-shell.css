@@ -1,74 +1,15 @@
 /* The programming space sits on the SAME canvas as every other space, and it is marked the same
    way the other two are: by the accent on the small label above the content, never by a canvas of
-   its own. What differs from 408 is only the vocabulary — a language instead of a paper. */
+   its own. This frame now carries only the pages that are not the workspace (计划). */
 .programming-shell { position: relative; min-height: calc(100vh - 4rem); overflow: clip; background: var(--color-page-background); color: var(--color-text-primary); }
 .programming-page { padding-block: clamp(2rem, 4vw, 3rem); }
 
 /* ------------------------------------------------------------------ space head
 
-   One line saying which language is open, one switcher beside it, and one strip of tools under
-   them — the same three things, in the same order, that 408 puts above a paper. The language is
-   a CONTEXT the page is read in, so it is named once, by the control that changes it; a second
-   title repeating it beside the select would say the same word twice. */
+   One line saying which language is open, and one switcher beside it. The language is a CONTEXT
+   the page is read in, so it is named once, by the control that changes it. */
 .programming-head { padding-top: 1.25rem; }
 .programming-head__identity { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; margin-top: 0.25rem; }
 .programming-head__name { margin: 0; color: var(--space-accent, var(--color-primary-hover)); font-size: var(--text-metadata); font-weight: 700; letter-spacing: 0.08em; }
 .programming-language-select { height: 2.5rem; max-width: 100%; border: 1px solid var(--color-border-default); border-radius: var(--radius-control); background: var(--color-surface); padding: 0 0.65rem; color: var(--color-text-primary); font: inherit; font-size: var(--text-body); font-weight: 600; }
 .programming-language-select:focus-visible { outline: 2px solid var(--space-accent, var(--color-primary)); outline-offset: 2px; }
-
-/* ------------------------------------------------------------------ 语言选择
-
-   Asked only when nothing has answered which language a tool is about — no `?language=` and none
-   declared. It is deliberately not a default: four languages are practised and scored separately,
-   so picking one on the learner's behalf would be the product answering a question it was never
-   asked. Same shape as 408's four-paper chooser, with this space's own accent. */
-.programming-choice__title { margin: 0.75rem 0 0; font-size: var(--text-page-title); font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; color: var(--color-text-primary); }
-.programming-choice__note { margin: 0.6rem 0 0; max-width: var(--container-reading); color: var(--color-text-secondary); font-size: var(--text-body); line-height: 1.65; }
-.programming-choice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(16rem, 100%), 1fr)); gap: 0.75rem; margin: 1.5rem 0 0; padding: 0; list-style: none; }
-.programming-choice { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.75rem; min-height: 4.25rem; border: 1px solid var(--color-border-default); border-radius: var(--radius-card); background: var(--color-surface); padding: 0.9rem 1rem; text-decoration: none; transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard); }
-.programming-choice:hover { border-color: var(--space-accent, var(--color-primary)); background: var(--color-primary-soft); }
-.programming-choice:focus-visible { outline: 2px solid var(--space-accent, var(--color-primary)); outline-offset: 2px; }
-.programming-choice__name { flex: 1 1 auto; min-width: 0; color: var(--color-text-primary); font-size: var(--text-card-title); font-weight: 600; letter-spacing: -0.01em; }
-.programming-choice__go { flex: 0 0 auto; width: 1rem; height: 1rem; color: var(--color-text-muted); }
-
-/* ------------------------------------------------------------------ workbench home
-
-   The three faces of the space, at the top of its own home: the language being practised, the
-   tools that open it, and the languages that could be. Cards are bounded because each one is a
-   real destination — not decoration around a heading. */
-.programming-directions { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(12rem, 100%), 1fr)); gap: 0.75rem; margin: 1.25rem 0 0; padding: 0; list-style: none; }
-.programming-direction { display: flex; height: 100%; flex-direction: column; gap: 0.6rem; border: 1px solid var(--color-border-default); border-radius: var(--radius-card); background: var(--color-surface); padding: 1.1rem 1.15rem; text-decoration: none; transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard); }
-.programming-direction:hover { border-color: var(--space-accent, var(--color-primary)); background: var(--color-primary-soft); }
-.programming-direction:focus-visible { outline: 2px solid var(--space-accent, var(--color-primary)); outline-offset: 2px; }
-/* The declared language carries the accent rule — the one a learner is actually practising — and
-   the rest do not. It is a statement about the learner's own setting, not a ranking. */
-.programming-direction--current { border-left: 4px solid var(--space-accent, var(--color-primary)); }
-.programming-direction__name { margin: 0; color: var(--color-text-primary); font-size: var(--text-card-title); font-weight: 600; letter-spacing: -0.01em; }
-.programming-direction__note { margin: 0; color: var(--color-text-secondary); font-size: var(--text-metadata); }
-.programming-direction__go { margin-top: auto; padding-top: 0.35rem; color: var(--color-text-muted); font-size: var(--text-metadata); }
-
-.programming-tools { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(15rem, 100%), 1fr)); gap: 0.75rem; margin: 1.25rem 0 0; padding: 0; list-style: none; }
-.programming-tool { display: flex; height: 100%; flex-direction: column; gap: 0.35rem; border: 1px solid var(--color-border-default); border-radius: var(--radius-card); background: var(--color-surface); padding: 1.1rem 1.15rem; text-decoration: none; transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard); }
-.programming-tool:hover { border-color: var(--space-accent, var(--color-primary)); background: var(--color-primary-soft); }
-.programming-tool:focus-visible { outline: 2px solid var(--space-accent, var(--color-primary)); outline-offset: 2px; }
-.programming-tool__name { color: var(--color-text-primary); font-size: var(--text-body); font-weight: 600; }
-.programming-tool__note { color: var(--color-text-secondary); font-size: var(--text-metadata); line-height: 1.6; }
-
-/* ------------------------------------------------------------------ progress
-
-   The recorded counts, in the same shape the context headers use: a small label above its own
-   value. Deliberately not a KPI strip — none of these figures is a score, a rate or a
-   percentage, and setting them at display size would make a strip of them read as if they were. */
-.programming-progress { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(9rem, 100%), 1fr)); gap: 1rem 1.5rem; margin: 1.25rem 0 0; }
-.programming-progress__label { margin: 0; color: var(--color-text-muted); font-size: var(--text-metadata); }
-.programming-progress__value { margin: 0.35rem 0 0; color: var(--color-text-primary); font-size: var(--text-body); font-weight: 500; }
-
-/* ------------------------------------------------------------------ today's work
-
-   The agenda's own row treatment: a title, the line that says where it belongs, and one action.
-   The first item is the focal card and the rest are rows — the same two treatments the personal
-   home uses, so a task cannot appear twice in two shapes. */
-.programming-today { margin: 1.25rem 0 0; }
-.programming-today__list { margin: 0; padding: 0; list-style: none; }
-.programming-today__row { display: flex; min-height: 3.5rem; align-items: flex-start; gap: 0.75rem; border-top: 1px solid var(--color-border-default); padding: 0.75rem 0; }
-.programming-today__row:first-child { border-top: 0; }

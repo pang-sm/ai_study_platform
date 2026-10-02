@@ -11,9 +11,9 @@ import { renderApp } from '@/test/render-app';
  * surface is not "showing the data", it is showing the transport.
  */
 
-const { get } = vi.hoisted(() => ({ get: vi.fn() }));
+const { get, post } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
 vi.mock('@/lib/api/client', () => ({
-  apiClient: { GET: get, POST: vi.fn(), PUT: vi.fn() },
+  apiClient: { GET: get, POST: post, PUT: vi.fn() },
   resolveApiResourceUrl: (value: string) => value,
 }));
 
@@ -51,10 +51,53 @@ beforeEach(() => {
     if (url === '/exam/11408/chapter-practice/outline') return ok({ module_key: 'data_structure', chapters: [] });
 
     // Programming space
-    if (url === '/programming/exercises') return ok({ items: [{ id: 7, title: '两数之和', difficulty: '入门', source_label: '原创题目' }] });
+    if (url === '/programming/exercises') {
+      return ok({
+        items: [{
+          id: 7,
+          title: '两数之和',
+          difficulty: '入门',
+          curriculum_module: '控制流与函数',
+          source_label: '原创题目',
+        }],
+        total: 1,
+        status_counts: { passed: 0, not_started: 1, needs_improvement: 0 },
+      });
+    }
+    if (url === '/programming/exercises/{exercise_id}') {
+      return ok({
+        exercise: {
+          id: 7,
+          title: '两数之和',
+          statement: '给定一个整数数组，返回两个数的下标。',
+          difficulty: '入门',
+          language: 'Python',
+        },
+      });
+    }
+    if (url === '/programming/records') return ok({ records: [], next_cursor: null, has_more: false });
     if (url === '/adaptive/practice') return ok({ candidates: [], reasons: {} });
 
     throw new Error(`unexpected GET ${url}`);
+  });
+  // Opening an exercise asks the backend for this learner's project for it — the starter code on a
+  // first open, their own draft on every open after that.
+  post.mockReset();
+  post.mockImplementation(async (url: string) => {
+    if (url === '/programming/exercises/{exercise_id}/start') {
+      return ok({
+        exercise: { id: 7, title: '两数之和', starter_files: [{ path: 'main.py', content: '# 在这里编写代码\n' }] },
+        project: {
+          id: 55,
+          entry_file: 'main.py',
+          main_class: null,
+          language: 'Python',
+          files: [{ id: 91, relative_path: 'main.py', filename: 'main.py', content: '# 在这里编写代码\n' }],
+        },
+        resumed: false,
+      });
+    }
+    return ok({});
   });
 });
 
@@ -141,35 +184,38 @@ describe('exam space context', () => {
 });
 
 describe('programming space context', () => {
-  it('keeps the language in view and marks the current tool', async () => {
-    renderApp('/programming/practice?language=python');
+  it('opens the workspace for the language the address names, with the bank as its rail', async () => {
+    renderApp('/programming/workbench?language=python');
 
-    expect(await screen.findByRole('heading', { name: 'Python 练习' })).toBeInTheDocument();
     // The language is a CONTEXT, named once by the control that changes it — not a second
-    // navigation level beside the tool strip.
-    expect(screen.getByLabelText('切换编程语言')).toHaveValue('python');
-    expect(screen.getByText('编程学习 · Python')).toBeInTheDocument();
+    // navigation level.
+    const switcher = await screen.findByLabelText('切换编程语言');
+    await waitFor(() => expect(switcher).toHaveValue('python'));
 
-    const nav = screen.getByRole('navigation', { name: '编程学习导航' });
-    expect(within(nav).getByRole('link', { name: '练习中心' })).toHaveAttribute('aria-current', 'page');
-    expect(within(nav).getByRole('link', { name: '成长记录' })).toHaveAttribute(
-      'href',
-      '/programming/records?language=python',
-    );
-    // The three modules the space is worked through, and the two retired tabs are not among them.
-    expect(within(nav).getByRole('link', { name: 'AI 编程助手' })).toBeInTheDocument();
-    expect(within(nav).queryByRole('link', { name: '错误与待处理' })).toBeNull();
-    expect(within(nav).queryByRole('link', { name: '学习状态' })).toBeNull();
+    // The bank is the workspace's own index, grouped by the chapter the catalogue filed each
+    // exercise under. Choosing a different exercise happens INSIDE the page — the rail selects and
+    // the centre swaps — which is why there is no tool strip beside it any more.
+    expect(await screen.findByRole('navigation', { name: '题目导航' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText('两数之和').length).toBeGreaterThan(0));
+    expect(screen.getByRole('searchbox', { name: '搜索题目' })).toBeInTheDocument();
+    // The chapter names the题 in the bar and groups it in the rail.
+    expect(screen.getAllByText('控制流与函数').length).toBeGreaterThan(0);
 
+    // The action that changes the record, and the region the coach answers in.
+    expect(screen.getByRole('button', { name: '提交' })).toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: 'AI 教练' })).toBeInTheDocument();
+
+    // The retired tool strip is gone with the pages it pointed at.
+    expect(screen.queryByRole('navigation', { name: '编程学习导航' })).not.toBeInTheDocument();
     // Exam semantics stay exam semantics.
     expect(screen.queryByRole('navigation', { name: 'CS408 工具导航' })).not.toBeInTheDocument();
   });
 
-  it('lists exercises as titles with their own labels, not as a payload', async () => {
-    renderApp('/programming/practice?language=python');
+  it('renders the bank and the题面 as their own fields, not as a payload', async () => {
+    renderApp('/programming/workbench?language=python');
 
-    expect(await screen.findByText('两数之和')).toBeInTheDocument();
-    expect(screen.getByText('入门')).toBeInTheDocument();
+    expect(await screen.findByText('给定一个整数数组，返回两个数的下标。')).toBeInTheDocument();
+    expect(screen.getAllByText('两数之和').length).toBeGreaterThan(0);
     assertNoRawPayloadInProse(document.body);
   });
 });

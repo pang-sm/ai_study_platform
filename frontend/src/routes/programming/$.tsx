@@ -2,25 +2,26 @@ import { Link, createFileRoute, redirect } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/page/page-header';
 import { legacyProgrammingTarget } from '@/features/programming/legacy-routes';
+import { validateProgrammingSearch } from '@/features/programming/programming-context';
 import { routePath } from '@/lib/router';
 
 /**
- * Every address that names a language in the path, forwarded to the tool that owns it now.
+ * Every older programming address, forwarded to where it lives now.
  *
- * The programming space used to hang its tools off the language — `/programming/python/records`
- * — and those URLs are everywhere a learner's own history is stored: bookmarks, pasted links, and
- * the deep links the backend recomputes on every read (`backend/learning/agenda.py`,
- * `backend/learning/review.py`). The tools live at the space's own paths now and carry the
- * language in the search, so this is the one place that has to know both shapes.
+ * The space has had two address shapes before this one — tools hanging off the language, then the
+ * tools as the space's own pages — and both are still in learners' bookmarks and in the deep links
+ * the backend recomputes on every read. All of them now land in the workspace, which is where the
+ * exercises, the editor, the runs and the AI 助手 are; `legacyProgrammingTarget` is the one place
+ * that knows both older shapes.
  *
  * A redirect rather than a page: nothing here has content of its own, and rendering something
  * first would put a page in front of a learner on their way to one. An address this build cannot
- * place renders the not-found the app already has, rather than guessing at a destination — the
- * `component` below is only reached for those.
+ * place renders the not-found the app already has, rather than guessing at a destination.
  */
 export const Route = createFileRoute('/programming/$')({
-  beforeLoad: ({ params }) => {
-    const target = legacyProgrammingTarget(params._splat ?? '');
+  validateSearch: validateProgrammingSearch,
+  beforeLoad: ({ params, search }) => {
+    const target = legacyProgrammingTarget(params._splat ?? '', search.language);
     if (!target) return;
     // `to`/`params`/`search` are widened here because the destination is composed from the route
     // table at runtime; `routePath` exists for exactly this, and the route ids it produces are
@@ -41,10 +42,10 @@ function ProgrammingUnknownRoute() {
       <PageHeader
         eyebrow="编程学习"
         title="没有这个页面"
-        description="这个地址不属于编程学习；练习、AI 编程助手、成长记录与计划都在工作台里。"
+        description="这个地址不属于编程学习；题目、编辑器、AI 教练与提交记录都在编程工作台里。"
       />
       <Button asChild variant="secondary" className="mt-6">
-        <Link to="/programming">回到编程工作台</Link>
+        <Link to="/programming">回到编程学习</Link>
       </Button>
     </div>
   );

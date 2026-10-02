@@ -1,33 +1,25 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { WorkbenchPage } from '@/features/programming/components/programming-practice-page';
-import { ProgrammingToolGate } from '@/features/programming/components/programming-shell';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 import { validateProgrammingSearch } from '@/features/programming/programming-context';
 
 /**
- * The Workbench, at the space's own level rather than under a language.
+ * The题-addressed shape, kept for the links already in the world.
  *
- * SSOT §11 lists the Programming Workbench as a functional domain of its own, and §72 keeps it
- * distinct from the Programming Agent — so it is addressed by what it opens (an exercise) and not
- * by a language path segment. It is reached from an exercise, never from the strip: it is not a
- * place to stand, it is what opening a question does, the same way `/course/<id>/study` is reached
- * from 知识结构.
+ * `/programming/workbench/7` — where the old Workbench was reached from a题面, and what the
+ * backend's own deep links still build — now opens the same workspace with that题 selected. The
+ * workspace addresses its open题 in the search rather than the path, so this is a redirect into
+ * that state rather than a page of its own.
  */
 export const Route = createFileRoute('/programming/workbench/$exerciseId')({
   validateSearch: validateProgrammingSearch,
-  component: ProgrammingWorkbenchRoute,
+  beforeLoad: ({ params, search }) => {
+    const exercise = Number(params.exerciseId);
+    throw redirect({
+      to: '/programming/workbench',
+      search: {
+        ...(search.language ? { language: search.language } : {}),
+        ...(Number.isFinite(exercise) && exercise > 0 ? { exercise } : {}),
+      } as never,
+      replace: true,
+    });
+  },
 });
-
-function ProgrammingWorkbenchRoute() {
-  const { language } = Route.useSearch();
-  const { exerciseId } = Route.useParams();
-  return (
-    <ProgrammingToolGate
-      slugFromUrl={language}
-      to="/programming/practice"
-      active="practice"
-      description="练习属于某一门语言。先选一门，再打开它的题目。"
-    >
-      {(resolved) => <WorkbenchPage language={resolved} exerciseId={Number(exerciseId)} />}
-    </ProgrammingToolGate>
-  );
-}

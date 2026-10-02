@@ -21,9 +21,9 @@ import { renderApp } from './render-app';
  * The companion source guard lives in `learner-copy.guard.test.ts`.
  */
 
-const { get, post } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
+const { get, post, put } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), put: vi.fn() }));
 vi.mock('@/lib/api/client', () => ({
-  apiClient: { GET: get, POST: post, PUT: vi.fn() },
+  apiClient: { GET: get, POST: post, PUT: put },
   resolveApiResourceUrl: (value: string) => value,
 }));
 
@@ -81,6 +81,26 @@ function expectNothingLeaked(container: HTMLElement) {
 beforeEach(() => {
   get.mockReset();
   post.mockReset();
+  put.mockReset();
+  // Opening a题 asks the backend for this learner's project for it, which is both the starter code
+  // and their own draft. Tests that care about a specific answer override this.
+  post.mockImplementation(async (url: string) => {
+    if (url === '/programming/exercises/{exercise_id}/start') {
+      return ok({
+        exercise: { id: 7, title: '两数之和', starter_files: [{ path: 'main.py', content: '# 在这里编写代码\n' }] },
+        project: {
+          id: 55,
+          entry_file: 'main.py',
+          main_class: null,
+          language: 'Python',
+          files: [{ id: 91, relative_path: 'main.py', filename: 'main.py', content: '# 在这里编写代码\n' }],
+        },
+        resumed: false,
+      });
+    }
+    return ok({});
+  });
+  put.mockImplementation(async () => ok({}));
   get.mockImplementation(async (url: string) => {
     // --- shared context ---
     if (url === '/course-learning/courses') return ok([{ id: 'cs101', name: '数据结构' }]);
@@ -231,11 +251,22 @@ beforeEach(() => {
             id: 7,
             title: '两数之和',
             difficulty: '入门',
+            curriculum_module: '控制流与函数',
             source_label: '原创题目',
             source_type: LEAK_ENUM,
+            personal_progress: {
+              personal_status: 'passed',
+              last_submit_at: '2026-09-20T08:00:00Z',
+              last_submit_passed: true,
+              last_public_passed_count: 5,
+              last_public_total_count: 5,
+              [LEAK_OBJECT]: LEAK_OBJECT,
+            },
             [LEAK_OBJECT]: LEAK_OBJECT,
           },
         ],
+        total: 1,
+        status_counts: { passed: 1, not_started: 0, needs_improvement: 0 },
       });
     }
     if (url === '/programming/exercises/{exercise_id}') {
@@ -256,16 +287,18 @@ beforeEach(() => {
     }
     if (url === '/programming/records') {
       return ok({
-        items: [
+        records: [
           {
             event_id: LEAK_REF,
             event_type: 'code_submitted',
             occurred_at: '2026-09-20T08:00:00Z',
-            context: { exercise_id: LEAK_REF },
+            context: { exercise_id: 7, programming_language: 'Python', [LEAK_OBJECT]: LEAK_OBJECT },
             source: { type: 'programming_exercise', id: LEAK_REF },
             summary: { correct: true, passed_count: 5, total_count: 5, capability: LEAK_PROVIDER, question_source_id: LEAK_REF },
           },
         ],
+        next_cursor: null,
+        has_more: false,
       });
     }
     if (url === '/programming/records/summary') return ok({ runs: 2, tests: 3, [LEAK_OBJECT]: LEAK_OBJECT });
@@ -353,30 +386,42 @@ describe('LEARNER_METADATA_LEAKAGE_GUARD · 11408', () => {
 });
 
 describe('LEARNER_METADATA_LEAKAGE_GUARD · Programming', () => {
-  it('lists exercises without an unmapped type or the payload behind them', async () => {
-    const { container } = renderApp('/programming/practice?language=python');
+  it('lists the bank without an unmapped status or the payload behind it', async () => {
+    const { container } = renderApp('/programming/workbench?language=python');
 
-    expect(await screen.findByText('两数之和')).toBeInTheDocument();
+    await settle(() => expect(screen.getAllByText('两数之和').length).toBeGreaterThan(0));
+    // The rail's mark is the product's own word for the status the backend recorded, and it is
+    // grouped under the chapter the catalogue filed the exercise under — neither is a code.
+    expect(within(container).getAllByText('已完成').length).toBeGreaterThan(0);
+    // The chapter names the题 in the bar and groups it in the rail.
+    expect(within(container).getAllByText('控制流与函数').length).toBeGreaterThan(0);
     expectNothingLeaked(container);
   });
 
   it('renders the workbench statement without the raw response', async () => {
     const { container } = renderApp('/programming/workbench/7?language=python');
 
-    expect(await screen.findByText('给定一个整数数组，返回两个数的下标。')).toBeInTheDocument();
+    await settle(() =>
+      expect(screen.getByText('给定一个整数数组，返回两个数的下标。')).toBeInTheDocument(),
+    );
     expectNothingLeaked(container);
   });
 
-  it('renders the records event without its source references or capability name', async () => {
-    const { container } = renderApp('/programming/records?language=python');
+  it('renders a submission without its source references or capability name', async () => {
+    const user = userEvent.setup();
+    const { container } = renderApp('/programming/workbench?language=python');
 
-    expect(await screen.findByText('提交代码')).toBeInTheDocument();
-    expect(within(container).getByText('通过测试数')).toBeInTheDocument();
+    await settle(() => expect(screen.getAllByText('两数之和').length).toBeGreaterThan(0));
+    await user.click(screen.getByRole('tab', { name: /提交记录/ }));
+
+    await settle(() => expect(within(container).getByText(/提交代码/)).toBeInTheDocument());
+    // The progress row's own last-submission fact, said in product language.
+    expect(within(container).getByText(/最近一次提交/)).toBeInTheDocument();
     expectNothingLeaked(container);
   });
 });
 
-describe('LEARNER_METADATA_LEAKAGE_GUARD · Workbench AI result', () => {
+describe('LEARNER_METADATA_LEAKAGE_GUARD · Workbench AI coach', () => {
   it('shows the settled credit cost in product language and never the request identity', async () => {
     post.mockImplementation(async (url: string) => {
       if (url === '/code/analyze') {
@@ -387,19 +432,34 @@ describe('LEARNER_METADATA_LEAKAGE_GUARD · Workbench AI result', () => {
           [LEAK_OBJECT]: LEAK_OBJECT,
         });
       }
+      if (url === '/programming/exercises/{exercise_id}/start') {
+        return ok({
+          exercise: { id: 7, title: '两数之和', starter_files: [{ path: 'main.py', content: '# 在这里编写代码\n' }] },
+          project: {
+            id: 55,
+            entry_file: 'main.py',
+            main_class: null,
+            language: 'Python',
+            files: [{ id: 91, relative_path: 'main.py', filename: 'main.py', content: '# 在这里编写代码\n' }],
+          },
+          resumed: false,
+        });
+      }
       return ok({});
     });
 
     const user = userEvent.setup();
     const { container } = renderApp('/programming/workbench/7?language=python');
 
-    const code = await screen.findByLabelText('代码');
-    await user.type(code, 'for i in range(0): pass');
-    const question = await screen.findByLabelText('要分析的问题');
-    await user.type(question, '为什么不对？');
-    await user.click(screen.getByRole('button', { name: 'AI Debug' }));
+    // The coach's quick ways in are enabled by the exercise's own starter code, which the
+    // workspace loaded — nothing here has to be typed into the editor first.
+    const ask = await screen.findByRole('button', { name: '分析错误' });
+    await settle(() => expect(ask).toBeEnabled());
+    await user.click(ask);
 
-    expect(await screen.findByText('这里的问题在于循环边界少了一次。')).toBeInTheDocument();
+    await settle(() =>
+      expect(screen.getByText('这里的问题在于循环边界少了一次。')).toBeInTheDocument(),
+    );
     expect(screen.getByText('本次使用 2 点 AI 额度')).toBeInTheDocument();
     // tokens, the provider's own bookkeeping and the request id are not the learner's to read.
     expect(container.textContent).not.toContain('4000');

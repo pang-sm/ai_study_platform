@@ -32,10 +32,7 @@ import { Route as MembershipIndexRouteImport } from './routes/membership/index'
 import { Route as MembershipPaymentRouteImport } from './routes/membership/payment'
 import { Route as ProgrammingIndexRouteImport } from './routes/programming/index'
 import { Route as ProgrammingSplatRouteImport } from './routes/programming/$'
-import { Route as ProgrammingAiRouteImport } from './routes/programming/ai'
 import { Route as ProgrammingPlanRouteImport } from './routes/programming/plan'
-import { Route as ProgrammingPracticeRouteImport } from './routes/programming/practice'
-import { Route as ProgrammingRecordsRouteImport } from './routes/programming/records'
 import { Route as ProgrammingSetupRouteImport } from './routes/programming/setup'
 import { Route as CourseCourseIdIndexRouteImport } from './routes/course/$courseId/index'
 import { Route as CourseCourseIdAskRouteImport } from './routes/course/$courseId/ask'
@@ -59,7 +56,7 @@ import { Route as ExamCs408StateRouteImport } from './routes/exam/cs408/state'
 import { Route as ExamCs408WrongRouteImport } from './routes/exam/cs408/wrong'
 import { Route as ExamSubjectsIndexRouteImport } from './routes/exam/subjects/index'
 import { Route as ExamSubjectsSubjectIdRouteImport } from './routes/exam/subjects/$subjectId'
-import { Route as ProgrammingPracticeExerciseIdRouteImport } from './routes/programming/practice/$exerciseId'
+import { Route as ProgrammingWorkbenchIndexRouteImport } from './routes/programming/workbench/index'
 import { Route as ProgrammingWorkbenchExerciseIdRouteImport } from './routes/programming/workbench/$exerciseId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -177,24 +174,9 @@ const ProgrammingSplatRoute = ProgrammingSplatRouteImport.update({
   path: '/$',
   getParentRoute: () => ProgrammingRoute,
 } as any)
-const ProgrammingAiRoute = ProgrammingAiRouteImport.update({
-  id: '/ai',
-  path: '/ai',
-  getParentRoute: () => ProgrammingRoute,
-} as any)
 const ProgrammingPlanRoute = ProgrammingPlanRouteImport.update({
   id: '/plan',
   path: '/plan',
-  getParentRoute: () => ProgrammingRoute,
-} as any)
-const ProgrammingPracticeRoute = ProgrammingPracticeRouteImport.update({
-  id: '/practice',
-  path: '/practice',
-  getParentRoute: () => ProgrammingRoute,
-} as any)
-const ProgrammingRecordsRoute = ProgrammingRecordsRouteImport.update({
-  id: '/records',
-  path: '/records',
   getParentRoute: () => ProgrammingRoute,
 } as any)
 const ProgrammingSetupRoute = ProgrammingSetupRouteImport.update({
@@ -312,11 +294,11 @@ const ExamSubjectsSubjectIdRoute = ExamSubjectsSubjectIdRouteImport.update({
   path: '/subjects/$subjectId',
   getParentRoute: () => ExamRoute,
 } as any)
-const ProgrammingPracticeExerciseIdRoute =
-  ProgrammingPracticeExerciseIdRouteImport.update({
-    id: '/$exerciseId',
-    path: '/$exerciseId',
-    getParentRoute: () => ProgrammingPracticeRoute,
+const ProgrammingWorkbenchIndexRoute =
+  ProgrammingWorkbenchIndexRouteImport.update({
+    id: '/workbench/',
+    path: '/workbench/',
+    getParentRoute: () => ProgrammingRoute,
   } as any)
 const ProgrammingWorkbenchExerciseIdRoute =
   ProgrammingWorkbenchExerciseIdRouteImport.update({
@@ -345,10 +327,7 @@ export interface FileRoutesByFullPath {
   '/exam/setup': typeof ExamSetupRoute
   '/membership/payment': typeof MembershipPaymentRoute
   '/programming/$': typeof ProgrammingSplatRoute
-  '/programming/ai': typeof ProgrammingAiRoute
   '/programming/plan': typeof ProgrammingPlanRoute
-  '/programming/practice': typeof ProgrammingPracticeRouteWithChildren
-  '/programming/records': typeof ProgrammingRecordsRoute
   '/programming/setup': typeof ProgrammingSetupRoute
   '/course/': typeof CourseIndexRoute
   '/exam/': typeof ExamIndexRoute
@@ -373,11 +352,11 @@ export interface FileRoutesByFullPath {
   '/exam/cs408/state': typeof ExamCs408StateRoute
   '/exam/cs408/wrong': typeof ExamCs408WrongRoute
   '/exam/subjects/$subjectId': typeof ExamSubjectsSubjectIdRoute
-  '/programming/practice/$exerciseId': typeof ProgrammingPracticeExerciseIdRoute
   '/programming/workbench/$exerciseId': typeof ProgrammingWorkbenchExerciseIdRoute
   '/course/$courseId/': typeof CourseCourseIdIndexRoute
   '/exam/cs408/': typeof ExamCs408IndexRoute
   '/exam/subjects/': typeof ExamSubjectsIndexRoute
+  '/programming/workbench/': typeof ProgrammingWorkbenchIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -393,10 +372,7 @@ export interface FileRoutesByTo {
   '/exam/setup': typeof ExamSetupRoute
   '/membership/payment': typeof MembershipPaymentRoute
   '/programming/$': typeof ProgrammingSplatRoute
-  '/programming/ai': typeof ProgrammingAiRoute
   '/programming/plan': typeof ProgrammingPlanRoute
-  '/programming/practice': typeof ProgrammingPracticeRouteWithChildren
-  '/programming/records': typeof ProgrammingRecordsRoute
   '/programming/setup': typeof ProgrammingSetupRoute
   '/course': typeof CourseIndexRoute
   '/exam': typeof ExamIndexRoute
@@ -421,11 +397,11 @@ export interface FileRoutesByTo {
   '/exam/cs408/state': typeof ExamCs408StateRoute
   '/exam/cs408/wrong': typeof ExamCs408WrongRoute
   '/exam/subjects/$subjectId': typeof ExamSubjectsSubjectIdRoute
-  '/programming/practice/$exerciseId': typeof ProgrammingPracticeExerciseIdRoute
   '/programming/workbench/$exerciseId': typeof ProgrammingWorkbenchExerciseIdRoute
   '/course/$courseId': typeof CourseCourseIdIndexRoute
   '/exam/cs408': typeof ExamCs408IndexRoute
   '/exam/subjects': typeof ExamSubjectsIndexRoute
+  '/programming/workbench': typeof ProgrammingWorkbenchIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -448,10 +424,7 @@ export interface FileRoutesById {
   '/exam/setup': typeof ExamSetupRoute
   '/membership/payment': typeof MembershipPaymentRoute
   '/programming/$': typeof ProgrammingSplatRoute
-  '/programming/ai': typeof ProgrammingAiRoute
   '/programming/plan': typeof ProgrammingPlanRoute
-  '/programming/practice': typeof ProgrammingPracticeRouteWithChildren
-  '/programming/records': typeof ProgrammingRecordsRoute
   '/programming/setup': typeof ProgrammingSetupRoute
   '/course/': typeof CourseIndexRoute
   '/exam/': typeof ExamIndexRoute
@@ -476,11 +449,11 @@ export interface FileRoutesById {
   '/exam/cs408/state': typeof ExamCs408StateRoute
   '/exam/cs408/wrong': typeof ExamCs408WrongRoute
   '/exam/subjects/$subjectId': typeof ExamSubjectsSubjectIdRoute
-  '/programming/practice/$exerciseId': typeof ProgrammingPracticeExerciseIdRoute
   '/programming/workbench/$exerciseId': typeof ProgrammingWorkbenchExerciseIdRoute
   '/course/$courseId/': typeof CourseCourseIdIndexRoute
   '/exam/cs408/': typeof ExamCs408IndexRoute
   '/exam/subjects/': typeof ExamSubjectsIndexRoute
+  '/programming/workbench/': typeof ProgrammingWorkbenchIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -504,10 +477,7 @@ export interface FileRouteTypes {
     | '/exam/setup'
     | '/membership/payment'
     | '/programming/$'
-    | '/programming/ai'
     | '/programming/plan'
-    | '/programming/practice'
-    | '/programming/records'
     | '/programming/setup'
     | '/course/'
     | '/exam/'
@@ -532,11 +502,11 @@ export interface FileRouteTypes {
     | '/exam/cs408/state'
     | '/exam/cs408/wrong'
     | '/exam/subjects/$subjectId'
-    | '/programming/practice/$exerciseId'
     | '/programming/workbench/$exerciseId'
     | '/course/$courseId/'
     | '/exam/cs408/'
     | '/exam/subjects/'
+    | '/programming/workbench/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -552,10 +522,7 @@ export interface FileRouteTypes {
     | '/exam/setup'
     | '/membership/payment'
     | '/programming/$'
-    | '/programming/ai'
     | '/programming/plan'
-    | '/programming/practice'
-    | '/programming/records'
     | '/programming/setup'
     | '/course'
     | '/exam'
@@ -580,11 +547,11 @@ export interface FileRouteTypes {
     | '/exam/cs408/state'
     | '/exam/cs408/wrong'
     | '/exam/subjects/$subjectId'
-    | '/programming/practice/$exerciseId'
     | '/programming/workbench/$exerciseId'
     | '/course/$courseId'
     | '/exam/cs408'
     | '/exam/subjects'
+    | '/programming/workbench'
   id:
     | '__root__'
     | '/'
@@ -606,10 +573,7 @@ export interface FileRouteTypes {
     | '/exam/setup'
     | '/membership/payment'
     | '/programming/$'
-    | '/programming/ai'
     | '/programming/plan'
-    | '/programming/practice'
-    | '/programming/records'
     | '/programming/setup'
     | '/course/'
     | '/exam/'
@@ -634,11 +598,11 @@ export interface FileRouteTypes {
     | '/exam/cs408/state'
     | '/exam/cs408/wrong'
     | '/exam/subjects/$subjectId'
-    | '/programming/practice/$exerciseId'
     | '/programming/workbench/$exerciseId'
     | '/course/$courseId/'
     | '/exam/cs408/'
     | '/exam/subjects/'
+    | '/programming/workbench/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -820,32 +784,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProgrammingSplatRouteImport
       parentRoute: typeof ProgrammingRoute
     }
-    '/programming/ai': {
-      id: '/programming/ai'
-      path: '/ai'
-      fullPath: '/programming/ai'
-      preLoaderRoute: typeof ProgrammingAiRouteImport
-      parentRoute: typeof ProgrammingRoute
-    }
     '/programming/plan': {
       id: '/programming/plan'
       path: '/plan'
       fullPath: '/programming/plan'
       preLoaderRoute: typeof ProgrammingPlanRouteImport
-      parentRoute: typeof ProgrammingRoute
-    }
-    '/programming/practice': {
-      id: '/programming/practice'
-      path: '/practice'
-      fullPath: '/programming/practice'
-      preLoaderRoute: typeof ProgrammingPracticeRouteImport
-      parentRoute: typeof ProgrammingRoute
-    }
-    '/programming/records': {
-      id: '/programming/records'
-      path: '/records'
-      fullPath: '/programming/records'
-      preLoaderRoute: typeof ProgrammingRecordsRouteImport
       parentRoute: typeof ProgrammingRoute
     }
     '/programming/setup': {
@@ -1009,12 +952,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ExamSubjectsSubjectIdRouteImport
       parentRoute: typeof ExamRoute
     }
-    '/programming/practice/$exerciseId': {
-      id: '/programming/practice/$exerciseId'
-      path: '/$exerciseId'
-      fullPath: '/programming/practice/$exerciseId'
-      preLoaderRoute: typeof ProgrammingPracticeExerciseIdRouteImport
-      parentRoute: typeof ProgrammingPracticeRoute
+    '/programming/workbench/': {
+      id: '/programming/workbench/'
+      path: '/workbench'
+      fullPath: '/programming/workbench/'
+      preLoaderRoute: typeof ProgrammingWorkbenchIndexRouteImport
+      parentRoute: typeof ProgrammingRoute
     }
     '/programming/workbench/$exerciseId': {
       id: '/programming/workbench/$exerciseId'
@@ -1133,37 +1076,22 @@ const MembershipRouteWithChildren = MembershipRoute._addFileChildren(
   MembershipRouteChildren,
 )
 
-interface ProgrammingPracticeRouteChildren {
-  ProgrammingPracticeExerciseIdRoute: typeof ProgrammingPracticeExerciseIdRoute
-}
-
-const ProgrammingPracticeRouteChildren: ProgrammingPracticeRouteChildren = {
-  ProgrammingPracticeExerciseIdRoute: ProgrammingPracticeExerciseIdRoute,
-}
-
-const ProgrammingPracticeRouteWithChildren =
-  ProgrammingPracticeRoute._addFileChildren(ProgrammingPracticeRouteChildren)
-
 interface ProgrammingRouteChildren {
   ProgrammingSplatRoute: typeof ProgrammingSplatRoute
-  ProgrammingAiRoute: typeof ProgrammingAiRoute
   ProgrammingPlanRoute: typeof ProgrammingPlanRoute
-  ProgrammingPracticeRoute: typeof ProgrammingPracticeRouteWithChildren
-  ProgrammingRecordsRoute: typeof ProgrammingRecordsRoute
   ProgrammingSetupRoute: typeof ProgrammingSetupRoute
   ProgrammingIndexRoute: typeof ProgrammingIndexRoute
   ProgrammingWorkbenchExerciseIdRoute: typeof ProgrammingWorkbenchExerciseIdRoute
+  ProgrammingWorkbenchIndexRoute: typeof ProgrammingWorkbenchIndexRoute
 }
 
 const ProgrammingRouteChildren: ProgrammingRouteChildren = {
   ProgrammingSplatRoute: ProgrammingSplatRoute,
-  ProgrammingAiRoute: ProgrammingAiRoute,
   ProgrammingPlanRoute: ProgrammingPlanRoute,
-  ProgrammingPracticeRoute: ProgrammingPracticeRouteWithChildren,
-  ProgrammingRecordsRoute: ProgrammingRecordsRoute,
   ProgrammingSetupRoute: ProgrammingSetupRoute,
   ProgrammingIndexRoute: ProgrammingIndexRoute,
   ProgrammingWorkbenchExerciseIdRoute: ProgrammingWorkbenchExerciseIdRoute,
+  ProgrammingWorkbenchIndexRoute: ProgrammingWorkbenchIndexRoute,
 }
 
 const ProgrammingRouteWithChildren = ProgrammingRoute._addFileChildren(
