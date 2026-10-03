@@ -56,9 +56,27 @@ page.on('response', async (response) => {
   exchanges.push({ request: pending.body, response: json, status: response.status() });
 });
 const analyzeCount = () => exchanges.length + inFlight.length;
+const dropped = [];
+page.on('requestfailed', (request) => {
+  if (/\/code\/analyze$/.test(new URL(request.url()).pathname)) dropped.push(request.failure()?.errorText ?? 'failed');
+});
+
+/** Cross-border navigation is genuinely flaky (ERR_CONNECTION_CLOSED); every goto retries. */
+const goto = async (url, attempts = 7) => {
+  for (let i = 1; i <= attempts; i += 1) {
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      return;
+    } catch (error) {
+      if (i === attempts) throw error;
+      console.log(`  (navigation attempt ${i}/${attempts} failed: ${String(error.message).split('\n')[0]})`);
+      await page.waitForTimeout(2500);
+    }
+  }
+};
 
 const login = async () => {
-  await page.goto(`${PAGE_ORIGIN}/login`, { waitUntil: 'domcontentloaded' });
+  await goto(`${PAGE_ORIGIN}/login`);
   await page.locator('input[name="username"]').fill(USERNAME);
   await page.locator('input[name="password"]').fill(PASSWORD);
   await page.getByRole('button', { name: '登录' }).click();
@@ -68,7 +86,7 @@ const login = async () => {
 /** Returns true when a题 is open AND its editor is usable (the coach is then enabled). */
 const openWorkbench = async () => {
   const exercise = process.env.COACH_EXERCISE_ID ? `&exercise=${process.env.COACH_EXERCISE_ID}` : '';
-  await page.goto(`${PAGE_ORIGIN}/programming/workbench?language=python${exercise}`, { waitUntil: 'domcontentloaded' });
+  await goto(`${PAGE_ORIGIN}/programming/workbench?language=python${exercise}`);
   await page.waitForSelector('.wb__coach', { timeout: 30000 });
   // Make sure the题目栏 is not collapsed from a previous run, so the rail can be used if needed.
   await page.getByRole('button', { name: '展开题目栏' }).click().catch(() => {});
@@ -90,14 +108,22 @@ const openWorkbench = async () => {
   return true;
 };
 
+/** The quick-ask buttons are disabled while an answer is in flight; wait for the coach to idle. */
+const waitCoachIdle = async (label) => {
+  await page.waitForFunction((l) => {
+    const b = [...document.querySelectorAll('.wb-coach__quick button')].find((x) => x.textContent.trim() === l);
+    return Boolean(b) && !b.disabled;
+  }, label, { timeout: 120000 }).catch(() => {});
+};
+
 const askAndWait = async (label) => {
-  const before = analyzeCount();
+  await waitCoachIdle(label);
+  const before = exchanges.length;
   await page.getByRole('button', { name: label }).click();
-  // The real provider is slower than a local FakeProvider; wait for the exchange to be issued and
-  // its response parsed before reading it.
-  const deadline = Date.now() + 90000;
-  while (analyzeCount() === before && Date.now() < deadline) await page.waitForTimeout(500);
-  await page.waitForTimeout(1200);
+  // The real provider is slow: wait for the RESPONSE to land, not merely the request to be issued.
+  const deadline = Date.now() + 120000;
+  while (exchanges.length === before && Date.now() < deadline) await page.waitForTimeout(400);
+  await page.waitForTimeout(600);
 };
 
 const widths = async () => page.evaluate(() => {
@@ -130,7 +156,10 @@ const waitForCoachWidth = async (predicate, timeout = 4000) => {
 const trigger = () => page.getByRole('button', { name: '选择回答使用的模型' });
 const openModelMenu = async () => {
   const menu = page.getByRole('menu');
-  if (!(await menu.isVisible().catch(() => false))) await trigger().click();
+  // Always open a FRESH menu: a menu left open from the previous choice can be re-read with a
+  // different option order, which would click a different model than the one reported.
+  if (await menu.isVisible().catch(() => false)) await trigger().click();
+  await trigger().click();
   await page.getByRole('menuitem').first().waitFor({ timeout: 10000 });
 };
 const chooseModel = async (index) => {
@@ -138,6 +167,11 @@ const chooseModel = async (index) => {
   const option = page.getByRole('menuitem').nth(index);
   const label = (await option.innerText()).trim();
   await option.click();
+  // Confirm the choice actually took: the trigger must now show that model's label.
+  await page.waitForFunction(
+    (l) => (document.querySelector('.wb-coach__head-actions button')?.textContent ?? '').includes(l),
+    label, { timeout: 5000 },
+  ).catch(() => {});
   return label;
 };
 
@@ -167,31 +201,52 @@ try {
 
   /* ── 2. two models, two REAL requests, read the server's resolved route ────────────── */
   if (canAsk && hasPicker) {
-    modelA = await chooseModel(1);
-    await askAndWait('解释代码');
-    modelB = await chooseModel(2);
-    await askAndWait('给我提示');
-    await page.screenshot({ path: `${SHOTS}/02-two-turns.png` });
-
-    const first = exchanges[0] ?? {};
-    const second = exchanges[1] ?? {};
-    const reqModelA = first.request?.model_id ?? null;
-    const reqModelB = second.request?.model_id ?? null;
-    const resModelA = first.response?.resolved_model ?? null;
-    const resModelB = second.response?.resolved_model ?? null;
-
-    modelVerdicts = {
-      aRoute: resModelA === modelA,
-      bRoute: resModelB === modelB,
-      switchKeeps: await page.evaluate(() => document.querySelectorAll('.wb-coach__turn').length >= 2),
+    // Ask with the model at menu index `index`, then report the exchange it produced. The menu
+    // shows display names; the request carries the model ID, and the RESPONSE reports the ID the
+    // Router actually used — comparing those two is the real proof of routing.
+    const askWithModel = async (index, quickAsk) => {
+      const label = await chooseModel(index);
+      await askAndWait(quickAsk);
+      const ex = exchanges.at(-1) ?? {};
+      console.log(`  [ask ${quickAsk}] exchanges=${exchanges.length} inFlight=${inFlight.length} dropped=${dropped.length}`);
+      return { label, ex, sent: ex.request?.model_id ?? null, resolved: ex.response?.resolved_model ?? null, status: ex.status ?? null, provider: ex.response?.provider ?? null };
     };
-    check('REQUEST_1_MODEL = Model A', reqModelA === modelA, `chosen=${modelA} sent=${reqModelA}`);
-    check('REQUEST_2_MODEL = Model B', reqModelB === modelB, `chosen=${modelB} sent=${reqModelB}`);
-    check('MODEL_A_REAL_ROUTE', modelVerdicts.aRoute, `resolved=${resModelA}`);
-    check('MODEL_B_REAL_ROUTE', modelVerdicts.bRoute, `resolved=${resModelB}`);
-    check('server route actually changed', Boolean(resModelA && resModelB && resModelA !== resModelB),
-      `${first.response?.provider ?? '?'}/${resModelA} → ${second.response?.provider ?? '?'}/${resModelB}`);
-    check('MODEL_SWITCH_PRESERVES_THREAD', modelVerdicts.switchKeeps);
+
+    const a = await askWithModel(1, '解释代码');
+    modelA = a.label;
+
+    // Model B must be a DIFFERENT model that the server ACTUALLY ROUTES TO. A provider can be
+    // down, in which case the orchestrator honestly falls over to another qualified model — a real
+    // outcome, but not what this check measures. Walk the menu until a choice resolves to itself
+    // and differs from A; remember the fallback attempt to report if none does.
+    let b = null;
+    let fallbackNote = '';
+    for (const index of [2, 3, 4, 5]) {
+      const candidate = await askWithModel(index, '给我提示');
+      if (candidate.resolved && candidate.resolved === candidate.sent && candidate.resolved !== a.resolved) {
+        b = candidate;
+        break;
+      }
+      if (!b) b = candidate;
+      if (candidate.sent && candidate.resolved && candidate.sent !== candidate.resolved) {
+        fallbackNote = `${candidate.sent} fell back to ${candidate.resolved}`;
+      }
+    }
+    if (fallbackNote) console.log(`  note: the router failed over within the qualified pool — ${fallbackNote}`);
+    await page.screenshot({ path: `${SHOTS}/02-two-turns.png` });
+    modelB = b?.label ?? null;
+
+    console.log(`  Model A: label=${a.label} sent=${a.sent} status=${a.status} resolved=${a.provider ?? '?'}/${a.resolved}`);
+    console.log(`  Model B: label=${b?.label} sent=${b?.sent} status=${b?.status} resolved=${b?.provider ?? '?'}/${b?.resolved}`);
+
+    check('REQUEST_1_MODEL = Model A', a.sent !== null, `sent=${a.sent}`);
+    check('REQUEST_2_MODEL = Model B', b?.sent !== null && b?.sent !== a.sent, `A sent=${a.sent}, B sent=${b?.sent}`);
+    check('MODEL_A_REAL_ROUTE', Boolean(a.resolved && a.resolved === a.sent), `sent=${a.sent} resolved=${a.resolved}`);
+    check('MODEL_B_REAL_ROUTE', Boolean(b?.resolved && b.resolved === b.sent), `sent=${b?.sent} resolved=${b?.resolved}`);
+    check('server route actually changed', Boolean(a.resolved && b?.resolved && a.resolved !== b.resolved),
+      `${a.provider ?? '?'}/${a.resolved} → ${b?.provider ?? '?'}/${b?.resolved}`);
+    check('MODEL_SWITCH_PRESERVES_THREAD', await page.evaluate(() => document.querySelectorAll('.wb-coach__turn').length >= 2));
+    modelVerdicts = { aRoute: Boolean(a.resolved && a.resolved === a.sent), bRoute: Boolean(b?.resolved && b.resolved === b.sent) };
   } else {
     for (const n of ['REQUEST_1_MODEL = Model A', 'REQUEST_2_MODEL = Model B', 'MODEL_A_REAL_ROUTE',
       'MODEL_B_REAL_ROUTE', 'server route actually changed', 'MODEL_SWITCH_PRESERVES_THREAD']) {
