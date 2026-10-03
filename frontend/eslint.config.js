@@ -15,6 +15,8 @@ export default tseslint.config(
       'test-results',
       'src/routeTree.gen.ts',
       'src/types/api.ts',
+      //验收运行产物（截图 / 一次性 .mjs / json），不是源码，不进 lint
+      '.audit11408/**',
     ],
   },
   js.configs.recommended,

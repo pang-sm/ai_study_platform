@@ -14,7 +14,7 @@ WHAT THESE TESTS HOLD
 """
 import dataclasses
 import json
-from datetime import date
+from datetime import datetime, timezone
 
 from ai.gateway import GatewayError, GatewayErrorCategory
 from ai.providers import FakeProvider
@@ -128,6 +128,13 @@ def test_the_model_is_given_the_subjects_own_chapters(client, db_session, monkey
     read, so the prompt cannot drift from the subject it describes.
     """
     _joined_initial(client, db_session, "init_syllabus")
+    # The plan's start day comes from the UTC clock (`learning.plan_adjustment._now`, the same
+    # source as `context["today"]`), so pin that clock and assert ITS day. This test used to read
+    # the machine's local `date.today()`: east of UTC the local day runs ahead of the UTC day, so
+    # the two disagreed for the hours after local midnight and the test flipped on the calendar
+    # boundary rather than on the product.
+    frozen_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+    monkeypatch.setattr("learning.plan_adjustment._now", lambda: frozen_utc)
     capture: list[str] = []
     monkeypatch.setattr("ai.orchestrator.default_provider_factory",
                         _provider([{"title": "x", "task_type": "knowledge"}], capture=capture))
@@ -138,8 +145,34 @@ def test_the_model_is_given_the_subjects_own_chapters(client, db_session, monkey
     # real chapter titles from the data-structure seed, not placeholders
     assert "总览" in prompt and "线性表" in prompt and "栈、队列和数组" in prompt
     assert "树与二叉树" in prompt
-    # and the day the plan should start from
-    assert date.today().isoformat() in prompt
+    # and the day the plan should start from — the UTC day, taken from the pinned clock
+    assert f'"today": "{frozen_utc.date().isoformat()}"' in prompt
+
+
+def test_the_plans_start_day_is_the_utc_day_in_every_timezone(client, db_session, monkeypatch):
+    """REGRESSION GUARD. The prompt's `today` is production's UTC day, so it reads identically on
+    a machine in UTC+8, UTC+9, or anywhere across the date line.
+
+    01:30Z and 22:30Z bracket the UTC day on both sides: whichever way this machine's offset
+    leans, the local day for one of these instants differs from the UTC day. The prompt must
+    carry the UTC day — and must NOT carry the day the same instant falls on locally.
+    """
+    for iso, utc_day, local_day_elsewhere in [
+        ("2026-03-15T01:30:00", "2026-03-15", "2026-03-14"),  # west of UTC: the local day lags
+        ("2026-03-15T22:30:00", "2026-03-15", "2026-03-16"),  # UTC+8 / UTC+9: the local day leads
+    ]:
+        _joined_initial(client, db_session, f"init_start_day_{iso[11:13]}")
+        frozen = datetime.fromisoformat(iso)
+        monkeypatch.setattr("learning.plan_adjustment._now", lambda v=frozen: v)
+        capture: list[str] = []
+        monkeypatch.setattr("ai.orchestrator.default_provider_factory",
+                            _provider([{"title": "x", "task_type": "knowledge"}], capture=capture))
+
+        assert _initial(client).status_code == 200
+        prompt = capture[-1]
+        assert f'"today": "{utc_day}"' in prompt, f"{iso}Z should carry the UTC day {utc_day}"
+        assert f'"today": "{local_day_elsewhere}"' not in prompt, (
+            f"{iso}Z must not carry the local day {local_day_elsewhere}")
 
 
 def test_a_subject_with_no_syllabus_says_so_rather_than_inventing_one(client, db_session, monkeypatch):

@@ -175,9 +175,7 @@ const chooseModel = async (index) => {
   return label;
 };
 
-let modelA = null;
 let modelB = null;
-let modelVerdicts = {};
 
 try {
   await login();
@@ -213,7 +211,6 @@ try {
     };
 
     const a = await askWithModel(1, '解释代码');
-    modelA = a.label;
 
     // Model B must be a DIFFERENT model that the server ACTUALLY ROUTES TO. A provider can be
     // down, in which case the orchestrator honestly falls over to another qualified model — a real
@@ -246,7 +243,6 @@ try {
     check('server route actually changed', Boolean(a.resolved && b?.resolved && a.resolved !== b.resolved),
       `${a.provider ?? '?'}/${a.resolved} → ${b?.provider ?? '?'}/${b?.resolved}`);
     check('MODEL_SWITCH_PRESERVES_THREAD', await page.evaluate(() => document.querySelectorAll('.wb-coach__turn').length >= 2));
-    modelVerdicts = { aRoute: Boolean(a.resolved && a.resolved === a.sent), bRoute: Boolean(b?.resolved && b.resolved === b.sent) };
   } else {
     for (const n of ['REQUEST_1_MODEL = Model A', 'REQUEST_2_MODEL = Model B', 'MODEL_A_REAL_ROUTE',
       'MODEL_B_REAL_ROUTE', 'server route actually changed', 'MODEL_SWITCH_PRESERVES_THREAD']) {
