@@ -15075,10 +15075,18 @@ def analyze_code(
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_message},
     ]
+    # The learner's model choice, normalized exactly as /chat does it: an unknown CLASS collapses
+    # to auto, and the concrete id is only a hint the Router re-validates against the entitled
+    # pool. Nothing below trusts this string as a routing decision.
+    from ai.pool import normalize_preference as _normalize_model_preference
+    _analyze_model_preference = _normalize_model_preference(req.model_preference)
+    _analyze_explicit_model = (req.model_id or "").strip() or None
     if analyze_service == "course_learning":
         _ai_result = _course_ai_result(
             db, user, "programming.explain", _analysis_messages,
             course_id=(req.course_id or "course_learning"),
+            model_preference=_analyze_model_preference,
+            explicit_model=_analyze_explicit_model,
         )
     else:
         # P6.1: the programming branch used to call the provider directly, so it created no
@@ -15091,6 +15099,8 @@ def analyze_code(
             db, user, "programming.explain", _analysis_messages,
             learning_context=build_programming_context(
                 user, language=language, exercise_id=getattr(exercise, "id", None)),
+            model_preference=_analyze_model_preference,
+            explicit_model=_analyze_explicit_model,
         )
 
     answer = normalize_assistant_markdown(_ai_result.content or "")
@@ -15113,6 +15123,11 @@ def analyze_code(
         # P6.1: the identity of the ``ai_requests`` row that produced THIS answer. The client
         # may rate it via POST /ai/feedback; it must never generate one of its own.
         "request_id": _ai_result.request_id,
+        # Which provider/model the ROUTER actually resolved for this answer — the same fact the
+        # chat envelope reports. It is the router's own outcome, not the client's request, so it
+        # is what the workbench shows and what a model-switch acceptance checks.
+        "resolved_model": _ai_result.model,
+        "provider": _ai_result.provider,
     }
 
 

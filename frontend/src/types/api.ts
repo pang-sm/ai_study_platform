@@ -8527,6 +8527,13 @@ export interface components {
             chat_history?: {
                 [key: string]: unknown;
             }[] | null;
+            /**
+             * Model Preference
+             * @default
+             */
+            model_preference: string;
+            /** Model Id */
+            model_id?: string | null;
         };
         /** CodeAttemptMasteredUpdate */
         CodeAttemptMasteredUpdate: {

@@ -179,6 +179,51 @@ def test_code_analyze_programming_branch_runs_on_the_unified_stack(client, db_se
                                        "reason": None}).status_code == 200
 
 
+def test_code_analyze_routes_to_the_chosen_model_and_reports_it(client, db_session, monkeypatch):
+    """A chosen ``model_id`` reaches the Router, and the response states what it RESOLVED.
+
+    This is the server-side half of the workbench's model picker: the learner's choice is only a
+    hint, the Router decides, and the endpoint reports the Router's own provider/model — the value
+    the UI shows and an acceptance run compares.
+    """
+    register_and_login(client, "p61_analyze_model")
+    grant_unified_tier(db_session, "p61_analyze_model", "standard")
+    user = _user(db_session, "p61_analyze_model")
+    monkeypatch.setattr("ai.orchestrator.default_provider_factory", _provider)
+
+    response = client.post(ANALYZE, json={"username": "", "course_id": "programming",
+                                          "language": "python", "code": ORIGINAL,
+                                          "question": "这段代码对吗？", "model_id": "qwen3.8-max"})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    request_id = body["request_id"]
+
+    db_session.expire_all()
+    row = _owned_request(db_session, request_id, user.id)
+    assert row is not None
+    # The concrete choice was honoured — not silently ignored in favour of the default.
+    assert row.model == "qwen3.8-max"
+    # …and the response reports the Router's OWN resolved route, which is what the UI displays.
+    assert body["resolved_model"] == row.model
+    assert body["provider"] == row.provider
+
+
+def test_code_analyze_cannot_be_forced_past_membership(client, db_session, monkeypatch):
+    """A free caller naming a paid model gets NO answer — the client string is not an authority.
+
+    ``programming.explain`` is a Standard+ capability, so an unsubscribed learner is refused
+    before any model is even considered, and nothing is written for the attempt.
+    """
+    register_and_login(client, "p61_analyze_free")
+    monkeypatch.setattr("ai.orchestrator.default_provider_factory", _provider)
+
+    response = client.post(ANALYZE, json={"username": "", "course_id": "programming",
+                                          "language": "python", "code": ORIGINAL,
+                                          "question": "这段代码对吗？", "model_id": "qwen3.8-max"})
+    assert response.status_code == 403, response.text
+    assert "answer" not in response.json()
+
+
 def test_a_borrowed_request_id_is_still_a_404(client, db_session, monkeypatch):
     register_and_login(client, "p61_owner")
     grant_unified_tier(db_session, "p61_owner", "standard")

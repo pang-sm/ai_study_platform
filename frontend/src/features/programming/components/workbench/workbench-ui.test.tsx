@@ -55,6 +55,16 @@ beforeEach(() => {
     if (url === '/programming/exercises') return ok(BANK);
     if (url === '/programming/exercises/{exercise_id}') return ok({ exercise: { id: 7, title: '两数之和', statement: '给定数组，返回下标。' } });
     if (url === '/programming/records') return ok({ records: [], next_cursor: null, has_more: false });
+    // The entitled model menu the AI 教练's picker reads — the SAME endpoint AI 问答 uses.
+    if (url === '/ai/models') {
+      return ok({
+        options: [
+          { model: 'deepseek-flash', display_name: 'DeepSeek V4', provider: 'deepseek', thinking: false },
+          { model: 'qwen3.8-flash', display_name: 'qwen3.8-flash', provider: 'qwen', thinking: false },
+        ],
+        recommended_model_id: 'deepseek-flash',
+      });
+    }
     return ok({});
   });
 
@@ -71,12 +81,21 @@ const workbenchHeader = () => document.querySelector('.wb__bar') as HTMLElement;
 const nav = () => document.querySelector('.wb__nav') as HTMLElement;
 const crumbTitle = () => document.querySelector('.wb__crumb-title')?.textContent;
 const analyzeCalls = () => post.mock.calls.filter(([url]) => url === '/code/analyze');
+const lastAnalyzeBody = () =>
+  (analyzeCalls().at(-1) as unknown as [string, { body: Record<string, unknown> }])[1].body;
+const modelTrigger = () => screen.findByRole('button', { name: '选择回答使用的模型' });
 
 async function askHint(user: ReturnType<typeof userEvent.setup>) {
   const hint = await screen.findByRole('button', { name: '给我提示' });
   await waitFor(() => expect(hint).toBeEnabled());
   await user.click(hint);
   return hint;
+}
+
+/** Pick a concrete model from the coach's own menu, exactly as a learner would. */
+async function chooseModel(user: ReturnType<typeof userEvent.setup>, label: string) {
+  await user.click(await modelTrigger());
+  await user.click(await screen.findByRole('menuitem', { name: label }));
 }
 
 describe('the workbench top bar', () => {
@@ -209,5 +228,146 @@ describe('the AI 教练', () => {
     expect(call[1].body.exercise_id).toBe(8);
     // No turn from the previous题 is carried into the new one's history.
     expect(call[1].body.chat_history ?? []).toEqual([]);
+  });
+});
+
+describe('the AI 教练 model selection', () => {
+  it('offers the same entitled menu AI 问答 uses and sends the chosen model', async () => {
+    const user = userEvent.setup();
+    renderApp('/programming/workbench?language=python&exercise=7');
+
+    // Auto by default, labelled with the Router's own recommendation — never a provider name.
+    expect(await modelTrigger()).toHaveTextContent('自动（推荐：DeepSeek V4）');
+
+    await chooseModel(user, 'qwen3.8-flash');
+    await askHint(user);
+
+    await waitFor(() => expect(analyzeCalls()).toHaveLength(1));
+    expect(lastAnalyzeBody().model_id).toBe('qwen3.8-flash');
+    // A concrete pick leaves the CLASS preference empty, exactly like the chat contract.
+    expect(lastAnalyzeBody().model_preference).toBe('');
+    // …and it survives a reload on this device.
+    expect(window.localStorage.getItem('programming.coachModel')).toBe('qwen3.8-flash');
+  });
+
+  it('keeps Auto as a null model_id, so an untouched device is unchanged', async () => {
+    const user = userEvent.setup();
+    renderApp('/programming/workbench?language=python&exercise=7');
+
+    await modelTrigger();
+    await askHint(user);
+
+    await waitFor(() => expect(analyzeCalls()).toHaveLength(1));
+    expect(lastAnalyzeBody().model_id).toBeNull();
+  });
+
+  it('switching the model keeps the conversation and the new choice rides the next request', async () => {
+    const user = userEvent.setup();
+    renderApp('/programming/workbench?language=python&exercise=7');
+
+    await askHint(user);
+    expect(await screen.findByText(/先从数组里取出每个数/)).toBeInTheDocument();
+    expect(lastAnalyzeBody().model_id).toBeNull();
+
+    await chooseModel(user, 'qwen3.8-flash');
+    // The answer already on screen is not thrown away by a model change.
+    expect(screen.getByText(/先从数组里取出每个数/)).toBeInTheDocument();
+
+    await askHint(user);
+    await waitFor(() => expect(analyzeCalls()).toHaveLength(2));
+    expect(lastAnalyzeBody().model_id).toBe('qwen3.8-flash');
+    // The earlier turn is still this题's context.
+    expect(lastAnalyzeBody().chat_history).toEqual([
+      { role: 'user', content: '这道题的解题思路是什么？先给我一个提示，不要直接给出完整代码。' },
+      { role: 'assistant', content: '先从数组里取出每个数。' },
+    ]);
+  });
+
+  it('switching题目 clears that题\'s thread but keeps the chosen model', async () => {
+    const user = userEvent.setup();
+    renderApp('/programming/workbench?language=python&exercise=7');
+    await screen.findByText('共 2 道');
+
+    await chooseModel(user, 'qwen3.8-flash');
+    await askHint(user);
+    expect(await screen.findByText(/先从数组里取出每个数/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /回文数/ }));
+    await waitFor(() => expect(crumbTitle()).toBe('回文数'));
+    // The new题 starts a fresh thread…
+    expect(screen.queryByText(/先从数组里取出每个数/)).not.toBeInTheDocument();
+    // …but the model choice is not part of the thread and is still in force.
+    expect(await modelTrigger()).toHaveTextContent('qwen3.8-flash');
+
+    await askHint(user);
+    await waitFor(() => expect(analyzeCalls()).toHaveLength(2));
+    expect(lastAnalyzeBody().model_id).toBe('qwen3.8-flash');
+  });
+});
+
+describe('the AI 教练 collapse', () => {
+  it('opens expanded, collapses to a rail, keeps the conversation, and reopens', async () => {
+    const user = userEvent.setup();
+    renderApp('/programming/workbench?language=python&exercise=7');
+
+    await askHint(user);
+    expect(await screen.findByText(/先从数组里取出每个数/)).toBeInTheDocument();
+
+    const collapse = screen.getByRole('button', { name: '收起 AI 教练' });
+    expect(collapse).toHaveAttribute('title', '收起 AI 教练');
+    await user.click(collapse);
+
+    // Collapsed: a rail with only the way back, and no chat, composer or picker on screen.
+    const expand = await screen.findByRole('button', { name: '展开 AI 教练' });
+    expect(expand).toHaveAttribute('title', '展开 AI 教练');
+    expect(document.querySelector('.wb__body--coach-collapsed')).not.toBeNull();
+    expect(screen.queryByText(/先从数组里取出每个数/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('向 AI 教练提问')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '选择回答使用的模型' })).not.toBeInTheDocument();
+    // The centre column survived it.
+    expect(screen.getByRole('heading', { name: '代码' })).toBeInTheDocument();
+    expect(window.localStorage.getItem('programming.coachCollapsed')).toBe('1');
+
+    await user.click(expand);
+
+    // Reopened: the conversation is still there, and the modifier is gone.
+    expect(await screen.findByText(/先从数组里取出每个数/)).toBeInTheDocument();
+    expect(document.querySelector('.wb__body--coach-collapsed')).toBeNull();
+  });
+
+  it('never fires an AI request just for collapsing or reopening', async () => {
+    const user = userEvent.setup();
+    renderApp('/programming/workbench?language=python&exercise=7');
+
+    await screen.findByRole('button', { name: '收起 AI 教练' });
+    expect(analyzeCalls()).toHaveLength(0);
+
+    await user.click(screen.getByRole('button', { name: '收起 AI 教练' }));
+    await user.click(await screen.findByRole('button', { name: '展开 AI 教练' }));
+
+    expect(analyzeCalls()).toHaveLength(0);
+  });
+
+  it('remembers a collapsed coach across a reload', async () => {
+    window.localStorage.setItem('programming.coachCollapsed', '1');
+    renderApp('/programming/workbench?language=python&exercise=7');
+
+    expect(await screen.findByRole('button', { name: '展开 AI 教练' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '收起 AI 教练' })).not.toBeInTheDocument();
+  });
+
+  it('collapses both rails at once, leaving only the way back on each side', async () => {
+    const user = userEvent.setup();
+    renderApp('/programming/workbench?language=python&exercise=7');
+    await screen.findByText('共 2 道');
+
+    await user.click(screen.getByRole('button', { name: '收起题目栏' }));
+    await user.click(await screen.findByRole('button', { name: '收起 AI 教练' }));
+
+    expect(document.querySelector('.wb__body--rail-collapsed')).not.toBeNull();
+    expect(document.querySelector('.wb__body--coach-collapsed')).not.toBeNull();
+    expect(screen.getByRole('button', { name: '展开题目栏' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '展开 AI 教练' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '代码' })).toBeInTheDocument();
   });
 });

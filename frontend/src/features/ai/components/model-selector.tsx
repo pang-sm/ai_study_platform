@@ -11,11 +11,17 @@ export function ModelSelector({
   value,
   onChange,
   disabled,
+  menuPlacement = 'up',
+  align = 'left',
 }: {
   capability: string;
   value: string;
   onChange: (next: string) => void;
   disabled?: boolean;
+  /** Which way the menu opens. The chat composer sits at the bottom, so it opens up by default. */
+  menuPlacement?: 'up' | 'down';
+  /** Which edge of the trigger the menu lines up with. */
+  align?: 'left' | 'right';
 }) {
   const models = useModelOptions(capability);
   // Accept the prior array shape during query-cache hydration; fresh API data has the preview
@@ -35,11 +41,11 @@ export function ModelSelector({
   const label = value === 'auto' ? autoLabel : options.find((option) => option.id === value)?.label ?? autoLabel;
 
   return (
-    <div ref={root} className="relative">
-      <button type="button" disabled={disabled} onClick={() => setOpen((state) => !state)} aria-label="选择回答使用的模型" aria-haspopup="menu" aria-expanded={open} className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-sm text-text-secondary hover:bg-primary-soft disabled:opacity-50">
-        {label}<ChevronDown className="size-3.5" />
+    <div ref={root} className="relative min-w-0">
+      <button type="button" disabled={disabled} onClick={() => setOpen((state) => !state)} aria-label="选择回答使用的模型" aria-haspopup="menu" aria-expanded={open} className="inline-flex h-8 min-w-0 max-w-full items-center gap-1 rounded-lg px-2 text-sm text-text-secondary hover:bg-primary-soft disabled:opacity-50">
+        <span className="truncate">{label}</span><ChevronDown className="size-3.5 shrink-0" />
       </button>
-      {open ? <div role="menu" className="absolute bottom-10 left-0 z-20 min-w-56 rounded-xl border border-border-default bg-surface p-1 shadow-lg">
+      {open ? <div role="menu" className={cn('absolute z-20 min-w-56 rounded-xl border border-border-default bg-surface p-1 shadow-lg', menuPlacement === 'up' ? 'bottom-10' : 'top-10', align === 'right' ? 'right-0' : 'left-0')}>
         <Choice active={value === 'auto'} onClick={() => { onChange('auto'); setOpen(false); }}>{autoLabel}</Choice>
         {options.map((option) => <Choice key={option.id} active={value === option.id} onClick={() => { onChange(option.id); setOpen(false); }}>{option.label}</Choice>)}
       </div> : null}

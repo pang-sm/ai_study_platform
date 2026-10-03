@@ -69,6 +69,10 @@
 /* Collapsed, the rail is a 44px strip: only the centre and the coach sizes matter, and neither
    the centre nor the coach changes because of it. */
 .wb__body--rail-collapsed { grid-template-columns: 2.75rem minmax(0, 1fr) var(--wb-coach); }
+/* The coach collapses independently, into its own 44px rail, and the centre takes the width back.
+   Both rails can be collapsed at once, which leaves the centre maximised between two strips. */
+.wb__body--coach-collapsed { grid-template-columns: var(--wb-nav) minmax(0, 1fr) 2.75rem; }
+.wb__body--rail-collapsed.wb__body--coach-collapsed { grid-template-columns: 2.75rem minmax(0, 1fr) 2.75rem; }
 .wb__col { min-width: 0; min-height: 0; overflow-y: auto; }
 .wb__nav { border-right: 1px solid var(--color-border-default); background: var(--color-surface); }
 .wb__nav--collapsed { overflow: hidden; }
@@ -218,7 +222,42 @@
 
 .wb-coach { display: flex; min-height: 0; flex-direction: column; }
 .wb-coach__head { border-bottom: 1px solid var(--color-border-default); padding: 0.6rem 0.75rem; }
-.wb-coach__title { display: flex; align-items: center; gap: 0.4rem; margin: 0; color: var(--color-ai-ink); font-size: var(--text-metadata); font-weight: 700; letter-spacing: 0.06em; }
+.wb-coach__head-row { display: flex; align-items: center; gap: 0.5rem; }
+.wb-coach__head-actions { display: flex; min-width: 0; margin-left: auto; align-items: center; gap: 0.25rem; }
+.wb-coach__collapse {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.wb-coach__collapse:hover { background: var(--color-primary-soft); color: var(--color-primary-ink); }
+.wb-coach__collapse:focus-visible { outline: 2px solid var(--space-accent, var(--color-primary)); outline-offset: -2px; }
+/* The collapsed rail: the mark and the way back, centred in the 44px strip. */
+.wb-coach--rail { align-items: center; gap: 0.6rem; padding: 0.6rem 0.35rem; }
+.wb-coach__rail-mark { display: inline-flex; color: var(--color-ai-ink); }
+.wb-coach__rail-toggle {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.wb-coach__rail-toggle:hover { background: var(--color-primary-soft); color: var(--color-primary-ink); }
+.wb-coach__rail-toggle:focus-visible { outline: 2px solid var(--space-accent, var(--color-primary)); outline-offset: -2px; }
+.wb-coach__title { display: flex; flex: 0 0 auto; align-items: center; gap: 0.4rem; margin: 0; color: var(--color-ai-ink); font-size: var(--text-metadata); font-weight: 700; letter-spacing: 0.06em; white-space: nowrap; }
 .wb-coach__scope { margin: 0.35rem 0 0; color: var(--color-text-secondary); font-size: 0.75rem; line-height: 1.5; }
 .wb-coach__quick { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.5rem; }
 .wb-coach__thread { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0.6rem 0.75rem; }

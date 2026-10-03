@@ -359,6 +359,12 @@ export type CoachAsk = {
   diagnostics?: Record<string, unknown>;
   /** The turns already exchanged in this exercise, so the coach answers in context. */
   history?: CoachTurn[];
+  /**
+   * The concrete model the learner picked from the entitled `/ai/models` menu, or `'auto'`/absent
+   * to let the Router choose. It is only a hint: the backend re-validates it against the caller's
+   * tier, the qualified pool and provider health, and bills whatever it actually resolved.
+   */
+  modelId?: string;
 };
 
 /**
@@ -372,7 +378,7 @@ export type CoachAsk = {
  */
 export function useCodeCoach() {
   return useMutation({
-    mutationFn: async ({ language, code, question, exerciseId, lastRun, lastTest, diagnostics, history }: CoachAsk) => {
+    mutationFn: async ({ language, code, question, exerciseId, lastRun, lastTest, diagnostics, history, modelId }: CoachAsk) => {
       const r = await apiClient.POST('/code/analyze', {
         body: {
           username: '',
@@ -385,6 +391,10 @@ export function useCodeCoach() {
           last_test_results: lastTest ?? null,
           diagnostics: diagnostics ?? null,
           chat_history: history ?? null,
+          // The same model contract as /chat: no CLASS preference (empty = let the id decide),
+          // and `'auto'` (or an absent choice) as the Router's own recommendation, sent as null.
+          model_preference: '',
+          model_id: modelId && modelId !== 'auto' ? modelId : null,
         },
       });
       return dataOrThrow(r.response, r.data, r.error) as Record<string, unknown>;

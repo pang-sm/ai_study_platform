@@ -173,6 +173,12 @@ class CodeAnalyzeRequest(BaseModel):
     last_test_results: dict | None = None
     diagnostics: dict | None = None
     chat_history: list[dict] | None = None
+    # The same model-selection contract as /chat: a concrete model from the caller's entitled
+    # `/ai/models` menu (`model_id`), plus the learner-safe CLASS preference. Both are only
+    # hints for the Router — it stays the authority for entitlement, qualification, budget
+    # and provider health, and never trusts the client's string as a routing decision.
+    model_preference: str = ""
+    model_id: str | None = None
 
 
 class CodeAIMessageCreate(BaseModel):

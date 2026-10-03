@@ -22,7 +22,14 @@ import { CoachPanel } from './coach-panel';
 import { ExerciseNav, type RecommendedExercise } from './exercise-nav';
 import { ExerciseStatement } from './exercise-statement';
 import { judgeFailureMessage } from './judge-error';
-import { readRailCollapsed, rememberRailCollapsed } from './workbench-preferences';
+import {
+  readCoachCollapsed,
+  readCoachModel,
+  readRailCollapsed,
+  rememberCoachCollapsed,
+  rememberCoachModel,
+  rememberRailCollapsed,
+} from './workbench-preferences';
 import {
   chapterOf,
   coachTestPayload,
@@ -90,7 +97,11 @@ export function WorkbenchPage({
   const [stdin, setStdin] = useState('');
   const [runResult, setRunResult] = useState<unknown>();
   const [testResult, setTestResult] = useState<unknown>();
-  // A device preference, read once on mount: the learner's own width choice for the题目栏.
+  // Device preferences, read once on mount: the learner's own width choice for each of the two
+  // rails, and the model they last picked for the coach. All three are about THIS screen, so they
+  // live in localStorage and need no request. The model choice is held HERE rather than inside the
+  // coach panel because that panel is remounted on every题 switch — the thread is per-题, but the
+  // chosen model is not.
   const [railCollapsed, setRailCollapsed] = useState(() => readRailCollapsed());
   const toggleRailCollapsed = () => {
     setRailCollapsed((current) => {
@@ -98,6 +109,19 @@ export function WorkbenchPage({
       rememberRailCollapsed(next);
       return next;
     });
+  };
+  const [coachCollapsed, setCoachCollapsed] = useState(() => readCoachCollapsed());
+  const toggleCoachCollapsed = () => {
+    setCoachCollapsed((current) => {
+      const next = !current;
+      rememberCoachCollapsed(next);
+      return next;
+    });
+  };
+  const [coachModel, setCoachModel] = useState(() => readCoachModel());
+  const changeCoachModel = (modelId: string) => {
+    setCoachModel(modelId);
+    rememberCoachModel(modelId);
   };
 
   const entry = workspace.data ? entryFileOf(workspace.data) : undefined;
@@ -254,7 +278,13 @@ export function WorkbenchPage({
         </div>
       </header>
 
-      <div className={cn('wb__body', railCollapsed && 'wb__body--rail-collapsed')}>
+      <div
+        className={cn(
+          'wb__body',
+          railCollapsed && 'wb__body--rail-collapsed',
+          coachCollapsed && 'wb__body--coach-collapsed',
+        )}
+      >
         <nav className={cn('wb__col wb__nav', railCollapsed && 'wb__nav--collapsed')} aria-label="题目导航">
           <ExerciseNav
             items={items}
@@ -378,6 +408,10 @@ export function WorkbenchPage({
             lastRun={runResult as Record<string, unknown> | undefined}
             lastTest={coachTestPayload(testResult)}
             disabled={currentId === undefined}
+            modelId={coachModel}
+            onModelChange={changeCoachModel}
+            collapsed={coachCollapsed}
+            onToggleCollapsed={toggleCoachCollapsed}
           />
         </aside>
       </div>

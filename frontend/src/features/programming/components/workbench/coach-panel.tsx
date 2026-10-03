@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { Send, Sparkles } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { PanelRightClose, PanelRightOpen, Send, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AiFeedback } from '@/components/learning/ai-feedback';
 import { AssistantMarkdown } from '@/features/ai/components/assistant-markdown';
+import { ModelSelector } from '@/features/ai/components/model-selector';
 import { usageCreditsText } from '@/lib/learner-safe';
 import { useCodeCoach, type CoachTurn } from '../../api/programming';
 import { stringField } from './workbench-model';
@@ -43,6 +44,10 @@ export function CoachPanel({
   lastRun,
   lastTest,
   disabled,
+  modelId,
+  onModelChange,
+  collapsed,
+  onToggleCollapsed,
 }: {
   language: string;
   exerciseId: number | undefined;
@@ -51,12 +56,32 @@ export function CoachPanel({
   lastRun: Record<string, unknown> | undefined;
   lastTest: Record<string, unknown> | undefined;
   disabled: boolean;
+  /**
+   * The learner's model choice, owned by the workspace rather than by this panel.
+   *
+   * The panel is remounted whenever the open题 changes (the thread is per-题), so a choice kept
+   * here would be thrown away on every switch. It lives one level up so switching题 clears the
+   * thread WITHOUT losing which model the learner is using.
+   */
+  modelId: string;
+  onModelChange: (modelId: string) => void;
+  /** The learner's own width choice for this rail; the chat is hidden, never destroyed. */
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
 }) {
   const coach = useCodeCoach();
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState('');
   const [pendingQuestion, setPendingQuestion] = useState<string | undefined>();
   const [failedQuestion, setFailedQuestion] = useState<string | undefined>();
+  const threadRef = useRef<HTMLDivElement>(null);
+  // The transcript's scroll position, tracked while it is on screen. The node is unmounted when
+  // the panel is collapsed, so the position is remembered here and restored on reopen.
+  const scrollTopRef = useRef(0);
+
+  useEffect(() => {
+    if (!collapsed && threadRef.current) threadRef.current.scrollTop = scrollTopRef.current;
+  }, [collapsed]);
 
   const ask = (question: string) => {
     const trimmed = question.trim();
@@ -71,7 +96,7 @@ export function CoachPanel({
     setFailedQuestion(undefined);
     setPendingQuestion(trimmed);
     coach.mutate(
-      { language, code, question: trimmed, exerciseId, lastRun, lastTest, history },
+      { language, code, question: trimmed, exerciseId, lastRun, lastTest, history, modelId },
       {
         onSuccess: (data) => {
           setTurns((current) => [
@@ -93,13 +118,59 @@ export function CoachPanel({
     );
   };
 
+  // Collapsed, the coach is a 44px rail: the mark and the way back, and nothing that could
+  // overflow. The thread's state above survives — collapsing hides the conversation, it does not
+  // end it, and toggling never fires a request.
+  if (collapsed) {
+    return (
+      <div className="wb-coach wb-coach--rail">
+        <span className="wb-coach__rail-mark" aria-hidden="true">
+          <Sparkles className="size-4" />
+        </span>
+        <button
+          type="button"
+          className="wb-coach__rail-toggle"
+          aria-label="展开 AI 教练"
+          aria-expanded={false}
+          title="展开 AI 教练"
+          onClick={onToggleCollapsed}
+        >
+          <PanelRightOpen className="size-4" aria-hidden="true" />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="wb-coach">
       <div className="wb-coach__head">
-        <p className="wb-coach__title">
-          <Sparkles className="size-4" aria-hidden="true" />
-          AI 教练
-        </p>
+        <div className="wb-coach__head-row">
+          <p className="wb-coach__title">
+            <Sparkles className="size-4" aria-hidden="true" />
+            AI 教练
+          </p>
+          <div className="wb-coach__head-actions">
+            {/* The same picker AI 问答 uses, fed by the same entitled menu for this capability. It
+                renders nothing when the backend offers no model for this learner. */}
+            <ModelSelector
+              capability="programming.explain"
+              value={modelId}
+              onChange={onModelChange}
+              menuPlacement="down"
+              align="right"
+            />
+            <button
+              type="button"
+              className="wb-coach__collapse"
+              aria-label="收起 AI 教练"
+              aria-expanded
+              title="收起 AI 教练"
+              onClick={onToggleCollapsed}
+            >
+              <PanelRightClose className="size-4" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
         <p className="wb-coach__scope">
           {exerciseTitle ? `当前题目：${exerciseTitle}` : '打开一道题目后，教练会围绕这道题回答。'}
         </p>
@@ -119,7 +190,13 @@ export function CoachPanel({
         </div>
       </div>
 
-      <div className="wb-coach__thread">
+      <div
+        className="wb-coach__thread"
+        ref={threadRef}
+        onScroll={(event) => {
+          scrollTopRef.current = event.currentTarget.scrollTop;
+        }}
+      >
         {!turns.length && !pendingQuestion && !failedQuestion ? (
           <p className="text-body text-text-secondary">
             {disabled

@@ -53,10 +53,14 @@ def test_course_code_analysis_uses_course_orchestrator_boundary(client, monkeypa
 
     class _StubResult:
         """The boundary now returns the whole result (P6.1) so the endpoint can expose the
-        real ``ai_requests`` identity; the assertion below is about WHICH boundary it takes."""
+        real ``ai_requests`` identity; the assertion below is about WHICH boundary it takes.
+        It carries the router's OWN resolved provider/model, which the endpoint reports back —
+        deliberately NOT the model the client asked for, which is only a hint."""
 
         content = "统一 AI 代码讲解"
         request_id = "stub-course-request"
+        model = "deepseek-flash"
+        provider = "deepseek"
 
     def fake_course_ai(_db, _user, capability, _messages, **kwargs):
         captured.update(capability=capability, kwargs=kwargs)
@@ -68,11 +72,18 @@ def test_course_code_analysis_uses_course_orchestrator_boundary(client, monkeypa
     response = client.post("/code/analyze", json={
         "username": "mig-course-code", "course_id": "data_structure",
         "language": "Python", "code": "print('ok')", "question": "解释代码作用",
+        # The learner's pick is threaded to the boundary as the explicit model to try.
+        "model_id": "qwen3.8-flash",
     })
     assert response.status_code == 200, response.text
-    assert response.json()["answer"] == "统一 AI 代码讲解"
+    body = response.json()
+    assert body["answer"] == "统一 AI 代码讲解"
     assert captured["capability"] == "programming.explain"
     assert captured["kwargs"]["course_id"] == "data_structure"
+    assert captured["kwargs"]["explicit_model"] == "qwen3.8-flash"
+    # The response states what the ROUTER resolved, not what the client requested.
+    assert body["resolved_model"] == "deepseek-flash"
+    assert body["provider"] == "deepseek"
 
 
 def test_course_paper_structuring_and_json_repair_use_orchestrator_boundary(monkeypatch):
