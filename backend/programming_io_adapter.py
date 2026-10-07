@@ -19,6 +19,7 @@ import time
 from pathlib import Path, PurePosixPath
 
 from core.code_execution import require_secure_code_execution
+from core.sandbox import get_execution_backend
 
 
 def _safe_path(value: str) -> str:
@@ -174,6 +175,11 @@ def run_sample(language: str, exercise, files: list, sample: dict, manifest: dic
             # SECURITY_S0: the compile/run commands below execute learner source.
             # Refuse unless a verified sandbox is available; no host fallback.
             require_secure_code_execution()
+            # SECURITY_S0B: this adapter still compiles/runs on the HOST. Under the
+            # container backend it must refuse rather than execute; the production
+            # catalogue never reaches it (it is entirely standard-io).
+            if get_execution_backend() is not None:
+                return None
             if language == "Python":
                 proc = subprocess.run(compile_command, cwd=temp, input=str(sample.get("stdin_text") or ""), capture_output=True, text=True, timeout=6)
                 return _result(sample, started, proc)

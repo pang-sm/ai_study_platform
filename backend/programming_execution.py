@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 
 from core.code_execution import require_secure_code_execution
+from core.sandbox import get_execution_backend
 
 
 JAVA_BUILD_GRADLE = '''
@@ -122,6 +123,24 @@ def run_java_tests(
     # SECURITY_S0: Gradle compiles and runs the learner's Java sources. Refuse
     # unless a verified sandbox is available; there is no host fallback.
     require_secure_code_execution()
+    # SECURITY_S0B: this runner drives the HOST gradle/JVM, which the sandbox does not
+    # yet cover. Once the container backend is enabled it must refuse here as well, not
+    # merely rely on its callers, or a future caller reopens host execution.
+    if get_execution_backend() is not None:
+        return {
+            "success": False,
+            "status": "unsupported",
+            "passed": False,
+            "passed_count": 0,
+            "total_count": 0,
+            "failed_categories": ["unsupported"],
+            "duration_ms": 0,
+            "stderr": "该题型的运行方式暂不支持。",
+            "technical_details": "run_java_tests: host gradle runner disabled under the container backend",
+            "exit_code": -1,
+            "compile_error": None,
+            "cases": [],
+        }
     gradle = _find_gradle()
     if not gradle:
         return {

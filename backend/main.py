@@ -84,6 +84,13 @@ from core.code_execution import (
     is_secure_code_execution_available,
     require_secure_code_execution,
 )
+from core.sandbox import (
+    ExecutionRequest as SandboxExecutionRequest,
+    SourceFile as SandboxSourceFile,
+    Verdict as SandboxVerdict,
+    get_execution_backend,
+)
+from core.sandbox.limits import PROGRAM_TIME_SECONDS
 from core import login_abuse
 from core.security_audit import (
     audit_code_execution_denied,
@@ -13069,19 +13076,38 @@ def _run_official_exercise_tests(project: models.CodeProject, exercise: models.P
             cases.extend(_standard_oj_cases(exercise, hidden=True))
         results = [_run_standard_oj_case(project, files, case) for case in cases]
         passed_count = sum(1 for item in results if item.get("passed"))
+        all_passed = bool(cases) and passed_count == len(cases)
+        # A build failure is a property of the submission, not of one case: if ANY case
+        # could not compile, none of them ran, so the aggregate must say so rather than
+        # report a generic "tests failed". The caller keys its "compile failed, samples
+        # not run" branch off exactly this.
+        compile_error = next((item.get("compile_error") for item in results if item.get("compile_error")), None)
+        if all_passed:
+            failed_categories: list[str] = []
+        elif compile_error:
+            failed_categories = ["compile"]
+        else:
+            failed_categories = ["tests"]
         return {
             "success": True,
-            "passed": bool(cases) and passed_count == len(cases),
+            "passed": all_passed,
             "passed_count": passed_count,
             "total_count": len(cases),
-            "failed_categories": [] if cases and passed_count == len(cases) else ["tests"],
+            "failed_categories": failed_categories,
+            "compile_error": compile_error,
             "duration_ms": sum(int(item.get("duration_ms") or 0) for item in results),
-            "exit_code": 0 if cases and passed_count == len(cases) else 1,
+            "exit_code": 0 if all_passed else 1,
             "cases": [
                 _exercise_case_from_result(item, case)
                 for item, case in zip(results, cases)
             ],
         }
+    # The remaining branches are the legacy Exercism/JUnit/Python-test runner: they build
+    # and run the learner's source as HOST subprocesses (pytest/gcc/g++/gradle). They are
+    # unreachable for the standard-io catalogue, but with the sandbox enabled they must
+    # refuse rather than execute on the host.
+    if get_execution_backend() is not None:
+        return _legacy_host_run_removed("exercise.official_tests")
     bundle = _exercise_json(exercise.official_test_files_json, []) if submission else _normalized_public_bundle(exercise)
     if not submission:
         official_bundle = _exercise_json(exercise.official_test_files_json, [])
@@ -13194,71 +13220,122 @@ def _sample_test_bundle(exercise: models.ProgrammingExercise, sample: dict) -> l
     return result
 
 
+def _sandbox_error_message(result) -> str | None:
+    """A learner-facing message for a failed sandbox run. Never exposes internals."""
+    if result.verdict is SandboxVerdict.TIMEOUT:
+        return f"执行超时（超过 {PROGRAM_TIME_SECONDS} 秒），您的代码可能包含死循环或复杂度过高的算法。"
+    if result.verdict is SandboxVerdict.MEMORY_LIMIT:
+        return "程序使用的内存超过了运行环境上限。"
+    if result.verdict is SandboxVerdict.OUTPUT_LIMIT:
+        return "程序输出内容过多，已超出运行环境限制。"
+    if result.verdict is SandboxVerdict.INTERNAL_ERROR:
+        # A missing daemon/image is the deployment's problem, not the learner's, and the
+        # internal reason must not leak. Same stable refusal as the closed gate.
+        return code_execution_unavailable_detail()["message"]
+    return None
+
+
+def _sandbox_exec_dict(result) -> dict:
+    """Project an ExecutionResult onto the ``/code/.../execute`` response shape."""
+    return {
+        "success": True,
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+        "exit_code": result.exit_code if result.exit_code is not None else -1,
+        "duration_ms": result.duration_ms,
+        "timed_out": result.verdict is SandboxVerdict.TIMEOUT,
+        "error_message": _sandbox_error_message(result),
+        "compile_error": result.compile_error,
+        "compiled": result.compiled,
+        "stdout_truncated": result.output_truncated,
+        "stderr_truncated": False,
+    }
+
+
 def _run_standard_oj_case(project: models.CodeProject, files: list[models.CodeProjectFile], sample: dict) -> dict:
-    """Compile/run one normal stdin/stdout case without any Exercism adapter."""
-    # SECURITY_S0: gcc/g++/javac/python run over learner source below. Fail closed.
+    """Compile/run one normal stdin/stdout case inside the isolated sandbox."""
+    # SECURITY_S0: the learner's source is compiled and run below. Fail closed unless a
+    # verified sandbox is available; there is no host fallback anywhere on this path.
     require_secure_code_execution()
+    backend = get_execution_backend()
+    if backend is None:
+        # The gate opened but no usable backend exists (e.g. the daemon vanished between
+        # the check and here). Refuse rather than degrade to the host.
+        raise HTTPException(status_code=503, detail=code_execution_unavailable_detail())
     language = normalize_project_language(project.language)
     started = time.time()
-    with tempfile.TemporaryDirectory(prefix="standard-oj-") as raw:
-        temp = Path(raw)
-        for file in files:
-            target = temp / safe_project_path(file.relative_path)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(file.content or "", encoding="utf-8")
-        entry = safe_project_path(project.entry_file)
-        stdin_text = str(sample.get("stdin_text") or "")
-        expected = str(sample.get("expected_stdout") or "")
-        compile_error = None
-        if language == "Python":
-            command = [_get_python_project_runner(), "-X", "utf8", entry]
-        elif language == "C":
-            sources = [str(Path(file.relative_path)) for file in files if str(file.relative_path).endswith(".c")]
-            command = [shutil.which("gcc") or "gcc", *sources, "-std=c11", "-Wall", "-Wextra", "-o", "program"]
-            compiled = subprocess.run(command, cwd=temp, capture_output=True, encoding="utf-8", errors="replace", text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C)
-            if compiled.returncode != 0:
-                compile_error = compiled.stderr or compiled.stdout
-            command = [str(temp / "program")]
-        elif language == "C++":
-            sources = [str(Path(file.relative_path)) for file in files if PurePosixPath(file.relative_path).suffix.lower() in {".cpp", ".cc", ".cxx"}]
-            command = [shutil.which("g++") or "g++", *sources, "-std=c++17", "-Wall", "-Wextra", "-o", "program"]
-            compiled = subprocess.run(command, cwd=temp, capture_output=True, encoding="utf-8", errors="replace", text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C)
-            if compiled.returncode != 0:
-                compile_error = compiled.stderr or compiled.stdout
-            command = [str(temp / "program")]
-        elif language == "Java":
-            sources = [str(Path(file.relative_path)) for file in files if PurePosixPath(file.relative_path).suffix.lower() == ".java"]
-            if not sources:
-                return {"success": False, "passed": False, "failed_categories": ["compile"], "stderr": "Java 项目没有 .java 源文件", "exit_code": -1, "duration_ms": 0}
-            classes_dir = temp / "classes"
-            classes_dir.mkdir(exist_ok=True)
-            compiled = subprocess.run(
-                [shutil.which("javac") or "javac", "-encoding", "UTF-8", "-d", str(classes_dir), *sources],
-                cwd=temp, capture_output=True, encoding="utf-8", errors="replace", text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C,
-            )
-            if compiled.returncode != 0:
-                compile_error = compiled.stderr or compiled.stdout
-                return {"success": True, "passed": False, "failed_categories": ["compile"], "compile_error": compile_error, "stderr": "", "actual_output": "", "expected_output": expected, "actual_stdout": "", "expected_stdout": expected, "exit_code": compiled.returncode, "duration_ms": int((time.time() - started) * 1000)}
-            main_class = getattr(project, "main_class", None) or "Main"
-            try:
-                run = subprocess.run(
-                    [shutil.which("java") or "java", "-Dfile.encoding=UTF-8", "-cp", str(classes_dir), main_class],
-                    cwd=temp, input=stdin_text, capture_output=True, encoding="utf-8", errors="replace", text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C,
-                )
-            except subprocess.TimeoutExpired:
-                return {"success": True, "passed": False, "failed_categories": ["timeout"], "timeout": True, "stderr": "", "actual_output": "", "expected_output": expected, "actual_stdout": "", "expected_stdout": expected, "exit_code": -1, "duration_ms": int((time.time() - started) * 1000)}
-            actual = (run.stdout or "").replace("\r\n", "\n")
-            return {"success": True, "passed": run.returncode == 0 and actual == expected, "failed_categories": [] if run.returncode == 0 and actual == expected else ["tests"], "stdout": actual, "stderr": run.stderr or "", "actual_output": actual, "expected_output": expected, "actual_stdout": actual, "expected_stdout": expected, "exit_code": run.returncode, "duration_ms": int((time.time() - started) * 1000)}
-        else:
-            return {"success": False, "passed": False, "failed_categories": ["unsupported"], "stderr": "本轮仅支持 C、C++、Python 标准 OJ 题。", "exit_code": -1, "duration_ms": 0}
-        if compile_error:
-            return {"success": True, "passed": False, "failed_categories": ["compile"], "compile_error": compile_error, "stderr": "", "actual_output": "", "expected_output": expected, "actual_stdout": "", "expected_stdout": expected, "exit_code": 1, "duration_ms": int((time.time() - started) * 1000)}
-        try:
-            run = subprocess.run(command, cwd=temp, input=stdin_text, capture_output=True, encoding="utf-8", errors="replace", text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C)
-        except subprocess.TimeoutExpired:
-            return {"success": True, "passed": False, "failed_categories": ["timeout"], "timeout": True, "stderr": "", "actual_output": "", "expected_output": expected, "actual_stdout": "", "expected_stdout": expected, "exit_code": -1, "duration_ms": int((time.time() - started) * 1000)}
-        actual = (run.stdout or "").replace("\r\n", "\n")
-        return {"success": True, "passed": run.returncode == 0 and actual == expected, "failed_categories": [] if run.returncode == 0 and actual == expected else ["tests"], "stdout": actual, "stderr": run.stderr or "", "actual_output": actual, "expected_output": expected, "actual_stdout": actual, "expected_stdout": expected, "exit_code": run.returncode, "duration_ms": int((time.time() - started) * 1000)}
+    sources = tuple(
+        SandboxSourceFile(relative_path=safe_project_path(file.relative_path), content=file.content or "")
+        for file in files
+    )
+    fallback_entry = sources[0].relative_path if sources else ""
+    entry = safe_project_path(project.entry_file or fallback_entry)
+    stdin_text = str(sample.get("stdin_text") or "")
+    expected = str(sample.get("expected_stdout") or "")
+    result = backend.run(SandboxExecutionRequest(
+        language=language,
+        files=sources,
+        entry_file=entry,
+        main_class=getattr(project, "main_class", None) or "Main",
+        stdin=stdin_text,
+    ))
+    actual = (result.stdout or "").replace("\r\n", "\n")
+    timed_out = result.verdict is SandboxVerdict.TIMEOUT
+    compile_error = result.compile_error
+    passed = result.verdict is SandboxVerdict.ACCEPTED and actual == expected
+    if passed:
+        failed_categories: list[str] = []
+    elif compile_error:
+        failed_categories = ["compile"]
+    elif timed_out:
+        failed_categories = ["timeout"]
+    else:
+        failed_categories = ["tests"]
+    return {
+        "success": True,
+        "passed": passed,
+        "failed_categories": failed_categories,
+        "stdout": actual,
+        "stderr": result.stderr or "",
+        "actual_output": actual,
+        "expected_output": expected,
+        "actual_stdout": actual,
+        "expected_stdout": expected,
+        "exit_code": result.exit_code if result.exit_code is not None else -1,
+        "duration_ms": result.duration_ms or int((time.time() - started) * 1000),
+        "compile_error": compile_error,
+        "timeout": timed_out,
+        "error_message": _sandbox_error_message(result),
+        "compiled": result.compiled,
+        "stdout_truncated": result.output_truncated,
+        "stderr_truncated": False,
+    }
+
+
+def _legacy_host_run_removed(prefix: str) -> dict:
+    """Result for a legacy host-execution path that the sandbox cannot serve.
+
+    These Exercism/JUnit paths ran the learner's source as a host subprocess. They are
+    unreachable for the standard-io production catalogue, but leaving the host code live
+    behind an open gate is exactly the S0 incident. When the sandbox is enabled they must
+    refuse, not silently execute on the host.
+    """
+    return {
+        "success": False,
+        "passed": False,
+        "passed_count": 0,
+        "total_count": 0,
+        "failed_categories": ["unsupported"],
+        "duration_ms": 0,
+        "exit_code": -1,
+        "stdout": "",
+        "stderr": "该题型的运行方式暂不支持。",
+        "compile_error": None,
+        "compiled": False,
+        "status": "unsupported",
+        "cases": [],
+        "technical_details": f"{prefix}: not available in the container backend",
+    }
 
 
 def _run_public_sample(project: models.CodeProject, exercise: models.ProgrammingExercise, files: list[models.CodeProjectFile], sample: dict) -> dict:
@@ -13274,6 +13351,12 @@ def _run_public_sample(project: models.CodeProject, exercise: models.Programming
     )
     if _is_standard_oj_exercise(exercise) or is_stdin_stdout_sample:
         return _run_standard_oj_case(project, files, sample)
+    # Everything below is the legacy Exercism/JUnit runner, which compiles and runs the
+    # learner's source as HOST subprocesses. The production catalogue is entirely
+    # standard-io and never reaches here, but once the sandbox is enabled these paths
+    # must refuse rather than fall back to the host.
+    if get_execution_backend() is not None:
+        return _legacy_host_run_removed("exercise.public_sample")
     adapter_result = run_programming_io_adapter(language, exercise, files, sample, _exercise_manifest(exercise))
     if adapter_result is not None:
         return adapter_result
@@ -13863,87 +13946,6 @@ def delete_code_project_file(project_id: int, file_id: int, username: str = "", 
     return {"success": True, "message": "项目文件已删除", "project": serialize_code_project(project)}
 
 
-def _write_project_files(tmp_dir: str, files: list[models.CodeProjectFile]) -> None:
-    root = Path(tmp_dir).resolve()
-    for file in files:
-        relative_path = safe_project_path(file.relative_path)
-        target = (root / Path(relative_path)).resolve()
-        if root != target and root not in target.parents:
-            raise HTTPException(status_code=400, detail="文件路径越界")
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(file.content or "", encoding="utf-8")
-
-
-def _truncate_output(text: str) -> tuple[str, bool]:
-    value = text or ""
-    if len(value) <= MAX_OUTPUT_CHARS:
-        return value, False
-    return value[:MAX_OUTPUT_CHARS], True
-
-
-def _run_project_command(args: list[str], cwd: str, stdin: str = "", timeout: int = 6) -> dict:
-    # SECURITY_S0: this is the single host-subprocess helper for project runs. A
-    # timeout, truncated output, shell=False and a temp cwd are NOT a sandbox, so
-    # the gate lives here rather than at the call sites.
-    require_secure_code_execution()
-    start = time.time()
-    try:
-        proc = subprocess.run(
-            args,
-            cwd=cwd,
-            input=stdin or None,
-            encoding="utf-8",
-            errors="replace",
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            shell=False,
-        )
-        elapsed_ms = int((time.time() - start) * 1000)
-        stdout, stdout_truncated = _truncate_output(proc.stdout or "")
-        stderr, stderr_truncated = _truncate_output(proc.stderr or "")
-        return {
-            "stdout": stdout,
-            "stderr": stderr,
-            "exit_code": proc.returncode,
-            "duration_ms": elapsed_ms,
-            "timed_out": False,
-            "error_message": None,
-            "compile_error": None,
-            "compiled": True,
-            "stdout_truncated": stdout_truncated,
-            "stderr_truncated": stderr_truncated,
-        }
-    except subprocess.TimeoutExpired as exc:
-        elapsed_ms = int((time.time() - start) * 1000)
-        stdout, stdout_truncated = _truncate_output(exc.stdout or "")
-        stderr, stderr_truncated = _truncate_output(exc.stderr or "")
-        return {
-            "stdout": stdout,
-            "stderr": stderr or f"执行超时（超过 {timeout} 秒），您的代码可能包含死循环或复杂度过高的算法。",
-            "exit_code": -1,
-            "duration_ms": elapsed_ms,
-            "timed_out": True,
-            "error_message": None,
-            "compile_error": None,
-            "compiled": False,
-            "stdout_truncated": stdout_truncated,
-            "stderr_truncated": stderr_truncated,
-        }
-
-
-def _get_python_project_runner() -> str:
-    python3 = shutil.which("python3")
-    if python3 and "WindowsApps" not in python3:
-        return python3
-    return sys.executable
-
-
-def _project_binary_path(tmp_dir: str) -> str:
-    name = "app.exe" if os.name == "nt" else "app"
-    return str(Path(tmp_dir) / name)
-
-
 def _detect_java_main_class(file_path: str, content: str) -> str | None:
     if "public static void main" not in content and "static void main" not in content:
         return None
@@ -13988,112 +13990,66 @@ def execute_code_project(
     if not acquired:
         raise HTTPException(status_code=503, detail="当前代码运行任务较多，请稍后重试。")
 
-    tmp_dir = tempfile.mkdtemp(prefix="code_project_")
     # SECURITY_S0.5: bind who/what before any compile/run so the guard's audit event
     # identifies the learner. Reset in the finally below.
     audit_token = _bind_code_execution_audit(
         request, current_user, action="code.project.execute", language=project.language, resource=project_id
     )
     try:
-        _write_project_files(tmp_dir, files)
+        # SECURITY_S0B: the single seam. Learner source only ever reaches the sandbox —
+        # this route no longer contains a host compiler or interpreter of any kind.
+        require_secure_code_execution()
+        backend = get_execution_backend()
+        if backend is None:
+            raise HTTPException(status_code=503, detail=code_execution_unavailable_detail())
+
         language = normalize_project_language(project.language)
+        if language not in {"Python", "C", "C++", "Java"}:
+            raise HTTPException(status_code=400, detail="不支持的项目语言")
         requested_entry = (req.entry_file or "").strip()
         entry_file = safe_project_path(requested_entry or project.entry_file)
+        source_path_set = {file.relative_path for file in files}
+        if entry_file not in source_path_set:
+            raise HTTPException(status_code=400, detail="入口文件不存在")
         requested_sources = [
             safe_project_path(path)
             for path in (req.source_files or [])
             if str(path or "").strip()
         ]
-        stdin = (req.stdin or "")[:MAX_STDIN_CHARS]
-        source_paths = [file.relative_path for file in files]
-        source_path_set = set(source_paths)
         requested_sources = [path for path in requested_sources if path in source_path_set]
+        if not requested_sources and language in {"C", "C++", "Java"}:
+            suffix = {"C": (".c",), "C++": (".cpp", ".cc", ".cxx"), "Java": (".java",)}[language]
+            if not any(path.lower().endswith(suffix) for path in source_path_set):
+                raise HTTPException(status_code=400, detail=f"{language} 项目没有可编译的源文件")
 
-        if language == "Python":
-            runner = _get_python_project_runner()
-            entry = Path(tmp_dir) / Path(entry_file)
-            if not entry.exists():
-                raise HTTPException(status_code=400, detail="入口文件不存在")
-            return {**_run_project_command([runner, str(entry.relative_to(tmp_dir))], tmp_dir, stdin, EXECUTE_TIMEOUT_SECONDS), "success": True}
-
-        if language == "C":
-            gcc = shutil.which("gcc")
-            if not gcc:
-                return {"success": True, "stdout": "", "stderr": "", "exit_code": -1, "duration_ms": 0, "timed_out": False, "error_message": "服务器未安装 gcc，无法运行 C 项目。", "compile_error": None, "compiled": False, "stdout_truncated": False, "stderr_truncated": False}
-            c_files = sorted(
-                path for path in (requested_sources or source_paths)
-                if PurePosixPath(path).suffix.lower() == ".c"
-            )
-            if not c_files:
-                raise HTTPException(status_code=400, detail="C 项目没有 .c 源文件")
-            app_path = _project_binary_path(tmp_dir)
-            compile_result = _run_project_command([gcc, *c_files, "-std=c11", "-Wall", "-Wextra", "-o", app_path], tmp_dir, "", EXECUTE_TIMEOUT_SECONDS_C)
-            if compile_result["exit_code"] != 0:
-                compile_result["compile_error"] = compile_result["stderr"]
-                compile_result["stderr"] = ""
-                compile_result["compiled"] = False
-                compile_result["success"] = True
-                return compile_result
-            return {**_run_project_command([app_path], tmp_dir, stdin, EXECUTE_TIMEOUT_SECONDS_C), "success": True}
-
-        if language == "C++":
-            gpp = shutil.which("g++")
-            if not gpp:
-                return {"success": True, "stdout": "", "stderr": "", "exit_code": -1, "duration_ms": 0, "timed_out": False, "error_message": "服务器未安装 g++，无法运行 C++ 项目。", "compile_error": None, "compiled": False, "stdout_truncated": False, "stderr_truncated": False}
-            cpp_files = sorted(
-                path for path in (requested_sources or source_paths)
-                if PurePosixPath(path).suffix.lower() in (".cpp", ".cc", ".cxx")
-            )
-            if not cpp_files:
-                raise HTTPException(status_code=400, detail="C++ 项目没有 .cpp/.cc/.cxx 源文件")
-            app_path = _project_binary_path(tmp_dir)
-            compile_result = _run_project_command([gpp, *cpp_files, "-std=c++17", "-Wall", "-Wextra", "-o", app_path], tmp_dir, "", EXECUTE_TIMEOUT_SECONDS_C)
-            if compile_result["exit_code"] != 0:
-                compile_result["compile_error"] = compile_result["stderr"]
-                compile_result["stderr"] = ""
-                compile_result["compiled"] = False
-                compile_result["success"] = True
-                return compile_result
-            return {**_run_project_command([app_path], tmp_dir, stdin, EXECUTE_TIMEOUT_SECONDS_C), "success": True}
-
-        if language == "Java":
-            javac = shutil.which("javac")
-            java = shutil.which("java")
-            if not javac or not java:
-                return {"success": True, "stdout": "", "stderr": "", "exit_code": -1, "duration_ms": 0, "timed_out": False, "error_message": "服务器未安装 javac/java，无法运行 Java 项目。", "compile_error": None, "compiled": False, "stdout_truncated": False, "stderr_truncated": False}
-            java_files = sorted(
-                path for path in (requested_sources or source_paths)
-                if PurePosixPath(path).suffix.lower() == ".java"
-            )
-            if not java_files:
-                raise HTTPException(status_code=400, detail="Java 项目没有 .java 源文件")
-            classes_dir = Path(tmp_dir) / "classes"
-            classes_dir.mkdir(exist_ok=True)
-            compile_result = _run_project_command([javac, "-encoding", "UTF-8", "-d", str(classes_dir), *java_files], tmp_dir, "", EXECUTE_TIMEOUT_SECONDS_C)
-            if compile_result["exit_code"] != 0:
-                compile_result["compile_error"] = compile_result["stderr"]
-                compile_result["stderr"] = ""
-                compile_result["compiled"] = False
-                compile_result["success"] = True
-                return compile_result
-            main_class = (req.main_class or project.main_class or "").strip()
-            if not main_class:
-                entry_model = next((file for file in files if file.relative_path == entry_file), None)
-                if entry_model:
-                    main_class = _detect_java_main_class(entry_model.relative_path, entry_model.content or "") or ""
+        main_class = (req.main_class or project.main_class or "").strip()
+        if language == "Java" and not main_class:
+            entry_model = next((file for file in files if file.relative_path == entry_file), None)
+            if entry_model:
+                main_class = _detect_java_main_class(entry_model.relative_path, entry_model.content or "") or ""
             if not main_class:
                 detected_main_classes = _detect_project_java_main_classes(files)
                 if len(detected_main_classes) == 1:
                     main_class = detected_main_classes[0]
             if not main_class:
                 raise HTTPException(status_code=400, detail="请先在运行配置中选择 Java 运行主类。")
-            return {**_run_project_command([java, "-cp", str(classes_dir), main_class], tmp_dir, stdin, EXECUTE_TIMEOUT_SECONDS_C), "success": True}
 
-        raise HTTPException(status_code=400, detail="不支持的项目语言")
+        sources = tuple(
+            SandboxSourceFile(relative_path=safe_project_path(file.relative_path), content=file.content or "")
+            for file in files
+        )
+        result = backend.run(SandboxExecutionRequest(
+            language=language,
+            files=sources,
+            entry_file=entry_file,
+            main_class=main_class or None,
+            stdin=(req.stdin or "")[:MAX_STDIN_CHARS],
+            compile_files=tuple(requested_sources) if requested_sources else None,
+        ))
+        return _sandbox_exec_dict(result)
     finally:
         reset_code_execution_audit(audit_token)
         DOCKER_SEMAPHORE.release()
-        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 MAX_CODE_EXECUTE_CHARS = 20000
@@ -14120,6 +14076,23 @@ CODE_RUN_RATE_TESTS = 5     # per window
 # ── Docker concurrency semaphore ──
 DOCKER_SEMAPHORE = threading.Semaphore(2)
 DOCKER_SEMAPHORE_TIMEOUT = 8  # seconds
+
+# SECURITY_S0B: the hardening flags every container that runs learner code must carry,
+# including the interactive terminals (which build their own ``docker run`` argv).
+SANDBOX_CAP_FLAGS = ["--cap-drop", "ALL", "--security-opt", "no-new-privileges"]
+
+
+def _sandbox_hardening(memory: str) -> list[str]:
+    """Isolation flags shared by the terminals; the sandbox package builds its own copy."""
+    return [
+        "--network", "none",
+        "--read-only",
+        *SANDBOX_CAP_FLAGS,
+        "--pids-limit", str(DOCKER_PIDS_LIMIT),
+        "--memory", memory,
+        "--memory-swap", memory,   # equal to --memory: swap disabled
+        "--cpus", str(DOCKER_CPU_LIMIT),
+    ]
 
 
 def _check_code_run_rate(username: str, limit: int, window: int = CODE_RUN_RATE_WINDOW) -> bool:
@@ -14233,14 +14206,11 @@ def _run_code_in_docker(code: str, stdin: str = "") -> dict:
             with open(input_path, "w", encoding="utf-8") as f:
                 f.write(stdin)
 
-        # Security: --network none, --read-only root, --tmpfs for /tmp, strict limits
+        # SECURITY_S0B: full hardening — no network, read-only root, all capabilities
+        # dropped, no privilege escalation, swap disabled, bounded pids/cpu/memory.
         docker_cmd = [
             "docker", "run", "--rm",
-            "--network", "none",
-            "--memory", DOCKER_MEMORY_LIMIT,
-            "--cpus", str(DOCKER_CPU_LIMIT),
-            "--pids-limit", str(DOCKER_PIDS_LIMIT),
-            "--read-only",
+            *_sandbox_hardening(DOCKER_MEMORY_LIMIT),
             "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",
             "-v", f"{tmp_dir}:/code:ro",
             "-w", "/code",
@@ -14382,15 +14352,11 @@ def _run_c_code_in_docker(code: str, stdin: str = "") -> dict:
             "/tmp/main < /code/stdin.txt"
         )
 
-        # Security: --network none, --read-only root,
-        # --tmpfs /tmp:rw,exec,nosuid (exec MUST be explicit to override Docker's default noexec)
+        # SECURITY_S0B: full hardening. --tmpfs /tmp:rw,exec,nosuid — exec is explicit
+        # because the compiled binary must run, overriding Docker's default noexec.
         docker_cmd = [
             "docker", "run", "--rm",
-            "--network", "none",
-            "--memory", DOCKER_MEMORY_LIMIT_C,
-            "--cpus", str(DOCKER_CPU_LIMIT),
-            "--pids-limit", str(DOCKER_PIDS_LIMIT),
-            "--read-only",
+            *_sandbox_hardening(DOCKER_MEMORY_LIMIT_C),
             "--tmpfs", "/tmp:rw,exec,nosuid,size=128m",
             "-v", f"{tmp_dir}:/code:ro",
             "-w", "/code",
@@ -14661,7 +14627,7 @@ def diagnose_code(req: schemas.CodeDiagnoseRequest, current_user: models.User = 
             with open(c_path, "w", encoding="utf-8") as f:
                 f.write(code)
             proc = _sp.run(
-                ["docker", "run", "--rm", "--network", "none", "--memory", "128m",
+                ["docker", "run", "--rm", *_sandbox_hardening("128m"),
                  "-v", f"{tmp_dir}:/code:ro", "-w", "/code", DOCKER_IMAGE_C,
                  "gcc", "-fsyntax-only", "-Wall", "-Wextra", "-o", "/dev/null", "main.c"],
                 capture_output=True, text=True, timeout=15, cwd=tmp_dir,
@@ -35838,8 +35804,7 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
                     if str(item.relative_path).lower().endswith(source_suffixes)
                 ]
                 compile_cmd = [
-                    "docker", "run", "--rm", "--network", "none", "--memory", memory,
-                    "--cpus", str(DOCKER_CPU_LIMIT), "--pids-limit", str(DOCKER_PIDS_LIMIT),
+                    "docker", "run", "--rm", *_sandbox_hardening(memory),
                     "-v", f"{tmp_dir}:/work", "-w", "/work", DOCKER_IMAGE_C,
                     compiler_name, *compiler_flags, *source_relative_files, "-o", "program",
                 ]
@@ -35867,8 +35832,8 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
         # the launch with exit code 1 ("the input device is not a TTY")
         # even though the host-side PTY is valid.  ``-i`` is sufficient
         # here: the host PTY still streams stdin/stdout to the browser.
-        launch_command = ["docker", "run", "--rm", "-i", "--network", "none", "--memory", memory,
-                          "--cpus", str(DOCKER_CPU_LIMIT), "--pids-limit", str(DOCKER_PIDS_LIMIT), "--read-only", "--tmpfs", "/tmp:rw,exec,nosuid,size=128m",
+        launch_command = ["docker", "run", "--rm", "-i", *_sandbox_hardening(memory),
+                          "--tmpfs", "/tmp:rw,exec,nosuid,size=128m",
                           "-v", f"{tmp_dir}:/code:ro", runtime_image, *runtime_command]
         import threading
         use_pty = hasattr(os, "openpty")
@@ -36091,7 +36056,8 @@ async def interactive_run(ws: WebSocket):
         if is_c:
             await ws.send_text(json.dumps({"type": "status", "message": "正在编译 C 代码..."}))
             compile_proc = subprocess.run(
-                ["docker", "run", "--rm", "--network", "none", "--memory", INTERACTIVE_MEMORY_C,
+                ["docker", "run", "--rm", *_sandbox_hardening(INTERACTIVE_MEMORY_C),
+                 "--tmpfs", "/tmp:rw,exec,nosuid,size=128m",
                  "-v", f"{tmp_dir}:/code:ro", "-w", "/code", DOCKER_IMAGE_C,
                  "gcc", "-Wall", "-Wextra", "-o", "/tmp/prog", "main.c"],
                 capture_output=True, text=True, timeout=20, cwd=tmp_dir,
@@ -36104,10 +36070,8 @@ async def interactive_run(ws: WebSocket):
 
             await ws.send_text(json.dumps({"type": "status", "message": "编译成功，正在运行..."}))
             docker_cmd = [
-                "docker", "run", "--rm", "-i",
-                "--network", "none", "--memory", INTERACTIVE_MEMORY_C,
-                "--cpus", str(DOCKER_CPU_LIMIT), "--pids-limit", str(DOCKER_PIDS_LIMIT),
-                "--read-only", "--tmpfs", "/tmp:rw,exec,nosuid,size=128m",
+                "docker", "run", "--rm", "-i", *_sandbox_hardening(INTERACTIVE_MEMORY_C),
+                "--tmpfs", "/tmp:rw,exec,nosuid,size=128m",
                 "-v", f"{tmp_dir}:/code:ro", "-w", "/code",
                 DOCKER_IMAGE_C, "sh", "-c",
                 "cp /code/main.c /tmp/main.c && cd /tmp && gcc -Wall -Wextra -o prog main.c && ./prog",
@@ -36115,10 +36079,8 @@ async def interactive_run(ws: WebSocket):
         else:
             await ws.send_text(json.dumps({"type": "status", "message": "正在运行 Python 代码..."}))
             docker_cmd = [
-                "docker", "run", "--rm", "-i",
-                "--network", "none", "--memory", INTERACTIVE_MEMORY,
-                "--cpus", str(DOCKER_CPU_LIMIT), "--pids-limit", str(DOCKER_PIDS_LIMIT),
-                "--read-only", "--tmpfs", "/tmp:rw,exec,nosuid,size=128m",
+                "docker", "run", "--rm", "-i", *_sandbox_hardening(INTERACTIVE_MEMORY),
+                "--tmpfs", "/tmp:rw,exec,nosuid,size=128m",
                 "-v", f"{tmp_dir}:/code:ro", "-w", "/code",
                 DOCKER_IMAGE, "python", "-u", "main.py",
             ]

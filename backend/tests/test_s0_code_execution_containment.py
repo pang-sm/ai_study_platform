@@ -296,9 +296,9 @@ def test_every_execution_helper_shares_the_same_gate(client, no_backend):
     import programming_execution
     import programming_io_adapter
 
-    with pytest.raises(Exception) as project_exc:
-        main._run_project_command(["python", "-c", "print(1)"], cwd=".")
-    assert project_exc.value.status_code == 503
+    # SECURITY_S0B removed the host-subprocess helper entirely (``_run_project_command``):
+    # project execution now reaches only the container sandbox, so there is no host leaf
+    # left to guard. The remaining leaves below are the ones that still exist.
 
     with pytest.raises(Exception) as docker_exc:
         main._run_code_in_docker("print(1)")
