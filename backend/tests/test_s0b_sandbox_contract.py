@@ -1,15 +1,14 @@
-"""SECURITY_S0B — sandbox selection, fail-closed behaviour and response shapes.
+"""SECURITY_S0B / S0B-P1 — backend selection, fail-closed behaviour and response shapes.
 
-These tests never need Docker: they pin the contract that decides *whether* isolation
-is possible and how its outcome is projected into the existing API shapes. The
-isolation properties themselves are proven in ``test_s0b_sandbox_security.py``.
+These tests never need Docker. They pin the contract that decides *whether* isolation is
+possible (now: an explicit opt-in AND the runner's Unix socket) and how its outcome is
+projected into the existing API shapes. The isolation properties are proven separately in
+``test_s0b_sandbox_security.py`` (runner-side, real containers).
 
-The central invariant: when the sandbox is enabled, no path may fall back to a host
-subprocess. The legacy Exercism/JUnit/adapter runners therefore have to refuse.
+The central invariant is unchanged: when the sandbox is enabled, no path may fall back to a
+host subprocess. The legacy Exercism/JUnit/adapter runners therefore still have to refuse.
 """
 from __future__ import annotations
-
-import shutil
 
 import pytest
 
@@ -18,35 +17,44 @@ import programming_execution
 import programming_io_adapter
 from core import code_execution, sandbox
 from core.sandbox import ExecutionRequest, SourceFile, Verdict
+from core.sandbox.docker_backend import DockerExecutionBackend
 from core.sandbox.types import CompileResult, ExecutionResult
 
 
 @pytest.fixture(autouse=True)
 def _reset_backend_cache(monkeypatch):
-    """Never let one test's cached backend leak into the next."""
-    monkeypatch.setattr(sandbox, "_backend", None, raising=False)
+    """Never let one test's cached client leak into the next."""
+    monkeypatch.setattr(sandbox, "_client", None, raising=False)
+
+
+def _present_socket(monkeypatch, tmp_path) -> str:
+    """Point the sandbox at a socket path that EXISTS (no runner is actually dialled here)."""
+    sock = tmp_path / "runner.sock"
+    sock.write_text("", encoding="utf-8")
+    monkeypatch.setenv("SANDBOX_RUNNER_SOCKET", str(sock))
+    return str(sock)
 
 
 # ── backend selection ──────────────────────────────────────────────────────────────
 
-def test_no_opt_in_means_no_backend(monkeypatch):
+def test_no_opt_in_means_no_backend(monkeypatch, tmp_path):
     monkeypatch.delenv(code_execution.CODE_EXECUTION_BACKEND_ENV, raising=False)
-    monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/docker")
+    _present_socket(monkeypatch, tmp_path)
     assert sandbox.get_execution_backend() is None
 
 
 @pytest.mark.parametrize("value", ["", "none", "host", "subprocess", "true", "dockerized"])
-def test_unknown_backend_value_means_no_backend(monkeypatch, value):
+def test_unknown_backend_value_means_no_backend(monkeypatch, tmp_path, value):
     monkeypatch.setenv(code_execution.CODE_EXECUTION_BACKEND_ENV, value)
-    monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/docker")
+    _present_socket(monkeypatch, tmp_path)
     assert sandbox.get_execution_backend() is None
 
 
-def test_docker_opt_in_yields_the_docker_backend(monkeypatch):
+def test_docker_opt_in_yields_the_runner_client(monkeypatch, tmp_path):
     monkeypatch.setenv(code_execution.CODE_EXECUTION_BACKEND_ENV, "docker")
-    monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/docker")
+    _present_socket(monkeypatch, tmp_path)
     backend = sandbox.get_execution_backend()
-    assert isinstance(backend, sandbox.DockerExecutionBackend)
+    assert isinstance(backend, sandbox.SandboxRunnerClient)
 
 
 def test_preflight_reports_not_configured_without_opt_in(monkeypatch):
@@ -56,10 +64,18 @@ def test_preflight_reports_not_configured_without_opt_in(monkeypatch):
     assert report["reason"] == "backend_not_configured"
 
 
+def test_preflight_reports_missing_socket(monkeypatch, tmp_path):
+    monkeypatch.setenv(code_execution.CODE_EXECUTION_BACKEND_ENV, "docker")
+    monkeypatch.setenv("SANDBOX_RUNNER_SOCKET", str(tmp_path / "absent.sock"))
+    report = sandbox.sandbox_preflight()
+    assert report["ready"] is False
+    assert report["reason"] == "runner_socket_missing"
+
+
 # ── the backend never spawns docker for input it can reject itself ──────────────────
 
 def test_unsupported_language_is_rejected_without_running_anything(monkeypatch):
-    backend = sandbox.DockerExecutionBackend()
+    backend = DockerExecutionBackend()
     spawned = []
     monkeypatch.setattr("subprocess.Popen", lambda *a, **k: spawned.append(a))
     result = backend.run(ExecutionRequest(language="Ruby", files=()))
@@ -68,7 +84,7 @@ def test_unsupported_language_is_rejected_without_running_anything(monkeypatch):
 
 
 def test_oversize_source_is_rejected_before_any_container(monkeypatch):
-    backend = sandbox.DockerExecutionBackend()
+    backend = DockerExecutionBackend()
     spawned = []
     monkeypatch.setattr("subprocess.Popen", lambda *a, **k: spawned.append(a))
     result = backend.run(ExecutionRequest(
@@ -81,7 +97,7 @@ def test_oversize_source_is_rejected_before_any_container(monkeypatch):
 
 
 def test_path_traversal_is_rejected_before_any_container(monkeypatch):
-    backend = sandbox.DockerExecutionBackend()
+    backend = DockerExecutionBackend()
     spawned = []
     monkeypatch.setattr("subprocess.Popen", lambda *a, **k: spawned.append(a))
     result = backend.run(ExecutionRequest(
@@ -128,10 +144,10 @@ def test_internal_error_never_leaks_detail_to_the_learner():
 # ── the legacy host runners refuse once the sandbox is enabled ──────────────────────
 
 @pytest.fixture
-def sandbox_enabled(monkeypatch):
-    """Opt in AND make the runtime probe succeed, so the gate opens."""
+def sandbox_enabled(monkeypatch, tmp_path):
+    """Opt in AND make the runner socket present, so the gate opens."""
     monkeypatch.setenv(code_execution.CODE_EXECUTION_BACKEND_ENV, "docker")
-    monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/docker" if name == "docker" else None)
+    _present_socket(monkeypatch, tmp_path)
 
 
 def test_java_gradle_runner_refuses_under_the_sandbox(sandbox_enabled):

@@ -96,3 +96,20 @@ def scientific_runtime_timeout() -> float:
         return float(os.getenv("SCIENTIFIC_RUNTIME_TIMEOUT", "10.0"))
     except ValueError:
         return 10.0
+
+
+def sandbox_runner_socket() -> str:
+    """Unix-domain socket the sandbox runner listens on (SECURITY_S0B-P1).
+
+    The web process reaches all learner-code execution through this socket; it holds no
+    docker binary, no docker group and no rootful socket access.
+    """
+    return os.getenv("SANDBOX_RUNNER_SOCKET", "/run/zhixue-sandbox/runner.sock")
+
+
+def sandbox_runner_timeout() -> float:
+    """Whole-request timeout for one runner call (container start + compile + run)."""
+    try:
+        return float(os.getenv("SANDBOX_RUNNER_TIMEOUT", "60.0"))
+    except ValueError:
+        return 60.0

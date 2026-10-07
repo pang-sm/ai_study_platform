@@ -53,6 +53,9 @@ class ExecutionRequest:
     compile_files: tuple[str, ...] | None = None
     # Overrides the per-language default from limits.py; None means "use the default".
     wall_time_ms: int | None = None
+    # When True the program is COMPILED but never executed (syntax diagnosis). Only
+    # native languages honour this; a compile-only request never runs learner code.
+    compile_only: bool = False
 
 
 @dataclass(frozen=True)

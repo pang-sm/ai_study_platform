@@ -63,6 +63,14 @@ def no_backend(monkeypatch):
     monkeypatch.delenv(code_execution.CODE_EXECUTION_BACKEND_ENV, raising=False)
 
 
+def _present_runner_socket(monkeypatch, tmp_path) -> str:
+    """Make the sandbox runner socket exist (no runner is actually dialled here)."""
+    sock = tmp_path / "runner.sock"
+    sock.write_text("", encoding="utf-8")
+    monkeypatch.setenv("SANDBOX_RUNNER_SOCKET", str(sock))
+    return str(sock)
+
+
 def _create_project(client, username: str, language: str, code: str) -> int:
     """Create a project (any language) and plant the payload in its auto-created entry file."""
     created = client.post("/code/projects", json={
@@ -122,39 +130,38 @@ def test_policy_fails_closed_when_env_absent(monkeypatch):
 
 
 @pytest.mark.parametrize("value", ["", "none", "host", "subprocess", "shell", "true", "1", "docker2", "dockerized"])
-def test_policy_fails_closed_on_unknown_backend(monkeypatch, value):
+def test_policy_fails_closed_on_unknown_backend(monkeypatch, tmp_path, value):
     """Only the exact verified identifier opts in; near-misses must not open the door."""
-    import shutil
+    _present_runner_socket(monkeypatch, tmp_path)
+    # Even with the runner socket present, an unrecognised value must not enable anything.
     monkeypatch.setenv(code_execution.CODE_EXECUTION_BACKEND_ENV, value)
-    # Even with a docker binary present, an unrecognised value must not enable anything.
-    monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/docker" if name == "docker" else None)
     assert code_execution.is_secure_code_execution_available() is False
 
 
-def test_explicit_opt_in_with_runtime_present_is_the_only_enabling_combination(monkeypatch):
-    """The documented way to restore execution: explicit opt-in AND the sandbox runtime."""
-    import shutil
+def test_explicit_opt_in_with_runtime_present_is_the_only_enabling_combination(monkeypatch, tmp_path):
+    """The documented way to restore execution: explicit opt-in AND the runner socket."""
+    _present_runner_socket(monkeypatch, tmp_path)
     monkeypatch.setenv(code_execution.CODE_EXECUTION_BACKEND_ENV, "docker")
-    monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/docker" if name == "docker" else None)
     assert code_execution.is_secure_code_execution_available() is True
 
 
-def test_docker_on_path_alone_does_not_enable_execution(monkeypatch):
+def test_docker_on_path_alone_does_not_enable_execution(monkeypatch, tmp_path):
     """An unrelated host install of docker must never re-open user code execution.
 
-    This is the specific regression that caused the incident class: the old code used
-    ``shutil.which("docker") is not None`` as its sandbox probe.
+    This is the specific regression that caused the incident class: the old probe was
+    ``shutil.which("docker") is not None``. The only evidence of a sandbox is now the
+    runner's Unix socket (SECURITY_S0B-P1), never a binary on PATH.
     """
     import shutil
     monkeypatch.delenv(code_execution.CODE_EXECUTION_BACKEND_ENV, raising=False)
+    monkeypatch.setenv("SANDBOX_RUNNER_SOCKET", str(tmp_path / "absent.sock"))
     monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/docker" if name == "docker" else None)
     assert code_execution.is_secure_code_execution_available() is False
 
 
-def test_opted_in_but_runtime_missing_still_fails_closed(monkeypatch):
-    import shutil
+def test_opted_in_but_runtime_missing_still_fails_closed(monkeypatch, tmp_path):
     monkeypatch.setenv(code_execution.CODE_EXECUTION_BACKEND_ENV, "docker")
-    monkeypatch.setattr(shutil, "which", lambda name: None)
+    monkeypatch.setenv("SANDBOX_RUNNER_SOCKET", str(tmp_path / "absent.sock"))
     assert code_execution.is_secure_code_execution_available() is False
 
 

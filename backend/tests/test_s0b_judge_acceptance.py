@@ -10,6 +10,7 @@ Skipped without Docker (like the isolation suite).
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 from fastapi.testclient import TestClient  # noqa: F401  (imported for the type in fixtures)
@@ -31,7 +32,10 @@ def _probe() -> tuple[bool, set[str]]:
 
 
 _DAEMON, _MISSING = _probe()
-pytestmark = pytest.mark.skipif(not _DAEMON, reason="docker daemon unavailable")
+pytestmark = [
+    pytest.mark.skipif(not _DAEMON, reason="docker daemon unavailable"),
+    pytest.mark.skipif(os.name != "posix", reason="the runner UDS requires POSIX"),
+]
 
 # Every test below runs Python except the parametrized one; C is used by one case.
 PYTHON = pytest.mark.skipif(IMAGES["Python"] in _MISSING, reason="python image not present")
@@ -68,9 +72,41 @@ HIDDEN = json.dumps([{"samples": [
 ]}], ensure_ascii=False)
 
 
+def _start_runner(sock_path: str):
+    """Start the sandbox runner ASGI app on a temp Unix socket in a background thread."""
+    import os
+    import threading
+    import time
+
+    import uvicorn
+
+    from core.sandbox.runner.app import app as runner_app
+
+    config = uvicorn.Config(runner_app, uds=sock_path, log_level="warning", lifespan="off")
+    server = uvicorn.Server(config)
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    for _ in range(200):
+        if os.path.exists(sock_path):
+            break
+        time.sleep(0.05)
+    return server, thread
+
+
 @pytest.fixture
-def sandbox_on(monkeypatch):
+def sandbox_on(tmp_path, monkeypatch):
+    """Enable the sandbox AND run a real runner over a temp Unix socket."""
     monkeypatch.setenv("CODE_EXECUTION_BACKEND", "docker")
+    sock_path = str(tmp_path / "runner.sock")
+    monkeypatch.setenv("SANDBOX_RUNNER_SOCKET", sock_path)
+    from core import sandbox as _sandbox
+    monkeypatch.setattr(_sandbox, "_client", None, raising=False)
+    server, thread = _start_runner(sock_path)
+    try:
+        yield
+    finally:
+        server.should_exit = True
+        thread.join(timeout=5)
 
 
 def _make_exercise_project(client, username: str, language: str, code: str):

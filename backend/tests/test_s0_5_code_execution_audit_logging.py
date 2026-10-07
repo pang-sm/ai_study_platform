@@ -96,14 +96,16 @@ def test_audit_event_carries_a_request_correlation_id(client, no_backend, _captu
     assert request_id, line
 
 
-def test_permitted_attempt_is_also_recorded(client, monkeypatch, _capture_audit):
+def test_permitted_attempt_is_also_recorded(client, monkeypatch, tmp_path, _capture_audit):
     """The allow path must log too — otherwise a future sandbox would run silently."""
     register_and_login(client, "s05-allow")
     project_id = _create_project(client, "s05-allow", "Python", "print(1)")
 
-    # Simulate a verified sandbox being available WITHOUT executing anything: the guard
-    # is asserted directly so no host process can be spawned by this test.
-    monkeypatch.setattr(code_execution.shutil, "which", lambda name: "/usr/bin/docker")
+    # Simulate a verified sandbox being available WITHOUT executing anything: the guard is
+    # asserted directly so no host process (and no runner call) is spawned by this test.
+    sock = tmp_path / "runner.sock"
+    sock.write_text("", encoding="utf-8")
+    monkeypatch.setenv("SANDBOX_RUNNER_SOCKET", str(sock))
     monkeypatch.setenv(code_execution.CODE_EXECUTION_BACKEND_ENV, "docker")
     _capture_audit.clear()
 

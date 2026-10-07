@@ -91,6 +91,7 @@ from core.sandbox import (
     get_execution_backend,
 )
 from core.sandbox.limits import PROGRAM_TIME_SECONDS
+from core.sandbox.runner_client import SandboxRunnerUnavailable
 from core import login_abuse
 from core.security_audit import (
     audit_code_execution_denied,
@@ -14060,12 +14061,6 @@ MAX_TEST_CASE_INPUT_CHARS = 5000
 MAX_TEST_CASE_OUTPUT_CHARS = 5000
 EXECUTE_TIMEOUT_SECONDS = 3
 EXECUTE_TIMEOUT_SECONDS_C = 6  # C compile+run needs more time
-DOCKER_MEMORY_LIMIT = "128m"
-DOCKER_MEMORY_LIMIT_C = "256m"  # gcc compilation needs more memory
-DOCKER_CPU_LIMIT = 1.0
-DOCKER_PIDS_LIMIT = 64
-DOCKER_IMAGE = "python:3.11-slim"
-DOCKER_IMAGE_C = "gcc:13"
 
 # ── Rate limiting (in-memory, cleared on restart) ──
 CODE_RUN_RATE_LIMITS: dict[str, list[float]] = defaultdict(list)
@@ -14076,23 +14071,6 @@ CODE_RUN_RATE_TESTS = 5     # per window
 # ── Docker concurrency semaphore ──
 DOCKER_SEMAPHORE = threading.Semaphore(2)
 DOCKER_SEMAPHORE_TIMEOUT = 8  # seconds
-
-# SECURITY_S0B: the hardening flags every container that runs learner code must carry,
-# including the interactive terminals (which build their own ``docker run`` argv).
-SANDBOX_CAP_FLAGS = ["--cap-drop", "ALL", "--security-opt", "no-new-privileges"]
-
-
-def _sandbox_hardening(memory: str) -> list[str]:
-    """Isolation flags shared by the terminals; the sandbox package builds its own copy."""
-    return [
-        "--network", "none",
-        "--read-only",
-        *SANDBOX_CAP_FLAGS,
-        "--pids-limit", str(DOCKER_PIDS_LIMIT),
-        "--memory", memory,
-        "--memory-swap", memory,   # equal to --memory: swap disabled
-        "--cpus", str(DOCKER_CPU_LIMIT),
-    ]
 
 
 def _check_code_run_rate(username: str, limit: int, window: int = CODE_RUN_RATE_WINDOW) -> bool:
@@ -14105,58 +14083,6 @@ def _check_code_run_rate(username: str, limit: int, window: int = CODE_RUN_RATE_
         return False
     bucket.append(now)
     return True
-
-
-def _classify_docker_error(stderr: str) -> tuple[str | None, str | None]:
-    """Classify Docker stderr into user-friendly Chinese messages.
-
-    Returns (error_message, error_type).
-    error_type is one of: docker_permission, docker_not_found, image_not_found,
-    container_permission, container_noexec, or None.
-    """
-    if not stderr or not stderr.strip():
-        return None, None
-    lower = stderr.lower()
-
-    # Docker daemon socket permission denied — must mention docker socket / daemon
-    # e.g. "Got permission denied while trying to connect to the Docker daemon socket
-    #       at unix:///var/run/docker.sock"
-    if "permission denied" in lower and "docker" in lower and ("socket" in lower or "daemon" in lower or "connect" in lower):
-        return (
-            "后端服务暂无 Docker 权限，无法运行代码。请联系管理员配置 Docker 权限。",
-            "docker_permission",
-        )
-
-    # Docker command not found on host
-    if ("no such file" in lower or "not found" in lower) and "docker" in lower:
-        return (
-            "服务器 Docker 环境未就绪，Docker 命令不存在。请联系管理员安装 Docker。",
-            "docker_not_found",
-        )
-
-    # Docker image not found / pull required
-    if "image" in lower and ("not found" in lower or "pull" in lower or "unable" in lower):
-        return (
-            "运行镜像尚未准备完成，请先执行 docker pull python:3.11-slim 和 docker pull gcc:13。",
-            "image_not_found",
-        )
-
-    # Container-internal permission error — binary cannot execute (likely noexec tmpfs)
-    # e.g. "sh: 1: /tmp/main: Permission denied"
-    if "permission denied" in lower and "/tmp/" in lower:
-        return (
-            "C 程序编译成功，但运行二进制失败，可能是容器临时目录缺少执行权限。",
-            "container_noexec",
-        )
-
-    # Generic container permission error
-    if "cannot execute" in lower or "exec format error" in lower:
-        return (
-            "C 程序编译成功，但运行二进制失败，可能是容器临时目录缺少执行权限。",
-            "container_noexec",
-        )
-
-    return None, None
 
 
 def _compute_diff_summary(expected: str, actual: str) -> str:
@@ -14185,313 +14111,80 @@ def _compute_diff_summary(expected: str, actual: str) -> str:
         return "输出内容存在差异（可能是空白字符不同）"
 
 
-def _run_code_in_docker(code: str, stdin: str = "") -> dict:
-    """Run user Python code inside a locked-down Docker container.
+def _legacy_run_dict(result, *, started: float | None = None) -> dict:
+    """Project a sandbox ExecutionResult onto the legacy ``/code`` response shape.
 
-    This function ONLY runs 'docker' CLI. User code is written to a temp file
-    and executed INSIDE the container, never on the host.
+    The two legacy runners returned a flat dict; the sandbox returns a typed
+    ExecutionResult. This keeps the browser contract unchanged while the actual
+    execution now happens in the isolated runner (SECURITY_S0B-P1).
     """
-    # SECURITY_S0: the container backend is opt-in. An unverified deployment must
-    # not reach it merely because a docker binary exists on PATH.
+    duration = result.duration_ms or (int((time.time() - started) * 1000) if started else 0)
+    payload = {
+        "exit_code": result.exit_code if result.exit_code is not None else -1,
+        "duration_ms": duration,
+        "timed_out": result.verdict is SandboxVerdict.TIMEOUT,
+        "error_message": _sandbox_error_message(result),
+        "docker_error_type": None,
+        "stdout_truncated": result.output_truncated,
+        "stderr_truncated": False,
+    }
+    if result.verdict is SandboxVerdict.COMPILE_ERROR:
+        payload.update({
+            "stdout": "",
+            "stderr": "",
+            "exit_code": 1,
+            "compile_error": result.compile_error,
+            "compiled": False,
+        })
+    else:
+        payload.update({
+            "stdout": result.stdout or "",
+            "stderr": result.stderr or "",
+            "compile_error": None,
+            "compiled": result.compiled,
+        })
+    return payload
+
+
+def _run_code_in_docker(code: str, stdin: str = "") -> dict:
+    """Run user Python code in the isolated sandbox, through the runner service.
+
+    No interpreter, compiler or Docker CLI runs in this process: the source is sent to the
+    least-privileged sandbox runner over a Unix-domain socket (SECURITY_S0B-P1). There is
+    no host or rootful fallback.
+    """
     require_secure_code_execution()
-    tmp_dir = tempfile.mkdtemp(prefix="code_exec_")
-    script_path = os.path.join(tmp_dir, "script.py")
-    input_path = os.path.join(tmp_dir, "stdin.txt")
-
-    try:
-        with open(script_path, "w", encoding="utf-8") as f:
-            f.write(code)
-
-        if stdin:
-            with open(input_path, "w", encoding="utf-8") as f:
-                f.write(stdin)
-
-        # SECURITY_S0B: full hardening — no network, read-only root, all capabilities
-        # dropped, no privilege escalation, swap disabled, bounded pids/cpu/memory.
-        docker_cmd = [
-            "docker", "run", "--rm",
-            *_sandbox_hardening(DOCKER_MEMORY_LIMIT),
-            "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",
-            "-v", f"{tmp_dir}:/code:ro",
-            "-w", "/code",
-            DOCKER_IMAGE,
-            "python", "-u", "script.py",
-        ]
-
-        start = time.time()
-        proc = subprocess.run(
-            docker_cmd,
-            capture_output=True,
-            text=True,
-            timeout=EXECUTE_TIMEOUT_SECONDS,
-            cwd=tmp_dir,
-            input=stdin or None,
-        )
-        elapsed_ms = int((time.time() - start) * 1000)
-
-        stdout = proc.stdout or ""
-        stderr = proc.stderr or ""
-
-        stdout_truncated = False
-        if len(stdout) > MAX_OUTPUT_CHARS:
-            stdout = stdout[:MAX_OUTPUT_CHARS]
-            stdout_truncated = True
-
-        stderr_truncated = False
-        if len(stderr) > MAX_OUTPUT_CHARS:
-            stderr = stderr[:MAX_OUTPUT_CHARS]
-            stderr_truncated = True
-
-        docker_error, docker_error_type = _classify_docker_error(proc.stderr or "")
-
-        return {
-            "stdout": stdout,
-            "stderr": stderr,
-            "exit_code": proc.returncode,
-            "duration_ms": elapsed_ms,
-            "timed_out": False,
-            "error_message": docker_error,
-            "docker_error_type": docker_error_type,
-            "stdout_truncated": stdout_truncated,
-            "stderr_truncated": stderr_truncated,
-        }
-    except subprocess.TimeoutExpired:
-        elapsed_ms = int((time.time() - start) * 1000)
-        return {
-            "stdout": "",
-            "stderr": f"执行超时（超过 {EXECUTE_TIMEOUT_SECONDS} 秒），您的代码可能包含死循环或复杂度过高的算法。",
-            "exit_code": -1,
-            "duration_ms": elapsed_ms,
-            "timed_out": True,
-            "error_message": None,
-            "docker_error_type": None,
-            "stdout_truncated": False,
-            "stderr_truncated": False,
-        }
-    except FileNotFoundError:
-        return {
-            "stdout": "",
-            "stderr": "",
-            "exit_code": -1,
-            "duration_ms": 0,
-            "timed_out": False,
-            "error_message": "服务器 Docker 环境未就绪，Docker 命令不存在。请联系管理员安装 Docker。",
-            "docker_error_type": "docker_not_found",
-            "stdout_truncated": False,
-            "stderr_truncated": False,
-        }
-    except PermissionError:
-        return {
-            "stdout": "",
-            "stderr": "",
-            "exit_code": -1,
-            "duration_ms": 0,
-            "timed_out": False,
-            "error_message": "后端服务暂无 Docker 权限，无法运行代码。请联系管理员配置 Docker 权限。",
-            "docker_error_type": "docker_permission",
-            "stdout_truncated": False,
-            "stderr_truncated": False,
-        }
-    except Exception as exc:
-        return {
-            "stdout": "",
-            "stderr": "",
-            "exit_code": -1,
-            "duration_ms": 0,
-            "timed_out": False,
-            "error_message": f"代码执行环境异常：{str(exc)[:200]}",
-            "docker_error_type": None,
-            "stdout_truncated": False,
-            "stderr_truncated": False,
-        }
-    finally:
-        # Clean up temp files
-        try:
-            if os.path.exists(input_path):
-                os.remove(input_path)
-        except OSError:
-            pass
-        try:
-            if os.path.exists(script_path):
-                os.remove(script_path)
-        except OSError:
-            pass
-        try:
-            os.rmdir(tmp_dir)
-        except OSError:
-            pass
+    backend = get_execution_backend()
+    if backend is None:
+        raise HTTPException(status_code=503, detail=code_execution_unavailable_detail())
+    started = time.time()
+    result = backend.run(SandboxExecutionRequest(
+        language="Python",
+        files=(SandboxSourceFile(relative_path="script.py", content=code),),
+        entry_file="script.py",
+        stdin=stdin or "",
+    ))
+    return _legacy_run_dict(result, started=started)
 
 
 def _run_c_code_in_docker(code: str, stdin: str = "") -> dict:
-    """Compile and run user C code inside a locked-down Docker container.
+    """Compile and run user C code in the isolated sandbox, through the runner service.
 
-    Uses gcc:13 image. Compiles main.c then executes the binary.
-    User code is mounted read-only; binary is compiled to /tmp inside the container.
-    --tmpfs for C uses :rw,nosuid (without noexec) so the compiled binary can run.
+    The gcc compile and the program run both happen inside the runner's container; this
+    process never invokes gcc or docker (SECURITY_S0B-P1).
     """
-    # SECURITY_S0: container backend is opt-in; see core.code_execution.
     require_secure_code_execution()
-    tmp_dir = tempfile.mkdtemp(prefix="code_exec_c_")
-    source_path = os.path.join(tmp_dir, "main.c")
-    input_path = os.path.join(tmp_dir, "stdin.txt")
-
-    try:
-        with open(source_path, "w", encoding="utf-8") as f:
-            f.write(code)
-
-        with open(input_path, "w", encoding="utf-8") as f:
-            f.write(stdin or "")
-
-        # Shell script inside container:
-        # 1. gcc compile, redirect errors to a temp file
-        # 2. If compile fails (non-zero), cat errors to stderr, exit 101
-        # 3. If compile succeeds, run the binary with stdin
-        compile_and_run = (
-            "gcc /code/main.c -O2 -std=c11 -Wall -Wextra -o /tmp/main 2>/tmp/compile_err.txt; "
-            "if [ $? -ne 0 ]; then cat /tmp/compile_err.txt >&2; exit 101; fi; "
-            "/tmp/main < /code/stdin.txt"
-        )
-
-        # SECURITY_S0B: full hardening. --tmpfs /tmp:rw,exec,nosuid — exec is explicit
-        # because the compiled binary must run, overriding Docker's default noexec.
-        docker_cmd = [
-            "docker", "run", "--rm",
-            *_sandbox_hardening(DOCKER_MEMORY_LIMIT_C),
-            "--tmpfs", "/tmp:rw,exec,nosuid,size=128m",
-            "-v", f"{tmp_dir}:/code:ro",
-            "-w", "/code",
-            DOCKER_IMAGE_C,
-            "sh", "-c", compile_and_run,
-        ]
-
-        start = time.time()
-        proc = subprocess.run(
-            docker_cmd,
-            capture_output=True,
-            text=True,
-            timeout=EXECUTE_TIMEOUT_SECONDS_C,
-            cwd=tmp_dir,
-        )
-        elapsed_ms = int((time.time() - start) * 1000)
-
-        stdout = proc.stdout or ""
-        stderr = proc.stderr or ""
-        compile_error = None
-        compiled = True
-
-        # Exit code 101 = compile error
-        if proc.returncode == 101:
-            compile_error = (proc.stderr or "").strip()
-            compiled = False
-            stdout = ""
-            stderr = ""
-
-        stdout_truncated = False
-        if len(stdout) > MAX_OUTPUT_CHARS:
-            stdout = stdout[:MAX_OUTPUT_CHARS]
-            stdout_truncated = True
-
-        stderr_truncated = False
-        if len(stderr) > MAX_OUTPUT_CHARS:
-            stderr = stderr[:MAX_OUTPUT_CHARS]
-            stderr_truncated = True
-
-        docker_error, docker_error_type = _classify_docker_error(proc.stderr or "")
-
-        # Diagnostic log for C execution
-        stderr_preview = (proc.stderr or "")[:200].replace("\n", "\\n")
-        print(
-            f"[C-DOCKER] exit_code={proc.returncode} compiled={compiled} "
-            f"has_compile_error={'yes' if compile_error else 'no'} "
-            f"docker_error_type={docker_error_type} "
-            f"stderr_preview={stderr_preview}"
-        )
-
-        return {
-            "stdout": stdout,
-            "stderr": stderr,
-            "exit_code": proc.returncode if proc.returncode != 101 else 1,
-            "duration_ms": elapsed_ms,
-            "timed_out": False,
-            "error_message": docker_error,
-            "docker_error_type": docker_error_type,
-            "compile_error": compile_error,
-            "compiled": compiled,
-            "stdout_truncated": stdout_truncated,
-            "stderr_truncated": stderr_truncated,
-        }
-    except subprocess.TimeoutExpired:
-        elapsed_ms = int((time.time() - start) * 1000)
-        return {
-            "stdout": "",
-            "stderr": f"执行超时（超过 {EXECUTE_TIMEOUT_SECONDS_C} 秒），您的代码可能包含死循环或复杂度过高的算法。",
-            "exit_code": -1,
-            "duration_ms": elapsed_ms,
-            "timed_out": True,
-            "error_message": None,
-            "docker_error_type": None,
-            "compile_error": None,
-            "compiled": False,
-            "stdout_truncated": False,
-            "stderr_truncated": False,
-        }
-    except FileNotFoundError:
-        return {
-            "stdout": "",
-            "stderr": "",
-            "exit_code": -1,
-            "duration_ms": 0,
-            "timed_out": False,
-            "error_message": "服务器 Docker 环境未就绪，Docker 命令不存在。请联系管理员安装 Docker。",
-            "docker_error_type": "docker_not_found",
-            "compile_error": None,
-            "compiled": False,
-            "stdout_truncated": False,
-            "stderr_truncated": False,
-        }
-    except PermissionError:
-        return {
-            "stdout": "",
-            "stderr": "",
-            "exit_code": -1,
-            "duration_ms": 0,
-            "timed_out": False,
-            "error_message": "后端服务暂无 Docker 权限，无法运行代码。请联系管理员配置 Docker 权限。",
-            "docker_error_type": "docker_permission",
-            "compile_error": None,
-            "compiled": False,
-            "stdout_truncated": False,
-            "stderr_truncated": False,
-        }
-    except Exception as exc:
-        return {
-            "stdout": "",
-            "stderr": "",
-            "exit_code": -1,
-            "duration_ms": 0,
-            "timed_out": False,
-            "error_message": f"代码执行环境异常：{str(exc)[:200]}",
-            "docker_error_type": None,
-            "compile_error": None,
-            "compiled": False,
-            "stdout_truncated": False,
-            "stderr_truncated": False,
-        }
-    finally:
-        try:
-            if os.path.exists(input_path):
-                os.remove(input_path)
-        except OSError:
-            pass
-        try:
-            if os.path.exists(source_path):
-                os.remove(source_path)
-        except OSError:
-            pass
-        try:
-            os.rmdir(tmp_dir)
-        except OSError:
-            pass
+    backend = get_execution_backend()
+    if backend is None:
+        raise HTTPException(status_code=503, detail=code_execution_unavailable_detail())
+    started = time.time()
+    result = backend.run(SandboxExecutionRequest(
+        language="C",
+        files=(SandboxSourceFile(relative_path="main.c", content=code),),
+        entry_file="main.c",
+        stdin=stdin or "",
+    ))
+    return _legacy_run_dict(result, started=started)
 
 
 # ── Code Diagnostics ──────────────────────────────────
@@ -14620,56 +14313,47 @@ def diagnose_code(req: schemas.CodeDiagnoseRequest, current_user: models.User = 
         return {"language": language, "status": "ok", "errors": [], "warnings": [], "raw_output": ""}
 
     if language == "c":
-        import subprocess as _sp
-        tmp_dir = tempfile.mkdtemp(prefix="code_diag_")
-        c_path = os.path.join(tmp_dir, "main.c")
-        try:
-            with open(c_path, "w", encoding="utf-8") as f:
-                f.write(code)
-            proc = _sp.run(
-                ["docker", "run", "--rm", *_sandbox_hardening("128m"),
-                 "-v", f"{tmp_dir}:/code:ro", "-w", "/code", DOCKER_IMAGE_C,
-                 "gcc", "-fsyntax-only", "-Wall", "-Wextra", "-o", "/dev/null", "main.c"],
-                capture_output=True, text=True, timeout=15, cwd=tmp_dir,
-            )
-            raw = (proc.stderr or "") or (proc.stdout or "")
+        # SECURITY_S0B-P1: the compiler runs ONLY in the least-privileged sandbox runner
+        # (compile-only — it never executes the program). This process runs no gcc and no
+        # docker. When no sandbox is available we fall back to a deterministic local check.
+        backend = get_execution_backend()
+        if backend is not None:
+            result = backend.run(SandboxExecutionRequest(
+                language="C",
+                files=(SandboxSourceFile(relative_path="main.c", content=code),),
+                entry_file="main.c",
+                compile_only=True,
+            ))
+            raw = (result.stdout or "") + (result.stderr or "")
             items = _parse_gcc_diagnostics(raw)
             errors = [i for i in items if i["severity"] == "error"]
             warnings = [i for i in items if i["severity"] == "warning"]
-            if proc.returncode == 0 and not warnings:
+            if result.verdict is not SandboxVerdict.ACCEPTED:
+                if not errors and not warnings:
+                    errors = [{
+                        "line": 1,
+                        "column": 1,
+                        "message": (raw.strip() or "C syntax check failed")[:300],
+                        "severity": "error",
+                        "source": "gcc",
+                    }]
+                status = "error" if errors else ("warning" if warnings else "ok")
+                return {"language": "c", "status": status, "errors": errors, "warnings": warnings, "raw_output": raw}
+            if not warnings:
                 return {"language": "c", "status": "ok", "errors": [], "warnings": [], "raw_output": raw}
-            if proc.returncode != 0 and not errors and not warnings:
-                errors = [{
-                    "line": 1,
-                    "column": 1,
-                    "message": (raw.strip() or "C syntax check failed")[:300],
-                    "severity": "error",
-                    "source": "gcc",
-                }]
-            status = "error" if errors else ("warning" if warnings else "ok")
-            return {"language": "c", "status": status, "errors": errors, "warnings": warnings, "raw_output": raw}
-        except FileNotFoundError as e:
-            fallback_items = _fallback_c_diagnostics(code)
-            fallback_errors = [i for i in fallback_items if i["severity"] == "error"]
-            fallback_warnings = [i for i in fallback_items if i["severity"] == "warning"]
-            if fallback_items:
-                return {
-                    "language": "c",
-                    "status": "error" if fallback_errors else "warning",
-                    "errors": fallback_errors,
-                    "warnings": fallback_warnings,
-                    "raw_output": str(e),
-                }
-            return {"language": "c", "status": "ok", "errors": [], "warnings": [], "raw_output": str(e)}
-        except (_sp.TimeoutExpired, Exception) as e:
-            return {"language": "c", "status": "error", "errors": [
-                {"line": 1, "column": 1, "message": f"诊断服务异常：{str(e)[:200]}", "severity": "error", "source": "system"}
-            ], "warnings": [], "raw_output": str(e)}
-        finally:
-            try: os.remove(c_path)
-            except OSError: pass
-            try: os.rmdir(tmp_dir)
-            except OSError: pass
+            return {"language": "c", "status": "warning", "errors": [], "warnings": warnings, "raw_output": raw}
+        fallback_items = _fallback_c_diagnostics(code)
+        fallback_errors = [i for i in fallback_items if i["severity"] == "error"]
+        fallback_warnings = [i for i in fallback_items if i["severity"] == "warning"]
+        if fallback_items:
+            return {
+                "language": "c",
+                "status": "error" if fallback_errors else "warning",
+                "errors": fallback_errors,
+                "warnings": fallback_warnings,
+                "raw_output": "",
+            }
+        return {"language": "c", "status": "ok", "errors": [], "warnings": [], "raw_output": ""}
 
     elif language == "python":
         tmp_dir = tempfile.mkdtemp(prefix="code_diag_")
@@ -35682,49 +35366,77 @@ def _friendly_compile_error(raw_error: str) -> str:
     first_line = next((line.strip() for line in normalized.splitlines() if "error" in line.lower()), "")
     return f"编译错误：{first_line[:260] or '请检查代码语法和入口函数。'}"
 
+def _sandbox_request_from_files(files, language: str, entry_file: str, main_class: str | None = None) -> SandboxExecutionRequest:
+    """Build a sandbox ExecutionRequest from the saved project files."""
+    sources = tuple(
+        SandboxSourceFile(relative_path=safe_project_path(f.relative_path), content=f.content or "")
+        for f in files
+    )
+    entry = safe_project_path(entry_file) if entry_file else (sources[0].relative_path if sources else "")
+    return SandboxExecutionRequest(
+        language=language, files=sources, entry_file=entry, main_class=main_class
+    )
+
+
+async def _relay_terminal(ws, backend, request, *, pty: bool, map_frame):
+    """Relay one runner interactive session <-> the browser socket (SECURITY_S0B-P1).
+
+    The web process spawns nothing: it opens a bounded session on the least-privileged
+    runner over the Unix socket and copies frames both ways. Returns the runner's terminal
+    ``exit`` frame, or ``None`` if the browser socket closed first.
+    """
+    async with backend.open_interactive(request, pty=pty) as runner:
+        async def browser_to_runner():
+            while True:
+                try:
+                    raw = await ws.receive_text()
+                except Exception:
+                    return
+                try:
+                    message = json.loads(raw)
+                except ValueError:
+                    continue
+                kind = message.get("type")
+                if kind in ("stdin", "eof", "interrupt", "stop"):
+                    try:
+                        await runner.send(json.dumps({"type": kind, "data": str(message.get("data") or "")}))
+                    except Exception:
+                        return
+
+        async def runner_to_browser():
+            while True:
+                try:
+                    raw = await runner.recv()
+                except Exception:
+                    return None
+                if isinstance(raw, bytes):
+                    raw = raw.decode("utf-8", errors="replace")
+                try:
+                    frame = json.loads(raw)
+                except ValueError:
+                    continue
+                if frame.get("type") == "exit":
+                    return frame
+                mapped = map_frame(frame)
+                if mapped is not None:
+                    await ws.send_text(json.dumps(mapped, ensure_ascii=False))
+
+        reader = asyncio.create_task(runner_to_browser())
+        sender = asyncio.create_task(browser_to_runner())
+        try:
+            return await reader
+        finally:
+            sender.cancel()
+
+
 @app.websocket("/api/programming/exercises/{exercise_id}/interactive")
 async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, initial_config: dict | None = None):
-    """Run the saved exercise project and stream its real process I/O."""
+    """Run the saved exercise project in the sandbox and stream its real process I/O."""
     if initial_config is None:
         await ws.accept()
-    proc = None
-    tmp_dir = None
     acquired = False
-    master_fd = None
-    reader_thread = None
     request_id = ""
     run_session_id = ""
-    process_started_at = None
-    compile_started_at = None
-    compile_finished_at = None
-    stdin_bytes = 0
-    stdin_has_newline = False
-    eof_sent = False
-    eof_delimiter_added = False
-    stdin_closed = False
-    timed_out = False
-    websocket_close_code = None
-    exit_sent = False
-
-    def terminate_process_group():
-        """Stop the launcher and all descendants without leaving an orphan."""
-        if not proc or proc.poll() is not None:
-            return
-        try:
-            if os.name == "posix":
-                os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
-            else:
-                proc.terminate()
-            proc.wait(timeout=2)
-        except Exception:
-            try:
-                if os.name == "posix":
-                    os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-                else:
-                    proc.kill()
-            except Exception:
-                pass
-
     try:
         config = initial_config or json.loads(await ws.receive_text())
         username = str(config.get("username") or "").strip()
@@ -35749,11 +35461,9 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
             db.close()
         if language not in {"C", "C++", "Python", "Java"} or not files:
             raise ValueError("unsupported language or empty project")
-        # SECURITY_S0: this handler used to fall back to a host PTY whenever the docker
-        # CLI was missing, which ran learner code on the host. That fallback is removed.
-        # Without a verified sandbox the terminal refuses instead of degrading to the host.
         # SECURITY_S0.5: the terminal enforces the policy itself (it cannot raise an HTTP
-        # error mid-socket), so it records the decision explicitly.
+        # error mid-socket), so it records the decision explicitly. SECURITY_S0B-P1: the
+        # program only ever runs inside the least-privileged runner — never on the host.
         with _code_execution_audit(
             ws, user, action="programming.exercise.interactive",
             language=language, resource=exercise_id,
@@ -35762,224 +35472,73 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
                 audit_code_execution_denied(backend=configured_backend())
                 raise ValueError(code_execution_unavailable_detail()["message"])
             audit_code_execution_permitted(backend=configured_backend())
-        print(
-            f"[WS-TERMINAL] exercise_start request_id={request_id} "
-            f"run_session_id={run_session_id} exercise_id={exercise_id} "
-            f"language={language} file_count={len(files)} entry_file={entry_file}",
-            flush=True,
-        )
         if not _check_code_run_rate(username, CODE_RUN_RATE_EXECUTE):
             raise ValueError("运行过于频繁，请稍后再试")
         acquired = DOCKER_SEMAPHORE.acquire(timeout=DOCKER_SEMAPHORE_TIMEOUT)
         if not acquired:
             raise ValueError("当前运行任务较多，请稍后重试")
-        tmp_dir = tempfile.mkdtemp(prefix=f"interactive_{user.id}_{exercise_id}_{run_session_id}_")
-        for item in files:
-            target = os.path.join(tmp_dir, safe_project_path(item.relative_path))
-            os.makedirs(os.path.dirname(target), exist_ok=True)
-            with open(target, "w", encoding="utf-8") as handle:
-                handle.write(item.content or "")
+        backend = get_execution_backend()
+        if backend is None:
+            raise ValueError(code_execution_unavailable_detail()["message"])
+        request = _sandbox_request_from_files(files, language, entry_file, main_class or None)
         await ws.send_text(json.dumps({"type": "status", "message": "正在编译…"}, ensure_ascii=False))
-        memory = INTERACTIVE_MEMORY_C if language in {"C", "C++"} else INTERACTIVE_MEMORY
-        use_docker = True  # guaranteed by the availability gate above
-        runtime_image = DOCKER_IMAGE
-        runtime_command = ["python", "-u", f"/code/{safe_project_path(entry_file)}"]
-        # Compile native programs before opening the interactive PTY.  This
-        # prevents a failed build from being presented as a running program.
-        if language in {"C", "C++"}:
-            compiler_name = "g++" if language == "C++" else "gcc"
-            compiler_flags = ["-std=c++17" if language == "C++" else "-std=c11", "-O0"]
-            source_suffixes = (".cpp", ".cc", ".cxx") if language == "C++" else (".c",)
-            source_files = [
-                os.path.join(tmp_dir, safe_project_path(item.relative_path))
-                for item in files
-                if str(item.relative_path).lower().endswith(source_suffixes)
-            ]
-            if not source_files:
-                raise ValueError("项目中没有可编译的源文件")
-            if use_docker:
-                source_relative_files = [
-                    safe_project_path(item.relative_path)
-                    for item in files
-                    if str(item.relative_path).lower().endswith(source_suffixes)
-                ]
-                compile_cmd = [
-                    "docker", "run", "--rm", *_sandbox_hardening(memory),
-                    "-v", f"{tmp_dir}:/work", "-w", "/work", DOCKER_IMAGE_C,
-                    compiler_name, *compiler_flags, *source_relative_files, "-o", "program",
-                ]
-            compile_started_at = time.time()
-            print(f"[WS-TERMINAL] compile_start request_id={request_id} exercise_id={exercise_id} language={language} file_count={len(source_files)}", flush=True)
-            compiled = subprocess.run(compile_cmd, capture_output=True, text=True, timeout=20, cwd=tmp_dir)
-            compile_finished_at = time.time()
-            print(
-                f"[WS-TERMINAL] compile_end request_id={request_id} exercise_id={exercise_id} "
-                f"return_code={compiled.returncode} duration_ms={int((compile_finished_at - compile_started_at) * 1000)}",
-                flush=True,
-            )
-            if compiled.returncode != 0:
-                raw_error = (compiled.stderr or compiled.stdout or "编译失败").strip()
-                await ws.send_text(json.dumps({"type": "compile_error", "message": _friendly_compile_error(raw_error), "technical_details": raw_error[:8000]}, ensure_ascii=False))
-                await ws.send_text(json.dumps({"type": "exit", "exit_code": compiled.returncode, "run_session_id": run_session_id}, ensure_ascii=False))
-                exit_sent = True
-                return
-            runtime_image, runtime_command = DOCKER_IMAGE_C, ["/code/program"]
-        elif language == "Java":
-            runtime_image = "eclipse-temurin:21-jdk"
-            runtime_command = ["sh", "-lc", f"cp -a /code /tmp/work && cd /tmp/work && javac $(find . -name '*.java') && java {main_class}"]
-        # The backend is managed by systemd and does not have a real
-        # terminal.  Passing Docker's ``-t`` flag makes the CLI reject
-        # the launch with exit code 1 ("the input device is not a TTY")
-        # even though the host-side PTY is valid.  ``-i`` is sufficient
-        # here: the host PTY still streams stdin/stdout to the browser.
-        launch_command = ["docker", "run", "--rm", "-i", *_sandbox_hardening(memory),
-                          "--tmpfs", "/tmp:rw,exec,nosuid,size=128m",
-                          "-v", f"{tmp_dir}:/code:ro", runtime_image, *runtime_command]
-        import threading
-        use_pty = hasattr(os, "openpty")
-        master_fd = None
-        if use_pty:
-            master_fd, slave_fd = os.openpty()
-            popen_options = {"stdin": slave_fd, "stdout": slave_fd, "stderr": slave_fd, "close_fds": True, "cwd": tmp_dir}
-            if os.name == "posix":
-                popen_options["start_new_session"] = True
-            proc = subprocess.Popen(launch_command, **popen_options)
-            os.close(slave_fd)
-        else:
-            popen_options = {"stdin": subprocess.PIPE, "stdout": subprocess.PIPE, "stderr": subprocess.STDOUT, "text": False, "cwd": tmp_dir}
-            if os.name == "posix":
-                popen_options["start_new_session"] = True
-            proc = subprocess.Popen(launch_command, **popen_options)
-        process_started_at = time.time()
-        print(f"[WS-TERMINAL] process_start request_id={request_id} exercise_id={exercise_id} pid={proc.pid} pty={bool(master_fd is not None)}", flush=True)
-        await ws.send_text(json.dumps({"type": "status", "message": "程序正在运行"}, ensure_ascii=False))
-        collected = []
-        def reader():
-            try:
-                while True:
-                    chunk = os.read(master_fd, 4096) if master_fd is not None else proc.stdout.read(4096)
-                    if not chunk: break
-                    text_chunk = chunk.decode("utf-8", errors="replace")
-                    collected.append(text_chunk)
-                    try: asyncio.run_coroutine_threadsafe(ws.send_text(json.dumps({"type": "terminal", "data": text_chunk}, ensure_ascii=False)), loop)
-                    except Exception: break
-            except (OSError, ValueError):
-                pass
-        loop = asyncio.get_running_loop()
-        reader_thread = threading.Thread(target=reader, daemon=True)
-        reader_thread.start()
         started = time.time()
-        while proc.poll() is None:
-            if time.time() - started > INTERACTIVE_TIMEOUT:
-                timed_out = True
-                terminate_process_group()
-                await ws.send_text(json.dumps({"type": "status", "message": "运行超时，进程已停止"}, ensure_ascii=False))
-                break
-            try:
-                message = json.loads(await asyncio.wait_for(ws.receive_text(), timeout=0.25))
-                kind, data = message.get("type"), str(message.get("data") or "")
-                if kind in {"stop", "interrupt"}:
-                    terminate_process_group()
-                    break
-                if kind == "eof":
-                    if not eof_sent:
-                        eof_sent = True
-                        stdin_closed = True
-                        if master_fd is not None:
-                            # In canonical PTY mode, closing the master drops
-                            # the session but does not deliver the buffered
-                            # input to Scanner.  Ctrl+D is the real EOF signal.
-                            try:
-                                if stdin_bytes and not stdin_has_newline:
-                                    # A canonical PTY needs a line delimiter to
-                                    # release a final Scanner.nextLine/readline
-                                    # buffer before the real Ctrl+D EOF signal.
-                                    os.write(master_fd, b"\n")
-                                    eof_delimiter_added = True
-                                os.write(master_fd, b"\x04")
-                            except OSError:
-                                pass
-                        elif proc.stdin:
-                            proc.stdin.close()
-                        print(f"[WS-TERMINAL] stdin_eof request_id={request_id} exercise_id={exercise_id} stdin_bytes={stdin_bytes} has_newline={stdin_has_newline}", flush=True)
-                    continue
-                if kind == "stdin" and data and not stdin_closed:
-                    raw_data = data.encode("utf-8")
-                    stdin_bytes += len(raw_data)
-                    stdin_has_newline = stdin_has_newline or b"\n" in raw_data or b"\r" in raw_data
-                    if master_fd is not None:
-                        os.write(master_fd, raw_data)
-                    elif proc.stdin:
-                        proc.stdin.write(raw_data)
-                        proc.stdin.flush()
-            except asyncio.TimeoutError:
-                continue
-            except WebSocketDisconnect as exc:
-                websocket_close_code = getattr(exc, "code", None)
-                terminate_process_group()
-                break
-        proc.wait(timeout=3)
-        reader_thread.join(timeout=1)
-        terminal_output = "".join(collected)[-8000:]
-        return_code = proc.returncode
-        duration_ms = int((time.time() - process_started_at) * 1000) if process_started_at else None
-        exit_payload = {
+
+        def map_frame(frame):
+            if frame.get("type") == "compile_error":
+                raw = str(frame.get("technical_details") or frame.get("message") or "")
+                return {
+                    "type": "compile_error",
+                    "message": _friendly_compile_error(raw),
+                    "technical_details": raw[:8000],
+                }
+            return frame
+
+        try:
+            exit_frame = await _relay_terminal(ws, backend, request, pty=True, map_frame=map_frame)
+        except SandboxRunnerUnavailable:
+            raise ValueError(code_execution_unavailable_detail()["message"])
+        if exit_frame is None:
+            return
+        if exit_frame.get("compile_failed"):
+            await ws.send_text(json.dumps(
+                {"type": "exit", "exit_code": exit_frame.get("exit_code") or 1,
+                 "run_session_id": run_session_id}, ensure_ascii=False))
+            return
+        return_code = exit_frame.get("exit_code")
+        terminal_output = str(exit_frame.get("stdout") or "")[-8000:]
+        payload = {
             "type": "exit",
             "exit_code": return_code,
             "run_session_id": run_session_id,
             "request_id": request_id,
-            "duration_ms": duration_ms,
-            "timed_out": timed_out,
+            "duration_ms": int((time.time() - started) * 1000),
+            "timed_out": bool(exit_frame.get("timed_out")),
             "signal": -return_code if isinstance(return_code, int) and return_code < 0 else None,
-            "eof_delimiter_added": eof_delimiter_added,
+            "eof_delimiter_added": bool(exit_frame.get("eof_delimiter_added")),
             "stdout": terminal_output,
             "stderr": terminal_output if return_code else "",
         }
-        if return_code and "input device is not a TTY" in terminal_output:
-            exit_payload["failure_type"] = "runtime_error"
-            exit_payload["error_message"] = "运行终端初始化失败，请重新运行。"
-        print(
-            f"[WS-TERMINAL] process_exit request_id={request_id} exercise_id={exercise_id} "
-            f"pid={proc.pid if proc else None} return_code={return_code} timed_out={timed_out} "
-            f"stdin_bytes={stdin_bytes} has_newline={stdin_has_newline} eof_sent={eof_sent} "
-            f"eof_delimiter_added={eof_delimiter_added} "
-            f"ws_close_code={websocket_close_code}",
-            flush=True,
-        )
-        await ws.send_text(json.dumps(exit_payload, ensure_ascii=False))
-        exit_sent = True
+        await ws.send_text(json.dumps(payload, ensure_ascii=False))
     except Exception as exc:
-        try: await ws.send_text(json.dumps({"type": "error", "message": str(exc)[:500]}, ensure_ascii=False))
-        except Exception: pass
-    finally:
-        if proc and proc.poll() is None:
-            terminate_process_group()
-        if reader_thread:
-            reader_thread.join(timeout=1)
         try:
-            if master_fd is not None: os.close(master_fd)
-        except OSError: pass
-        if proc:
-            try: proc.wait(timeout=2)
-            except Exception: pass
-        if not exit_sent and request_id:
-            print(f"[WS-TERMINAL] exit_not_sent request_id={request_id} exercise_id={exercise_id} ws_close_code={websocket_close_code}", flush=True)
-        if acquired: DOCKER_SEMAPHORE.release()
-        if tmp_dir: shutil.rmtree(tmp_dir, ignore_errors=True)
-        try: await ws.close()
-        except Exception: pass
-
-
-INTERACTIVE_TIMEOUT = 30  # seconds
-INTERACTIVE_MEMORY = "128m"
-INTERACTIVE_MEMORY_C = "256m"
+            await ws.send_text(json.dumps({"type": "error", "message": str(exc)[:500]}, ensure_ascii=False))
+        except Exception:
+            pass
+    finally:
+        if acquired:
+            DOCKER_SEMAPHORE.release()
+        try:
+            await ws.close()
+        except Exception:
+            pass
 
 
 @app.websocket("/api/code/interactive-run")
 @app.websocket("/code/interactive-run")
 async def interactive_run(ws: WebSocket):
+    """Generic interactive terminal. Runs the program inside the sandbox runner only."""
     await ws.accept()
-    print("[WS-TERMINAL] accepted interactive terminal websocket")
 
     try:
         raw = await ws.receive_text()
@@ -35989,9 +35548,7 @@ async def interactive_run(ws: WebSocket):
         await ws.close()
         return
 
-    # Keep the long-standing /api/code WebSocket proxy entry point for
-    # deployments whose reverse proxy only upgrades that location. Exercise
-    # sessions still use the PTY implementation above.
+    # Exercise sessions are handled by the PTY implementation above.
     if config.get("exercise_id") and config.get("project_id"):
         return await programming_exercise_interactive(int(config["exercise_id"]), ws, config)
 
@@ -36009,21 +35566,18 @@ async def interactive_run(ws: WebSocket):
     finally:
         if auth_db.is_active:
             auth_db.close()
-    print(f"[WS-TERMINAL] start username={username} language={language} code_chars={len(code)}")
 
     if language not in ("python", "c"):
         await ws.send_text(json.dumps({"type": "error", "message": f"交互运行暂不支持 {language or '该语言'}"}))
         await ws.close()
         return
-
     if not code.strip():
         await ws.send_text(json.dumps({"type": "error", "message": "代码为空，请先编写代码再运行。"}))
         await ws.close()
         return
 
-    # SECURITY_S0: this entry point runs the learner's code in a container. Refuse
+    # SECURITY_S0B-P1: the program runs only inside the least-privileged runner. Refuse
     # unless a verified sandbox is available — there is no host fallback here.
-    # SECURITY_S0.5: record the decision; this handler enforces the policy itself.
     with _code_execution_audit(ws, current_user, action="code.interactive_run", language=language):
         if not is_secure_code_execution_available():
             audit_code_execution_denied(backend=configured_backend())
@@ -36043,170 +35597,60 @@ async def interactive_run(ws: WebSocket):
         await ws.close()
         return
 
-    tmp_dir = tempfile.mkdtemp(prefix="interactive_")
-    is_c = language == "c"
-    src_path = os.path.join(tmp_dir, "main.c" if is_c else "main.py")
+    backend = get_execution_backend()
+    if backend is None:
+        DOCKER_SEMAPHORE.release()
+        await ws.send_text(json.dumps({"type": "error", "message": code_execution_unavailable_detail()["message"]}, ensure_ascii=False))
+        await ws.close()
+        return
 
+    is_c = language == "c"
     await ws.send_text(json.dumps({"type": "status", "message": f"开始{'编译并运行' if is_c else '运行'} {language.upper()} 代码..."}))
+    request = SandboxExecutionRequest(
+        language="C" if is_c else "Python",
+        files=(SandboxSourceFile(relative_path="main.c" if is_c else "main.py", content=code),),
+        entry_file="main.c" if is_c else "main.py",
+    )
+
+    def map_frame(frame):
+        ftype = frame.get("type")
+        if ftype == "compile_error":
+            return {"type": "compile_error", "message": str(frame.get("message") or "")[:3000]}
+        if ftype in ("stdout", "stderr", "status"):
+            return frame
+        return None
 
     try:
-        with open(src_path, "w", encoding="utf-8") as f:
-            f.write(code)
-
-        if is_c:
-            await ws.send_text(json.dumps({"type": "status", "message": "正在编译 C 代码..."}))
-            compile_proc = subprocess.run(
-                ["docker", "run", "--rm", *_sandbox_hardening(INTERACTIVE_MEMORY_C),
-                 "--tmpfs", "/tmp:rw,exec,nosuid,size=128m",
-                 "-v", f"{tmp_dir}:/code:ro", "-w", "/code", DOCKER_IMAGE_C,
-                 "gcc", "-Wall", "-Wextra", "-o", "/tmp/prog", "main.c"],
-                capture_output=True, text=True, timeout=20, cwd=tmp_dir,
-            )
-            if compile_proc.returncode != 0:
-                compile_err = compile_proc.stderr or "编译失败"
-                await ws.send_text(json.dumps({"type": "compile_error", "message": compile_err[:3000]}))
-                await ws.send_text(json.dumps({"type": "exit", "exit_code": compile_proc.returncode}))
-                return
-
-            await ws.send_text(json.dumps({"type": "status", "message": "编译成功，正在运行..."}))
-            docker_cmd = [
-                "docker", "run", "--rm", "-i", *_sandbox_hardening(INTERACTIVE_MEMORY_C),
-                "--tmpfs", "/tmp:rw,exec,nosuid,size=128m",
-                "-v", f"{tmp_dir}:/code:ro", "-w", "/code",
-                DOCKER_IMAGE_C, "sh", "-c",
-                "cp /code/main.c /tmp/main.c && cd /tmp && gcc -Wall -Wextra -o prog main.c && ./prog",
-            ]
-        else:
-            await ws.send_text(json.dumps({"type": "status", "message": "正在运行 Python 代码..."}))
-            docker_cmd = [
-                "docker", "run", "--rm", "-i", *_sandbox_hardening(INTERACTIVE_MEMORY),
-                "--tmpfs", "/tmp:rw,exec,nosuid,size=128m",
-                "-v", f"{tmp_dir}:/code:ro", "-w", "/code",
-                DOCKER_IMAGE, "python", "-u", "main.py",
-            ]
-
-        proc = subprocess.Popen(
-            docker_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, text=True, cwd=tmp_dir,
-        )
-
-        collected_stdout = []
-        collected_stderr = []
-
-        def reader(stream, collector, prefix, ws_socket, loop_ref):
-            try:
-                while True:
-                    chunk = stream.read(1)
-                    if not chunk:
-                        break
-                    collector.append(chunk)
-                    try:
-                        asyncio.run_coroutine_threadsafe(
-                            ws_socket.send_text(json.dumps({"type": prefix, "data": chunk})),
-                            loop_ref,
-                        )
-                    except Exception:
-                        break
-            except Exception:
-                pass
-
-        import threading
-        loop = asyncio.get_event_loop()
-        stdout_thread = threading.Thread(target=reader, args=(proc.stdout, collected_stdout, "stdout", ws, loop))
-        stderr_thread = threading.Thread(target=reader, args=(proc.stderr, collected_stderr, "stderr", ws, loop))
-        stdout_thread.daemon = True
-        stderr_thread.daemon = True
-        stdout_thread.start()
-        stderr_thread.start()
-
-        timed_out = False
-        start_time = time.time()
-
-        async def forward_stdin():
-            nonlocal timed_out
-            while True:
-                try:
-                    remaining = INTERACTIVE_TIMEOUT - (time.time() - start_time)
-                    if remaining <= 0:
-                        timed_out = True
-                        proc.kill()
-                        break
-                    raw_stdin = await asyncio.wait_for(ws.receive_text(), timeout=min(1.0, remaining))
-                    if proc.poll() is not None:
-                        break
-                    data = raw_stdin
-                    try:
-                        stdin_msg = json.loads(raw_stdin)
-                        if isinstance(stdin_msg, dict):
-                            if stdin_msg.get("type") == "stdin":
-                                data = str(stdin_msg.get("data", ""))
-                            elif stdin_msg.get("type") == "stop":
-                                proc.kill()
-                                break
-                    except json.JSONDecodeError:
-                        pass
-                    data = data.replace("\r\n", "\n").replace("\r", "\n")
-                    try:
-                        if data:
-                            proc.stdin.write(data)
-                            proc.stdin.flush()
-                    except (BrokenPipeError, OSError):
-                        break
-                except asyncio.TimeoutError:
-                    if proc.poll() is not None:
-                        break
-                    if time.time() - start_time > INTERACTIVE_TIMEOUT:
-                        timed_out = True
-                        proc.kill()
-                        break
-                except WebSocketDisconnect:
-                    proc.kill()
-                    break
-                except Exception:
-                    break
-
         try:
-            await forward_stdin()
-        except Exception:
-            pass
-
-        proc.wait(timeout=3)
-        stdout_thread.join(timeout=2)
-        stderr_thread.join(timeout=2)
-
+            exit_frame = await _relay_terminal(ws, backend, request, pty=False, map_frame=map_frame)
+        except SandboxRunnerUnavailable:
+            await ws.send_text(json.dumps({"type": "error", "message": code_execution_unavailable_detail()["message"]}, ensure_ascii=False))
+            return
+        if exit_frame is None:
+            return
+        if exit_frame.get("compile_failed"):
+            await ws.send_text(json.dumps({"type": "exit", "exit_code": exit_frame.get("exit_code") or 1}))
+            return
         assembled = {
             "type": "exit",
-            "exit_code": proc.returncode,
-            "timed_out": timed_out,
-            "stdout": "".join(collected_stdout)[:8000],
-            "stderr": "".join(collected_stderr)[:8000],
+            "exit_code": exit_frame.get("exit_code"),
+            "timed_out": bool(exit_frame.get("timed_out")),
+            "stdout": str(exit_frame.get("stdout") or "")[:8000],
+            "stderr": str(exit_frame.get("stderr") or "")[:8000],
         }
+        await ws.send_text(json.dumps(assembled, ensure_ascii=False))
+    except Exception as exc:
         try:
-            await ws.send_text(json.dumps(assembled))
+            await ws.send_text(json.dumps({"type": "error", "message": f"运行异常：{str(exc)[:300]}"}))
         except Exception:
             pass
-
-    except subprocess.TimeoutExpired:
-        await ws.send_text(json.dumps({"type": "error", "message": f"运行超时（超过 {INTERACTIVE_TIMEOUT} 秒）"}))
-    except FileNotFoundError:
-        await ws.send_text(json.dumps({"type": "error", "message": "服务器 Docker 环境未就绪"}))
-    except Exception as exc:
-        await ws.send_text(json.dumps({"type": "error", "message": f"运行异常：{str(exc)[:300]}"}))
     finally:
         DOCKER_SEMAPHORE.release()
-        try:
-            if proc and proc.poll() is None:
-                proc.kill()
-        except Exception:
-            pass
-        try: os.remove(src_path)
-        except OSError: pass
-        try: os.rmdir(tmp_dir)
-        except OSError: pass
         try:
             await ws.close()
         except Exception:
             pass
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════

@@ -60,12 +60,38 @@ from core.sandbox.types import CompileResult, ExecutionRequest, ExecutionResult,
 _CONTAINER_SLOTS = threading.Semaphore(MAX_CONCURRENT_CONTAINERS)
 
 
+def container_semaphore() -> threading.Semaphore:
+    """The process-wide container ceiling, shared by one-shot runs and interactive sessions."""
+    return _CONTAINER_SLOTS
+
+
 # Source extensions the compiler is allowed to see, per language.
 _SOURCE_SUFFIXES = {
     "C": (".c",),
     "C++": (".cpp", ".cc", ".cxx"),
     "Java": (".java",),
 }
+
+
+def isolation_flags(memory: str, cpu: str = CPU_LIMIT) -> list[str]:
+    """The mandatory isolation flags EVERY learner container carries, one-shot or interactive.
+
+    Kept in one place so the interactive terminals cannot drift from the judge: network
+    off, root filesystem read-only, all capabilities dropped, no privilege escalation,
+    swap disabled (``--memory-swap`` == ``--memory``), bounded pids/cpu/memory.
+    """
+    return [
+        "--network", "none",
+        "--read-only",
+        "--cap-drop", "ALL",
+        "--security-opt", "no-new-privileges",
+        "--pids-limit", str(PIDS_LIMIT),
+        "--memory", memory,
+        "--memory-swap", memory,          # equal to --memory: swap disabled
+        "--cpus", cpu,
+        "--ulimit", "nofile=256:256",
+        "--ulimit", "core=0:0",
+    ]
 
 
 def _normalize_path(value: str) -> str:
@@ -210,6 +236,9 @@ class DockerExecutionBackend:
                 entry = next((f.relative_path for f in files if f.relative_path.endswith(".py")), "")
             if not entry:
                 raise ValueError("no Python entry file")
+            if request.compile_only:
+                # Syntax check only — never executes the learner's program.
+                return ["timeout", "-k", "1", str(COMPILE_TIME_SECONDS), "python", "-m", "py_compile", entry]
             # No shell needed: ``timeout`` is the container's entry process.
             return ["timeout", "-k", "1", str(PROGRAM_TIME_SECONDS), "python", "-u", entry]
 
@@ -226,10 +255,20 @@ class DockerExecutionBackend:
         # validated catalogue's verdicts were produced with these, so the sandbox must
         # not silently re-grade 240 exercises under different optimisation.
         if language == "C":
+            if request.compile_only:
+                # Syntax check only: emit the compiler's own diagnostics (warnings too)
+                # and let its exit status speak. Runs nothing.
+                return ["sh", "-c",
+                        f"timeout -k 1 {COMPILE_TIME_SECONDS} gcc -std=c11 -Wall -Wextra -fsyntax-only "
+                        f"{' '.join(sources)} 2>&1"]
             compile_cmd = f"timeout -k 1 {COMPILE_TIME_SECONDS} gcc -std=c11 -Wall -Wextra -o /tmp/prog {' '.join(sources)}"
             return ["sh", "-c", self._wrap(compile_cmd, self._run_wrapped(["/tmp/prog"]))]
 
         if language == "C++":
+            if request.compile_only:
+                return ["sh", "-c",
+                        f"timeout -k 1 {COMPILE_TIME_SECONDS} g++ -std=c++17 -Wall -Wextra -fsyntax-only "
+                        f"{' '.join(sources)} 2>&1"]
             compile_cmd = f"timeout -k 1 {COMPILE_TIME_SECONDS} g++ -std=c++17 -Wall -Wextra -o /tmp/prog {' '.join(sources)}"
             return ["sh", "-c", self._wrap(compile_cmd, self._run_wrapped(["/tmp/prog"]))]
 
@@ -244,6 +283,8 @@ class DockerExecutionBackend:
             "mkdir -p /tmp/work && cp -a /code/. /tmp/work && cd /tmp/work && "
             f"timeout -k 1 {COMPILE_TIME_SECONDS} javac -encoding UTF-8 $(find . -name '*.java')"
         )
+        if request.compile_only:
+            return ["sh", "-c", self._wrap(compile_cmd, "true")]
         run_cmd = self._run_wrapped([f"java -Dfile.encoding=UTF-8 -Xmx256m -cp /tmp/work {main_class}"])
         return ["sh", "-c", self._wrap(compile_cmd, run_cmd)]
 
@@ -272,16 +313,7 @@ class DockerExecutionBackend:
         return [
             self._docker, "run",
             "--name", container,
-            "--network", "none",
-            "--read-only",
-            "--cap-drop", "ALL",
-            "--security-opt", "no-new-privileges",
-            "--pids-limit", str(PIDS_LIMIT),
-            "--memory", memory,
-            "--memory-swap", memory,          # equal to --memory: swap disabled
-            "--cpus", CPU_LIMIT,
-            "--ulimit", "nofile=256:256",
-            "--ulimit", "core=0:0",
+            *isolation_flags(memory),
             "--tmpfs", f"/tmp:rw,exec,nosuid,nodev,size={TMPFS_SIZE[language]}",
             "-v", f"{host_dir}:/code:ro",
             "-w", "/code",

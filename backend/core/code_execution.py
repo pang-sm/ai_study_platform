@@ -7,23 +7,24 @@ before it may spawn a process. The default is fail closed: unless a deployment h
 explicitly opted in to a verified sandbox backend, execution is refused with the
 stable ``code_execution_unavailable`` result.
 
-Having a ``docker`` binary on PATH is deliberately NOT sufficient. Treating
-``shutil.which("docker") is not None`` as "a sandbox is available" would let an
-unrelated host package install silently re-open user code execution. The opt-in is
-the deployment variable ``CODE_EXECUTION_BACKEND``; docker presence is only a
-necessary precondition once that opt-in exists.
+Having a ``docker`` binary on PATH is deliberately NOT sufficient. Treating the mere
+presence of such a binary as "a sandbox is available" would let an unrelated host
+package install silently re-open user code execution. The opt-in is the deployment
+variable ``CODE_EXECUTION_BACKEND``, and availability is proven only by the runner
+socket — never by a binary on PATH.
 
-Current production state (SECURITY_S0): no Docker is installed and no sandbox has
-passed independent acceptance, so :func:`is_secure_code_execution_available` returns
-False and every execution entry point fails closed.
+SECURITY_S0B-P1: the web process holds NO docker access at all. Learner code is executed
+only by a separate least-privileged runner (`zhixue-sandbox`, rootless Docker) reached
+over a Unix-domain socket. Availability is therefore proven by the runner's socket, never
+by a `docker` binary on PATH.
 """
 from __future__ import annotations
 
 import os
-import shutil
 
 from fastapi import HTTPException
 
+from core.config import sandbox_runner_socket
 from core.security_audit import (
     CODE_EXECUTION_DENIED_SANDBOX_UNAVAILABLE,
     CODE_EXECUTION_PERMITTED,
@@ -52,14 +53,15 @@ def configured_backend() -> str:
 
 
 def is_secure_code_execution_available() -> bool:
-    """True only when a verified sandbox backend is explicitly enabled AND usable.
+    """True only when the sandbox backend is explicitly enabled AND its runner is present.
 
-    Never returns True merely because ``docker`` happens to be on PATH.
+    The web process has no docker binary and no docker access; the ONLY evidence a sandbox
+    exists is the runner's Unix-domain socket. A leftover ``docker`` binary on PATH must
+    never re-open execution (the exact S0 incident class).
     """
     if configured_backend() not in _SANDBOX_BACKENDS:
         return False
-    # The chosen sandbox still needs its runtime; its absence fails closed too.
-    return shutil.which("docker") is not None
+    return os.path.exists(sandbox_runner_socket())
 
 
 def code_execution_unavailable_detail() -> dict:
