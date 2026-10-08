@@ -564,7 +564,12 @@ jobs:
           # service account could open production data. The script below is idempotent and
           # is also what the Stage 5A drill exercises, so the tested behaviour and the
           # deployed behaviour cannot drift apart.
-          bash "$REPO_ROOT/deploy/enforce_shared_state.sh" /var/lib/ai_study_platform zhixue-app
+          # sudo: the script chgrps the WHOLE tree, and the tree legitimately contains
+          # root-owned files (the catalog snapshots are created with `sudo sqlite3 .backup`;
+          # the /opt layout is root-installed). A non-root run dies on the first file the
+          # deploy account does not own — measured 2026-10-08, when the root-owned snapshot
+          # from the previous release failed the deploy exactly there, before the switch.
+          sudo bash "$REPO_ROOT/deploy/enforce_shared_state.sh" /var/lib/ai_study_platform zhixue-app
           # PREFLIGHT (read only). This gate asks its question against the live database BEFORE
           # anything is stopped, so a refusal costs the deployment nothing and production keeps
           # serving. Its late position is exactly what turned a data bug into a 15-minute outage
@@ -885,7 +890,10 @@ jobs:
           # The legacy tree is deliberately exempt: it keeps its host-provisioned ownership
           # until Stage 5B retires it, and touching it now would only widen access.
           if [ "$REPO_ROOT" != "$HOME/ai_study_platform" ]; then
-            bash "$REPO_ROOT/deploy/enforce_app_tree.sh" "$REPO_ROOT" zhixue-app
+            # sudo for the same reason as enforce_shared_state.sh above: the release tree's
+            # files are not all owned by the deploy account, and chgrp/chmod on a file the
+            # caller does not own is refused.
+            sudo bash "$REPO_ROOT/deploy/enforce_app_tree.sh" "$REPO_ROOT" zhixue-app
           else
             echo "[deploy] release root is the legacy tree; immutable-tree model not applied"
           fi
