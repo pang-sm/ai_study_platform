@@ -22,7 +22,11 @@ from typing import Any
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 
-from core.sandbox.docker_backend import DockerExecutionBackend, container_semaphore
+from core.sandbox.docker_backend import (
+    DockerExecutionBackend,
+    configured_runtime,
+    container_semaphore,
+)
 from core.sandbox.limits import IMAGES, MAX_TOTAL_SOURCE_BYTES
 from core.sandbox.runner.interactive import InteractiveSession
 from core.sandbox.runner.schemas import ExecutionRequestModel, result_to_dict
@@ -57,7 +61,8 @@ def health() -> dict:
 def preflight() -> dict:
     """Read-only readiness report. Runs no learner code."""
     report: dict[str, Any] = {
-        "docker_cli": shutil.which("docker"),
+        "runtime": configured_runtime(),
+        "docker_cli": shutil.which(configured_runtime()),
         "docker_daemon": False,
         "images": dict(IMAGES),
         "missing_images": [],

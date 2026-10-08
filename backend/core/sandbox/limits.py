@@ -32,6 +32,20 @@ IMAGES = {
 PROGRAM_TIME_SECONDS = 3
 COMPILE_TIME_SECONDS = 10
 
+# Transitional CPU-time backstop (SECURITY_S0B-P1, rootless Podman).
+#
+# Rootless Podman on this host CANNOT set a cgroup CPU quota: systemd delegates only the
+# ``memory`` and ``pids`` controllers to user sessions, so ``cpu.max`` does not exist and
+# ``--cpus`` fails. Instead the runner passes ``--ulimit cpu=<sec>:<sec>`` (RLIMIT_CPU).
+#
+# RLIMIT_CPU is a per-process CUMULATIVE CPU-second cap, NOT a rate limit, and it does NOT
+# bound the aggregate CPU of a process tree. It is a defense-in-depth backstop on top of
+# the in-container wall ``timeout`` (PROGRAM_TIME_SECONDS) — it is NOT a replacement for a
+# cgroup quota, and a passing RLIMIT_CPU test must never be recorded as a cgroup-quota
+# pass. The value covers compile (COMPILE_TIME_SECONDS) + run (PROGRAM_TIME_SECONDS) plus
+# a small margin so a legitimate build is never killed by the backstop.
+CPU_TIME_LIMIT_SECONDS = COMPILE_TIME_SECONDS + PROGRAM_TIME_SECONDS + 2
+
 # Outer safety net only (container start + compile + run + teardown). The real limits
 # are PROGRAM_TIME_SECONDS / COMPILE_TIME_SECONDS above; this catches a wedged daemon
 # or a hung container start so a worker is never blocked indefinitely.
@@ -64,6 +78,24 @@ PIDS_LIMIT = 64
 # Per-stream output cap, enforced on the host side. Once a stream exceeds this the
 # container is killed — draining an unbounded stream would move the DoS onto the host.
 OUTPUT_CAP_BYTES = 1024 * 1024
+
+# Output capture (SECURITY_S0B-P1). The program's stdout/stderr are redirected INSIDE the
+# container to two host-created FIFOs. The HOST holds the only read end and counts bytes
+# itself, so capture never depends on the container CLI's attached-output relay — which
+# rootless Podman 3.4.4 truncates (a 3 MiB write arrived as ~900 KiB) — and, unlike a plain
+# file, a FIFO cannot be truncated by the learner to hide an over-limit run.
+#
+# Read exclusivity: the FIFO is mode 0602 (owner read+write, everyone else WRITE ONLY), and
+# the container must NOT be the FIFO's owner. Rootful Docker's container root qualifies once
+# capabilities are dropped; rootless Podman maps the container's root onto the runner's own
+# uid, so it must run as a non-owner uid (PODMAN_CONTAINER_USER). The learner may therefore
+# write the stream but never read it or become a second reader of the trusted channel.
+#
+# The bound is the host's own byte count + kill; RLIMIT_FSIZE is NOT used — it does not
+# bound a FIFO's total output.
+OUTPUT_FIFO_MODE = 0o602
+OUTPUT_MOUNT_DIR = "/out"
+PODMAN_CONTAINER_USER = "1000:1000"
 
 # Size of the writable /tmp tmpfs inside the container. Compilation artefacts live
 # here (never on the host), so this bounds how much a build can stage.

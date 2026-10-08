@@ -33,7 +33,12 @@ import time
 import uuid
 from pathlib import Path
 
-from core.sandbox.docker_backend import isolation_flags
+from core.sandbox.docker_backend import (
+    _make_container_readable,
+    configured_runtime,
+    isolation_flags,
+    runtime_binary,
+)
 from core.sandbox.limits import IMAGES, MEMORY_LIMIT, TMPFS_SIZE
 from core.sandbox.types import ExecutionRequest, SourceFile
 
@@ -63,7 +68,8 @@ class InteractiveSession:
         self.request = request
         self.language = (request.language or "").strip()
         self.pty = pty
-        self.docker = os.environ.get("SANDBOX_DOCKER_BIN", "docker")
+        self.runtime = configured_runtime()
+        self.docker = runtime_binary(self.runtime)
         self.tmp_dir = tempfile.mkdtemp(prefix="zhixue-sbx-i-")
         self.container = f"zhixue-sbx-i-{uuid.uuid4().hex[:12]}"
 
@@ -94,6 +100,10 @@ class InteractiveSession:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(item.content or "", encoding="utf-8")
 
+        # The interactive compile writes the binary into this mounted tree, and the
+        # container's user may not own it (see _make_container_readable).
+        _make_container_readable(self.tmp_dir, writable=True)
+
         if self.language in _SOURCE_SUFFIXES:
             frames.extend(self._compile_native())
         return frames
@@ -119,8 +129,8 @@ class InteractiveSession:
         host_dir = str(Path(self.tmp_dir).resolve()).replace("\\", "/")
         argv = [
             self.docker, "run", "--rm", "--name", f"{self.container}-c",
-            *isolation_flags(MEMORY_LIMIT[self.language]),
-            "-v", f"{host_dir}:/work", "-w", "/work", "--pull", "never",
+            *isolation_flags(MEMORY_LIMIT[self.language], runtime=self.runtime),
+            "-v", f"{host_dir}:/work", "-w", "/work", "--pull=never",
             IMAGES[self.language], compiler, *flags, *sources, "-o", "program",
         ]
         try:
@@ -144,9 +154,9 @@ class InteractiveSession:
         tmpfs = f"/tmp:rw,exec,nosuid,size={TMPFS_SIZE[self.language]}"
         return [
             self.docker, "run", "--rm", "-i", "--name", self.container,
-            *isolation_flags(memory),
+            *isolation_flags(memory, runtime=self.runtime),
             "--tmpfs", tmpfs,
-            "-v", f"{host_dir}:/code:ro", "-w", "/code", "--pull", "never",
+            "-v", f"{host_dir}:/code:ro", "-w", "/code", "--pull=never",
             IMAGES[self.language],
             *inner,
         ]
@@ -165,7 +175,7 @@ class InteractiveSession:
         # Java: compile into the container's tmpfs, then run the selected main class.
         main_class = (self.request.main_class or "Main").strip() or "Main"
         return ["sh", "-lc",
-                f"cp -a /code /tmp/work && cd /tmp/work && javac $(find . -name '*.java') && java {main_class}"]
+                f"cp -r /code /tmp/work && cd /tmp/work && javac $(find . -name '*.java') && java {main_class}"]
 
     def start(self) -> None:
         """Launch the container and begin streaming its output."""
