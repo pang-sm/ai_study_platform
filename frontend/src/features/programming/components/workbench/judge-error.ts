@@ -1,5 +1,6 @@
 import { ApiRequestError } from '@/features/exam/api/content-status';
 import { serverErrorCode } from '@/lib/api/server-message';
+import { ProjectFileSaveError } from '../../api/programming';
 
 /**
  * The stable code the code-execution gate answers with when it refuses to run learner code.
@@ -20,6 +21,8 @@ export const CODE_EXECUTION_UNAVAILABLE = 'code_execution_unavailable';
 export const CODE_EXECUTION_UNAVAILABLE_MESSAGE =
   '代码运行环境当前不可用，你的代码已自动保存。可以继续编辑，运行环境恢复后再执行。';
 
+export const PROJECT_FILE_SAVE_FAILED_MESSAGE = '文件保存没有成功，当前内容仍留在编辑器中，请重试。';
+
 /**
  * The sentence to show when a run / test / submit call fails, or `undefined` to use the caller's
  * own.
@@ -30,6 +33,7 @@ export const CODE_EXECUTION_UNAVAILABLE_MESSAGE =
  * as the caller had it, so this mapping cannot change how any other error reads.
  */
 export function judgeFailureMessage(error: unknown): string | undefined {
+  if (error instanceof ProjectFileSaveError) return PROJECT_FILE_SAVE_FAILED_MESSAGE;
   if (!(error instanceof ApiRequestError)) return undefined;
   if (serverErrorCode(error.detail) !== CODE_EXECUTION_UNAVAILABLE) return undefined;
   return CODE_EXECUTION_UNAVAILABLE_MESSAGE;

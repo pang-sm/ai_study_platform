@@ -12,6 +12,7 @@ import {
   useProgrammingExerciseBank,
   useProgrammingJudge,
   useProgrammingRecords,
+  useSaveProgrammingProject,
   type JudgeAction,
 } from '../../api/programming';
 import { ProgrammingLanguagePicker } from '../programming-language-picker';
@@ -21,7 +22,7 @@ import { CodeEditor } from './code-editor';
 import { CoachPanel } from './coach-panel';
 import { ExerciseNav, type RecommendedExercise } from './exercise-nav';
 import { ExerciseStatement } from './exercise-statement';
-import { judgeFailureMessage } from './judge-error';
+import { judgeFailureMessage, PROJECT_FILE_SAVE_FAILED_MESSAGE } from './judge-error';
 import {
   readCoachCollapsed,
   readCoachModel,
@@ -92,8 +93,10 @@ export function WorkbenchPage({
   const workspace = useExerciseWorkspace(language ?? '', currentId);
   const records = useProgrammingRecords(200, 'code_submitted');
   const judge = useProgrammingJudge(language ?? '', currentId ?? 0);
+  const saveProject = useSaveProgrammingProject();
 
-  const [code, setCode] = useState('');
+  const [fileContents, setFileContents] = useState<Record<number, string>>({});
+  const [activeFileId, setActiveFileId] = useState<number | undefined>();
   const [stdin, setStdin] = useState('');
   const [runResult, setRunResult] = useState<unknown>();
   const [testResult, setTestResult] = useState<unknown>();
@@ -130,17 +133,34 @@ export function WorkbenchPage({
   // The buffer follows the OPEN PROJECT, and only that. This is the "adjust state when an input
   // changes" pattern rather than an effect: recording which project the buffer belongs to and
   // loading the new one during the same render means switching题目 never paints the previous题's
-  // code. A run or a test cannot trigger it either — they invalidate the bank, never this read —
-  // so nothing replaces what the learner is typing. A failed load leaves the editor empty rather
-  // than showing another题's code.
+  // code. Run, test and submit invalidate the bank, never this read, so they cannot replace the
+  // files the learner is editing. A failed load leaves the editor empty rather than showing
+  // another题's code.
   const [loadedKey, setLoadedKey] = useState<string | undefined>(undefined);
   if (workspaceKey !== loadedKey) {
     setLoadedKey(workspaceKey);
-    setCode(entry ? entry.file.content : '');
+    setFileContents(Object.fromEntries((workspace.data?.project.files ?? []).map((file) => [file.id, file.content])));
+    setActiveFileId(entry?.file.id);
     setRunResult(undefined);
     setTestResult(undefined);
     setStdin('');
   }
+
+  const projectFiles = workspace.data?.project.files ?? [];
+  const activeFile = projectFiles.find((file) => file.id === activeFileId) ?? entry?.file;
+  const code = activeFile ? fileContents[activeFile.id] ?? activeFile.content : '';
+  const starterCode = activeFile
+    ? workspace.data?.starterFiles.find((file) => file.path === activeFile.relative_path)?.content
+    : undefined;
+  const updateCode = (value: string) => {
+    if (!activeFile) return;
+    saveProject.reset();
+    setFileContents((current) => ({ ...current, [activeFile.id]: value }));
+  };
+  const currentProjectFiles = projectFiles.map((file) => ({
+    id: file.id,
+    content: fileContents[file.id] ?? file.content,
+  }));
 
   const currentItem = items.find((item) => exerciseIdOf(item) === currentId);
   const ordered = useMemo(() => items.map(exerciseIdOf).filter((id): id is number => id !== undefined), [items]);
@@ -176,7 +196,7 @@ export function WorkbenchPage({
       .slice(0, 3);
   }, [adaptive.data]);
 
-  const canRun = Boolean(workspace.data) && !judge.isPending;
+  const canRun = Boolean(workspace.data) && !judge.isPending && !saveProject.isPending;
 
   const openExercise = (id: number) => {
     if (!language) return;
@@ -189,8 +209,7 @@ export function WorkbenchPage({
       {
         action,
         projectId: workspace.data.project.id,
-        entryFileId: entry?.file.id,
-        code,
+        files: currentProjectFiles,
         stdin,
         entryFile: workspace.data.project.entry_file,
         mainClass: workspace.data.project.main_class ?? null,
@@ -323,8 +342,17 @@ export function WorkbenchPage({
           <div className="wb-main__section">
             <div className="wb-editor__head">
               <h2 className="text-heading font-semibold text-text-primary">代码</h2>
-              {entry ? <span className="wb-editor__file">{entry.file.relative_path}</span> : null}
+              {activeFile ? <span className="wb-editor__file">{activeFile.relative_path}</span> : null}
               <div className="wb-editor__actions">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={!workspace.data || saveProject.isPending}
+                  onClick={() => workspace.data && saveProject.mutate({ projectId: workspace.data.project.id, files: currentProjectFiles })}
+                >
+                  {saveProject.isPending ? '正在保存…' : saveProject.isSuccess ? '已保存' : '保存'}
+                </Button>
                 <Button type="button" size="sm" variant="secondary" disabled={!canRun} onClick={() => runAction('run')}>
                   {judge.isPending && judge.variables?.action === 'run' ? '正在运行…' : '运行'}
                 </Button>
@@ -344,8 +372,8 @@ export function WorkbenchPage({
                   type="button"
                   size="sm"
                   variant="ghost"
-                  disabled={!entry || entry.starter === undefined}
-                  onClick={() => entry?.starter !== undefined && setCode(entry.starter)}
+                  disabled={!activeFile || starterCode === undefined}
+                  onClick={() => starterCode !== undefined && updateCode(starterCode)}
                 >
                   重置代码
                 </Button>
@@ -364,15 +392,39 @@ export function WorkbenchPage({
                 </button>
               </StatusNote>
             ) : (
-              <div className="wb-editor__shell">
-                <CodeEditor
-                  language={language}
-                  value={code}
-                  onChange={setCode}
-                  ariaLabel={`${canonical ?? ''} 代码编辑器`}
-                />
-              </div>
+              <>
+                {projectFiles.length > 1 ? (
+                  <div className="wb-editor__files" role="tablist" aria-label="工程文件">
+                    {projectFiles.map((file) => (
+                      <button
+                        key={file.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={activeFile?.id === file.id}
+                        className="wb-editor__file-tab"
+                        onClick={() => setActiveFileId(file.id)}
+                      >
+                        {file.relative_path}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="wb-editor__shell">
+                  <CodeEditor
+                    language={language}
+                    value={code}
+                    onChange={updateCode}
+                    ariaLabel={`${canonical ?? ''}${projectFiles.length > 1 && activeFile ? ` ${activeFile.relative_path}` : ''} 代码编辑器`}
+                  />
+                </div>
+              </>
             )}
+
+            {saveProject.isError ? (
+              <StatusNote tone="warning" className="mt-3">
+                {PROJECT_FILE_SAVE_FAILED_MESSAGE}
+              </StatusNote>
+            ) : null}
 
             {judge.isError ? (
               <StatusNote tone="warning" className="mt-3">

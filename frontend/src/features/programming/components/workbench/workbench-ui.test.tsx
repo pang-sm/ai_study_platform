@@ -192,7 +192,146 @@ describe('the AI 教练', () => {
     await user.click(screen.getByRole('button', { name: '重试' }));
     expect(await screen.findByText(/这次成功了/)).toBeInTheDocument();
   });
+});
 
+describe('the project editor', () => {
+  it('shows the actual project files and switches the editor to each file', async () => {
+    post.mockImplementation(async (url: string, options?: { body?: Record<string, unknown> }) => {
+      if (url === '/programming/exercises/{exercise_id}/start') {
+        return ok({
+          exercise: { id: 7, title: '图书馆', starter_files: [
+            { path: 'src/Main.java', content: 'class Main {}' },
+            { path: 'src/Book.java', content: 'class Book {}' },
+          ] },
+          project: {
+            id: 57, entry_file: 'src/Main.java', main_class: 'Main', language: 'Java',
+            files: [
+              { id: 91, relative_path: 'src/Main.java', filename: 'Main.java', content: 'class Main {}' },
+              { id: 92, relative_path: 'src/Book.java', filename: 'Book.java', content: 'class Book {}' },
+            ],
+          },
+          resumed: false,
+        });
+      }
+      if (url === '/code/analyze') return analyze(options?.body ?? {});
+      return ok({});
+    });
+    const user = userEvent.setup();
+    renderApp('/programming/workbench?language=java&exercise=7');
+
+    const bookTab = await screen.findByRole('tab', { name: 'src/Book.java' });
+    expect(screen.getByRole('tab', { name: 'src/Main.java' })).toHaveAttribute('aria-selected', 'true');
+    await user.click(bookTab);
+    expect(bookTab).toHaveAttribute('aria-selected', 'true');
+    const editor = screen.getByRole('textbox', { name: 'Java src/Book.java 代码编辑器' });
+    expect(editor).toHaveTextContent('class Book {}');
+    await user.click(editor);
+    await user.keyboard('{Control>}a{/Control}class Book changed');
+    await user.click(screen.getByRole('tab', { name: 'src/Main.java' }));
+    await user.click(bookTab);
+    expect(editor).toHaveTextContent('class Book changed');
+    await user.click(screen.getByRole('button', { name: '保存' }));
+    await waitFor(() => expect(put).toHaveBeenCalledWith('/code/projects/{project_id}/files/{file_id}', expect.objectContaining({
+      params: { path: { project_id: 57, file_id: 92 } },
+      body: { username: '', content: 'class Book changed' },
+    })));
+  });
+
+  it('keeps the single-file exercise on the normal single-editor surface', async () => {
+    renderApp('/programming/workbench?language=python&exercise=7');
+
+    expect(await screen.findByText('main.py')).toBeInTheDocument();
+    expect(screen.queryByRole('tablist', { name: '工程文件' })).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Python 代码编辑器' })).toBeInTheDocument();
+  });
+
+  it('saves every changed project file before run, test, and submit', async () => {
+    const sequence: string[] = [];
+    const originalGet = get.getMockImplementation();
+    get.mockImplementation(async (url: string, options?: unknown) => {
+      if (url === '/programming/exercises/{exercise_id}') {
+        return ok({ exercise: { id: 7, title: '图书馆', public_samples: [{ id: 'case-1' }] } });
+      }
+      return originalGet?.(url, options);
+    });
+    post.mockImplementation(async (url: string, options?: { body?: Record<string, unknown> }) => {
+      if (url === '/programming/exercises/{exercise_id}/start') {
+        return ok({
+          exercise: { id: 7, title: '图书馆', starter_files: [], public_samples: [{ id: 'case-1' }] },
+          project: {
+            id: 57, entry_file: 'src/Main.java', main_class: 'Main', language: 'Java',
+            files: [
+              { id: 91, relative_path: 'src/Main.java', filename: 'Main.java', content: 'class Main {}' },
+              { id: 92, relative_path: 'src/Book.java', filename: 'Book.java', content: 'class Book {}' },
+            ],
+          },
+          resumed: false,
+        });
+      }
+      if (url === '/code/analyze') return analyze(options?.body ?? {});
+      if (url.endsWith('/run')) sequence.push('run');
+      if (url.endsWith('/test')) sequence.push('test');
+      if (url.endsWith('/submit')) sequence.push('submit');
+      return ok({});
+    });
+    put.mockImplementation(async (url: string, options?: { body?: Record<string, unknown>; params?: { path?: { file_id?: number } } }) => {
+      if (url === '/code/projects/{project_id}/files/{file_id}') {
+        sequence.push(`save:${options?.params?.path?.file_id}:${String(options?.body?.content)}`);
+      }
+      return ok({});
+    });
+    const user = userEvent.setup();
+    renderApp('/programming/workbench?language=java&exercise=7');
+
+    await screen.findByRole('tab', { name: 'src/Book.java' });
+    const userEditor = screen.getByRole('textbox', { name: 'Java src/Main.java 代码编辑器' });
+    await user.click(userEditor);
+    await user.keyboard('{Control>}a{/Control}class Main changed');
+    await user.click(screen.getByRole('tab', { name: 'src/Book.java' }));
+    const bookEditor = screen.getByRole('textbox', { name: 'Java src/Book.java 代码编辑器' });
+    await user.click(bookEditor);
+    await user.keyboard('{Control>}a{/Control}class Book changed');
+    for (const action of ['运行', '运行测试', '提交']) {
+      sequence.length = 0;
+      put.mockClear();
+      post.mockClear();
+      await user.click(screen.getByRole('button', { name: action }));
+      await waitFor(() => expect(post.mock.calls.some(([url]) => url === `/programming/exercises/{exercise_id}/${action === '运行' ? 'run' : action === '运行测试' ? 'test' : 'submit'}`)).toBe(true));
+      const projectSaves = put.mock.calls.filter(([url]) => url === '/code/projects/{project_id}/files/{file_id}');
+      expect(projectSaves.map(([, options]) => (options as { params: { path: { file_id: number } } }).params.path.file_id)).toEqual([91, 92]);
+      const operationIndex = post.mock.calls.findIndex(([url]) => String(url).endsWith(`/${action === '运行' ? 'run' : action === '运行测试' ? 'test' : 'submit'}`));
+      expect(projectSaves).toHaveLength(2);
+      expect(operationIndex).toBeGreaterThan(-1);
+      expect(sequence).toEqual([
+        'save:91:class Main changed',
+        'save:92:class Book changed',
+        action === '运行' ? 'run' : action === '运行测试' ? 'test' : 'submit',
+      ]);
+    }
+  });
+
+  it('removes the coach helper copy while keeping its composer available', async () => {
+    renderApp('/programming/workbench?language=python&exercise=7');
+
+    expect(await screen.findByLabelText('向 AI 教练提问')).toBeEnabled();
+    expect(screen.queryByText('可以直接用上面的快捷入口，或在下面输入你的问题。教练会结合当前代码与最近一次运行/测试结果回答。')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '发送' })).toBeInTheDocument();
+  });
+
+  it('reports a failed project save and does not start the judge action', async () => {
+    put.mockRejectedValue(new TypeError('network error'));
+    const user = userEvent.setup();
+    renderApp('/programming/workbench?language=python&exercise=7');
+
+    const run = await screen.findByRole('button', { name: '运行' });
+    await user.click(run);
+
+    expect(await screen.findByText('文件保存没有成功，当前内容仍留在编辑器中，请重试。')).toBeInTheDocument();
+    expect(post.mock.calls.some(([url]) => url === '/programming/exercises/{exercise_id}/run')).toBe(false);
+  });
+});
+
+describe('the AI 教练', () => {
   it('sends the newly opened题目 as the exercise_id, never the one before it', async () => {
     const user = userEvent.setup();
     renderApp('/programming/workbench?language=python&exercise=7');

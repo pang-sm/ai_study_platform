@@ -197,11 +197,9 @@ export function CoachPanel({
           scrollTopRef.current = event.currentTarget.scrollTop;
         }}
       >
-        {!turns.length && !pendingQuestion && !failedQuestion ? (
+        {!turns.length && !pendingQuestion && !failedQuestion && disabled ? (
           <p className="text-body text-text-secondary">
-            {disabled
-              ? '先打开一道题目；教练会用当前语言、题目、代码与最近一次运行结果作答。'
-              : '可以直接用上面的快捷入口，或在下面输入你的问题。教练会结合当前代码与最近一次运行/测试结果回答。'}
+            先打开一道题目；教练会用当前语言、题目、代码与最近一次运行结果作答。
           </p>
         ) : null}
 

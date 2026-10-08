@@ -238,8 +238,7 @@ export type JudgeRequest = {
   action: JudgeAction;
   /** The open project. The judge executes the STORED project, so the buffer is saved first. */
   projectId: number;
-  entryFileId: number | undefined;
-  code: string;
+  files: Array<{ id: number; content: string }>;
   stdin: string;
   entryFile: string;
   mainClass: string | null;
@@ -247,14 +246,42 @@ export type JudgeRequest = {
   publicCaseIds: string[];
 };
 
+export type SaveProjectRequest = { projectId: number; files: Array<{ id: number; content: string }> };
+
+export class ProjectFileSaveError extends Error {
+  constructor() {
+    super('project_file_save_failed');
+    this.name = 'ProjectFileSaveError';
+  }
+}
+
+async function saveProjectFiles(input: SaveProjectRequest): Promise<void> {
+  try {
+    for (const file of input.files) {
+      const saved = await apiClient.PUT('/code/projects/{project_id}/files/{file_id}', {
+        params: { path: { project_id: input.projectId, file_id: file.id } },
+        body: { username: '', content: file.content },
+      });
+      if (!saved.response.ok) throw new ProjectFileSaveError();
+    }
+  } catch {
+    throw new ProjectFileSaveError();
+  }
+}
+
+/** Saves each file from the open project, in project order. */
+export function useSaveProgrammingProject() {
+  return useMutation({ mutationFn: saveProjectFiles });
+}
+
 /**
  * One learner action against the real judge.
  *
  * Two calls, in this order, and the order is the point: the endpoint set that runs, tests and
  * submits a programming exercise executes the learner's PROJECT FILES — it takes no code in its
- * body. So the editor's buffer is written to the project first, and only then is the action asked
- * for. Without the save, 运行 would execute whatever the project last held rather than what is on
- * screen, and the answer the learner reads would not be about their code.
+ * body. So every editor buffer is written to the project first, and only then is the action asked
+ * for. Without the saves, a run would execute whatever the project last held rather than what is
+ * on screen.
  *
  * `test` additionally requires the ids of the visible samples it should run; the caller passes
  * them because they belong to the题面, not to this request shape.
@@ -263,13 +290,7 @@ export function useProgrammingJudge(language: string, exerciseId: number) {
   const client = useQueryClient();
   return useMutation({
     mutationFn: async (input: JudgeRequest) => {
-      if (input.entryFileId !== undefined) {
-        const saved = await apiClient.PUT('/code/projects/{project_id}/files/{file_id}', {
-          params: { path: { project_id: input.projectId, file_id: input.entryFileId } },
-          body: { username: '', content: input.code },
-        });
-        if (!saved.response.ok) throw new ApiRequestError(saved.response.status, saved.error);
-      }
+      await saveProjectFiles({ projectId: input.projectId, files: input.files });
       const path = { exercise_id: exerciseId };
       const body = {
         username: '',
