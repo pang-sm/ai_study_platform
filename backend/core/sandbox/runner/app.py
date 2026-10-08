@@ -35,6 +35,9 @@ from core.sandbox.types import ExecutionResult, Verdict
 # The whole request body may never exceed the total source budget plus a small envelope.
 MAX_REQUEST_BYTES = MAX_TOTAL_SOURCE_BYTES + 64 * 1024
 
+# The socket's permissions are tightened by the systemd unit, not here: uvicorn binds the
+# socket AFTER the application's lifespan startup runs, so a chmod in the app executes
+# against a path that does not exist yet and silently does nothing.
 app = FastAPI(title="zhixue-sandbox-runner", docs_url=None, redoc_url=None, openapi_url=None)
 _backend = DockerExecutionBackend()
 

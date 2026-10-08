@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from core.sandbox.docker_backend import _normalize_path
 from core.sandbox.limits import (
     IMAGES,
     MAX_FILE_BYTES,
@@ -26,6 +27,23 @@ class SourceFileModel(BaseModel):
 
     relative_path: str = Field(min_length=1, max_length=1024)
     content: str = ""
+
+    @field_validator("relative_path")
+    @classmethod
+    def _contained_path(cls, value: str) -> str:
+        """Reject an absolute or ``..`` path HERE, not deeper in the run.
+
+        The runner already refuses such a path when it writes the file, but by then the
+        request has passed validation and the refusal surfaces as an unhandled error. A
+        crafted path is a malformed request, so it belongs in the schema — and reusing the
+        backend's own normaliser keeps the two rules from drifting apart. The returned
+        value is the normalised form, so the file the schema accepted is the file that gets
+        written and the name that reaches the container argv.
+        """
+        try:
+            return _normalize_path(value)
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
 
 
 class ExecutionRequestModel(BaseModel):

@@ -1,0 +1,20 @@
+# Dependencies of the sandbox runner process — SECURITY_S0B-P1 / Stage 5A.
+#
+# This is NOT a copy of backend/requirements.txt. The runner is a separate process with a
+# separate trust boundary, and it imports exactly three third-party packages (verified by
+# walking the import closure of core/sandbox/**, not by reading the directory name):
+#
+#     core/sandbox/runner/app.py       -> fastapi, pydantic
+#     core/sandbox/runner/schemas.py   -> pydantic
+#     core/sandbox/runner/interactive.py -> (stdlib only)
+#     core/sandbox/{docker_backend,limits,types}.py -> (stdlib only)
+#
+# `httpx` is deliberately ABSENT: it is imported by core/sandbox/runner_client.py, which is
+# the WEB side of the IPC. Installing it here would mean this interpreter carries a network
+# client it has no use for — the runner speaks only over a Unix socket.
+#
+# Versions match the application's pins so the two processes cannot disagree about the
+# request/response schema they share.
+fastapi==0.136.1
+uvicorn==0.47.0
+pydantic==2.13.4

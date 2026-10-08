@@ -1,0 +1,98 @@
+# Sandbox runner — SECURITY_S0B-P1 / Stage 5A.
+#
+# Runs learner code in one-shot rootless Podman containers. It is the only process on the
+# host that talks to a container runtime, and it is reachable only over a Unix socket.
+#
+# Every hardening line below was decided by EXECUTING a bounded container under that exact
+# property and observing the result (scripts/deploy/_stage5a_runner_hardening.sh), not by
+# copying a template. Four options that look obviously correct on an ordinary service are
+# wrong here, and three of them are wrong in ways that only a run reveals:
+#
+#   NoNewPrivileges=no      the rootless user namespace is entered through newuidmap /
+#                           newgidmap, which are setuid helpers; NNP makes them inert.
+#   RestrictSUIDSGID=no     same helpers — exec of a setuid binary IS the mechanism.
+#   RestrictNamespaces=no   the container is a set of new namespaces (user/mount/pid/net).
+#   ProtectControlGroups=no podman writes the container's own cgroup (memory.max,
+#                           pids.max) under /sys/fs/cgroup.
+#
+# Three more were measured and REMOVED, each for a concrete failure:
+#
+#   ProtectHome=yes         also hides /run/user, and podman dies with
+#                           "stat /run/user/997: permission denied".
+#                           InaccessiblePaths= below keeps the protection that actually
+#                           matters (the deploy account's home) without that collateral.
+#   ProtectHostname=yes     the container's UTS namespace must set its own hostname;
+#                           runc fails with "sethostname: operation not permitted".
+#   SystemCallFilter=@system-service
+#                           blocks syscalls runc needs to build the container; no
+#                           allow-list variant of it was found that still permitted a run,
+#                           so the runner keeps none. Its containment is the container, not
+#                           a syscall filter.
+
+[Unit]
+Description=Zhixue sandbox runner (learner code execution, rootless Podman)
+After=network.target
+
+[Service]
+Type=simple
+User=zhixue-sandbox
+Group=zhixue-sandbox
+WorkingDirectory=/opt/zhixue-sandbox-runner/app
+Environment=PYTHONUNBUFFERED=1
+Environment=SANDBOX_CONTAINER_RUNTIME=podman
+Environment=SANDBOX_RUNNER_SOCKET=/run/zhixue-sandbox/runner.sock
+Environment=XDG_RUNTIME_DIR=/run/user/997
+# ProtectSystem=strict leaves /tmp read-only, so tempfile finds no usable directory and
+# every run dies before it starts. Pointing TMPDIR at the runner's own state directory
+# fixes that AND keeps the per-run directory — which is bind-mounted into the container —
+# somewhere podman's rootless pause process can resolve. PrivateTmp=yes stays on below.
+Environment=TMPDIR=/var/lib/zhixue-sandbox/tmp
+# RuntimeDirectory is deliberately absent: the socket directory's GROUP is the access
+# control, and systemd would create it with this unit's Group. tmpfiles.d owns it instead,
+# as zhixue-sandbox:zhixue-ipc 2750 — so the socket inherits the group the web identity is
+# in, and no other local account can reach it.
+ExecStartPre=+/usr/bin/systemd-tmpfiles --create /etc/tmpfiles.d/zhixue-sandbox-runner.conf
+# rootless podman keeps a per-user "pause" process that holds the user namespace, and it
+# OUTLIVES the unit that created it. If the namespace it was born in no longer matches
+# (the service was restarted with different sandboxing, or the process was started by hand
+# from another context) every later container fails with an opaque runtime error. Running
+# `system migrate` inside the unit's own sandbox re-creates it in the right context, so a
+# restart repairs itself instead of needing an operator to notice.
+ExecStartPre=-/usr/bin/podman system migrate
+ExecStart=/opt/zhixue-sandbox-runner/venv/bin/uvicorn core.sandbox.runner.app:app --uds /run/zhixue-sandbox/runner.sock
+# uvicorn hard-codes 0o666 on a Unix socket, which would let any account that can reach the
+# path connect to the execution service. It also BINDS the socket after the application's
+# lifespan startup, so this cannot be fixed inside the app — a chmod there runs against a
+# path that does not exist yet. Waiting for the socket and tightening it here is the only
+# place that runs after bind. The directory group/mode (zhixue-ipc, 2750) remains the real
+# access control; this keeps the socket itself from being world-reachable if that bit ever
+# regresses.
+ExecStartPost=-/bin/sh -c 'for _ in $(seq 1 100); do [ -S /run/zhixue-sandbox/runner.sock ] && break; sleep 0.1; done; chmod 0660 /run/zhixue-sandbox/runner.sock'
+Restart=always
+RestartSec=3
+
+# Files the runner creates (container storage, the socket) stay inside their group; 0007 is
+# what makes the socket group-accessible instead of world-writable.
+UMask=0007
+
+# ── hardening (measured, see the header) ────────────────────────────────────────
+NoNewPrivileges=no
+RestrictSUIDSGID=no
+RestrictNamespaces=no
+ProtectControlGroups=no
+
+ProtectSystem=strict
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+# Replaces ProtectHome=yes, which breaks rootless podman by hiding /run/user.
+InaccessiblePaths=/home/ubuntu /root
+ReadWritePaths=/var/lib/zhixue-sandbox /run/zhixue-sandbox /run/user/997
+
+[Install]
+WantedBy=multi-user.target
