@@ -48,7 +48,12 @@ jobs:
             -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" \
             "$TENCENT_USER@$HOST_CLEAN" 'bash -se' <<'CANARYEOF'
           set -euo pipefail
-          cd "$HOME/ai_study_platform"
+          # Resolve the release root the way deploy.yml does: the running unit's
+          # WorkingDirectory is the tree actually serving traffic, so this follows
+          # the Stage 5B move instead of addressing the tree it left behind.
+          APP_ROOT="$(systemctl show ai-backend -p WorkingDirectory --value | sed 's#/backend$##')"
+          [ -d "${APP_ROOT:-}" ] || APP_ROOT="$HOME/ai_study_platform"
+          cd "$APP_ROOT"
           echo "[canary] running verify_student_twin_production_canary.py"
           DATABASE_URL="sqlite:////var/lib/ai_study_platform/app.db" \
           SCIENTIFIC_RUNTIME_BASE_URL="http://127.0.0.1:8101" \

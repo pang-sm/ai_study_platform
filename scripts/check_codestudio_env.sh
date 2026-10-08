@@ -19,7 +19,13 @@ fail()  { echo -e "${RED}[FAIL]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 info()  { echo -e "  $*"; }
 
-PROJECT_DIR="$HOME/ai_study_platform"
+# Resolve the serving release tree by the same rule deploy.yml uses, so this check keeps
+# measuring the deployed code after the Stage 5B move. Override with PROJECT_DIR=... .
+PROJECT_DIR="${PROJECT_DIR:-}"
+if [ -z "$PROJECT_DIR" ]; then
+  PROJECT_DIR="$(systemctl show ai-backend -p WorkingDirectory --value 2>/dev/null | sed 's#/backend$##')"
+  [ -d "$PROJECT_DIR" ] || PROJECT_DIR="$HOME/ai_study_platform"
+fi
 VENV_PYTHON="$PROJECT_DIR/backend/.venv/bin/python3"
 VENV_PIP="$PROJECT_DIR/backend/.venv/bin/pip"
 STATIC_DIR="/var/www/ai_study_platform"

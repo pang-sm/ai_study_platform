@@ -7,7 +7,14 @@
 set -euo pipefail
 
 RUNTIME_HOME=/opt/zhixue-runtime
-REPO_ROOT="${REPO_ROOT:-$HOME/ai_study_platform}"
+# deploy.yml passes REPO_ROOT explicitly. The fallback resolves the serving tree the same
+# way it does, so running this by hand across the Stage 5B move targets the live release
+# rather than the one that was left behind.
+if [ -z "${REPO_ROOT:-}" ]; then
+  APP_ROOT="$(systemctl show ai-backend -p WorkingDirectory --value 2>/dev/null | sed 's#/backend$##')"
+  [ -d "${APP_ROOT:-}" ] || APP_ROOT="$HOME/ai_study_platform"
+  REPO_ROOT="$APP_ROOT"
+fi
 
 ARTIFACT_ID="zhixue-runtime-v1-phase1gr-p1-student-twin"
 ARTIFACT_DIR="$REPO_ROOT/deploy/artifacts"

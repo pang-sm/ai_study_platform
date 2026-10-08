@@ -103,7 +103,12 @@ jobs:
           BACKUP_DIR=/var/lib/ai_study_platform/audits
           TIMESTAMP="$(date -u +%Y%m%d_%H%M%S)"
           BACKUP="$BACKUP_DIR/app.db.before-deploy-drill.$TIMESTAMP.db"
-          REPO_ROOT="$HOME/ai_study_platform"
+          # Resolve the release root the way deploy.yml does: the running unit's
+          # WorkingDirectory is the tree actually serving traffic, so this follows
+          # the Stage 5B move instead of addressing the tree it left behind.
+          APP_ROOT="$(systemctl show ai-backend -p WorkingDirectory --value | sed 's#/backend$##')"
+          [ -d "${APP_ROOT:-}" ] || APP_ROOT="$HOME/ai_study_platform"
+          REPO_ROOT="$APP_ROOT"
           PYTHON_BIN="$REPO_ROOT/backend/.venv/bin/python"
 
           mkdir -p "$BACKUP_DIR"

@@ -180,11 +180,22 @@ jobs:
           find /tmp -maxdepth 1 -type d -name 'tmp.*' -mmin +60 -print -exec rm -rf -- {} +
           npm cache clean --force || true
           sudo journalctl --vacuum-size=200M || true
+          # ── APPLICATION ROOT (resolved, never hardcoded) ──
+          # The running unit's WorkingDirectory is the single source of truth for which
+          # tree is serving traffic, so this follows the Stage 5B move instead of pinning
+          # a path that would keep operating on the tree the move left behind. It is
+          # duplicated verbatim in the deploy heredoc below; keep the two in step.
+          APP_WD="$(sudo systemctl show ai-backend -p WorkingDirectory --value 2>/dev/null || true)"
+          if [ -n "${APP_WD:-}" ] && [ "$APP_WD" != "-" ] && [ -d "$APP_WD" ]; then
+            APP_ROOT="${APP_WD%/backend}"
+          else
+            APP_ROOT="$HOME/ai_study_platform"
+          fi
           # Keep the three newest catalog-reform database copies in each
           # explicitly managed backup directory. The live database, deploy
           # backups, uploads, and all other backup names are never touched.
           for BACKUP_ROOT in \
-            "$HOME/ai_study_platform/backend/backups" \
+            "$APP_ROOT/backend/backups" \
             "/var/lib/ai_study_platform/backups"; do
             if [ -d "$BACKUP_ROOT" ]; then
               mapfile -t STALE_CATALOG_BACKUPS < <(
@@ -200,9 +211,9 @@ jobs:
               done
             fi
           done
-          if git -C "$HOME/ai_study_platform" rev-parse --git-dir >/dev/null 2>&1; then
+          if git -C "$APP_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
             echo "[preflight] compacting unreachable Git objects"
-            git -C "$HOME/ai_study_platform" gc --prune=now
+            git -C "$APP_ROOT" gc --prune=now
           fi
           AVAIL_KB="$(df -Pk / | awk 'NR==2 {print $4}')"
           INODES_AVAIL="$(df -Pi / | awk 'NR==2 {print $4}')"
@@ -290,7 +301,19 @@ jobs:
           }
           trap deployment_exit EXIT
 
-          REPO_ROOT="$HOME/ai_study_platform"
+          # ── APPLICATION ROOT (resolved, never hardcoded) ──
+          # Same rule as the preflight block above: the unit's WorkingDirectory decides which
+          # tree this deploy owns. Stage 5B moves the tree by updating that one unit field,
+          # so every path derived from here follows the move with no second edit to make and
+          # none to forget. `REPO_ROOT` is the only name used below.
+          APP_WD="$(sudo systemctl show ai-backend -p WorkingDirectory --value 2>/dev/null || true)"
+          if [ -n "${APP_WD:-}" ] && [ "$APP_WD" != "-" ] && [ -d "$APP_WD" ]; then
+            APP_ROOT="${APP_WD%/backend}"
+          else
+            APP_ROOT="$HOME/ai_study_platform"
+          fi
+          REPO_ROOT="$APP_ROOT"
+          echo "[deploy] application root: $REPO_ROOT (unit WorkingDirectory: ${APP_WD:-unset})"
           cd "$REPO_ROOT"
 
           # ── DEPLOY_SAFETY 1/5: ROLLBACK ANCHORS, taken BEFORE anything is replaced ──
@@ -347,7 +370,7 @@ jobs:
               tar xzf "$ROLLBACK_TAR" -C "$stage"
               rsync -a --delete --exclude='.git/' --exclude='backend/app.db' \
                 --exclude='backend/.env' --exclude='backend/.venv/' \
-                --exclude='backend/backups/' --exclude='backend/uploads/' \
+                --exclude='/backend/backups' --exclude='/backend/uploads' \
                 "$stage/" "$REPO_ROOT/"
               rm -rf "$stage"
               echo "[deploy] ROLLBACK: source restored from $ROLLBACK_TAR"
@@ -377,6 +400,19 @@ jobs:
           df -i /
           git remote -v
           echo "[deploy] Updating repository from uploaded Git bundle"
+          if ! git -C "$REPO_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+            # The release root is not a Git worktree — it was installed from a verified
+            # source archive (the /opt layout). There is no .git to fetch into and no
+            # previous checkout for `reset --hard`, so the archive IS the update path.
+            # The bundle/clone recovery below must be skipped entirely, not merely fail:
+            # it ends by moving "$DEPLOY_TREE/.git" into the release root, which would
+            # abort the deploy on a tree that has no .git at all.
+            echo "[deploy] $REPO_ROOT is not a Git worktree; syncing the source archive"
+            DEPLOY_TREE="$(mktemp -d)"
+            tar -xzf "$DEPLOY_ARCHIVE" -C "$DEPLOY_TREE"
+            rsync -a --delete --exclude='.git/' --exclude='backend/app.db' --exclude='backend/.env' --exclude='backend/.venv/' --exclude='/backend/backups' --exclude='/backend/uploads' "$DEPLOY_TREE/" "$REPO_ROOT/"
+            rm -rf "$DEPLOY_TREE"
+          else
           GIT_FETCH_LOG="$(mktemp)"
           if git fetch "$DEPLOY_BUNDLE" main 2>&1 | tee "$GIT_FETCH_LOG"; then
             echo "[deploy] git fetch succeeded"
@@ -391,7 +427,7 @@ jobs:
             echo "[deploy] Existing Git worktree could not consume bundle; rebuilding it from the same bundle"
             DEPLOY_TREE=$(mktemp -d)
             if git clone "$DEPLOY_BUNDLE" "$DEPLOY_TREE" 2>&1 | tee "$REPO_ROOT/.git-clone.log"; then
-              rsync -a --delete --exclude='.git/' --exclude='backend/app.db' --exclude='backend/.env' --exclude='backend/.venv/' --exclude='backend/backups/' --exclude='backend/uploads/' "$DEPLOY_TREE/" "$REPO_ROOT/"
+              rsync -a --delete --exclude='.git/' --exclude='backend/app.db' --exclude='backend/.env' --exclude='backend/.venv/' --exclude='/backend/backups' --exclude='/backend/uploads' "$DEPLOY_TREE/" "$REPO_ROOT/"
               mv "$REPO_ROOT/.git" "$DEPLOY_TREE/.git.previous"
               mv "$DEPLOY_TREE/.git" "$REPO_ROOT/.git"
             else
@@ -399,11 +435,12 @@ jobs:
               rm -rf "$DEPLOY_TREE"
               DEPLOY_TREE=$(mktemp -d)
               tar -xzf "$DEPLOY_ARCHIVE" -C "$DEPLOY_TREE"
-              rsync -a --delete --exclude='.git/' --exclude='backend/app.db' --exclude='backend/.env' --exclude='backend/.venv/' --exclude='backend/backups/' --exclude='backend/uploads/' "$DEPLOY_TREE/" "$REPO_ROOT/"
+              rsync -a --delete --exclude='.git/' --exclude='backend/app.db' --exclude='backend/.env' --exclude='backend/.venv/' --exclude='/backend/backups' --exclude='/backend/uploads' "$DEPLOY_TREE/" "$REPO_ROOT/"
             fi
             rm -rf "$DEPLOY_TREE"
           fi
           rm -f "$GIT_FETCH_LOG" "$REPO_ROOT/.git-clone.log"
+          fi
           echo "[deploy] git update completed"
           rm -f "$DEPLOY_BUNDLE"
           rm -f "$DEPLOY_ARCHIVE"
@@ -510,14 +547,24 @@ jobs:
 
           # ── Persistent database outside git worktree ──
           sudo mkdir -p /var/lib/ai_study_platform
+          # Create the two app-written subdirectories BEFORE the permission pass, so a
+          # fresh host gets them setgid + group-write from the same code path instead of
+          # inheriting whatever root's umask produced.
+          sudo mkdir -p /var/lib/ai_study_platform/backups /var/lib/ai_study_platform/uploads
           DATA_DB=/var/lib/ai_study_platform/app.db
           CATALOG_BACKUP=""
           if [ -f backend/app.db ] && [ ! -f "$DATA_DB" ]; then
             echo "[deploy] 首次部署：迁移本地 app.db 到持久目录"
             cp backend/app.db "$DATA_DB"
           fi
-          sudo chown -R $(whoami):$(whoami) /var/lib/ai_study_platform 2>/dev/null || true
-          sudo chmod 755 /var/lib/ai_study_platform 2>/dev/null || true
+          # ── Shared mutable state: owner preserved, group zhixue-app, group-write ──
+          # This replaced a blanket `chown -R ubuntu:ubuntu` + `chmod 755`. That pair did
+          # two harmful things on every deploy: it reassigned ownership of learner uploads
+          # and of the live database, and it left the tree world-traversable so an unrelated
+          # service account could open production data. The script below is idempotent and
+          # is also what the Stage 5A drill exercises, so the tested behaviour and the
+          # deployed behaviour cannot drift apart.
+          bash "$REPO_ROOT/deploy/enforce_shared_state.sh" /var/lib/ai_study_platform zhixue-app
           # PREFLIGHT (read only). This gate asks its question against the live database BEFORE
           # anything is stopped, so a refusal costs the deployment nothing and production keeps
           # serving. Its late position is exactly what turned a data bug into a 15-minute outage
@@ -533,7 +580,10 @@ jobs:
           fi
           # A catalog migration must never run without a recoverable snapshot.
           if [ -f "$DATA_DB" ]; then
-            CATALOG_BACKUP_DIR="$REPO_ROOT/backend/backups"
+            # Snapshots belong with the rest of the mutable state, not inside the release
+            # tree: the tree is replaced on every deploy, and a snapshot that a `rsync
+            # --delete` can remove is not a rollback anchor.
+            CATALOG_BACKUP_DIR="/var/lib/ai_study_platform/backups"
             mkdir -p "$CATALOG_BACKUP_DIR"
             CATALOG_BACKUP="$CATALOG_BACKUP_DIR/app.db.before-catalog-reform.$(date +%Y%m%d_%H%M%S).db"
             # `.backup` is the ONLINE-safe snapshot. The service is still running here, and a
@@ -543,15 +593,19 @@ jobs:
               echo "[deploy] ERROR: catalog database backup failed"
               exit 1
             fi
-            sudo chown "$(whoami):$(whoami)" "$CATALOG_BACKUP" 2>/dev/null || true
+            # `sqlite3` ran as root, so this file needs the shared group and its write bit
+            # explicitly. A `chown` to the deploy account — what this line used to do —
+            # would strip the group the shared-state model depends on.
+            sudo chgrp zhixue-app "$CATALOG_BACKUP" 2>/dev/null || true
+            sudo chmod 0660 "$CATALOG_BACKUP" 2>/dev/null || true
             test -s "$CATALOG_BACKUP" || { echo "[deploy] ERROR: catalog database backup is empty"; exit 1; }
             echo "[deploy] Catalog database backup: $CATALOG_BACKUP ($(du -h "$CATALOG_BACKUP" | cut -f1))"
             # A new automatic snapshot was just created. Retain the newest
             # three automatic catalog-reform backups in each managed folder;
             # milestone backups with other names are never touched.
             for BACKUP_ROOT in \
-              "$REPO_ROOT/backend/backups" \
-              "/var/lib/ai_study_platform/backups"; do
+              "$CATALOG_BACKUP_DIR" \
+              "$REPO_ROOT/backend/backups"; do
               if [ -d "$BACKUP_ROOT" ]; then
                 mapfile -t STALE_CATALOG_BACKUPS < <(
                   find "$BACKUP_ROOT" -maxdepth 1 -type f \
@@ -594,7 +648,7 @@ jobs:
           fi
 
           cd "$REPO_ROOT"
-          MIGRATION_LOG="$REPO_ROOT/backend/backups/migration.$(date +%Y%m%d_%H%M%S).log"
+          MIGRATION_LOG="/var/lib/ai_study_platform/backups/migration.$(date +%Y%m%d_%H%M%S).log"
           mkdir -p "$(dirname "$MIGRATION_LOG")"
 
           echo "=== alembic upgrade head ==="
@@ -679,6 +733,26 @@ jobs:
               echo "[deploy]        $BASE_EXEC"
               exit 1 ;;
           esac
+          # ── Cross-check the derived interpreter against the release it must serve ──
+          # `systemctl cat` prints the BASE unit first, so BASE_EXEC comes from the host's
+          # own unit definition — not from a drop-in. That is the right source, but it means
+          # this line can PIN A FOREIGN TREE: if the base unit still names the old directory
+          # after the release moved, the drop-in written below would restart the OLD code
+          # while every other step of this deploy updated the new one. Moving the release
+          # therefore has to update the base unit, and this gate makes the failure loud
+          # instead of silent.
+          case "$LOOPBACK_EXEC" in
+            *"$REPO_ROOT/"*) ;;
+            *)
+              echo "[deploy] ERROR: ai-backend's ExecStart does not point into the release"
+              echo "[deploy]        this deploy owns, so pinning the bind would restart a"
+              echo "[deploy]        different tree than the one just updated."
+              echo "[deploy]        release root : $REPO_ROOT"
+              echo "[deploy]        unit ExecStart: $LOOPBACK_EXEC"
+              echo "[deploy]        Update the BASE unit (/etc/systemd/system/ai-backend.service)"
+              echo "[deploy]        to the new WorkingDirectory/ExecStart, then redeploy."
+              exit 1 ;;
+          esac
           sudo tee /etc/systemd/system/ai-backend.service.d/loopback-bind.conf > /dev/null <<INNEREOF
           # SECURITY_NETWORK_BACKEND_PERIMETER — written by .github/workflows/deploy.yml.
           # The API must not be reachable except through nginx on this same host.
@@ -695,6 +769,25 @@ jobs:
             exit 1
           fi
           echo "[deploy] Backend pinned to 127.0.0.1 (public :8000 closed at the listener)"
+
+          # ── UMask: how the service's own files are born ──
+          # SQLite does not inherit the mode of an existing WAL — it CREATES `app.db-wal`
+          # and `app.db-shm` whenever it needs them, with mode 0666 & ~umask. Under the
+          # default umask 022 that is 0644: readable but not writable by the shared group,
+          # so the moment the service runs as a different identity than the one that
+          # created them (which is exactly what the Stage 5B cutover does) SQLite cannot
+          # write its own WAL. umask 0007 produces 0660, and the setgid directories in
+          # /var/lib give the file the right group — so the pair "service umask + setgid
+          # dir" is what keeps the database usable across an identity change.
+          sudo mkdir -p /etc/systemd/system/ai-backend.service.d
+          sudo tee /etc/systemd/system/ai-backend.service.d/umask.conf > /dev/null <<INNEREOF
+          [Service]
+          # SECURITY_S0B-P1: keep service-created files inside the shared group.
+          UMask=0007
+          INNEREOF
+          sudo chmod 644 /etc/systemd/system/ai-backend.service.d/umask.conf
+          sudo systemctl daemon-reload
+          echo "[deploy] service UMask=0007 (new WAL/SHM are group-writable, never world-readable)"
 
           # ── Retire the ADMIN_LOGIN_CODE drop-in ──
           # SECURITY_S0.5: ADMIN_LOGIN_CODE has no reader anywhere in the backend — no
@@ -782,6 +875,20 @@ jobs:
           DATABASE_URL="sqlite:///$DATA_DB" "$PYTHON_BIN" exam_resources/11408/computer_network/chapter_practice/build_computer_network_chapter_questions.py || echo "[deploy] WARN: CN chapter build failed"
           DATABASE_URL="sqlite:///$DATA_DB" "$PYTHON_BIN" exam_resources/11408/computer_network/past_papers/build_computer_network_past_papers.py || echo "[deploy] WARN: CN past papers build failed"
           cd ..
+
+          # ── Immutable release tree: readable+executable by the web identity, writable by
+          # nobody else ──
+          # Runs after every writer (rsync, pip, npm) and before the restart, because
+          # `rsync -a` restores the SOURCE modes (0644/0755) on every release — so
+          # other-read, and with it the sandbox runner's ability to read the application
+          # tree, comes back on every deploy unless it is stripped again here.
+          # The legacy tree is deliberately exempt: it keeps its host-provisioned ownership
+          # until Stage 5B retires it, and touching it now would only widen access.
+          if [ "$REPO_ROOT" != "$HOME/ai_study_platform" ]; then
+            bash "$REPO_ROOT/deploy/enforce_app_tree.sh" "$REPO_ROOT" zhixue-app
+          else
+            echo "[deploy] release root is the legacy tree; immutable-tree model not applied"
+          fi
 
           # ── DEPLOY_SAFETY 4/5: THE SWITCH — the FIRST stop in the whole deployment ──
           # Everything above this line ran against a still-serving production. From here the
