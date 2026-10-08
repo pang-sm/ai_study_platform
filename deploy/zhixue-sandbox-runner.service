@@ -59,6 +59,16 @@ ExecStartPre=+/usr/bin/systemd-tmpfiles --create /etc/tmpfiles.d/zhixue-sandbox-
 # `system migrate` inside the unit's own sandbox re-creates it in the right context, so a
 # restart repairs itself instead of needing an operator to notice.
 ExecStartPre=-/usr/bin/podman system migrate
+# `system migrate` REMOVES the pause, and on this host only the user manager's context can
+# create it again (measured: a pause created from inside this service's cgroup — by bash,
+# by python, or by the runner's own subprocess calls — fails with
+# `cannot setup namespace using newuidmap: exit status 1`, while the same command run under
+# user@NNN.service succeeds). Once it exists, every later podman command — uvicorn's
+# included — uses it normally. The warmup unit is oneshot + RemainAfterExit, so restarting
+# it re-runs exactly one bounded `podman version`; `-` keeps a warmup failure from ever
+# blocking the service, which then degrades to the pre-warmup behaviour rather than not
+# starting at all.
+ExecStartPre=-/bin/bash -c 'systemctl --user restart sandbox-pause-warmup.service 2>/dev/null || true'
 ExecStart=/opt/zhixue-sandbox-runner/venv/bin/uvicorn core.sandbox.runner.app:app --uds /run/zhixue-sandbox/runner.sock
 # uvicorn hard-codes 0o666 on a Unix socket, which would let any account that can reach the
 # path connect to the execution service. It also BINDS the socket after the application's
@@ -70,6 +80,12 @@ ExecStart=/opt/zhixue-sandbox-runner/venv/bin/uvicorn core.sandbox.runner.app:ap
 ExecStartPost=-/bin/sh -c 'for _ in $(seq 1 100); do [ -S /run/zhixue-sandbox/runner.sock ] && break; sleep 0.1; done; chmod 0660 /run/zhixue-sandbox/runner.sock'
 Restart=always
 RestartSec=3
+# uvicorn does not remove its Unix socket on exit, and a stale socket FILE would keep the
+# web-side availability check (is_secure_code_execution_available) answering "present"
+# while every connection fails with ConnectError. Removing it on stop makes "runner down"
+# read as it is: the gate closes and the learner gets the stable
+# `code_execution_unavailable` (503) answer instead of a connection error.
+ExecStopPost=-/bin/rm -f /run/zhixue-sandbox/runner.sock
 
 # Files the runner creates (container storage, the socket) stay inside their group; 0007 is
 # what makes the socket group-accessible instead of world-writable.

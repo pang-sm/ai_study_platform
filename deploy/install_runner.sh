@@ -76,6 +76,23 @@ if [ "$INSTALL_UNIT" = yes ]; then
   sudo cp "$SCRIPT_DIR/zhixue-sandbox-runner.service" /etc/systemd/system/zhixue-sandbox-runner.service
   sudo cp "$SCRIPT_DIR/zhixue-sandbox-runner.tmpfiles.conf" /etc/tmpfiles.d/zhixue-sandbox-runner.conf
   sudo systemd-tmpfiles --create /etc/tmpfiles.d/zhixue-sandbox-runner.conf
+  # ── the pause warmup: a USER unit, because only the user manager's context can create the
+  # rootless pause process on this host (see zhixue-sandbox-pause-warmup.service). It needs
+  # a running, LINGERING user manager; linger is a host prerequisite (loginctl
+  # enable-linger) that this script reports rather than silently assumes.
+  RUNNER_UID="$(id -u "$RUNNER_USER")"
+  sudo install -d -m 0755 -o "$RUNNER_USER" -g "$RUNNER_GROUP" /var/lib/zhixue-sandbox/.config/systemd/user
+  sudo install -m 0644 -o "$RUNNER_USER" -g "$RUNNER_GROUP" \
+    "$SCRIPT_DIR/zhixue-sandbox-pause-warmup.service" \
+    /var/lib/zhixue-sandbox/.config/systemd/user/sandbox-pause-warmup.service
+  if [ -d "/run/user/$RUNNER_UID" ]; then
+    sudo -u "$RUNNER_USER" -H env XDG_RUNTIME_DIR="/run/user/$RUNNER_UID" systemctl --user daemon-reload
+    sudo -u "$RUNNER_USER" -H env XDG_RUNTIME_DIR="/run/user/$RUNNER_UID" systemctl --user enable sandbox-pause-warmup.service
+    echo "install_runner: pause warmup enabled for $RUNNER_USER (linger=$(loginctl show-user "$RUNNER_USER" --property=Linger --value 2>/dev/null || echo unknown))"
+  else
+    echo "install_runner: WARNING: /run/user/$RUNNER_UID is absent (linger off or user manager down);" >&2
+    echo "install_runner: enable linger (loginctl enable-linger $RUNNER_USER) and re-run --install-unit" >&2
+  fi
   sudo systemctl daemon-reload
   echo "install_runner: unit installed but NOT enabled (execution stays disabled)"
 else

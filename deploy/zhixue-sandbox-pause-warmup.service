@@ -1,0 +1,23 @@
+# SECURITY_S0B Stage 5B — pause-process warmup for the sandbox runner.
+#
+# A USER-LEVEL unit, installed into /var/lib/zhixue-sandbox/.config/systemd/user/ and run by
+# the lingering user manager (user@NNN.service) of the `zhixue-sandbox` account. It exists
+# because that context is the only one on this host that can CREATE the rootless podman pause
+# process: creating it from inside the runner's own service cgroup fails with
+# `cannot setup namespace using newuidmap: exit status 1` (measured for bash, python and the
+# runner's real subprocess calls alike), while the same `podman version` under the user
+# manager succeeds and leaves a working pause that every later command reuses.
+#
+# `podman version` is the cheapest possible trigger: it performs the full rootless bootstrap
+# (user namespace + pause scope) without running any container.
+[Unit]
+Description=Establish the rootless podman pause process in the user manager context
+After=default.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c 'cd /tmp && podman version >/dev/null 2>&1 || true'
+
+[Install]
+WantedBy=default.target
