@@ -475,6 +475,19 @@ export function useCourseTodayPlan(courseId: string) { return useQuery({ queryKe
 export function useCourseRecords(courseId: string) { return useQuery({ queryKey: courseKeys.records(courseId), queryFn: async () => { const r = await apiClient.GET('/course-learning/courses/{course_id}/records', { params: { path: { course_id: courseId } } }); return requireData(r.response, r.data, r.error); }, retry: false }); }
 export function useCourseRecordsSummary(courseId: string) { return useQuery({ queryKey: courseKeys.recordsSummary(courseId), queryFn: async () => { const r = await apiClient.GET('/course-learning/courses/{course_id}/records/summary', { params: { path: { course_id: courseId } } }); return requireData(r.response, r.data, r.error); }, retry: false }); }
 export function useCourseWrongAnswers(courseId: string) { return useQuery({ queryKey: courseKeys.wrong(courseId), queryFn: async () => { const r = await apiClient.GET('/course-learning/courses/{course_id}/wrong-answers', { params: { path: { course_id: courseId } } }); return requireData(r.response, r.data, r.error); }, retry: false }); }
+
+/** Start a real new attempt for one course workbook question. Starting never resolves the wrong state. */
+export function useStartCourseQuestionAttempt() {
+  return useMutation({
+    mutationFn: async ({ courseId, questionId }: { courseId: string; questionId: number }) => {
+      const r = await apiClient.POST(
+        '/course-learning/courses/{course_id}/practice/questions/{question_id}/attempts',
+        { params: { path: { course_id: courseId, question_id: questionId } } },
+      );
+      return requireData(r.response, r.data, r.error) as components['schemas']['CourseAttemptStartedResponse'];
+    },
+  });
+}
 export function useCourseState(courseId: string) { return useQuery({ queryKey: courseKeys.state(courseId), queryFn: async () => { const r = await apiClient.GET('/course-learning/courses/{course_id}/state', { params: { path: { course_id: courseId } } }); return requireData(r.response, r.data, r.error); }, retry: false }); }
 /**
  * What this endpoint actually accepts, taken from the server's own allow-lists.

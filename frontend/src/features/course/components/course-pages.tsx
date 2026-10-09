@@ -1,10 +1,11 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { Download, ExternalLink, Search, Trash2 } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SectionHeading } from '@/components/ui/section-heading';
 import { StatusNote } from '@/components/ui/status-note';
+import { Button } from '@/components/ui/button';
 import { MaterialFileIcon, isMaterialPreviewable, materialStatusLabel, materialTypeLabel } from '@/components/materials/material-file';
 import { deleteMaterialErrorMessage, useLibraryDelete, useLibraryMaterials, type LibraryMaterial } from '@/features/library/api/library';
 import { FactList } from '@/components/page/fact-list';
@@ -17,7 +18,7 @@ import { cn } from '@/lib/utils';
 import { ApiRequestError } from '@/features/exam/api/content-status';
 import { enumText } from '@/lib/learner-safe';
 import { eventTypeLabel, serviceNamespaceLabel } from '@/features/records/event-labels';
-import { MATERIAL_UPLOAD_ACCEPT, materialUploadErrorMessage, useCourseMaterialUpload, useCourseRecords, useCourseState, useCourseTodayPlan, useCourseWrongAnswers } from '@/features/course/api/course';
+import { MATERIAL_UPLOAD_ACCEPT, materialUploadErrorMessage, useCourseMaterialUpload, useCourseRecords, useCourseState, useCourseTodayPlan, useCourseWrongAnswers, useStartCourseQuestionAttempt } from '@/features/course/api/course';
 import { CoursePageShell } from './course-page-shell';
 import { ScopedAiChatWorkspace } from '@/features/ai/components/ai-chat-page';
 import { DynamicPlanSurface, WrongAnalysisSurface } from '@/features/learning-intelligence/learning-intelligence-surfaces';
@@ -360,7 +361,9 @@ export function CourseMaterialsPage({ courseId }: { courseId: string }) {
 /* ------------------------------------------------------------------ practice + wrong */
 
 export function CourseWrongPage({ courseId }: { courseId: string }) {
+  const navigate = useNavigate();
   const query = useCourseWrongAnswers(courseId);
+  const startAttempt = useStartCourseQuestionAttempt();
   const items = list(query.data);
 
   return (
@@ -381,6 +384,7 @@ export function CourseWrongPage({ courseId }: { courseId: string }) {
             const status = text(item, 'status');
             const stem = text(item, 'stem');
             const stateId = number(item, 'wrong_record_id');
+            const questionId = number(item, 'question_id');
             return (
               <li key={stateId ?? index} className="border-l-2 border-border-default pl-5">
                 <p className="text-metadata text-text-secondary">
@@ -400,6 +404,23 @@ export function CourseWrongPage({ courseId }: { courseId: string }) {
                     analysis: text(item, 'analysis') ?? null,
                   }}
                 />
+                {status === 'active' && questionId !== undefined ? (
+                  <div className="mt-4">
+                    <Button
+                      disabled={startAttempt.isPending}
+                      onClick={() => startAttempt.mutate(
+                        { courseId, questionId },
+                        { onSuccess: (attempt) => void navigate({
+                          to: '/course/$courseId/practice',
+                          params: { courseId },
+                          search: { session: attempt.attempt_id },
+                        }) },
+                      )}
+                    >
+                      重做此题
+                    </Button>
+                  </div>
+                ) : null}
                 <WrongAnalysisSurface stateId={stateId} sourceProven={Boolean(stem?.trim())} />
               </li>
             );
@@ -408,6 +429,10 @@ export function CourseWrongPage({ courseId }: { courseId: string }) {
       ) : (
         <EmptyState className="mt-8" title="这门课程没有待复习条目。" />
       )}
+
+      {startAttempt.isError ? (
+        <StatusNote tone="danger" className="mt-4">暂时无法开始重做，请稍后重试。</StatusNote>
+      ) : null}
 
       <NextStep label="进入统一复习" to="/review" />
     </CoursePageShell>
