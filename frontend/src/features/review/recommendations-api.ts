@@ -24,6 +24,25 @@ export function useReviewRecommendations(serviceNamespace?: string) {
   });
 }
 
+/** One bounded, authenticated read supplies factual stems for generic question titles. */
+export function useReviewQuestionStems(enabled: boolean) {
+  return useQuery({
+    queryKey: ['review', 'question-stems'],
+    queryFn: async (): Promise<Map<string, string>> => {
+      const result = await apiClient.GET('/wrong-answers', {
+        params: { query: { status: 'active', limit: 200, offset: 0 } },
+      });
+      const data = dataOrThrow(result.response, result.data, result.error);
+      return new Map(data.items
+        .filter((item) => item.stem.trim())
+        .map((item) => [String(item.wrong_record_id), item.stem]));
+    },
+    enabled,
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
 export function useSnoozeReviewRecommendation() {
   const client = useQueryClient();
   return useMutation({

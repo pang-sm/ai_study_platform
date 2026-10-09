@@ -147,7 +147,7 @@ export function useSaveCourseOnboarding() {
 }
 
 export function useCourseOnboarding() { return useQuery({ queryKey: courseKeys.onboarding, queryFn: getCourseOnboarding, retry: false }); }
-export function useCourseCatalog() { return useQuery({ queryKey: courseKeys.catalog, queryFn: getCourseCatalog, retry: false }); }
+export function useCourseCatalog(enabled = true) { return useQuery({ queryKey: courseKeys.catalog, queryFn: getCourseCatalog, enabled, retry: false }); }
 export function useCourseDashboard(courseId: string) { return useQuery({ queryKey: courseKeys.dashboard(courseId), queryFn: () => getCourseDashboard(courseId), retry: false }); }
 export function useCourseMaterials(courseId: string) { return useQuery({ queryKey: courseKeys.materials(courseId), queryFn: () => getMaterials(courseId), retry: false }); }
 export function useCourseKnowledge(courseId: string) { return useQuery({ queryKey: courseKeys.knowledge(courseId), queryFn: () => getKnowledgePoints(courseId), retry: false }); }

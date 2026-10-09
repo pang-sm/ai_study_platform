@@ -7,7 +7,17 @@ import { Panel } from '@/components/ui/panel';
 import { StatusNote } from '@/components/ui/status-note';
 import { LoadingState } from '@/components/page/loading-state';
 import { PageHeader } from '@/components/page/page-header';
-import { useReviewRecommendations, useSnoozeReviewRecommendation } from './recommendations-api';
+import { useCourseCatalog } from '@/features/course/api/course';
+import {
+  isGenericQuestionTitle,
+  reviewDirectionLabel,
+  reviewRecommendationTitle,
+} from './review-presentation';
+import {
+  useReviewQuestionStems,
+  useReviewRecommendations,
+  useSnoozeReviewRecommendation,
+} from './recommendations-api';
 import { cn } from '@/lib/utils';
 
 type ReviewFilter = 'all' | 'course_learning' | 'exam_11408' | 'programming';
@@ -24,6 +34,11 @@ export function ReviewPage() {
   const snooze = useSnoozeReviewRecommendation();
   const items = review.data?.items ?? [];
   const total = review.data?.total ?? 0;
+  const hasCourseItems = items.some((item) => item.service_namespace === 'course_learning');
+  const hasGenericQuestions = items.some(isGenericQuestionTitle);
+  const courseCatalog = useCourseCatalog(hasCourseItems);
+  const questionStems = useReviewQuestionStems(hasGenericQuestions);
+  const stemsByWrongAnswerId = questionStems.data ?? new Map<string, string>();
 
   return (
     <div className="mx-auto w-full max-w-content px-5 py-10 sm:px-8 lg:px-12">
@@ -60,22 +75,29 @@ export function ReviewPage() {
       ) : review.isError ? (
         <StatusNote tone="danger" className="mt-8">复习建议暂时无法加载。</StatusNote>
       ) : items.length ? (
-        <ol className="mt-8 space-y-4">
-          {items.map((item) => (
+        <ol className="mt-6 space-y-3 sm:mt-8">
+          {items.map((item) => {
+            const titleId = `review-title-${item.recommendation_key}`;
+            return (
             <li key={item.recommendation_key}>
-              <Panel tone="plain" className="p-5 sm:p-6">
-                <h2 className="text-card-title font-semibold text-text-primary">{item.title}</h2>
-                <p className="mt-1 text-metadata text-text-secondary">{item.direction}</p>
-                <p className="mt-4 text-body text-text-primary">{item.reason}</p>
-                <div className="mt-5 flex flex-wrap items-center gap-3">
+              <Panel tone="plain" labelledBy={titleId} className="p-4 sm:p-5">
+                <h2 id={titleId} className="line-clamp-2 break-words text-card-title font-semibold text-text-primary">
+                  {reviewRecommendationTitle(item, stemsByWrongAnswerId)}
+                </h2>
+                <p className="mt-1 text-metadata text-text-secondary">
+                  {reviewDirectionLabel(item, courseCatalog.data)}
+                </p>
+                <p className="mt-2 text-body text-text-primary">{item.reason}</p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
                   <Link
                     to={item.action.deep_link as '/review'}
-                    className="inline-flex min-h-11 items-center justify-center rounded-control bg-primary px-4 text-body font-medium text-white hover:bg-primary-hover"
+                    className="inline-flex min-h-10 items-center justify-center rounded-control bg-primary px-4 text-body font-medium text-white hover:bg-primary-hover"
                   >
                     开始复习
                   </Link>
                   <Button
                     variant="ghost"
+                    size="sm"
                     disabled={snooze.isPending}
                     onClick={() => snooze.mutate(item.recommendation_key)}
                   >
@@ -84,7 +106,8 @@ export function ReviewPage() {
                 </div>
               </Panel>
             </li>
-          ))}
+            );
+          })}
         </ol>
       ) : (
         <EmptyState className="mt-8" title="暂无建议" />
