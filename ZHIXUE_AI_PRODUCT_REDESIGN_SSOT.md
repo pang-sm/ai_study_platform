@@ -4038,7 +4038,8 @@ SCIENTIFIC_PRODUCTIZATION_PLAN = FROZEN
 STEP6_COMPLETE = YES
 BACKEND_IMPLEMENTATION = IN_PROGRESS
 NEW FULL FRONTEND = NOT_STARTED
-PRODUCTION_REDEPLOY = NOT_STARTED
+PRODUCTION_REDEPLOY = COMPLETED（2026-10-09；生产 SHA = a4cbd8a8a23dffa3e77a6f30e9480b98bf9ddf36；
+                         migration HEAD = 20261009_0019；线上 /api/health = 200）
 
 CURRENT_STEP = STEP_7
 CURRENT_SUBSTEP = STEP_7H5
@@ -4991,7 +4992,11 @@ ACCEL_SPRINT_S3_SCOPE = 统一复习推荐中心：有限后端只读推荐 API�
 ACCEL_SPRINT_S3_AUTHORITY = 用户于 2026-10-09 明确批准本次有限后端扩展及按 §74 完成阶段记录
 ACCEL_SPRINT_S3_BOUNDARY = 不重开 STEP7H5 / STEP7H；不解除其他后端冻结；不修改学习事实、
                            掌握状态、错题状态或复习排期语义；不创建平行复习系统
-ACCEL_SPRINT_S3_STATUS = IN_PROGRESS；完成并验收后再按 §74 更新 CURRENT facts / completed work
+ACCEL_SPRINT_S3_DEPLOYED_SHA = a4cbd8a8a23dffa3e77a6f30e9480b98bf9ddf36
+ACCEL_SPRINT_S3_MIGRATION = 20261001_0018 -> 20261009_0019；线上 schema gate 与迁移前后
+                           SQLite integrity_check 均 PASS；部署健康门、公网 HTTPS 与 :8000 防护 PASS
+ACCEL_SPRINT_S3_STATUS = IMPLEMENTED_AND_DEPLOYED；登录态生产浏览器验收仍待完成（生产浏览器
+                         重定向至登录页，当前没有可用的授权测试账号；不得据此宣称完整 E2E PASS）
 ```
 
 ---
