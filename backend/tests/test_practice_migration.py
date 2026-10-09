@@ -17,7 +17,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_DIR = Path(__file__).resolve().parents[1]
-EXPECTED_HEAD = "20261001_0018"
+EXPECTED_HEAD = "20261009_0019"
 
 PRACTICE_TABLES = {"practice_sessions", "practice_attempts"}
 WRONG_ANSWER_TABLES = {"wrong_answer_states"}

@@ -84,7 +84,81 @@ class ReviewSummaryResponse(BaseModel):
     semantics: str
 
 
+class ReviewRecommendationView(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    recommendation_key: str
+    kind: str
+    service_namespace: str
+    domain_context: dict = Field(default_factory=dict)
+    title: str
+    direction: str
+    reason_code: str
+    reason: str
+    evidence: dict = Field(default_factory=dict)
+    action: dict
+    due_at: str | None = None
+
+
+class ReviewRecommendationListResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    policy_version: str
+    generated_at: str
+    service_namespace: str | None = None
+    items: list[ReviewRecommendationView]
+    total: int
+    limit: int
+    offset: int
+    semantics: str
+
+
+class ReviewRecommendationSnoozeResponse(BaseModel):
+    recommendation_key: str
+    snoozed_until: str
+    semantics: str
+
+
 # ---------------------------------------------------------------- endpoints
+
+
+@router.get("/recommendations", response_model=ReviewRecommendationListResponse)
+def review_recommendations(service_namespace: str = Query("", description="course_learning | exam_11408 | programming"),
+                           limit: int = Query(50, ge=1, le=200),
+                           offset: int = Query(0, ge=0),
+                           db: Session = Depends(get_db), current_user=Depends(_require_user)):
+    """Recalculate evidence-backed suggestions without creating learning facts."""
+    from learning import review_recommendations as recommendation_service
+
+    feature_flags.ensure_feature_allowed(db, current_user, "intelligent_review")
+    try:
+        return recommendation_service.visible_recommendations(
+            db, current_user, service_namespace=service_namespace or None,
+            limit=limit, offset=offset)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/recommendations/{recommendation_key}/snooze",
+             response_model=ReviewRecommendationSnoozeResponse)
+def snooze_recommendation(recommendation_key: str, db: Session = Depends(get_db),
+                          current_user=Depends(_require_user)):
+    """Suppress one currently valid recommendation for 24 hours, scoped to the caller."""
+    from learning import review_recommendations as recommendation_service
+    from learning import review_snoozes
+
+    feature_flags.ensure_feature_allowed(db, current_user, "intelligent_review")
+    if not recommendation_service.recommendation_exists(db, current_user, recommendation_key):
+        raise HTTPException(status_code=404, detail="recommendation_not_found")
+    try:
+        until = review_snoozes.snooze(db, current_user, recommendation_key)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"recommendation_key": recommendation_key,
+            "snoozed_until": until.isoformat(),
+            "semantics": "recommendation suppression only; no learning or schedule state changed"}
 
 
 @router.get("", response_model=ReviewListResponse)

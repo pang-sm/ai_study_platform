@@ -26,6 +26,7 @@ if str(REPO_DIR) not in sys.path:
 # Register all models on Base.metadata (including data_plane LearningEvent/Model* tables).
 from database import Base, DATABASE_URL  # noqa: E402
 import data_plane.models  # noqa: E402,F401  — registers Data Plane tables
+from learning import review_snoozes  # noqa: E402,F401 — additive recommendation snooze table
 
 config = context.config
 

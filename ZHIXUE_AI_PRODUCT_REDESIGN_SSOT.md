@@ -3837,12 +3837,15 @@ Production Deployment + Public Verification
 
 # 70. 当前下一步（NEXT）
 
-当前 STEP = `STEP_7`；`CURRENT_SUBSTEP = STEP_7H5`；`NEXT_SUBSTEP = FRONTEND`。
+当前 STEP = `STEP_7`；最近冻结的正式后端子步骤仍为 `STEP_7H5`；`NEXT_SUBSTEP = FRONTEND`。
+当前另有 §74 授权的 `ACCEL_SPRINT_S3`（统一复习推荐中心）处于实施中；该专项是前端阶段内的有限后端产品化例外。
 
 **STEP7H0 / STEP7H1 / STEP7H2 / STEP7H3 / STEP7H4 / STEP7H5 均已 FROZEN；
-STEP 7H **整体 FROZEN**，Exam Prep / CS408 后端验收完成。当前唯一正确动作：
-进入 `NEXT_MAJOR_PHASE = FRONTEND_REBUILD / FRONTEND_PRODUCT_IMPLEMENTATION`
-（全新前端产品实现）。**后端停止继续扩展。**
+STEP 7H **整体 FROZEN**，Exam Prep / CS408 后端验收完成。该历史冻结保持不变。
+当前阶段仍是 `NEXT_MAJOR_PHASE = FRONTEND_REBUILD / FRONTEND_PRODUCT_IMPLEMENTATION`；
+仅因用户于 2026-10-09 按 §74 明确批准，增加前端阶段内的有限后端产品化专项
+`ACCEL_SPRINT_S3`（统一复习推荐中心）。**除 S3 明确列出的复习推荐 API、确定性只读逻辑、
+最小暂缓持久化及其测试外，后端停止继续扩展；STEP7H 与其他冻结边界不重开。**
 （H5 已关闭三项长期债务：Exam 运行时 schema 的 Alembic 归属
 （migration `20260917_0008`，13 张表，fresh 部署可仅靠 `alembic upgrade head`）、
 前端 API 交接文档 `STEP7H_FRONTEND_API_HANDOFF.md`、以及一个 H4 漏登记的隔离缺陷
@@ -3919,6 +3922,7 @@ Provider Onboarding / Live Validation / Model Pool Calibration
 CURRENT_STEP = STEP_7
 CURRENT_SUBSTEP = STEP_7H5
 NEXT_SUBSTEP = FRONTEND
+ACCEL_SPRINT_S3 = IN_PROGRESS（2026-10-09；用户按 §74 授权的有限专项，详见下方记录）
 
 上一阶段：
 STEP 1–6 已冻结。
@@ -3957,15 +3961,15 @@ STEP 7 进行中，已冻结的子步骤：
   （student_twin = MVP；**MVP_TARGET 已于 ACCEL_SPRINT_S2 由 SHADOW_ONLY 改为
    USER_VISIBLE_PREVIEW，用户可见功能 = 学习状态；
    SCIENTIFIC_RUNTIME_ROLE = optional_non_blocking_enhancement（2026-09-30 修订）**）
-- Git Reality 已澄清（DIVERGED；untracked==origin；LOCAL_ONLY 已识别）
+- Git 状态每次开工现场核验；历史 Git Reality 审计记录不作为当前状态断言
 - Python file disposition 已冻结
 - Database migration matrix 已冻结（71 表）
 - API disposition matrix 已冻结（351 HTTP endpoint）
 
-当前正处于 STEP 7 后端实现 / 重构进行中（BACKEND_IMPLEMENTATION = IN_PROGRESS）。
+当前正处于 STEP 7 后端实现 / 重构进行中（BACKEND_IMPLEMENTATION = IN_PROGRESS）；另有 §74 授权的 ACCEL_SPRINT_S3 有限实施中。
 
 下一步：
-**STEP 7H 已整体 FROZEN（H0–H5），后端停止继续扩展。**
+**STEP 7H 已整体 FROZEN（H0–H5）；仅 ACCEL_SPRINT_S3 的已授权有限范围允许后端实施，其他后端仍停止继续扩展。**
 `NEXT_MAJOR_PHASE = FRONTEND_REBUILD / FRONTEND_PRODUCT_IMPLEMENTATION`
 （全新前端产品实现；契约见 `STEP7H_FRONTEND_API_HANDOFF.md`）。
 ```
@@ -4039,6 +4043,7 @@ PRODUCTION_REDEPLOY = NOT_STARTED
 CURRENT_STEP = STEP_7
 CURRENT_SUBSTEP = STEP_7H5
 NEXT_SUBSTEP = FRONTEND
+ACCEL_SPRINT_S3 = IN_PROGRESS（当前唯一新增的有限后端范围；不改变 STEP7H5 / STEP7H 冻结状态）
 
 STEP7A = FROZEN（Core Backend Foundation + LearningContext + Data Plane SHADOW-ready）
 STEP7A_NOTES = Alembic 基础建立；learning_events/model_* 4 表已建；student_twin_mode
@@ -4979,6 +4984,14 @@ ACCEL_SPRINT_S2_NOTES =
   - MISCONCEPTION_PRODUCT_MODE = SHADOW_NOT_USER_VISIBLE（未晋升；
     RUNTIME_PROVISIONED != PRODUCT_ELIGIBLE）
   - TUTOR_POLICY_PRODUCT_MODE = SHADOW（未晋升；turn-state 仍不可诚实构造）
+
+ACCEL_SPRINT_S3 = IN_PROGRESS（2026-10-09；依 §74-1 用户明确产品方向与范围变更授权）
+ACCEL_SPRINT_S3_SCOPE = 统一复习推荐中心：有限后端只读推荐 API、确定性推荐逻辑、
+                        最小 additive-only 暂缓状态持久化及相关测试；配套前端实现与验收
+ACCEL_SPRINT_S3_AUTHORITY = 用户于 2026-10-09 明确批准本次有限后端扩展及按 §74 完成阶段记录
+ACCEL_SPRINT_S3_BOUNDARY = 不重开 STEP7H5 / STEP7H；不解除其他后端冻结；不修改学习事实、
+                           掌握状态、错题状态或复习排期语义；不创建平行复习系统
+ACCEL_SPRINT_S3_STATUS = IN_PROGRESS；完成并验收后再按 §74 更新 CURRENT facts / completed work
 ```
 
 ---
@@ -5008,6 +5021,6 @@ ACCEL_SPRINT_S2_NOTES =
 
 # END
 
-当前唯一标准结论：
+当前唯一标准结论（阶段变更事实见下方 2026-10-09 追加授权记录）：
 
-> **智学AI正在从“已有大量后端能力、旧三方向会员、旧 AI 直连架构”迁移为“统一会员 + Usage Credits + 三 Learning Space + Shared Learning Core + AI Router/Gateway + Data Plane + Scientific Runtime”的 Clean-Slate 产品。现有成熟业务与静态资产优先保护，旧产品边界、旧会员和旧额度模型逐步淘汰。STEP 5 的 Python 文件 / 数据库 / API 处置矩阵已冻结，STEP 6 已冻结。当前处于 STEP 7（后端实现 / 重构）进行中：STEP7A / STEP7B / STEP7C / STEP7C-P / STEP7D / STEP7E / STEP7F / STEP7G（含 STEP7G-C2）/ STEP7H0 / STEP7H1 / STEP7H2（含 H2-C1）/ STEP7H3 / STEP7H4 / STEP7H5 均已 FROZEN；CURRENT_SUBSTEP = STEP_7H5，NEXT_SUBSTEP = FRONTEND。考试空间已完成从「只有 11408」到统一 Exam Prep 的 canonical namespace 升级（canonical = exam_prep；exam_11408 为 INPUT alias；只支持全国统考型研究生招生考试科目，院校自命题 OUT OF SCOPE；当前实际装载 CS408，其 chapter / 真题 / AI 出题三条作答事实已全部接入 Unified Practice / Wrong / Records）；H4 已交付多 track / 多 subject 的 Exam Prep **framework**（catalog = versioned CONFIG，`cs_408` = ACTIVE，其余 13 个全国统考科目 = FRAMEWORK_ONLY **零内容**，非 408 真实内容导入必须等用户明确批准）；H5 已把 Exam 运行时 schema 纳入 Alembic（HEAD=20260917_0008，fresh 部署可仅靠 `alembic upgrade head`）并交付前端 API 交接文档。**STEP 7H 整体 FROZEN，后端停止继续扩展；NEXT_MAJOR_PHASE = FRONTEND_REBUILD / FRONTEND_PRODUCT_IMPLEMENTATION。`main.py` 走 REFACTOR / EXTRACT。**
+> **智学AI正在从“已有大量后端能力、旧三方向会员、旧 AI 直连架构”迁移为“统一会员 + Usage Credits + 三 Learning Space + Shared Learning Core + AI Router/Gateway + Data Plane + Scientific Runtime”的 Clean-Slate 产品。现有成熟业务与静态资产优先保护，旧产品边界、旧会员和旧额度模型逐步淘汰。STEP 5 的 Python 文件 / 数据库 / API 处置矩阵已冻结，STEP 6 已冻结。当前处于 STEP 7（后端实现 / 重构）进行中：STEP7A / STEP7B / STEP7C / STEP7C-P / STEP7D / STEP7E / STEP7F / STEP7G（含 STEP7G-C2）/ STEP7H0 / STEP7H1 / STEP7H2（含 H2-C1）/ STEP7H3 / STEP7H4 / STEP7H5 均已 FROZEN；CURRENT_SUBSTEP = STEP_7H5，NEXT_SUBSTEP = FRONTEND。考试空间已完成从「只有 11408」到统一 Exam Prep 的 canonical namespace 升级（canonical = exam_prep；exam_11408 为 INPUT alias；只支持全国统考型研究生招生考试科目，院校自命题 OUT OF SCOPE；当前实际装载 CS408，其 chapter / 真题 / AI 出题三条作答事实已全部接入 Unified Practice / Wrong / Records）；H4 已交付多 track / 多 subject 的 Exam Prep **framework**（catalog = versioned CONFIG，`cs_408` = ACTIVE，其余 13 个全国统考科目 = FRAMEWORK_ONLY **零内容**，非 408 真实内容导入必须等用户明确批准）；H5 已把 Exam 运行时 schema 纳入 Alembic（HEAD=20260917_0008，fresh 部署可仅靠 `alembic upgrade head`）并交付前端 API 交接文档。**STEP 7H 整体 FROZEN；仅 §74 授权的 ACCEL_SPRINT_S3（统一复习推荐中心）允许有限后端实施，其他后端仍停止扩展；NEXT_MAJOR_PHASE = FRONTEND_REBUILD / FRONTEND_PRODUCT_IMPLEMENTATION。`main.py` 走 REFACTOR / EXTRACT。**

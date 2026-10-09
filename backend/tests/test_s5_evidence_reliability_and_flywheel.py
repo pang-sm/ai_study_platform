@@ -1022,7 +1022,13 @@ def test_the_telemetry_migration_is_the_head_of_the_chain():
         module = ast.parse(path.read_text(encoding="utf-8"))
         values: dict[str, object] = {}
         for node in module.body:
-            if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            if isinstance(node, ast.Assign) and len(node.targets) == 1 and \
+                    isinstance(node.targets[0], ast.Name):
+                target = node.targets[0]
+                if target.id in ("revision", "down_revision") and \
+                        isinstance(node.value, ast.Constant):
+                    values[target.id] = node.value.value
+            elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
                 if node.target.id in ("revision", "down_revision") and \
                         isinstance(node.value, ast.Constant):
                     values[node.target.id] = node.value.value
@@ -1030,7 +1036,7 @@ def test_the_telemetry_migration_is_the_head_of_the_chain():
             revisions[str(values["revision"])] = values.get("down_revision")
 
     heads = set(revisions) - set(v for v in revisions.values() if v)
-    assert heads == {"20261001_0018"}, heads
+    assert heads == {"20261009_0019"}, heads
     assert revisions["20261001_0018"] == "20260930_0017"
     assert revisions["20260930_0017"] == "20260923_0016"
     assert revisions["20260923_0016"] == "20260923_0015"
@@ -1041,7 +1047,7 @@ def test_the_telemetry_migration_is_the_head_of_the_chain():
     assert revisions["20260919_0011"] == "20260919_0010"
     assert revisions["20260919_0010"] == "20260919_0009"
     # the chain is linear and complete back to the first revision
-    seen, cursor, depth = set(), "20261001_0018", 0
+    seen, cursor, depth = set(), "20261009_0019", 0
     while cursor:
         assert cursor not in seen, f"cycle at {cursor}"
         seen.add(cursor)

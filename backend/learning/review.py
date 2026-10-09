@@ -37,6 +37,7 @@ A review page assembled for one learner cannot contain another learner's rows.
 """
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime, timezone
 
@@ -132,6 +133,11 @@ def _wrong_answer_items(db: DbSession, user) -> list[dict]:
             title = f"错题 · {display}" if display else "错题"
             deep_link = ("/exam/cs408/wrong"
                          + (f"?module={module_key}" if module_key else ""))
+        try:
+            context = json.loads(state.context_json or "{}")
+        except (TypeError, ValueError):
+            context = {}
+        point_id = context.get("knowledge_point_id")
         items.append({
             "id": f"wrong:{namespace}:{state.id}",
             "service_namespace": namespace,
@@ -151,7 +157,8 @@ def _wrong_answer_items(db: DbSession, user) -> list[dict]:
             "due_source": None,
             "last_attempt_at": _iso(state.last_wrong_at),
             "reason": "wrong_answer_active",
-            "metrics": {"wrong_count": int(state.wrong_count or 0)},
+            "metrics": {"wrong_count": int(state.wrong_count or 0),
+                        "knowledge_point_id": (str(point_id) if point_id else None)},
             "deep_link": deep_link,
         })
     return items
@@ -219,6 +226,7 @@ def _knowledge_items(db: DbSession, user) -> list[dict]:
             "reason": "knowledge_review_due" if bucket == BUCKET_DUE
                       else "knowledge_review_scheduled",
             "metrics": {"knowledge_point_code": row.knowledge_point_code,
+                        "knowledge_point_id": int(row.knowledge_point_id),
                         "practice_count": int(row.practice_count or 0),
                         "review_interval_days": (int(interval) if interval else None)},
             "deep_link": deep_link,

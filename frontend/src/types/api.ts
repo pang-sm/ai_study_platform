@@ -1639,6 +1639,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/review/recommendations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Review Recommendations
+         * @description Recalculate evidence-backed suggestions without creating learning facts.
+         */
+        get: operations["review_recommendations_review_recommendations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/review/recommendations/{recommendation_key}/snooze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Snooze Recommendation
+         * @description Suppress one currently valid recommendation for 24 hours, scoped to the caller.
+         */
+        post: operations["snooze_recommendation_review_recommendations__recommendation_key__snooze_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/review": {
         parameters: {
             query?: never;
@@ -14640,6 +14680,69 @@ export interface components {
              */
             question_scope_key: string;
         };
+        /** ReviewRecommendationListResponse */
+        ReviewRecommendationListResponse: {
+            /** Policy Version */
+            policy_version: string;
+            /** Generated At */
+            generated_at: string;
+            /** Service Namespace */
+            service_namespace?: string | null;
+            /** Items */
+            items: components["schemas"]["ReviewRecommendationView"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Semantics */
+            semantics: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /** ReviewRecommendationSnoozeResponse */
+        ReviewRecommendationSnoozeResponse: {
+            /** Recommendation Key */
+            recommendation_key: string;
+            /** Snoozed Until */
+            snoozed_until: string;
+            /** Semantics */
+            semantics: string;
+        };
+        /** ReviewRecommendationView */
+        ReviewRecommendationView: {
+            /** Recommendation Key */
+            recommendation_key: string;
+            /** Kind */
+            kind: string;
+            /** Service Namespace */
+            service_namespace: string;
+            /** Domain Context */
+            domain_context?: {
+                [key: string]: unknown;
+            };
+            /** Title */
+            title: string;
+            /** Direction */
+            direction: string;
+            /** Reason Code */
+            reason_code: string;
+            /** Reason */
+            reason: string;
+            /** Evidence */
+            evidence?: {
+                [key: string]: unknown;
+            };
+            /** Action */
+            action: {
+                [key: string]: unknown;
+            };
+            /** Due At */
+            due_at?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
         /**
          * ReviewScheduleItem
          * @description ONE computed due date, WITH the policy and the facts that produced it.
@@ -18090,6 +18193,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AgentDebugResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_recommendations_review_recommendations_get: {
+        parameters: {
+            query?: {
+                /** @description course_learning | exam_11408 | programming */
+                service_namespace?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewRecommendationListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    snooze_recommendation_review_recommendations__recommendation_key__snooze_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recommendation_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewRecommendationSnoozeResponse"];
                 };
             };
             /** @description Validation Error */
