@@ -36,7 +36,14 @@ test('course wrong entry starts the scoped real attempt and navigates to its pra
         question: { id: 314, question_type: 'single_choice', stem: '栈的特点是什么？', options: { A: '先进先出', B: '后进先出' } } } });
     }
     if (pathname === '/course-learning/courses/数据结构/practice/session') {
-      return route.fulfill({ json: { course_id: '数据结构', session: null } });
+      return route.fulfill({ json: { course_id: '数据结构', session: {
+        attempt_id: 91, course_id: '数据结构', status: 'in_progress', total: 1,
+        answered: 0, correct_count: 0, questions: [{ id: 314,
+          question_type: 'single_choice', stem: '栈的特点是什么？',
+          options: { A: '先进先出', B: '后进先出' }, difficulty: '中等', chapter: '栈',
+          knowledge_point_id: 'kp:7', knowledge_point_title: '栈', answered: false, result: null,
+        }],
+      } } });
     }
     return route.fulfill({ status: 404, json: { detail: 'E2E route not configured' } });
   });
@@ -49,7 +56,9 @@ test('course wrong entry starts the scoped real attempt and navigates to its pra
 
   await page.getByRole('button', { name: '重做此题' }).click();
   await expect.poll(() => decodeURIComponent(page.url())).toMatch(/\/course\/数据结构\/practice\?session=91$/);
-  await expect(page.getByRole('button', { name: 'AI 生成练习' })).toBeVisible();
+  await expect(page.getByText('栈的特点是什么？', { exact: true })).toBeVisible();
+  await expect(page.getByRole('radio', { name: /后进先出/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: '提交答案' })).toBeDisabled();
   expect(calls).toContainEqual({
     method: 'POST', path: '/course-learning/courses/数据结构/practice/questions/314/attempts',
   });
