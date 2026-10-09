@@ -8,6 +8,9 @@ const moduleKeys = [
 ] as const;
 
 const moduleNames = ['数据结构', '计算机组成原理', '操作系统', '计算机网络'] as const;
+const questionStem = (index: number) => index === 1
+  ? `真实题干摘要 2：${'依据题目所给条件并分析处理顺序。'.repeat(12)}`
+  : `真实题干摘要 ${index + 1}：按题目给出的条件判断处理顺序。`;
 
 test('unified review presents factual question titles and normalized directions responsively', async ({ page }) => {
   const snoozed = new Set<string>();
@@ -87,7 +90,7 @@ test('unified review presents factual question titles and normalized directions 
         items: moduleKeys.map((_, index) => ({
           wrong_record_id: 50 + index,
           status: 'active',
-          stem: `真实题干摘要 ${index + 1}：按题目给出的条件判断处理顺序。`,
+          stem: questionStem(index),
           reference_answer: '不应出现在复习卡片中的参考答案',
           analysis: '不应出现在复习卡片中的解析',
         })),
@@ -113,7 +116,7 @@ test('unified review presents factual question titles and normalized directions 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/review');
   await expect(page.getByRole('heading', { name: '统一复习' })).toBeVisible();
-  await expect(page.getByText('真实题干摘要 1：按题目给出的条件判断处理顺序。')).toBeVisible();
+  await expect(page.getByText(questionStem(0))).toBeVisible();
   for (const name of moduleNames) await expect(page.getByText(`11408 · ${name}`)).toBeVisible();
   await expect(page.getByText('专业学习 · 离散数学')).toBeVisible();
   await expect(page.getByText('编程 · Python')).toBeVisible();
@@ -126,20 +129,31 @@ test('unified review presents factual question titles and normalized directions 
 
   await page.getByRole('button', { name: '11408', exact: true }).click();
   await expect(page.getByText('编程 · Python')).toHaveCount(0);
-  await expect(page.getByText('真实题干摘要 4：按题目给出的条件判断处理顺序。')).toBeVisible();
+  await expect(page.getByText(questionStem(3))).toBeVisible();
   expect(selectedNamespace).toBe('exam_11408');
 
   await page.getByRole('button', { name: '暂缓' }).first().click();
-  await expect(page.getByText('真实题干摘要 1：按题目给出的条件判断处理顺序。')).toHaveCount(0);
-  await expect(page.getByText('真实题干摘要 2：按题目给出的条件判断处理顺序。')).toBeVisible();
+  await expect(page.getByText(questionStem(0))).toHaveCount(0);
+  await expect(page.getByText(questionStem(1))).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
   await expect(page.getByRole('heading', { name: '统一复习' })).toBeVisible();
-  await expect(page.getByText('真实题干摘要 1：按题目给出的条件判断处理顺序。')).toHaveCount(0);
+  await expect(page.getByText(questionStem(0))).toHaveCount(0);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBe(0);
-  const clamp = await page.getByRole('heading', { name: '真实题干摘要 2：按题目给出的条件判断处理顺序。' }).evaluate((node) => getComputedStyle(node).webkitLineClamp);
-  expect(clamp).toBe('2');
+  const longTitle = page.getByRole('heading', { name: questionStem(1) });
+  const clamp = await longTitle.evaluate((node) => {
+    const style = getComputedStyle(node);
+    return {
+      lineClamp: style.webkitLineClamp,
+      lineHeight: Number.parseFloat(style.lineHeight),
+      visibleHeight: node.getBoundingClientRect().height,
+      textLength: node.textContent?.length ?? 0,
+    };
+  });
+  expect(clamp.lineClamp).toBe('2');
+  expect(clamp.textLength).toBeGreaterThan(100);
+  expect(clamp.visibleHeight).toBeLessThanOrEqual(clamp.lineHeight * 2 + 1);
   expect(consoleErrors).toEqual([]);
 });
