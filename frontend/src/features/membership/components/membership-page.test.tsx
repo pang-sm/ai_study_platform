@@ -75,12 +75,14 @@ beforeEach(() => {
 });
 
 describe('MembershipPage', () => {
-  it('states ONE standing — the unified tier — and the policy it was resolved under', async () => {
+  it('states one compact current tier and omits policy and repeated account explanations', async () => {
     renderApp('/membership');
     // Scoped to the standing itself: the tier's name is also a column header in the price
     // table, so an unscoped lookup races the table's render and matches twice.
-    expect(await screen.findByText('Free', { selector: '.membership-standing' })).toBeInTheDocument();
-    expect(screen.getByText('v1')).toBeInTheDocument();
+    expect(await screen.findByText('Free · 当前档位', { selector: '.membership-standing' })).toBeInTheDocument();
+    expect(screen.queryByText('v1')).not.toBeInTheDocument();
+    expect(screen.getByText('Free · 当前档位')).toBeInTheDocument();
+    expect(screen.queryByText(/一个账号一个档位/)).not.toBeInTheDocument();
     expect(screen.queryByText('当前备考方案')).not.toBeInTheDocument();
     expect(screen.queryByText('统一会员档位')).not.toBeInTheDocument();
   });
@@ -88,7 +90,7 @@ describe('MembershipPage', () => {
   it('shows the SAME tier the feature verdict was resolved from', async () => {
     tier = 'advanced';
     renderApp('/membership');
-    expect(await screen.findByText('Advanced', { selector: '.membership-standing' })).toBeInTheDocument();
+    expect(await screen.findByText('Advanced · 当前档位', { selector: '.membership-standing' })).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
@@ -123,20 +125,26 @@ describe('MembershipPage', () => {
     expect(document.body.textContent).not.toMatch(/≈\s*¥0\.01|平台成本/);
   });
 
-  it('lists the gated feature with the verdict the entitlement endpoint returned', async () => {
+  it('does not duplicate entitlements already represented by the tier comparison', async () => {
     tier = 'standard';
     renderApp('/membership');
-    expect(await screen.findByText('学习计划')).toBeInTheDocument();
-    expect(screen.getAllByText('已开通')).toHaveLength(2);
-    expect(screen.queryByText('未开通')).not.toBeInTheDocument();
+    await screen.findByRole('region', { name: '档位价格与权益对照' });
+    expect(screen.queryByText('当前权益')).not.toBeInTheDocument();
+    expect(screen.queryByText('学习计划')).not.toBeInTheDocument();
+    const table = screen.getByRole('region', { name: '档位价格与权益对照' });
+    expect(within(table).queryByText('学习报告')).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/monthly|quarterly|full_exam|sprint|boost/);
   });
 
-  it('states a locked feature requirement as a TIER, never as a legacy plan code', async () => {
+  it('shows weekly used, limit and remaining with a used progress bar', async () => {
     renderApp('/membership');
-    expect(await screen.findByText('学习计划')).toBeInTheDocument();
-    expect(screen.getByText('未开通')).toBeInTheDocument();
-    expect(screen.getByText(/需要 Standard 及以上/)).toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/monthly|quarterly|full_exam|sprint|boost/);
+    expect(await screen.findByRole('region', { name: '额度使用' })).toBeInTheDocument();
+    const usage = screen.getByRole('region', { name: '额度使用' });
+    expect(await within(usage).findByText('1,820', { selector: 'strong' })).toBeInTheDocument();
+    expect(within(usage).getByText('/ 5,000 Credits')).toBeInTheDocument();
+    expect(within(usage).getByText('剩余 3,180 Credits')).toBeInTheDocument();
+    expect(within(usage).getByRole('progressbar', { name: '本周额度使用' })).toHaveAttribute('aria-valuenow', '36');
+    expect(within(usage).queryByText(/预留 \+ 已结算/)).not.toBeInTheDocument();
   });
 
   it('names each capability in Chinese, and never prints its internal id', async () => {
@@ -149,14 +157,14 @@ describe('MembershipPage', () => {
 
   it('renders NO dotted capability identifier anywhere on the learner surface', async () => {
     renderApp('/membership');
-    await screen.findByText('Free', { selector: '.membership-standing' });
+    await screen.findByText('Free · 当前档位', { selector: '.membership-standing' });
     expect(document.body.textContent).not.toMatch(/\b[a-z_]+\.[a-z_]+\b/);
   });
 
   it('names an unknown capability generically rather than printing its id', async () => {
     unknownCapability = 'internal.undeclared_capability';
     renderApp('/membership');
-    await screen.findByText('Free', { selector: '.membership-standing' });
+    await screen.findByText('Free · 当前档位', { selector: '.membership-standing' });
     expect(screen.getAllByText('高级学习能力').length).toBeGreaterThan(0);
     expect(screen.queryByText('internal.undeclared_capability')).not.toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/\b[a-z_]+\.[a-z_]+\b/);

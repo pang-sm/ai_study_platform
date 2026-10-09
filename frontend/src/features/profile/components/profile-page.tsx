@@ -1,18 +1,16 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusNote } from '@/components/ui/status-note';
 import { useAuth } from '@/features/auth/auth-context';
-import { useLogout } from '@/features/auth/api/auth';
 import { useProfile } from '../api/profile';
 import { LearningSettingsForm, PersonalInfoForm } from './profile-settings';
 import { LearningSpacesSection } from './profile-learning-spaces';
 import { SubscriptionSection, UsageSection } from './profile-membership';
 import { cn } from '@/lib/utils';
-import { EmailSection, PasswordForm, PhoneSection } from './profile-security';
-import { groupLabel, SECTION_GROUPS, SECTION_IDS, SECTION_LIST } from './profile-sections';
+import { EmailSection, PasswordForm } from './profile-security';
+import { SECTION_IDS, SECTION_LIST } from './profile-sections';
 
 const LEARNING_DATA_ENTRIES = [
   { to: '/reports', label: '学习报告', description: '按方向查看已完成的学习与练习记录。' },
@@ -22,11 +20,10 @@ const LEARNING_DATA_ENTRIES = [
   { to: '/programming', label: '编程学习记录', description: '练习提交、运行与测试结果。' },
 ] as const;
 
-function SectionGroup({ label, children }: { label: string; children: ReactNode }) {
+function SectionGroup({ children }: { label?: string; children: ReactNode }) {
   return (
-    <section className="border-t border-border-default pt-8 first:border-t-0 first:pt-0">
-      <h2 className="text-metadata font-medium tracking-eyebrow text-text-muted">{label}</h2>
-      <div className="mt-6 space-y-10">{children}</div>
+    <section className="border-t border-border-default pt-6 first:border-t-0 first:pt-0">
+      <div className="space-y-8">{children}</div>
     </section>
   );
 }
@@ -134,8 +131,6 @@ function useCurrentSection(ids: readonly string[], requested?: string): string |
 export function ProfilePage() {
   const profile = useProfile();
   const auth = useAuth();
-  const logout = useLogout();
-  const navigate = useNavigate();
   const { section } = useSearch({ from: '/profile' });
   const current = useCurrentSection(SECTION_IDS, section);
 
@@ -161,24 +156,13 @@ export function ProfilePage() {
     target.scrollIntoView({ block: 'start' });
   }, [section, user]);
 
-  const onLogout = async () => {
-    try {
-      await logout.mutateAsync();
-    } finally {
-      // The guard is the single authority: once the session cache reads `null`, every protected
-      // route would send this visitor to the sign-in screen on its own. Navigating explicitly
-      // just gets them there without waiting for the next click.
-      await navigate({ to: '/login' });
-    }
-  };
-
   const identity = user ?? auth.user;
 
   return (
     <div className="mx-auto w-full max-w-content px-5 py-10 sm:px-8 lg:px-12">
-      <header>
-        <p className="text-metadata font-medium tracking-eyebrow text-text-muted">个人学习档案</p>
-        <h1 className="mt-2 text-page-title font-semibold text-text-primary">学习档案</h1>
+      <header className="flex flex-wrap items-center gap-3">
+        <h1 className="text-section-title font-semibold text-text-primary">个人中心</h1>
+        {auth.user?.needs_onboarding ? <Badge tone="warning">学习设置未完成</Badge> : null}
       </header>
 
       {profile.isError ? (
@@ -194,65 +178,46 @@ export function ProfilePage() {
       ) : null}
 
       {identity ? (
-        <div className="mt-8 lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-12">
+        <div className="mt-5 lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-10">
           <nav aria-label="学习档案分区" className="hidden lg:block">
             <div className="sticky top-24">
-              {SECTION_GROUPS.map((group) => (
-                <div key={group.id} className="mt-6 first:mt-0">
-                  <p className="text-metadata font-medium tracking-eyebrow text-text-muted">
-                    {group.label}
-                  </p>
-                  <ul className="mt-2 space-y-0.5">
-                    {group.sections.map((item) => (
-                      <li key={item.id}>
-                        <Link
-                          to="/profile"
-                          search={{ section: item.id }}
-                          aria-current={current === item.id ? 'true' : undefined}
-                          className={cn(
-                            'block rounded-control border-l-2 px-2 py-1.5 text-body hover:bg-primary-soft hover:text-text-primary',
-                            current === item.id
-                              ? 'border-primary bg-primary-soft font-medium text-primary-ink'
-                              : 'border-transparent text-text-secondary',
-                          )}
-                        >
-                          {item.label}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+              <ul className="space-y-0.5">
+                {SECTION_LIST.map((item) => (
+                  <li key={item.id}>
+                    <Link
+                      to="/profile"
+                      search={{ section: item.id }}
+                      aria-current={current === item.id ? 'true' : undefined}
+                      className={cn(
+                        'block rounded-control border-l-2 px-2 py-1.5 text-body hover:bg-primary-soft hover:text-text-primary',
+                        current === item.id
+                          ? 'border-primary bg-primary-soft font-medium text-primary-ink'
+                          : 'border-transparent text-text-secondary',
+                      )}
+                    >
+                      {item.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             </div>
           </nav>
 
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border-default pb-6">
-              <p className="text-card-title font-medium text-text-primary">
-                {identity.nickname || identity.username}
-              </p>
-              <p className="text-body text-text-secondary">账号：{identity.username}</p>
-              {auth.user?.needs_onboarding ? <Badge tone="warning">学习设置未完成</Badge> : null}
-            </div>
-
             {!user ? (
               <div className="pt-8">
                 <ProfileSkeleton />
               </div>
             ) : (
-              <div className="mt-8 space-y-10">
+              <div className="mt-6 space-y-8">
                 <SectionSelector />
 
-                <SectionGroup label={groupLabel('identity')}>
-                  <Section id="profile-personal" title="个人信息" description="昵称、年级、专业与学期。">
+                <SectionGroup>
+                  <Section id="profile-personal" title="个人资料">
                     <PersonalInfoForm profile={user} />
                   </Section>
 
-                  <Section
-                    id="profile-learning"
-                    title="学习设置"
-                    description="三个方向的当前设置；要修改就进入各自的方向设置。备考计划的每日时长与复习策略在学习计划页面里管理。"
-                  >
+                  <Section id="profile-learning" title="学习设置">
                     <LearningSpacesSection />
                     <div className="mt-8 border-t border-border-default pt-6">
                       <h4 className="text-body font-medium text-text-primary">学习方向</h4>
@@ -278,18 +243,18 @@ export function ProfilePage() {
                   </Section>
                 </SectionGroup>
 
-                <SectionGroup label={groupLabel('entitlement')}>
-                  <Section id="profile-membership" title="会员" description="当前档位与额度上限。">
-                    <SubscriptionSection />
-                  </Section>
-
-                  <Section id="profile-usage" title="用量" description="你的额度使用情况。">
-                    <UsageSection />
+                <SectionGroup>
+                  <Section id="profile-membership" title="会员与额度">
+                    <div role="region" aria-label="会员"><SubscriptionSection /></div>
+                    <div id="profile-usage" role="region" aria-label="用量" className="mt-6 border-t border-border-default pt-5">
+                      <h4 className="text-body font-medium text-text-primary">额度使用</h4>
+                      <div className="mt-3"><UsageSection /></div>
+                    </div>
                   </Section>
                 </SectionGroup>
 
-                <SectionGroup label={groupLabel('records')}>
-                  <Section id="profile-data" title="学习数据" description="你的学习记录入口。">
+                <SectionGroup>
+                  <Section id="profile-data" title="学习数据">
                     <ul className="space-y-4">
                       {LEARNING_DATA_ENTRIES.map((entry) => (
                         <li key={entry.to}>
@@ -303,8 +268,8 @@ export function ProfilePage() {
                   </Section>
                 </SectionGroup>
 
-                <SectionGroup label={groupLabel('account')}>
-                  <Section id="profile-security" title="账号与安全" description="密码、邮箱与手机号。">
+                <SectionGroup>
+                  <Section id="profile-security" title="账号安全">
                     <div className="space-y-8">
                       <div>
                         <h4 className="text-body font-medium text-text-primary">修改密码</h4>
@@ -316,12 +281,6 @@ export function ProfilePage() {
                         <h4 className="text-body font-medium text-text-primary">绑定邮箱</h4>
                         <div className="mt-4">
                           <EmailSection profile={user} />
-                        </div>
-                      </div>
-                      <div>
-                        <h4 className="text-body font-medium text-text-primary">手机号</h4>
-                        <div className="mt-4">
-                          <PhoneSection profile={user} />
                         </div>
                       </div>
                     </div>
@@ -345,22 +304,6 @@ export function ProfilePage() {
                   </Section>
                 </SectionGroup>
 
-                <section aria-labelledby="profile-logout" className="border-t border-border-default pt-8">
-                  <h2 id="profile-logout" className="text-card-title font-semibold text-text-primary">
-                    退出登录
-                  </h2>
-                  <p className="mt-1 text-body text-text-secondary">
-                    退出后本机缓存的账号学习数据会被清除。
-                  </p>
-                  <Button
-                    variant="secondary"
-                    className="mt-5"
-                    onClick={onLogout}
-                    disabled={logout.isPending}
-                  >
-                    {logout.isPending ? '正在退出…' : '退出登录'}
-                  </Button>
-                </section>
               </div>
             )}
           </div>

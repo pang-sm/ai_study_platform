@@ -58,12 +58,11 @@ describe('profile section navigation', () => {
     const nav = screen.getByRole('navigation', { name: '学习档案分区' });
     const links = within(nav).getAllByRole('link');
     expect(links.map((link) => link.textContent)).toEqual([
-      '个人信息',
+      '个人资料',
       '学习设置',
-      '会员',
-      '用量',
+      '会员与额度',
       '学习数据',
-      '账号与安全',
+      '账号安全',
       '法务',
     ]);
 
@@ -79,16 +78,15 @@ describe('profile section navigation', () => {
     }
   });
 
-  it('groups the sections instead of presenting one undifferentiated column', async () => {
+  it('uses one page title and omits redundant navigation group headings', async () => {
     renderApp('/profile');
     await screen.findByDisplayValue('测试学习者');
 
-    // Each group is a heading of its own, and none of them repeats a section's name — otherwise
-    // the outline would say the same thing twice at two different levels.
-    for (const group of ['身份与学习设置', '会员与额度', '学习记录', '账号']) {
-      expect(screen.getByRole('heading', { name: group })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: '个人中心' })).toBeInTheDocument();
+    for (const group of ['身份与学习设置', '学习记录', '账号']) {
+      expect(screen.queryByRole('heading', { name: group })).not.toBeInTheDocument();
     }
-    for (const section of ['个人信息', '学习设置', '会员', '用量', '学习数据', '账号与安全', '法务']) {
+    for (const section of ['个人资料', '学习设置', '会员与额度', '学习数据', '账号安全', '法务']) {
       expect(screen.getByRole('heading', { name: section })).toBeInTheDocument();
     }
   });
@@ -101,12 +99,11 @@ describe('profile section navigation', () => {
     const options = within(selector).getAllByRole('option');
     expect(options.map((option) => option.textContent)).toEqual([
       '选择要查看的分区…',
-      '个人信息',
+      '个人资料',
       '学习设置',
-      '会员',
-      '用量',
+      '会员与额度',
       '学习数据',
-      '账号与安全',
+      '账号安全',
       '法务',
     ]);
     // The selector is a control, not a second source of section names: each option addresses a

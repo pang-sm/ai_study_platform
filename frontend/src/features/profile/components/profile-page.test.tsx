@@ -84,7 +84,10 @@ describe('profile page', () => {
     expect(await screen.findByDisplayValue('测试学习者')).toBeInTheDocument();
     expect(screen.getByLabelText('专业')).toHaveValue('计算机科学与技术');
     expect(screen.getByLabelText('年级')).toHaveValue('大三');
-    expect(screen.getByText('账号：test_learner')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '个人中心' })).toBeInTheDocument();
+    expect(screen.queryByText('个人学习档案')).not.toBeInTheDocument();
+    expect(screen.queryByText('账号：test_learner')).not.toBeInTheDocument();
+    expect(screen.queryByText('手机号')).not.toBeInTheDocument();
   });
 
   it('offers only learning settings the backend actually reads', async () => {
@@ -136,7 +139,7 @@ describe('profile page', () => {
     await userEvent.clear(nickname);
     await userEvent.type(nickname, '新昵称');
     await userEvent.click(
-      within(screen.getByRole('region', { name: '个人信息' })).getByRole('button', { name: '保存' }),
+      within(screen.getByRole('region', { name: '个人资料' })).getByRole('button', { name: '保存' }),
     );
 
     await waitFor(() =>
@@ -199,8 +202,9 @@ describe('profile page', () => {
 
     expect(screen.getByText('已绑定邮箱：learner@example.com')).toBeInTheDocument();
     expect(screen.getByText('当前版本不支持更换已绑定的邮箱。')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '发送验证码' })).toBeInTheDocument(); // phone only
-    expect(screen.getByRole('button', { name: '绑定手机号' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('手机号')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('短信验证码')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '修改密码' })).toBeInTheDocument();
   });
 
   it('links the published legal documents instead of saying they are missing', async () => {
@@ -213,14 +217,4 @@ describe('profile page', () => {
     expect(within(legal).queryByText(/尚未发布/)).not.toBeInTheDocument();
   });
 
-  it('logs out from the profile page through the real endpoint', async () => {
-    const { router, queryClient } = renderApp('/profile');
-    await screen.findByDisplayValue('测试学习者');
-
-    await userEvent.click(screen.getByRole('button', { name: '退出登录' }));
-
-    await waitFor(() => expect(post).toHaveBeenCalledWith('/logout', {}));
-    await waitFor(() => expect(router.state.location.pathname).toBe('/login'));
-    expect(queryClient.getQueryData(['auth', 'session'])).toBeNull();
-  });
 });

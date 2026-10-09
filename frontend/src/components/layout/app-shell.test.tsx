@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderApp } from '@/test/render-app';
@@ -69,18 +69,37 @@ describe('app shell navigation', () => {
     expect(screen.queryByRole('button', { name: '搜索学习内容' })).not.toBeInTheDocument();
   });
 
-  it('names the signed-in learner and opens their profile directly', async () => {
+  it('opens an account menu with the full learner name and the three working actions', async () => {
     renderApp('/review');
     await screen.findByRole('navigation', { name: '主导航' });
 
-    // A LINK, not a disclosure. The three destinations the old panel held all live on the
-    // profile page, so the panel was a second copy of one page's table of contents — and the
-    // copy is what drifted. Clicking the learner's own name now opens that page.
-    const link = screen.getByRole('link', { name: /测试学习者/ });
-    expect(link).toHaveAttribute('href', '/profile');
+    const trigger = screen.getByRole('button', { name: /test_learner/ });
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await userEvent.click(trigger);
+    expect(screen.getByText('test_learner', { selector: '[data-account-full-name]' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '个人中心' })).toHaveAttribute('href', '/profile');
+    expect(screen.getByRole('link', { name: '会员与额度' })).toHaveAttribute('href', '/membership');
+    expect(screen.getByRole('button', { name: '退出登录' })).toBeInTheDocument();
+  });
 
-    // Nothing to expand, because there is nothing folded away.
-    expect(screen.queryByRole('button', { name: /测试学习者/ })).not.toBeInTheDocument();
+  it('closes the account menu with Escape and returns focus to its trigger', async () => {
+    renderApp('/review');
+    await screen.findByRole('navigation', { name: '主导航' });
+    const trigger = screen.getByRole('button', { name: /test_learner/ });
+    await userEvent.click(trigger);
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('link', { name: '个人中心' })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it('logs out through the existing session endpoint from the account menu', async () => {
+    const { router, queryClient } = renderApp('/review');
+    await screen.findByRole('navigation', { name: '主导航' });
+    await userEvent.click(screen.getByRole('button', { name: /test_learner/ }));
+    await userEvent.click(screen.getByRole('button', { name: '退出登录' }));
+    expect(post).toHaveBeenCalledWith('/logout', {});
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'));
+    expect(queryClient.getQueryData(['auth', 'session'])).toBeNull();
   });
 });
 

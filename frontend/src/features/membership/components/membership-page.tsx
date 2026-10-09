@@ -1,22 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { Check, Sparkles } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Container } from '@/components/ui/container';
 import { Skeleton } from '@/components/ui/skeleton';
-import { StatusNote } from '@/components/ui/status-note';
 import {
-  entitlementRows, formatCap, formatPeriod, formatPrice, planRows, requirementLabel,
+  formatCap, formatPeriod, formatPrice, planRows,
   capabilityGloss, tierInkClass, tierLabel, usageMeters,
 } from '../view-models/membership';
 import {
   isOrderableTier,
-  membershipEntitlementKey,
-  subscriptionKey,
-  usageSummaryKey,
   useExamEntitlements, useSubscriptionPlans, useSubscriptionState, useUsageSummary,
 } from '../api/subscription';
-import { useQueryClient } from '@tanstack/react-query';
 import './membership-page.css';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -33,13 +28,9 @@ import './membership-page.css';
 // ─────────────────────────────────────────────────────────────────────────────
 
 function Standing({ tier, loading, failed }: { tier?: string; loading: boolean; failed: boolean }) {
-  if (loading) return <Skeleton className="h-16 w-64" />;
+  if (loading) return <Skeleton className="h-6 w-40" />;
   if (failed) return <p className="membership-standing membership-standing--unknown">暂时无法读取会员状态</p>;
-  return (
-    <h1 className={`membership-standing ${tierInkClass(tier)}`} data-tier={tier ?? 'free'}>
-      {tierLabel(tier)}
-    </h1>
-  );
+  return <p className={`membership-standing ${tierInkClass(tier)}`} data-tier={tier ?? 'free'}>{tierLabel(tier)} · 当前档位</p>;
 }
 
 function UsageLedger({ summary, loading }: { summary?: ReturnType<typeof useUsageSummary>['data']; loading: boolean }) {
@@ -52,22 +43,21 @@ function UsageLedger({ summary, loading }: { summary?: ReturnType<typeof useUsag
           <div className="membership-usage__figures">
             <span>{meter.label}</span>
             <strong>
-              {meter.budget === null
-                // An uncapped period says so in words. Rendering 0, or a full bar, would
-                // claim a measurement the tier does not have.
-                ? '不限'
-                : <>{meter.remaining ?? 0} <small>/ {meter.budget}</small></>}
+              {meter.budget === null ? '不限'
+                : meter.budget === undefined ? '—'
+                  : meter.period === 'daily'
+                    ? <>{meter.remaining?.toLocaleString() ?? '—'} <small>Credits 剩余</small></>
+                    : meter.used === null ? '—'
+                      : <>{meter.used.toLocaleString()} <small>/ {meter.budget.toLocaleString()} Credits</small></>}
             </strong>
           </div>
-          {meter.percentUsed === null
-            ? <p className="membership-usage__note">该档位此周期不设额度上限</p>
-            : (
-              <div className="membership-usage__track" aria-hidden="true">
-                <span style={{ width: `${meter.percentUsed}%` }} />
+          {meter.period === 'weekly' && meter.budget !== null && meter.budget !== undefined && meter.percentUsed !== null ? (
+              <div className="membership-usage__track">
+                <span role="progressbar" aria-label="本周额度使用" aria-valuemin={0} aria-valuemax={100} aria-valuenow={meter.percentUsed} style={{ width: `${meter.percentUsed}%` }} />
               </div>
-            )}
-          {meter.percentUsed !== null
-            ? <p className="membership-usage__note">已用 {meter.used}（预留 + 已结算）· 剩余 {meter.remaining}</p>
+            ) : null}
+          {meter.period === 'weekly' && meter.budget !== null && meter.budget !== undefined && meter.used !== null && meter.remaining !== null
+            ? <p className="membership-usage__note">剩余 {meter.remaining.toLocaleString()} Credits</p>
             : null}
         </li>
       ))}
@@ -149,10 +139,6 @@ function CapabilityList({ capabilities }: { capabilities: readonly string[] }) {
 function PlanStack({ rows }: { rows: ReturnType<typeof planRows> }) {
   return (
     <div className="membership-stack">
-      <p className="membership-compare__caption">
-        每个档位按 {formatPeriod(rows.find((row) => row.durationDays)?.durationDays ?? null) || '30 天'} 计费；
-        额度以平台 Credits 计，用完当周期不会续。Free 无需付费，也不能下单。
-      </p>
       {rows.map((row) => (
         <section key={row.tier} className="membership-stack__tier" aria-labelledby={`plan-${row.tier}`}>
           <h3 id={`plan-${row.tier}`} className="membership-stack__name">
@@ -209,10 +195,7 @@ function PlanComparison({ currentTier }: { currentTier?: string }) {
       {stacked ? <PlanStack rows={rows} /> : (
       <div className="membership-compare__wide">
       <table>
-        <caption className="membership-compare__caption">
-          每个档位按 {formatPeriod(rows.find((row) => row.durationDays)?.durationDays ?? null) || '30 天'} 计费；
-          额度以平台 Credits 计，用完当周期不会续。Free 无需付费，也不能下单。
-        </caption>
+        <caption className="membership-compare__caption">会员档位与权益</caption>
         <thead>
           <tr>
             <th scope="col">档位</th>
@@ -262,36 +245,10 @@ function PlanComparison({ currentTier }: { currentTier?: string }) {
   );
 }
 
-function Entitlements({ rows, loading, failed }: { rows: ReturnType<typeof entitlementRows>; loading: boolean; failed: boolean }) {
-  if (loading) return <Skeleton className="h-24 w-full" />;
-  if (failed) return <p className="membership-note">暂时无法读取权益状态。</p>;
-  if (!rows.length) return <p className="membership-note">当前方向没有需要开通的受限功能。</p>;
-  return (
-    <ul className="membership-entitlements">
-      {rows.map((row) => (
-        <li key={row.featureKey}>
-          <span className="membership-entitlements__name">{row.label}</span>
-          <span className={`membership-entitlements__state ${row.allowed ? 'is-open' : 'is-locked'}`}>
-            {row.allowed ? '已开通' : '未开通'}
-          </span>
-          <small>
-            {row.allowed
-              ? '当前档位已包含'
-              : `需要 ${requirementLabel(row)}${
-                  row.requiredCapability ? ` · ${capabilityGloss(row.requiredCapability)}` : ''
-                }`}
-          </small>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 export function MembershipPage() {
   const subscription = useSubscriptionState();
   const usage = useUsageSummary();
   const entitlements = useExamEntitlements();
-  const queryClient = useQueryClient();
 
   // ONE standing, read from ONE authority. The entitlement endpoint is asked the same
   // question because it is the gate the Study Plan actually reads — if it ever disagreed
@@ -300,31 +257,17 @@ export function MembershipPage() {
   const tierDisagrees = Boolean(
     subscription.data && entitlements.data && subscription.data.tier !== entitlements.data.current_tier,
   );
-  const refresh = () => {
-    void queryClient.invalidateQueries({ queryKey: subscriptionKey });
-    void queryClient.invalidateQueries({ queryKey: usageSummaryKey });
-    void queryClient.invalidateQueries({ queryKey: membershipEntitlementKey('exam_11408') });
-  };
-
   return (
     <div className="membership">
       <Container className="membership__inner">
         <header className="membership__header">
-          <p>会员</p>
+          <h1>会员</h1>
           <Standing tier={currentTier} loading={subscription.isPending} failed={subscription.isError && entitlements.isError} />
-          {entitlements.data?.policy_version ? (
-            <dl className="membership__facts">
-              <div><dt>政策版本</dt><dd>{entitlements.data.policy_version}</dd></div>
-            </dl>
-          ) : null}
           {tierDisagrees ? (
             <p className="membership-rail__error" role="alert">
               会员档位与权益判定不一致，请刷新后重试。
             </p>
           ) : null}
-          <p className="membership-note">
-            一个账号一个档位。所有学习方向的功能开通都由当前档位决定。
-          </p>
         </header>
 
         <section aria-labelledby="membership-compare-title">
@@ -332,25 +275,12 @@ export function MembershipPage() {
           <PlanComparison currentTier={currentTier} />
         </section>
 
-        <section aria-labelledby="membership-entitlements-title">
-          <h2 id="membership-entitlements-title">当前权益</h2>
-          <Entitlements rows={entitlementRows(entitlements.data)} loading={entitlements.isPending} failed={entitlements.isError} />
-        </section>
-
         <section aria-labelledby="membership-usage-title">
-          <h2 id="membership-usage-title">本期额度</h2>
+          <h2 id="membership-usage-title">额度使用</h2>
           {usage.isError
-            ? <p className="membership-note">暂时无法读取额度。</p>
+            ? <p className="membership-note" role="alert">暂时无法读取额度。</p>
             : <UsageLedger summary={usage.data} loading={usage.isPending} />}
         </section>
-
-        <StatusNote className="membership__footnote">
-          <Sparkles className="mr-2 inline size-4" aria-hidden="true" />
-          额度会在每个周期开始时重置；未用完的部分不会累积到下一个周期。
-          <button type="button" className="ml-3 underline" onClick={refresh}>
-            刷新
-          </button>
-        </StatusNote>
       </Container>
     </div>
   );

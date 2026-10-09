@@ -51,7 +51,7 @@ export interface UsageMeter {
   period: 'daily' | 'weekly';
   label: string;
   /** null = this tier has no cap for the period. Never rendered as 0. */
-  budget: number | null;
+  budget: number | null | undefined;
   remaining: number | null;
   used: number | null;
   percentUsed: number | null;
@@ -61,7 +61,7 @@ export function usageMeters(summary?: SubscriptionSummary): UsageMeter[] {
   const periods = summary?.periods ?? {};
   return (['daily', 'weekly'] as const).map((period) => {
     const entry = periods[period];
-    const budget = entry?.budget ?? null;
+    const budget = entry ? entry.budget : undefined;
     const remaining = entry?.remaining ?? null;
     // "used" is reserved + settled, the two columns the ledger actually holds — not
     // budget - remaining, which would fold in a reservation twice if the two ever diverged.
