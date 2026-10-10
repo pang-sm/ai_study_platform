@@ -120,15 +120,15 @@ describe('profile page', () => {
     // Every row leads into the setup flow that owns that space, and asks to come back here.
     expect(within(section).getByRole('link', { name: '学习设置' })).toHaveAttribute(
       'href',
-      '/course/setup?returnTo=%2Fprofile%3Fsection%3Dlearning',
+      '/course/setup?returnTo=%2Fprofile%3Fsection%3Dprofile-learning',
     );
     expect(within(section).getByRole('link', { name: '编辑备考设置' })).toHaveAttribute(
       'href',
-      '/exam/setup?returnTo=%2Fprofile%3Fsection%3Dlearning',
+      '/exam/setup?returnTo=%2Fprofile%3Fsection%3Dprofile-learning',
     );
     expect(within(section).getByRole('link', { name: '编辑编程设置' })).toHaveAttribute(
       'href',
-      '/programming/setup?returnTo=%2Fprofile%3Fsection%3Dlearning',
+      '/programming/setup?returnTo=%2Fprofile%3Fsection%3Dprofile-learning',
     );
   });
 
@@ -154,48 +154,6 @@ describe('profile page', () => {
     );
   });
 
-  it('reports the real tier and the ledger’s own numbers', async () => {
-    renderApp('/profile');
-    await screen.findByDisplayValue('测试学习者');
-
-    const membership = screen.getByRole('region', { name: '会员' });
-    expect(await within(membership).findByText('标准版')).toBeInTheDocument();
-
-    const usage = await screen.findByRole('region', { name: '用量' });
-    expect(await within(usage).findByText('18')).toBeInTheDocument();
-    expect(within(usage).getByText('108')).toBeInTheDocument();
-  });
-
-  it('prints an uncapped tier as uncapped rather than as a zero', async () => {
-    get.mockImplementation(async (url: string) => {
-      if (url === '/me/profile') return ok({ profile: PROFILE });
-      if (url === '/subscription') return ok({ tier: 'advanced', policy_version: 'v1' });
-      if (url === '/subscription/plans') {
-        return ok({
-          policy_version: 'v1',
-          plans: {
-            advanced: { label: '高级版', daily_budget: null, weekly_budget: 900, capabilities: [] },
-          },
-        });
-      }
-      return ok({
-        tier: 'advanced',
-        periods: {
-          daily: { budget: null, reserved: null, settled: null, remaining: null },
-          weekly: { budget: 900, reserved: 0, settled: 10, remaining: 890 },
-        },
-      });
-    });
-
-    renderApp('/profile');
-    const membership = await screen.findByRole('region', { name: '会员' });
-    expect(await within(membership).findByText('无上限')).toBeInTheDocument();
-
-    const usage = await screen.findByRole('region', { name: '用量' });
-    // An uncapped period reports `null` for all four figures, and each prints as uncapped.
-    expect(await within(usage).findAllByText('无上限')).toHaveLength(4);
-  });
-
   it('states the email binding rule instead of offering a change that the backend refuses', async () => {
     renderApp('/profile');
     await screen.findByDisplayValue('测试学习者');
@@ -205,16 +163,6 @@ describe('profile page', () => {
     expect(screen.queryByLabelText('手机号')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('短信验证码')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '修改密码' })).toBeInTheDocument();
-  });
-
-  it('links the published legal documents instead of saying they are missing', async () => {
-    renderApp('/profile');
-    await screen.findByDisplayValue('测试学习者');
-
-    const legal = screen.getByRole('region', { name: '法务' });
-    expect(within(legal).getByRole('link', { name: '用户协议' })).toHaveAttribute('href', '/terms');
-    expect(within(legal).getByRole('link', { name: '隐私政策' })).toHaveAttribute('href', '/privacy');
-    expect(within(legal).queryByText(/尚未发布/)).not.toBeInTheDocument();
   });
 
 });

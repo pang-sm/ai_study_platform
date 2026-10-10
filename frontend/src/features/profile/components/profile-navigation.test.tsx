@@ -1,4 +1,5 @@
 import { screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderApp } from '@/test/render-app';
 
@@ -51,8 +52,8 @@ beforeEach(() => {
 });
 
 describe('profile section navigation', () => {
-  it('lists every section in the side navigation and points each entry at a section that exists', async () => {
-    renderApp('/profile');
+  it('links all six entries to their real section or existing page', async () => {
+    const { router } = renderApp('/profile');
     await screen.findByDisplayValue('测试学习者');
 
     const nav = screen.getByRole('navigation', { name: '学习档案分区' });
@@ -66,16 +67,29 @@ describe('profile section navigation', () => {
       '法务',
     ]);
 
-    // A listed section and a rendered section cannot drift: every entry must resolve. The
-    // section travels as a search parameter rather than a fragment, because that is what makes
-    // it survive a refresh and what a setup flow can send a learner back to.
-    for (const link of links) {
-      const href = link.getAttribute('href') ?? '';
-      expect(href.startsWith('/profile?section=')).toBe(true);
-      const id = new URLSearchParams(href.split('?')[1]).get('section') ?? '';
-      expect(id).not.toBe('');
+    expect(links.map((link) => link.getAttribute('href'))).toEqual([
+      '/profile?section=profile-personal',
+      '/profile?section=profile-learning',
+      '/membership',
+      '/reports',
+      '/profile?section=profile-security',
+      '/terms',
+    ]);
+    for (const id of ['profile-personal', 'profile-learning', 'profile-security']) {
       expect(document.getElementById(id)).not.toBeNull();
     }
+
+    await userEvent.click(within(nav).getByRole('link', { name: '学习设置' }));
+    expect(router.state.location.search).toEqual({ section: 'profile-learning' });
+    expect(within(nav).getByRole('link', { name: '学习设置' })).toHaveAttribute('aria-current', 'location');
+    await userEvent.click(within(nav).getByRole('link', { name: '账号安全' }));
+    expect(router.state.location.search).toEqual({ section: 'profile-security' });
+    expect(within(nav).getByRole('link', { name: '账号安全' })).toHaveAttribute('aria-current', 'location');
+
+    await userEvent.click(within(nav).getByRole('link', { name: '会员与额度' }));
+    expect(router.state.location.pathname).toBe('/membership');
+    expect(await screen.findByRole('heading', { level: 1, name: /会员/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '会员' })).toHaveAttribute('aria-current', 'page');
   });
 
   it('uses one page title and omits redundant navigation group headings', async () => {
@@ -83,22 +97,24 @@ describe('profile section navigation', () => {
     await screen.findByDisplayValue('测试学习者');
 
     expect(screen.getByRole('heading', { level: 1, name: '个人中心' })).toBeInTheDocument();
-    for (const group of ['身份与学习设置', '学习记录', '账号']) {
+    for (const group of ['身份与学习设置', '学习记录']) {
       expect(screen.queryByRole('heading', { name: group })).not.toBeInTheDocument();
     }
-    for (const section of ['个人资料', '学习设置', '会员与额度', '学习数据', '账号安全', '法务']) {
+    for (const section of ['个人资料', '学习设置', '账号安全']) {
       expect(screen.getByRole('heading', { name: section })).toBeInTheDocument();
     }
+    expect(screen.queryByRole('heading', { name: '会员与额度' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '学习数据' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '法务' })).not.toBeInTheDocument();
   });
 
-  it('reaches the same sections from a selector on small screens', async () => {
-    renderApp('/profile');
+  it('navigates the mobile selector to the same real destinations', async () => {
+    const { router } = renderApp('/profile');
     await screen.findByDisplayValue('测试学习者');
 
     const selector = screen.getByLabelText('跳转到');
     const options = within(selector).getAllByRole('option');
     expect(options.map((option) => option.textContent)).toEqual([
-      '选择要查看的分区…',
       '个人资料',
       '学习设置',
       '会员与额度',
@@ -106,10 +122,37 @@ describe('profile section navigation', () => {
       '账号安全',
       '法务',
     ]);
-    // The selector is a control, not a second source of section names: each option addresses a
-    // section that is actually in the document.
-    for (const option of options.slice(1)) {
-      expect(document.getElementById(option.getAttribute('value') ?? '')).not.toBeNull();
-    }
+    await userEvent.selectOptions(selector, 'membership');
+    expect(router.state.location.pathname).toBe('/membership');
+    expect(await screen.findByRole('heading', { level: 1, name: /会员/ })).toBeInTheDocument();
+  });
+
+  it('opens the existing reports and legal pages from the desktop navigation', async () => {
+    const { router } = renderApp('/profile');
+    await screen.findByDisplayValue('测试学习者');
+    const nav = screen.getByRole('navigation', { name: '学习档案分区' });
+
+    await userEvent.click(within(nav).getByRole('link', { name: '学习数据' }));
+    expect(router.state.location.pathname).toBe('/reports');
+    expect(await screen.findByRole('heading', { name: /学习报告|学习数据/ })).toBeInTheDocument();
+
+    await router.navigate({ to: '/profile' });
+    await screen.findByDisplayValue('测试学习者');
+    await userEvent.click(within(screen.getByRole('navigation', { name: '学习档案分区' })).getByRole('link', { name: '法务' }));
+    expect(router.state.location.pathname).toBe('/terms');
+    expect(await screen.findByRole('heading', { name: /用户协议/ })).toBeInTheDocument();
+  });
+
+  it('restores section selection on direct URL and browser history navigation', async () => {
+    const { router } = renderApp('/profile?section=profile-learning');
+    await screen.findByDisplayValue('测试学习者');
+    const nav = screen.getByRole('navigation', { name: '学习档案分区' });
+    expect(within(nav).getByRole('link', { name: '学习设置' })).toHaveAttribute('aria-current', 'location');
+
+    await router.navigate({ to: '/profile', search: { section: 'profile-security' } });
+    expect(within(nav).getByRole('link', { name: '账号安全' })).toHaveAttribute('aria-current', 'location');
+    await router.history.back();
+    await screen.findByDisplayValue('计算机考研 408');
+    expect(within(nav).getByRole('link', { name: '学习设置' })).toHaveAttribute('aria-current', 'location');
   });
 });

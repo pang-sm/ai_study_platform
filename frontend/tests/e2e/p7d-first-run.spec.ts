@@ -34,7 +34,7 @@ async function signIn(page: Page) {
   // navigation is the persistent sidebar or the panel a phone opens. It is a LINK, not the
   // disclosure button it used to be: the control opens the profile directly and announces whose
   // profile in its own accessible name.
-  await expect(page.getByRole('link', { name: `打开学习档案：${USERNAME}` })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole('link', { name: `个人中心：${USERNAME}` })).toBeVisible({ timeout: 20_000 });
 }
 
 /** A read through the session the browser already holds, so it sees the learner's own data. */

@@ -3,14 +3,19 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderApp } from '@/test/render-app';
 
-const { post } = vi.hoisted(() => ({ post: vi.fn() }));
+const { post, get } = vi.hoisted(() => ({ post: vi.fn(), get: vi.fn() }));
 vi.mock('@/lib/api/client', () => ({
-  apiClient: { POST: post, GET: vi.fn(), PUT: vi.fn() },
+  apiClient: { POST: post, GET: get, PUT: vi.fn() },
   resolveApiResourceUrl: (value: string) => value,
 }));
 
 beforeEach(() => {
   post.mockReset();
+  get.mockReset();
+  get.mockImplementation(async (url: string) => {
+    if (url === '/me/profile') return { data: { profile: { id: 1, username: 'test_learner', nickname: '测试学习者', grade: '', major: '', semester: '', learning_direction: '', email: '', email_verified: false, phone: '', phone_verified: false, onboarding_completed: true, needs_onboarding: false } }, error: undefined, response: { ok: true, status: 200 } };
+    return { data: {}, error: undefined, response: { ok: true, status: 200 } };
+  });
   post.mockImplementation(async (url: string) => {
     if (url === '/logout') return { data: {}, error: undefined, response: { ok: true, status: 200 } };
     return { data: { user: null }, error: undefined, response: { ok: false, status: 401 } };
@@ -69,33 +74,25 @@ describe('app shell navigation', () => {
     expect(screen.queryByRole('button', { name: '搜索学习内容' })).not.toBeInTheDocument();
   });
 
-  it('opens an account menu with the full learner name and the three working actions', async () => {
+  it('links the compact account identity directly to personal center without a menu', async () => {
     renderApp('/review');
     await screen.findByRole('navigation', { name: '主导航' });
+    const account = screen.getByRole('link', { name: '个人中心：test_learner' });
+    expect(account).toHaveAttribute('href', '/profile');
+    expect(account).toHaveAttribute('title', 'test_learner');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
 
-    const trigger = screen.getByRole('button', { name: /test_learner/ });
-    expect(trigger).toHaveAttribute('aria-expanded', 'false');
-    await userEvent.click(trigger);
-    expect(screen.getByText('test_learner', { selector: '[data-account-full-name]' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '个人中心' })).toHaveAttribute('href', '/profile');
-    expect(screen.getByRole('link', { name: '会员与额度' })).toHaveAttribute('href', '/membership');
-    expect(screen.getByRole('button', { name: '退出登录' })).toBeInTheDocument();
+    account.focus();
+    expect(account).toHaveFocus();
+    await userEvent.keyboard('{Enter}');
+    expect(await screen.findByRole('heading', { level: 1, name: '个人中心' })).toBeInTheDocument();
   });
 
-  it('closes the account menu with Escape and returns focus to its trigger', async () => {
-    renderApp('/review');
-    await screen.findByRole('navigation', { name: '主导航' });
-    const trigger = screen.getByRole('button', { name: /test_learner/ });
-    await userEvent.click(trigger);
-    await userEvent.keyboard('{Escape}');
-    expect(screen.queryByRole('link', { name: '个人中心' })).not.toBeInTheDocument();
-    expect(trigger).toHaveFocus();
-  });
-
-  it('logs out through the existing session endpoint from the account menu', async () => {
+  it('logs out through the existing session endpoint from account security', async () => {
     const { router, queryClient } = renderApp('/review');
     await screen.findByRole('navigation', { name: '主导航' });
-    await userEvent.click(screen.getByRole('button', { name: /test_learner/ }));
+    await userEvent.click(screen.getByRole('link', { name: '个人中心：test_learner' }));
+    await screen.findByRole('heading', { level: 1, name: '个人中心' });
     await userEvent.click(screen.getByRole('button', { name: '退出登录' }));
     expect(post).toHaveBeenCalledWith('/logout', {});
     await waitFor(() => expect(router.state.location.pathname).toBe('/login'));

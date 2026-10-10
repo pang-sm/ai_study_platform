@@ -1,13 +1,34 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useNavigate } from '@tanstack/react-router';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { TextField } from '@/components/ui/text-field';
 import { serverMessage } from '@/lib/api/server-message';
 import { ApiRequestError } from '@/features/exam/api/content-status';
 import type { UserProfile } from '@/features/auth/api/user-profile';
+import { useLogout } from '@/features/auth/api/auth';
 import { useChangePassword, useSendEmailCode, useVerifyEmail, useSendPhoneCode, useVerifyPhone } from '../api/profile';
+
+export function LogoutButton() {
+  const logout = useLogout();
+  const navigate = useNavigate();
+
+  const onLogout = async () => {
+    try {
+      await logout.mutateAsync();
+    } finally {
+      await navigate({ to: '/login' });
+    }
+  };
+
+  return (
+    <Button type="button" variant="secondary" onClick={() => void onLogout()} disabled={logout.isPending}>
+      {logout.isPending ? '正在退出…' : '退出登录'}
+    </Button>
+  );
+}
 
 function messageOf(error: unknown, fallback: string): string {
   if (error instanceof ApiRequestError) return serverMessage(error.detail) ?? fallback;

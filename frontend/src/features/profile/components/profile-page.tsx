@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Link, useNavigate, useSearch } from '@tanstack/react-router';
+import { Link, useNavigate, useRouterState, useSearch } from '@tanstack/react-router';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusNote } from '@/components/ui/status-note';
@@ -7,18 +7,9 @@ import { useAuth } from '@/features/auth/auth-context';
 import { useProfile } from '../api/profile';
 import { LearningSettingsForm, PersonalInfoForm } from './profile-settings';
 import { LearningSpacesSection } from './profile-learning-spaces';
-import { SubscriptionSection, UsageSection } from './profile-membership';
 import { cn } from '@/lib/utils';
-import { EmailSection, PasswordForm } from './profile-security';
+import { EmailSection, LogoutButton, PasswordForm } from './profile-security';
 import { SECTION_IDS, SECTION_LIST } from './profile-sections';
-
-const LEARNING_DATA_ENTRIES = [
-  { to: '/reports', label: '学习报告', description: '按方向查看已完成的学习与练习记录。' },
-  { to: '/review', label: '统一复习', description: '各个方向汇总在一起的待复习与待处理项目。' },
-  { to: '/exam', label: '考研学习记录', description: '练习、真题、错题与计划完成情况。' },
-  { to: '/course', label: '专业学习记录', description: '已学内容与课程练习记录。' },
-  { to: '/programming', label: '编程学习记录', description: '练习提交、运行与测试结果。' },
-] as const;
 
 function SectionGroup({ children }: { label?: string; children: ReactNode }) {
   return (
@@ -55,6 +46,24 @@ function Section({ id, title, description, children }: { id: string; title: stri
 function SectionSelector() {
   const navigate = useNavigate();
   const { section } = useSearch({ from: '/profile' });
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const selected = pathname === '/profile'
+    ? section ?? 'profile-personal'
+    : SECTION_LIST.find((item) => item.to === pathname)?.id ?? '';
+
+  const selectDestination = (id: string) => {
+    const destination = SECTION_LIST.find((item) => item.id === id);
+    if (!destination) return;
+    if (destination.to === '/profile') {
+      void navigate({ to: '/profile', search: { section: destination.section } });
+    } else if (destination.to === '/membership') {
+      void navigate({ to: '/membership' });
+    } else if (destination.to === '/reports') {
+      void navigate({ to: '/reports', search: { space: undefined, courseId: undefined, module: undefined, language: undefined } });
+    } else if (destination.to === '/terms') {
+      void navigate({ to: '/terms' });
+    }
+  };
 
   return (
     <div className="lg:hidden">
@@ -63,13 +72,12 @@ function SectionSelector() {
       </label>
       <select
         id="profile-section-selector"
-        value={section ?? ''}
+        value={selected}
         onChange={(event) => {
-          void navigate({ to: '/profile', search: { section: event.target.value || undefined } });
+          selectDestination(event.target.value);
         }}
         className="mt-2 h-11 w-full rounded-control border border-border-default bg-surface px-3 text-body text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
       >
-        <option value="">选择要查看的分区…</option>
         {SECTION_LIST.map((item) => (
           <option key={item.id} value={item.id}>
             {item.label}
@@ -101,6 +109,7 @@ function ProfileSkeleton() {
  */
 function useCurrentSection(ids: readonly string[], requested?: string): string | undefined {
   const [current, setCurrent] = useState<string | undefined>(requested ?? ids[0]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (typeof IntersectionObserver === 'undefined') return;
@@ -117,21 +126,28 @@ function useCurrentSection(ids: readonly string[], requested?: string): string |
         const top = Math.min(...entered.map((entry) => entry.boundingClientRect.top));
         const match = entered.find((entry) => entry.boundingClientRect.top === top);
         const id = match?.target.id;
-        if (id) setCurrent(id);
+        if (id) {
+          setCurrent(id);
+          if (id !== requested) {
+            void navigate({ to: '/profile', search: { section: id }, replace: true });
+          }
+        }
       },
       { rootMargin: '-96px 0px -60% 0px', threshold: 0 },
     );
     sections.forEach((section) => observer.observe(section.element));
     return () => observer.disconnect();
-  }, [ids]);
+  }, [ids, navigate, requested]);
 
-  return current;
+  return requested ?? current;
 }
 
 export function ProfilePage() {
   const profile = useProfile();
   const auth = useAuth();
+  const navigate = useNavigate();
   const { section } = useSearch({ from: '/profile' });
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
   const current = useCurrentSection(SECTION_IDS, section);
 
   /**
@@ -184,19 +200,40 @@ export function ProfilePage() {
               <ul className="space-y-0.5">
                 {SECTION_LIST.map((item) => (
                   <li key={item.id}>
-                    <Link
-                      to="/profile"
-                      search={{ section: item.id }}
-                      aria-current={current === item.id ? 'true' : undefined}
-                      className={cn(
-                        'block rounded-control border-l-2 px-2 py-1.5 text-body hover:bg-primary-soft hover:text-text-primary',
-                        current === item.id
-                          ? 'border-primary bg-primary-soft font-medium text-primary-ink'
-                          : 'border-transparent text-text-secondary',
-                      )}
-                    >
-                      {item.label}
-                    </Link>
+                    {item.to === '/profile' ? (
+                      <a
+                        href={`/profile?section=${encodeURIComponent(item.section)}`}
+                        onClick={(event) => {
+                          if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                          event.preventDefault();
+                          void navigate({ to: '/profile', search: { section: item.section } });
+                        }}
+                        aria-current={pathname === '/profile' && current === item.section ? 'location' : undefined}
+                        className={cn(
+                          'block rounded-control border-l-2 px-2 py-1.5 text-body hover:bg-primary-soft hover:text-text-primary',
+                          pathname === '/profile' && current === item.section
+                            ? 'border-primary bg-primary-soft font-medium text-primary-ink'
+                            : 'border-transparent text-text-secondary',
+                        )}
+                      >
+                        {item.label}
+                      </a>
+                    ) : (
+                      <Link
+                        to={item.to}
+                        search={item.to === '/reports' ? { space: undefined, courseId: undefined, module: undefined, language: undefined } : undefined}
+                        activeOptions={{ exact: true }}
+                        aria-current={pathname === item.to ? 'page' : undefined}
+                        className={cn(
+                          'block rounded-control border-l-2 px-2 py-1.5 text-body hover:bg-primary-soft hover:text-text-primary',
+                          pathname === item.to
+                            ? 'border-primary bg-primary-soft font-medium text-primary-ink'
+                            : 'border-transparent text-text-secondary',
+                        )}
+                      >
+                        {item.label}
+                      </Link>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -244,31 +281,6 @@ export function ProfilePage() {
                 </SectionGroup>
 
                 <SectionGroup>
-                  <Section id="profile-membership" title="会员与额度">
-                    <div role="region" aria-label="会员"><SubscriptionSection /></div>
-                    <div id="profile-usage" role="region" aria-label="用量" className="mt-6 border-t border-border-default pt-5">
-                      <h4 className="text-body font-medium text-text-primary">额度使用</h4>
-                      <div className="mt-3"><UsageSection /></div>
-                    </div>
-                  </Section>
-                </SectionGroup>
-
-                <SectionGroup>
-                  <Section id="profile-data" title="学习数据">
-                    <ul className="space-y-4">
-                      {LEARNING_DATA_ENTRIES.map((entry) => (
-                        <li key={entry.to}>
-                          <Link to={entry.to} className="text-body text-primary-ink hover:text-primary-hover">
-                            {entry.label}
-                          </Link>
-                          <p className="mt-1 text-body text-text-secondary">{entry.description}</p>
-                        </li>
-                      ))}
-                    </ul>
-                  </Section>
-                </SectionGroup>
-
-                <SectionGroup>
                   <Section id="profile-security" title="账号安全">
                     <div className="space-y-8">
                       <div>
@@ -283,24 +295,11 @@ export function ProfilePage() {
                           <EmailSection profile={user} />
                         </div>
                       </div>
+                      <div>
+                        <h4 className="text-body font-medium text-text-primary">账号</h4>
+                        <div className="mt-4"><LogoutButton /></div>
+                      </div>
                     </div>
-                  </Section>
-
-                  <Section id="profile-legal" title="法务">
-                    <ul className="space-y-4">
-                      <li>
-                        <Link to="/terms" className="text-body text-primary-ink hover:text-primary-hover">
-                          用户协议
-                        </Link>
-                        <p className="mt-1 text-body text-text-secondary">使用本服务的约定与双方责任。</p>
-                      </li>
-                      <li>
-                        <Link to="/privacy" className="text-body text-primary-ink hover:text-primary-hover">
-                          隐私政策
-                        </Link>
-                        <p className="mt-1 text-body text-text-secondary">收集哪些信息、如何使用与保存。</p>
-                      </li>
-                    </ul>
                   </Section>
                 </SectionGroup>
 
