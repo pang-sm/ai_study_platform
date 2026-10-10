@@ -126,10 +126,19 @@ function useCurrentSection(ids: readonly string[], requested?: string, enabled =
     });
     if (!sections.length) return;
 
+    // A deep link can finish loading while the browser is still at the top of the page.
+    // Ignore that stale initial viewport until the requested section is actually observed.
+    let requestedSectionReached = !requested;
     const observer = new IntersectionObserver(
       (entries) => {
         const entered = entries.filter((entry) => entry.isIntersecting);
         if (!entered.length) return;
+        if (requested && !requestedSectionReached) {
+          if (!entered.some((entry) => entry.target.id === requested)) return;
+          requestedSectionReached = true;
+          setCurrent(requested);
+          return;
+        }
         const top = Math.min(...entered.map((entry) => entry.boundingClientRect.top));
         const match = entered.find((entry) => entry.boundingClientRect.top === top);
         const id = match?.target.id;

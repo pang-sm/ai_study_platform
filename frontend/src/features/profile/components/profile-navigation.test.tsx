@@ -63,7 +63,11 @@ describe('profile section navigation', () => {
       }
       throw new Error(`unexpected GET ${url}`);
     });
+    const callbacks: ((entries: IntersectionObserverEntry[]) => void)[] = [];
     const Observer = vi.fn(class {
+      constructor(callback: IntersectionObserverCallback) {
+        callbacks.push((entries) => callback(entries, {} as IntersectionObserver));
+      }
       observe = vi.fn();
       disconnect = vi.fn();
     });
@@ -80,6 +84,20 @@ describe('profile section navigation', () => {
 
     expect(Observer).toHaveBeenCalledTimes(1);
     expect(router.state.location.search).toEqual({ section: 'profile-security' });
+
+    const entry = (id: string, top: number) => ({
+      isIntersecting: true,
+      target: document.getElementById(id) as Element,
+      boundingClientRect: { top } as DOMRectReadOnly,
+    }) as IntersectionObserverEntry;
+    const observerCallback = callbacks[0];
+    expect(observerCallback).toBeDefined();
+    observerCallback?.([entry('profile-personal', 0)]);
+    expect(router.state.location.search).toEqual({ section: 'profile-security' });
+
+    observerCallback?.([entry('profile-security', 96)]);
+    observerCallback?.([entry('profile-learning', 96)]);
+    expect(router.state.location.search).toEqual({ section: 'profile-learning' });
   });
 
   it('links the four remaining entries to their real section or existing page', async () => {
