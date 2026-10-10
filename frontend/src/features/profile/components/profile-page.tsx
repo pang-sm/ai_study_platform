@@ -36,6 +36,12 @@ function Section({ id, title, description, children }: { id: string; title: stri
   );
 }
 
+function scrollToProfileSection(id: string) {
+  const target = document.getElementById(id);
+  if (typeof target?.scrollIntoView !== 'function') return;
+  target.scrollIntoView({ block: 'start', behavior: 'auto' });
+}
+
 /**
  * The same sections, reachable from a control narrow enough for a phone.
  *
@@ -55,11 +61,9 @@ function SectionSelector() {
     const destination = SECTION_LIST.find((item) => item.id === id);
     if (!destination) return;
     if (destination.to === '/profile') {
-      void navigate({ to: '/profile', search: { section: destination.section } });
-    } else if (destination.to === '/membership') {
-      void navigate({ to: '/membership' });
-    } else if (destination.to === '/reports') {
-      void navigate({ to: '/reports', search: { space: undefined, courseId: undefined, module: undefined, language: undefined } });
+      void navigate({ to: '/profile', search: { section: destination.section } }).then(() => {
+        scrollToProfileSection(destination.section);
+      });
     } else if (destination.to === '/terms') {
       void navigate({ to: '/terms' });
     }
@@ -169,7 +173,7 @@ export function ProfilePage() {
     if (!section || !user) return;
     const target = document.getElementById(section);
     if (!target || typeof target.scrollIntoView !== 'function') return;
-    target.scrollIntoView({ block: 'start' });
+    scrollToProfileSection(section);
   }, [section, user]);
 
   const identity = user ?? auth.user;
@@ -206,7 +210,9 @@ export function ProfilePage() {
                         onClick={(event) => {
                           if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
                           event.preventDefault();
-                          void navigate({ to: '/profile', search: { section: item.section } });
+                          void navigate({ to: '/profile', search: { section: item.section } }).then(() => {
+                            scrollToProfileSection(item.section);
+                          });
                         }}
                         aria-current={pathname === '/profile' && current === item.section ? 'location' : undefined}
                         className={cn(
@@ -221,7 +227,6 @@ export function ProfilePage() {
                     ) : (
                       <Link
                         to={item.to}
-                        search={item.to === '/reports' ? { space: undefined, courseId: undefined, module: undefined, language: undefined } : undefined}
                         activeOptions={{ exact: true }}
                         aria-current={pathname === item.to ? 'page' : undefined}
                         className={cn(

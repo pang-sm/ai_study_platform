@@ -2,8 +2,6 @@
 export const SECTION_LIST = [
   { id: 'profile-personal', label: '个人资料', to: '/profile', section: 'profile-personal' },
   { id: 'profile-learning', label: '学习设置', to: '/profile', section: 'profile-learning' },
-  { id: 'membership', label: '会员与额度', to: '/membership' },
-  { id: 'reports', label: '学习数据', to: '/reports' },
   { id: 'profile-security', label: '账号安全', to: '/profile', section: 'profile-security' },
   { id: 'terms', label: '法务', to: '/terms' },
 ] as const;
