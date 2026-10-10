@@ -29,6 +29,7 @@ const PROFILE = {
 };
 
 beforeEach(() => {
+  vi.unstubAllGlobals();
   get.mockReset();
   get.mockImplementation(async (url: string) => {
     if (url === '/me/profile') return ok({ profile: PROFILE });
@@ -52,6 +53,35 @@ beforeEach(() => {
 });
 
 describe('profile section navigation', () => {
+  it('does not replace a deep-linked section while the profile is still loading', async () => {
+    let resolveProfile: ((value: ReturnType<typeof ok>) => void) | undefined;
+    get.mockImplementation((url: string) => {
+      if (url === '/me/profile') {
+        return new Promise((resolve) => {
+          resolveProfile = resolve;
+        });
+      }
+      throw new Error(`unexpected GET ${url}`);
+    });
+    const Observer = vi.fn(class {
+      observe = vi.fn();
+      disconnect = vi.fn();
+    });
+    vi.stubGlobal('IntersectionObserver', Observer);
+
+    const { router } = renderApp('/profile?section=profile-security');
+    await screen.findByRole('link', { name: '智学平台首页' });
+
+    expect(Observer).not.toHaveBeenCalled();
+    expect(router.state.location.search).toEqual({ section: 'profile-security' });
+
+    resolveProfile?.(ok({ profile: PROFILE }));
+    await screen.findByDisplayValue('测试学习者');
+
+    expect(Observer).toHaveBeenCalledTimes(1);
+    expect(router.state.location.search).toEqual({ section: 'profile-security' });
+  });
+
   it('links the four remaining entries to their real section or existing page', async () => {
     const { router } = renderApp('/profile');
     await screen.findByDisplayValue('测试学习者');

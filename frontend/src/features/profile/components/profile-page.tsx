@@ -111,12 +111,15 @@ function ProfileSkeleton() {
  * next one does — measured against the sticky nav's own height, so a section is marked while the
  * reader is actually inside it rather than one section late.
  */
-function useCurrentSection(ids: readonly string[], requested?: string): string | undefined {
+function useCurrentSection(ids: readonly string[], requested?: string, enabled = true): string | undefined {
   const [current, setCurrent] = useState<string | undefined>(requested ?? ids[0]);
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (typeof IntersectionObserver === 'undefined') return;
+    // Wait for the stored profile before observing scroll position. On a deep-link refresh,
+    // the initial viewport is still at the top while profile data loads; observing then would
+    // mistake that temporary position for the learner's requested section and replace the URL.
+    if (!enabled || typeof IntersectionObserver === 'undefined') return;
     const sections = ids.flatMap((id) => {
       const element = document.getElementById(id);
       return element ? [{ id, element }] : [];
@@ -141,7 +144,7 @@ function useCurrentSection(ids: readonly string[], requested?: string): string |
     );
     sections.forEach((section) => observer.observe(section.element));
     return () => observer.disconnect();
-  }, [ids, navigate, requested]);
+  }, [enabled, ids, navigate, requested]);
 
   return requested ?? current;
 }
@@ -152,7 +155,7 @@ export function ProfilePage() {
   const navigate = useNavigate();
   const { section } = useSearch({ from: '/profile' });
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const current = useCurrentSection(SECTION_IDS, section);
+  const current = useCurrentSection(SECTION_IDS, section, Boolean(profile.data));
 
   /**
    * The editable sections wait for the stored profile rather than starting from the session's
