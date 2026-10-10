@@ -90,12 +90,27 @@ describe('profile section navigation', () => {
       target: document.getElementById(id) as Element,
       boundingClientRect: { top } as DOMRectReadOnly,
     }) as IntersectionObserverEntry;
+    const sectionTops = new Map<string, number>([
+      ['profile-personal', 0],
+      ['profile-learning', 500],
+      ['profile-security', 1200],
+    ]);
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const top = sectionTops.get(this.id);
+      return { top: top ?? 0 } as DOMRect;
+    });
     const observerCallback = callbacks[0];
     expect(observerCallback).toBeDefined();
     observerCallback?.([entry('profile-personal', 0)]);
     expect(router.state.location.search).toEqual({ section: 'profile-security' });
 
+    sectionTops.set('profile-personal', -1000);
+    sectionTops.set('profile-learning', -500);
+    sectionTops.set('profile-security', 96);
     observerCallback?.([entry('profile-security', 96)]);
+
+    sectionTops.set('profile-learning', 96);
+    sectionTops.set('profile-security', 600);
     observerCallback?.([entry('profile-learning', 96)]);
     expect(router.state.location.search).toEqual({ section: 'profile-learning' });
   });

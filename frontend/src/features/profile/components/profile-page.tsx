@@ -139,9 +139,10 @@ function useCurrentSection(ids: readonly string[], requested?: string, enabled =
           setCurrent(requested);
           return;
         }
-        const top = Math.min(...entered.map((entry) => entry.boundingClientRect.top));
-        const match = entered.find((entry) => entry.boundingClientRect.top === top);
-        const id = match?.target.id;
+        const threshold = 180;
+        const id = sections
+          .filter(({ element }) => element.getBoundingClientRect().top <= threshold)
+          .at(-1)?.id ?? sections[0]?.id;
         if (id) {
           setCurrent(id);
           if (id !== requested) {
